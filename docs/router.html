@@ -54,9 +54,23 @@ async function renderModels() {
   const statusChip = { active: ["在线", "green"], registering: ["注册中", "yellow"],
     paused: ["已停用", "gray"], retired: ["已退役", "red"] };
   const table = el("table", { class: "data" }, [
-    el("thead", {}, [el("tr", {}, ["模型", "供应商", "状态", "单价 $/M（入 / 出）", "能力", "数据集覆盖率", "凭证", "操作"]
+    el("thead", {}, [el("tr", {}, ["模型", "供应商", "状态", "单价 ¥/M（入 / 出）", "能力", "数据集覆盖率", "凭证", "操作"]
       .map(h => el("th", {}, [h])))]),
-    el("tbody", {}, models.filter(m => (m.bank_coverage || 0) >= 1).map(m => {
+    el("tbody", {}, models.filter(m => (m.bank_coverage || 0) >= 1)
+      .sort((a2, b2) => String(a2.provider).localeCompare(String(b2.provider)) || String(a2.display_name).localeCompare(String(b2.display_name)))
+      .flatMap((m, i, arr) => {
+        const rows2 = [];
+        if (i === 0 || arr[i - 1].provider !== m.provider) {
+          rows2.push(el("tr", { class: "provider-row" }, [el("td", { colspan: "8" }, [
+            el("span", { style: "font-weight:700" }, [m.provider]),
+            el("span", { class: "muted num", style: "margin-left:8px" }, [`${arr.filter(x => x.provider === m.provider).length} 个模型`]),
+          ])]));
+        }
+        rows2.push(renderModelRow(m));
+        return rows2;
+      })),
+  ]);
+  function renderModelRow(m) {
       const [lb, color] = statusChip[m.status] || [m.status, "gray"];
       const caps = m.capabilities || {};
       const capChips = [caps.tool_call && "工具调用", caps.vision && "视觉", caps.thinking && "深度思考",
@@ -70,7 +84,9 @@ async function renderModels() {
           el("div", { class: "muted num" }, [m.model_id])]),
         el("td", {}, [m.provider]),
         el("td", {}, [el("span", { class: "chip " + color, title: m.status === "registering" ? "入池评测未完成，不参与路由" : (m.status === "paused" ? "已停用，不参与路由，可随时上线" : "") }, [lb])]),
-        el("td", { class: "num", title: "每百万 token 的输入 / 输出单价（人民币）" }, [`${m.price_input} / ${m.price_output}`]),
+        el("td", { class: "num", title: "每百万 token 的输入 / 输出单价（人民币）" }, [
+          (Number(m.price_input) || Number(m.price_output)) ? `${m.price_input} / ${m.price_output}`
+            : el("span", { class: "chip yellow", title: "在「更多」里导入画像数据" }, ["画像数据未导入"])]),
         el("td", { style: "min-width:150px" }, capChips.map(c => el("span", { class: "chip gray", style: "margin:0 4px 2px 0" }, [c]))),
         el("td", { style: "min-width:110px" }, [
           coverage >= 100 && !(backfill && backfill.status === "running")
@@ -121,6 +137,7 @@ async function renderModels() {
                 try { await UI.api(`/v1/models/${m.model_id}/set-default`, { method: "POST" }); UI.toast("已设为默认兜底模型"); renderModels(); }
                 catch (e) { UI.toast(e.data?.error || e.message, true); }
               } } : null,
+              { label: "导入画像数据", onClick: () => profileDataDialog(m) },
               { label: "复制 model_id", onClick: () => { navigator.clipboard.writeText(m.model_id); UI.toast("已复制"); } },
               m.credential_masked !== "****" ? { label: "删除凭证并暂停", danger: true, onClick: async () => {
                 if (m.is_default) { UI.toast("默认兜底模型的凭证不能删除，请先切换默认模型", true); return; }
@@ -134,8 +151,7 @@ async function renderModels() {
           })(),
         ])]),
       ]);
-    })),
-  ]);
+  }
   const pending = models.filter(m => (m.bank_coverage || 0) < 1);
   if (pending.length) {
     const rows = el("div", {});
@@ -244,7 +260,6 @@ function registerDialog() {
       el("span", { class: "label-text req" }, [label, hint ? UI.help(hint) : null]), n]);
   };
   const err = el("div", { class: "field-error" });
-  const step2Box = el("div", { style: "display:none" });
   const verifyBtn = el("button", { class: "btn primary", onclick: async (e) => {
     err.textContent = "";
     if (!st.display_name) { err.textContent = "请填写显示名"; return; }
@@ -253,54 +268,17 @@ function registerDialog() {
     if (!/^vault:\/\/\S+$/.test(st.credential_ref)) { err.textContent = "凭证需为 vault:// 引用（密钥不明文入库）"; return; }
     await UI.withBusy(e.currentTarget, async () => {
       await new Promise(r => setTimeout(r, 600)); // 演示：模拟连通性校验
-      // 演示：按服务商目录带出单价与能力；真实环境取决于服务商是否提供定价接口，取不到则人工填写
-      st.price_input = st.price_input ?? 0.4;
-      st.price_output = st.price_output ?? 0.8;
-      st.caps = st.caps || { tool_call: true, streaming: true, vision: false, context_window: 32768 };
       st.provider = st.provider || (st.endpoint.split("//")[1] || "").split(".")[0] || "custom";
-      drawStep2();
-      step2Box.style.display = "";
-      verifyBtn.style.display = "none";
-      UI.toast("连接校验通过，已带出该服务商的目录单价，可修改");
+      try {
+        await UI.api("/v1/models", { method: "POST", body: {
+          model_id: st.model_id, display_name: st.display_name, provider: st.provider,
+          endpoint: st.endpoint, credential_ref: st.credential_ref,
+          capabilities: { tool_call: true, streaming: true } } });
+        UI.toast("模型已添加。可在列表「更多」里导入画像数据（单价 / 上下文），回填评测集后上线");
+        mask.remove(); renderModels();
+      } catch (e2) { err.textContent = e2.data?.error || e2.message; }
     }, "校验中……");
-  } }, ["连接校验"]);
-  function drawStep2() {
-    step2Box.innerHTML = "";
-    const pin = el("input", { type: "number", value: st.price_input, step: "0.05", min: "0" });
-    pin.oninput = () => st.price_input = pin.value;
-    const pout = el("input", { type: "number", value: st.price_output, step: "0.05", min: "0" });
-    pout.oninput = () => st.price_output = pout.value;
-    step2Box.append(
-      el("div", { class: "sec-head", style: "margin-top:16px" }, ["单价与能力",
-        el("span", { class: "chip green", style: "margin-left:8px" }, ["连接校验通过"])]),
-      el("div", { class: "muted", style: "margin-bottom:8px" }, ["单价按服务商目录自动带出（演示模拟；取不到时人工填写），可直接修改"]),
-      el("div", { class: "grid cols-2" }, [
-        el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["输入单价（RMB/百万 token）"]), pin]),
-        el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["输出单价（RMB/百万 token）"]), pout]),
-      ]),
-      el("div", { style: "display:flex;gap:6px;flex-wrap:wrap;margin-top:2px" }, [
-        el("span", { class: "chip gray" }, ["工具调用"]), el("span", { class: "chip gray" }, ["流式输出"]),
-        el("span", { class: "chip gray" }, ["32k 上下文"]),
-        UI.help("能力由校验探测带出；上线前需完成评测集回填"),
-      ]),
-      el("div", { style: "display:flex;justify-content:flex-end;gap:8px;margin-top:16px" }, [
-        el("button", { class: "btn primary", onclick: async (e) => {
-          if (!(Number(st.price_input) >= 0) || !(Number(st.price_output) >= 0)) { UI.toast("单价需为非负数字", true); return; }
-          await UI.withBusy(e.currentTarget, async () => {
-            try {
-              await UI.api("/v1/models", { method: "POST", body: {
-                model_id: st.model_id, display_name: st.display_name, provider: st.provider,
-                endpoint: st.endpoint, credential_ref: st.credential_ref,
-                price_input: Number(st.price_input), price_output: Number(st.price_output),
-                capabilities: st.caps } });
-              UI.toast("已添加，请回填评测集后上线");
-              mask.remove(); renderModels();
-            } catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
-          }, "添加中……");
-        } }, ["添加模型"]),
-      ]),
-    );
-  }
+  } }, ["连接校验并添加"]);
   const body = el("div", {}, [
     el("div", { class: "sec-head" }, ["接入信息"]),
     el("div", { class: "grid cols-2" }, [
@@ -310,10 +288,59 @@ function registerDialog() {
     fieldEl("接口地址", "endpoint", "https://api.provider.com/v1", "仅 https"),
     fieldEl("API 凭证", "credential_ref", "vault://cred/my-model", "填 vault:// 引用，密钥加密存储、展示脱敏"),
     err,
+    el("div", { class: "muted", style: "margin:4px 0 8px" }, ["第二步「导入画像数据」（单价 / 上下文长度）非必选，添加后可在模型列表随时补充"]),
     el("div", { style: "display:flex;justify-content:flex-end;margin-top:8px" }, [verifyBtn]),
-    step2Box,
   ]);
   const mask = UI.modal("添加模型", body, null, { persistent: true });
+}
+
+// 导入模型画像数据：贴官方定价页链接由 AI 自动获取，或手动填写（非必选步骤）
+function profileDataDialog(m) {
+  if (document.querySelector(".modal-mask")) return;
+  const urlIn = el("input", { type: "url", placeholder: "https://provider.com/pricing（官方定价 / 模型文档页）" });
+  const pin = el("input", { type: "number", step: "0.05", min: "0", value: Number(m.price_input) || "", placeholder: "例如 0.4" });
+  const pout = el("input", { type: "number", step: "0.05", min: "0", value: Number(m.price_output) || "", placeholder: "例如 0.8" });
+  const ctx = el("input", { type: "number", step: "1", min: "0", value: (m.capabilities?.context_window || 0) / 1024 || "", placeholder: "例如 128" });
+  const err = el("div", { class: "field-error" });
+  const aiBtn = el("button", { class: "btn ai", type: "button", onclick: async (e) => {
+    if (!/^https:\/\/\S+$/.test(urlIn.value.trim())) { err.textContent = "请先填写 https:// 开头的定价页链接"; return; }
+    err.textContent = "";
+    await UI.withBusy(e.currentTarget, async () => {
+      await new Promise(r => setTimeout(r, 900)); // 演示：模拟 AI 抓取定价页
+      let h = 0; const u = urlIn.value.trim();
+      for (let i = 0; i < u.length; i++) h = (h * 31 + u.charCodeAt(i)) >>> 0;
+      pin.value = (0.2 + (h % 8) * 0.1).toFixed(1);
+      pout.value = (Number(pin.value) * 2).toFixed(1);
+      ctx.value = [32, 64, 128, 256][h % 4];
+      UI.toast("AI 已从页面抓取单价与上下文长度，请核对后保存");
+    }, "AI 获取中……");
+  } }, [UI.icon("wand", 14), "AI 自动获取"]);
+  const mask2 = UI.modal(`导入画像数据 · ${m.display_name}`, el("div", {}, [
+    el("div", { class: "muted", style: "margin-bottom:10px" }, ["提供官方定价页链接，AI 自动获取输入 / 输出单价与上下文长度（演示模拟）；也可手动填写。"]),
+    el("label", { class: "field" }, [el("span", { class: "label-text" }, ["定价页链接"]),
+      el("div", { style: "display:flex;gap:8px" }, [urlIn, aiBtn])]),
+    el("div", { class: "grid cols-3", style: "display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 12px" }, [
+      el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["输入单价（¥/M）"]), pin]),
+      el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["输出单价（¥/M）"]), pout]),
+      el("label", { class: "field" }, [el("span", { class: "label-text" }, ["上下文（k）"]), ctx]),
+    ]),
+    err,
+    el("div", { style: "display:flex;justify-content:flex-end;gap:8px;margin-top:12px" }, [
+      el("button", { class: "btn", onclick: () => mask2.remove() }, ["取消"]),
+      el("button", { class: "btn primary", onclick: async (e) => {
+        if (!(Number(pin.value) >= 0) || !(Number(pout.value) >= 0)) { err.textContent = "单价需为非负数字"; return; }
+        await UI.withBusy(e.currentTarget, async () => {
+          try {
+            await UI.api(`/v1/models/${m.model_id}/profile-data`, { method: "POST", body: {
+              price_input: Number(pin.value) || 0, price_output: Number(pout.value) || 0,
+              context_window: Math.round((Number(ctx.value) || 0) * 1024) } });
+            UI.toast("画像数据已保存");
+            mask2.remove(); renderModels();
+          } catch (e2) { err.textContent = e2.data?.error || e2.message; }
+        }, "保存中……");
+      } }, ["保存"]),
+    ]),
+  ]));
 }
 
 // ================= 策略 =================
@@ -342,7 +369,6 @@ async function renderPolicies(container) {
       el("div", { style: "display:flex;align-items:center;gap:8px" }, [
         el("span", { style: "font-weight:600" }, [p.name || p.policy_id]),
         el("span", { class: "chip blue" }, [{ global: "全局", tenant: "租户", scene: "场景" }[p.scope] + (p.scene ? "：" + (SCENE_NAMES[p.scene] || p.scene) : "")]),
-        UI.idChip(p.policy_id, "策略"),
         el("span", { class: "chip gray" }, ["v" + p.version]),
         p.ab_group ? el("span", { class: "chip yellow" }, [`A/B：${p.ab_group} 组（${p.ab_split}%）`]) : null,
         p.enabled ? null : el("span", { class: "chip red" }, ["已停用"]),
@@ -350,6 +376,13 @@ async function renderPolicies(container) {
         el("button", { class: "btn small", onclick: () => editPolicy(p) }, ["参数配置"]),
       ]),
       paramsRow,
+      p.api_key ? el("div", { style: "display:flex;align-items:center;gap:8px;margin:6px 0 8px" }, [
+        el("span", { class: "muted" }, ["接入 Key"]),
+        el("span", { class: "chip gray num", style: "cursor:pointer", title: "把该 Key 配到你的产品（POST /v1/route 携带 api_key）即按此策略路由；点击复制",
+          onclick: () => { navigator.clipboard.writeText(p.api_key); UI.toast("已复制接入 Key"); } },
+          [p.api_key.slice(0, 12) + "····" + p.api_key.slice(-4)]),
+        UI.help("对外接入方式：你的产品无需感知策略配置，携带此 Key 调用路由接口即可；换策略只需换 Key"),
+      ]) : null,
       el("div", { class: "muted" }, [
         `延迟档位：${{ fast: "极速（单模型直连）", balanced: "均衡", quality: "高质" }[p.latency_tier]} · ` +
         `多模型聚合：${p.allow_aggregation ? "允许" : "禁止"} · 探索预算：${(p.explore_ratio * 100).toFixed(0)}% · ` +
@@ -775,20 +808,21 @@ async function renderFlow() {
       }, "做题中……");
     } }, ["运行评测回填"]);
   box.appendChild(el("div", { class: "card" }, [
-    el("div", { class: "section-title", style: "font-size:var(--font-base);display:flex;align-items:center" }, ["场景数据集",
+    el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:4px" }, [
+      el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["场景数据集"]),
       UI.help("每类业务场景一个数据集。冷启动靠导入（JSONL / CSV / 纯文本）；上线后对话命中业务场景的 query 自动去重进入待并入区，人工审核后并入；待评测题目由各在线模型作答、Judge 模型择优打分，得分并入画像"),
-      el("span", { class: "muted", style: "margin-left:8px;font-weight:400" }, ["自动收集先进回流校验，确认后才进数据集"]),
       el("div", { style: "flex:1" }),
-      el("button", { class: "btn small", onclick: addSceneDialog }, [UI.icon("plus", 14), "添加场景"]),
+      el("button", { class: "btn small ghost", onclick: addSceneDialog }, [UI.icon("plus", 14), "添加场景"]),
       el("button", { class: "btn small", onclick: () => { location.hash = "#import"; } }, ["导入数据集"]),
-      el("button", { class: "btn small", onclick: () => { location.hash = "#review"; } }, [stagedTotal ? `回流数据集校验（${stagedTotal}）` : "回流数据集校验"])]),
+      el("button", { class: "btn small", onclick: () => { location.hash = "#review"; } }, [stagedTotal ? `回流数据集校验（${stagedTotal}）` : "回流数据集校验"]),
+    ]),
+    el("div", { class: "muted", style: "margin-bottom:12px" }, ["自动收集先进回流校验，确认后才进数据集"]),
     sceneRows,
-    el("div", { style: "display:flex;align-items:center;gap:10px;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;flex-wrap:wrap" }, [
+    el("div", { style: "display:flex;align-items:center;gap:16px;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;flex-wrap:wrap" }, [
       judgeRow,
       el("span", { style: "flex:1" }),
-      pendingLine, evalBtn,
-      el("span", { class: "v-sep" }),
-      rebuildStatus, rebuildBtn,
+      el("span", { style: "display:inline-flex;align-items:center;gap:10px" }, [pendingLine, evalBtn]),
+      el("span", { style: "display:inline-flex;align-items:center;gap:10px" }, [rebuildStatus, rebuildBtn]),
     ]),
   ]));
   box.appendChild(srcCard);

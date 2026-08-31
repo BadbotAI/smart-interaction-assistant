@@ -32,7 +32,7 @@
 UI.nav("dashboard");
 const { el } = UI;
 // 走查：看板两个视角提升为左侧导航二级项（交互看板 / 路由看板），页内不再放横向 tab
-const SECTION_NAMES = { survey: "交互数据", conversion: "转化看板", routing: "路由数据" };
+const SECTION_NAMES = { survey: "交互数据", routing: "路由数据" };
 const routeFilters = { mode: "", model: "", status: "" };
 let surveyQuery = "";
 let activeTab = "survey";
@@ -80,17 +80,18 @@ let daysCtl;
   nat.parentElement.appendChild(daysCtl);
 }
 // 交互数据页把时间窗并到工具行；离开时放回页头
-function placeDaysCtl(inSurveyRow) {
-  if (!inSurveyRow) document.getElementById("daysSel").parentElement.appendChild(daysCtl);
+function placeDaysCtl(inPageRow) {
+  if (!inPageRow) document.getElementById("daysSel").parentElement.appendChild(daysCtl);
 }
 
 function showSection(key, first = false) {
+  if (key === "conversion") key = "survey"; // 转化看板已并入交互数据
   if (!RENDER[key]) key = "survey";
   if (!first && key === activeTab) return;
   activeTab = key;
   document.getElementById("pageTitle").textContent = SECTION_NAMES[key];
   document.title = SECTION_NAMES[key] + " · 智能交互平台";
-  placeDaysCtl(key === "survey");
+  placeDaysCtl(key === "survey" || key === "routing");
   UI.loading(content());
   RENDER[key]().catch(e => UI.toast("加载失败：" + e.message, true));
 }
@@ -185,7 +186,13 @@ async function renderSurvey() {
     tile("参与人次", totalRespondents, null, "各配置回答人数合计"),
     tile("整体完成率", totalRendered && totalSubmitted <= totalRendered ? UI.fmtPct(totalSubmitted / totalRendered) : "-", totalSubmitted > totalRendered ? "数据不全：提交数大于触发数" : "验收线 60%", "提交 / 触发"),
   ]));
-  // 埋点健康模块在下方图表区与漏斗并列（meterRow 见下）
+
+  // 转化表现（原转化看板并入：漏斗 / 分组件转化 / 触发分布 / 推荐默认项 / 埋点健康）
+  box.appendChild(el("div", { style: "display:flex;align-items:baseline;gap:8px;margin:18px 0 10px" }, [
+    el("span", { class: "section-title", style: "margin:0" }, ["转化表现"]),
+    el("span", { class: "muted" }, ["触发 → 开始交互 → 完成提交"]),
+  ]));
+  renderConversionModules(box, ins);
 
   // 组件交互情况（白底描边卡，与上方灰底整体指标形成分区差异）
   box.appendChild(el("div", { style: "display:flex;align-items:baseline;gap:8px;margin:18px 0 10px" }, [
@@ -254,28 +261,14 @@ async function renderSurvey() {
 
 // ================= 转化看板（漏斗 / 分布 / 埋点健康 / 推荐默认项） =================
 
-async function renderConversion() {
-  const [q, ins] = await Promise.all([
-    UI.api("/api/dashboard/questions?days=" + days()),
-    UI.api("/api/dashboard/insights?days=" + days()),
-  ]);
-  const box = content();
-  box.innerHTML = "";
+function renderConversionModules(box, ins) {
   const ih = ins.ingest_health || {};
   const f = ins.funnel || {};
   const rendered = f.card_rendered || 0, started = f.card_interaction_started || 0, submitted = f.card_submitted || 0;
   const abandoned = f.card_abandoned || 0;
   const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
 
-  // 模块 1：KPI 指标行（四块独立指标）
-  box.appendChild(el("div", { class: "grid cols-4", style: "margin-bottom:12px" }, [
-    tile("组件触发", rendered, `近 ${days()} 天`, "组件在对话中被渲染的次数"),
-    tile("开始交互", started, `触达开始率 ${pct(started, rendered)}%`, "触发后用户产生首次操作的次数"),
-    tile("完成提交", submitted, `开始后完成率 ${pct(submitted, started)}%`, "开始交互后走到提交的次数"),
-    tile("整体转化率", pct(submitted, rendered) + "%", abandoned ? `中途放弃 ${abandoned} 次` : "触发 → 完成提交", "完成提交 / 组件触发"),
-  ]));
-
-  // 模块 2 + 3：转化漏斗 / 分组件转化
+  // 转化漏斗 / 分组件转化
   const grid2 = el("div", { class: "grid cols-2", style: "margin-bottom:12px" });
   const [c1, b1] = chartCard("转化漏斗", "触发 → 开始交互 → 完成提交，逐级留存");
   const [c2, b2] = chartCard("分组件转化", "浅色为触发量，深色为完成提交量");
@@ -396,7 +389,7 @@ async function renderRouting() {
     onChange: (v) => { routeFilters[key] = v; renderRouting(); },
   });
   const activeFilters = Object.values(routeFilters).filter(Boolean).length;
-  box.appendChild(el("div", { class: "card", style: "margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px" }, [
+  box.appendChild(el("div", { style: "margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, [
     mkSel("mode", "调用模式", Object.entries(MODE_NAMES)),
     el("span", { class: "v-sep" }),
     mkSel("model", "模型", modelsRes.models.map(m => [m.model_id, m.display_name])),
@@ -405,7 +398,8 @@ async function renderRouting() {
     activeFilters ? el("button", { class: "btn small ghost", onclick: () => { Object.keys(routeFilters).forEach(k => routeFilters[k] = ""); renderRouting(); } }, ["清空筛选"]) : null,
     el("span", { class: "muted" }, [activeFilters ? `已筛选 · ${d.total_requests} 条请求` : `${d.total_requests} 条请求`]),
     el("div", { style: "flex:1" }),
-    el("a", { class: "btn small", href: "/api/export/traces.csv?" + fq, title: "按当前筛选导出 CSV" }, [UI.icon("download", 14), "CSV"]),
+    daysCtl,
+    el("a", { class: "btn small", href: "/api/export/traces.csv?" + fq, title: "按当前筛选导出 CSV" }, [UI.icon("download", 14), "导出数据"]),
   ]));
 
   box.appendChild(el("div", { class: "grid cols-4", style: "margin-bottom:12px" }, [
@@ -593,7 +587,7 @@ async function showTraceDrill() {
   loadPage();
 }
 
-const RENDER = { survey: renderSurvey, conversion: renderConversion, routing: renderRouting };
+const RENDER = { survey: renderSurvey, routing: renderRouting };
 window.addEventListener("hashchange", () => showSection(location.hash.replace("#", "")));
 showSection(location.hash.replace("#", "") || "survey", true);
 </script>

@@ -153,15 +153,12 @@ window.UI = (function () {
       ["cards", "组件工作台", "./cards.html", "home"],
       ["library", "组件库", "./library.html", "grid"],
       ["design", "组件风格", "./design.html", "palette"],
+      ["dashboard:survey", "交互数据", "./dashboard.html#survey", "chart"],
     ] },
     { title: "模型路由", items: [
       ["router:models", "模型接入", "./router.html#models", "cpu"],
       ["router:dispatch", "路由策略", "./router.html#dispatch", "route"],
       ["router:flow", "数据回流", "./router.html#flow", "refresh"],
-    ] },
-    { title: "数据分析", items: [
-      ["dashboard:survey", "交互数据", "./dashboard.html#survey", "chart"],
-      ["dashboard:conversion", "转化看板", "./dashboard.html#conversion", "split"],
       ["dashboard:routing", "路由数据", "./dashboard.html#routing", "activity"],
     ] },
   ];

@@ -553,13 +553,6 @@ TEMPLATE_LIBRARY = [
     {"component_type": "upload.file", "name": "文件上传器", "desc": "上传 PDF / Word / Excel 等单据文件（演示不真实上传）",
      "keywords": ["上传", "附件", "文件", "单据", "合同", "报关单", "箱单"],
      "default_config": {"placeholder": "请上传报关单或合同文件（PDF / Excel）"}},
-    # 交易类
-    {"component_type": "commerce.order", "name": "商品下单器",
-     "desc": "商品卡列表：图片、详情、销量、标签、现价与划线原价，支持多件数量与合计，直接下单",
-     "keywords": ["下单", "购买", "商品", "价格", "套餐", "增值服务", "商城", "购物"],
-     "default_config": {"options": ["木箱加固", "运输保价"], "option_meta": {
-         "木箱加固": {"desc": "出口级木箱，防潮防震，适合精密设备", "price": 120, "price_original": 150, "sales": 2300, "tags": ["防潮", "承重加强"]},
-         "运输保价": {"desc": "按货值 0.3% 投保，破损丢失全额赔付", "price": 50, "price_original": 60, "sales": 5100, "tags": ["全额赔付"]}}}},
     # 引导类
     {"component_type": "entry.link", "name": "入口跳转器",
      "desc": "对话中插入可点入口：不配链接 = 作为追问发给 AI，配链接 = 直达专区 / 服务页（已合并追问引导能力）",

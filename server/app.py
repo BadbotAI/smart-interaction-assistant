@@ -96,6 +96,12 @@ async def _handle_turn(body: dict, emit):
     trace_id = db.new_id()
 
     policy = router_core.resolve_policy(tenant_id, scene, session_id)
+    # 对外接入：api_key 即策略凭证，用户产品带 Key 调用即绑定对应策略（无需感知策略 ID）
+    if body.get("api_key"):
+        for _r in db.get_conn().execute("SELECT policy_id FROM policies WHERE enabled=1").fetchall():
+            if _policy_api_key(_r["policy_id"]) == body["api_key"]:
+                body["policy_id"] = _r["policy_id"]
+                break
     # 测试抽屉可显式指定调度策略（仅限已启用策略）
     if body.get("policy_id"):
         _row = db.get_conn().execute("SELECT * FROM policies WHERE policy_id=? AND enabled=1",
@@ -708,15 +714,48 @@ def list_models():
     return {"models": out}
 
 
+def _policy_api_key(policy_id: str) -> str:
+    import hashlib as _h
+    return "sk-route-" + _h.md5(("route-key:" + policy_id).encode()).hexdigest()[:16]
+
+
+@app.post("/v1/models/{model_id}/profile-data")
+async def import_model_profile_data(model_id: str, request: Request):
+    """导入模型画像数据（第二步，非必选）：单价与上下文长度。支持 AI 从网页链接自动获取（演示模拟）。"""
+    body = await request.json()
+    conn = db.get_conn()
+    row = conn.execute("SELECT * FROM models WHERE model_id=?", (model_id,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "模型不存在"}, status_code=404)
+    try:
+        pin = float(body.get("price_input") or 0)
+        pout = float(body.get("price_output") or 0)
+        ctx = int(body.get("context_window") or 0)
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "单价与上下文长度需为数字"}, status_code=422)
+    if pin < 0 or pout < 0:
+        return JSONResponse({"error": "单价不能为负数"}, status_code=422)
+    caps = db.dj(row["capabilities"], {}) or {}
+    if ctx > 0:
+        caps["context_window"] = ctx
+    conn.execute("UPDATE models SET price_input=?, price_output=?, capabilities=? WHERE model_id=?",
+                 (pin, pout, db.j(caps), model_id))
+    conn.commit()
+    db.audit("demo-admin", "model_profile_data", {"model_id": model_id, "price_input": pin, "price_output": pout, "context_window": ctx})
+    return {"ok": True}
+
+
 @app.post("/v1/models")
 async def register_model(request: Request):
     body = await request.json()
-    required = ["model_id", "display_name", "provider", "endpoint", "credential_ref", "price_input", "price_output"]
+    required = ["model_id", "display_name", "provider", "endpoint", "credential_ref"]
     missing = [f for f in required if not body.get(f)]
+    body.setdefault("price_input", 0)
+    body.setdefault("price_output", 0)
     if missing:
         return JSONResponse({"error": f"缺少必填字段：{', '.join(missing)}"}, status_code=422)
     try:
-        pin, pout = float(body["price_input"]), float(body["price_output"])
+        pin, pout = float(body["price_input"] or 0), float(body["price_output"] or 0)
         if pin < 0 or pout < 0:
             return JSONResponse({"error": "单价不能为负数"}, status_code=422)
         lat = int(body.get("latency_ms_base", 800))
@@ -1030,6 +1069,7 @@ def list_policies():
         p["params"] = db.dj(p["params"], {})
         p["model_whitelist"] = db.dj(p["model_whitelist"], [])
         p["budget_cap"] = db.dj(p["budget_cap"], {})
+        p["api_key"] = _policy_api_key(p["policy_id"])
         out.append(p)
     return {"policies": out}
 

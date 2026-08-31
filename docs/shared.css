@@ -1076,3 +1076,5 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: a
 .agg-badge details { margin-top: 6px; }
 .agg-cand { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; margin-top: 6px; font-size: var(--font-small); }
 .agg-cand .muted { margin-bottom: 3px; }
+/* 模型表供应商分组行 */
+table.data tr.provider-row td { background: var(--bg-surface); padding-top: 10px; padding-bottom: 6px; border-bottom: none; }
