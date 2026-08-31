@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>组件风格 · 智能交互平台</title>
+<link rel="stylesheet" href="./shared.css">
+<style>
+  /* 两列：左选择/导入，右单组件预览 */
+  .style-split { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 14px; align-items: start; }
+  @media (max-width: 1000px) { .style-split { grid-template-columns: 1fr; } }
+  .brand-list { display: flex; flex-direction: column; gap: 8px; }
+  .demo-one { max-width: 560px; }
+  .brand-card { position: relative; border: 1px solid var(--border); border-radius: var(--radius-control); padding: 12px 14px; cursor: pointer; background: var(--bg-elevated); }
+  .brand-card:hover { border-color: var(--primary-border); }
+  .brand-card.selected { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); background: var(--primary-weak); }
+  .brand-card .sel-ico { position: absolute; top: 9px; right: 10px; color: var(--primary); }
+  .brand-card .del-ico { color: var(--text-muted); opacity: 0; transition: opacity var(--dur-fast); }
+  .brand-card:hover .del-ico, .brand-card.selected .del-ico { opacity: 1; }
+  .brand-card .del-ico .icon-btn:hover { color: var(--danger); background: var(--danger-bg); }
+  .brand-card .bname { font-weight: 600; font-size: var(--font-base); display: flex; align-items: center; gap: 6px; }
+  .brand-card .bsub { font-size: var(--font-caption); color: var(--text-muted); margin-top: 3px; }
+  /* 导入编辑器 */
+  /* 组件示例网格（与组件库同款陈列） */
+  .demo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; align-items: stretch; }
+  .demo-card { display: flex; flex-direction: column; gap: 8px; height: 100%; }
+  .demo-card .head { display: flex; align-items: center; gap: 8px; }
+  .demo-card .head .name { font-weight: 700; font-size: var(--font-base); }
+  .demo-card .mock-area { flex: 1; display: flex; flex-direction: column; }
+  .demo-card .mock-area .chat-mock { flex: 1; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-head" style="display:flex;align-items:center;gap:6px">
+    <div class="page-title">组件风格</div>
+    <span id="pageHelp"></span>
+  </div>
+
+  <div class="style-split">
+    <div class="card" style="align-self:start">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-weight:600">选择风格</span>
+        <span class="muted">点击预览，确认后保存</span>
+      </div>
+      <div id="brandGrid" class="brand-list"></div>
+      <button class="btn" id="importToggle" style="width:100%;margin-top:10px;background:var(--bg-sunken);border-color:transparent;color:var(--text-secondary)"></button>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+        <span class="muted" id="genNote"></span>
+        <div style="flex:1"></div>
+        <button class="btn primary" id="saveBtn">应用并保存</button>
+      </div>
+    </div>
+
+    <div class="card" style="align-self:start">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;max-width:560px">
+        <span style="font-weight:600">组件预览</span>
+        <span id="demoHelp"></span>
+        <div style="flex:1"></div>
+        <span id="compSelMount"></span>
+      </div>
+      <div id="demoOne" class="demo-one"></div>
+    </div>
+  </div>
+</div>
+
+<script src="./mock_data.js"></script>
+<script src="./mock_api.js"></script>
+<script src="./tokens.js"></script>
+<script src="./ui.js"></script>
+<script src="./components.js"></script>
+<script>
+UI.nav("design");
+const { el } = UI;
+document.getElementById("pageHelp").appendChild(UI.help("风格只作用于对话里渲染的交互组件（含嵌入客户前端的组件），不改变本管理平台的界面。选预设或导入参数 → 预览下方组件效果 → 应用并保存。"));
+document.getElementById("demoHelp").appendChild(UI.help("与线上同一套渲染器；风格预览后此处实时更新，提交不产生数据"));
+
+
+const genNote = document.getElementById("genNote");
+let brands = [];                 // /api/brands 返回的预设 + 已导入
+let pending = null;              // 待保存：{ type: "file", file } | { type: "custom" }
+let activeFile = "brand-tokens.default.json";  // 租户级生效风格（服务端）
+
+// ---------- 组件示例（真实场景数据） ----------
+const SCENES = {
+  "select.single": { name: "文本选择器", q: "我要开发票", reply: "好的，请确认发票类型。", prompt: "开哪种发票？",
+    config: { options: ["专票", "普票"], recommended_default: "普票" } },
+  "select.card": { name: "卡片选择器", q: "帮我选个运输方案", reply: "两个方案供你选择：", prompt: "选择运输方案",
+    config: { options: ["海运直达", "海铁联运"], recommended_default: "海运直达",
+      option_meta: { "海运直达": { desc: "35 天 · 成本低" }, "海铁联运": { desc: "26 天 · 快 9 天" } } } },
+  "rank.priority": { name: "优先级排序器", q: "这批货怎么安排比较好", reply: "请把你的诉求按重要程度排个序：", prompt: "哪个对你最重要？",
+    config: { options: ["时效最快", "成本最低", "风险最小"] } },
+  "matrix.compare+select": { name: "表格选择器", q: "对比一下这几家供应商", reply: "按价格、时效、合规评估如下：", prompt: "选定供应商",
+    config: { options: ["中远供应链", "环球捷运"], dimensions: ["价格", "时效", "合规"] } },
+  "scale.likert": { name: "评分器", q: "谢谢，问题解决了", reply: "不客气。", prompt: "这次服务满意吗？",
+    config: { likert: { left: "很不满意", right: "很满意", from: 1, to: 5 } } },
+  "form.structured": { name: "表单收集工具", q: "我要退货", reply: "请补充以下信息，我来为你登记。", prompt: "退货登记",
+    config: { fields: [{ key: "order_no", label: "订单号", required: true }, { key: "phone", label: "联系电话", required: true }] } },
+  "slider.range": { name: "数值选择器", q: "帮我做个采购预算", reply: "先确认一下预算范围。", prompt: "预算上限（万元）",
+    config: { slider: { min: 0, max: 100, unit: "万元" } } },
+  "input.followup": { name: "备注填写器", q: "送货有点要求", reply: "好的，请留下送货备注：", prompt: "送货备注",
+    config: { placeholder: "例如：周五前送到，放前台即可" } },
+  "picker.datetime": { name: "日期选择器", q: "帮我约个提货时间", reply: "好的，请选择提货日期：", prompt: "期望提货日期", config: {} },
+  "picker.timerange": { name: "时间段选择器", q: "什么时候方便上门取件", reply: "请选择方便的时间段：", prompt: "取件时间段", config: { display: "time" } },
+  "picker.location": { name: "地址卡片", q: "这批货送到仓库", reply: "请确认收货地点：", prompt: "收货地点",
+    config: { options: ["上海仓", "宁波舟山港", "青岛港"] } },
+  "upload.file": { name: "文件上传器", q: "报关材料给你", reply: "请上传相关单据：", prompt: "上传报关单",
+    config: { placeholder: "请上传报关单或合同文件（PDF / Excel）" } },
+  "upload.image": { name: "图片上传器", q: "货有点破损，我拍了照片", reply: "请上传破损部位的照片：", prompt: "上传破损照片",
+    config: { placeholder: "请拍摄或上传清晰照片" } },
+  "commerce.order": { name: "商品下单器", q: "这批设备怕震，帮我加固一下", reply: "推荐以下增值服务，可直接下单：", prompt: "选择增值服务",
+    config: { options: ["木箱加固", "运输保价"],
+      option_meta: { "木箱加固": { desc: "出口级木箱，防潮防震", price: 120, price_original: 150, sales: 2300, tags: ["防潮"] },
+                     "运输保价": { desc: "按货值 0.3% 投保", price: 50, price_original: 60, sales: 5100, tags: ["全额赔付"] } } } },
+  "entry.link": { name: "入口跳转器", q: "还有什么优惠活动吗", reply: "为你找到两个专区：", prompt: "",
+    config: { options: ["神券团购专区", "增值服务商城"],
+      option_meta: { "神券团购专区": { desc: "咖啡茶饮 5 折起" }, "增值服务商城": { desc: "加固 · 保价 · 耗材" } } } },
+  "suggest.followup": { name: "追问引导器", q: "帮我查一下这票货到哪了", reply: "这票货已到宁波舟山港中转，预计后天送达。", prompt: "你可能还想问",
+    config: { options: ["为什么会延误", "预计什么时候能到", "帮我催一下这票货"] } },
+};
+
+function buildEnvelope(ct, config, prompt) {
+  const params = { prompt: ct === "entry.link" ? (prompt || "") : (prompt || "请选择"), submit_label: ct === "commerce.order" ? "去下单" : "提交", reply_text: "", echo_results: false };
+  if (config.options) { params.options = config.options; params.recommended_default = config.recommended_default || null; }
+  if (config.option_meta) params.option_meta = config.option_meta;
+  if (config.option_actions) params.option_actions = config.option_actions;
+  if (ct === "matrix.compare+select") {
+    params.dimensions = config.dimensions || ["价格", "时效"];
+    params.values = (params.options || []).map((o, i) => params.dimensions.map((d, j) => Math.round((5 + ((i * 3 + j * 2) % 40) / 10) * 10) / 10));
+  }
+  if (ct === "scale.likert") params.likert = config.likert;
+  if (ct === "form.structured") params.fields = config.fields;
+  if (ct === "input.followup" || ct === "picker.location" || ct === "upload.file") params.placeholder = config.placeholder || "";
+  if (ct === "slider.range") { const s = config.slider || {}; params.min = s.min ?? 0; params.max = s.max ?? 100; params.unit = s.unit || ""; }
+  return { schema_version: "1.0.0", render_id: "ds-" + Math.random().toString(36).slice(2), component_type: ct,
+    semantic_category: "collect", trigger_source: "model_tool_call", card_ref: null, params, group_mode: null, degraded_text: params.prompt };
+}
+const previewCtx = { sendEvent: () => {}, onCollectSubmit: () => UI.toast("预览不产生数据"), onControl: () => {}, titleInBubble: true };
+
+// 单组件预览：下拉选组件，选一个看一个
+const TRACK_ENV = { schema_version: "1.0.0", render_id: "ds-track", component_type: "track.map",
+  semantic_category: "present", trigger_source: "model_tool_call", card_ref: null, group_mode: null,
+  degraded_text: "物流轨迹", params: { title: "物流轨迹",
+    current: { name: "宁波舟山港中转场", addr: "浙江省宁波市北仑区港区大道", lat: 29.935, lon: 121.844,
+               status_text: "运输中", updated_text: "2 小时前更新" },
+    nodes: [
+      { time: "08-25 09:12", text: "已揽收（上海仓）", state: "done" },
+      { time: "08-26 21:40", text: "干线运输中，到达宁波舟山港中转场", state: "current" },
+      { time: "", text: "到达目的地网点，安排派送", state: "todo" },
+    ] } };
+let demoCt = "select.single";
+function renderDemos() {
+  const boxOne = document.getElementById("demoOne");
+  boxOne.innerHTML = "";
+  let node, sc;
+  if (demoCt === "track.map") {
+    sc = { q: "帮我查一下这票货到哪了", reply: "这票货正在干线运输，预计后天送达：" };
+    try { node = Components.render(TRACK_ENV, previewCtx); } catch (e) { node = el("div", { class: "muted" }, ["暂不支持预览"]); }
+  } else {
+    sc = SCENES[demoCt];
+    try { node = Components.render(buildEnvelope(demoCt, sc.config, sc.prompt), previewCtx); }
+    catch (e) { node = el("div", { class: "muted" }, ["暂不支持预览"]); }
+  }
+  boxOne.appendChild(UI.chatMock({ question: sc.q, reply: sc.reply, node, prompt: demoCt === "track.map" ? "" : (sc.prompt || "") }));
+}
+function mountDemoControls() {
+  document.getElementById("compSelMount").appendChild(UI.fancySelect({
+    value: demoCt,
+    options: [...Object.entries(SCENES).map(([ct, sc]) => [ct, sc.name]), ["track.map", "物流轨迹卡"]],
+    onChange: (v) => { demoCt = v; renderDemos(); },
+  }));
+  const tgl = document.getElementById("importToggle");
+  tgl.append(UI.icon("plus", 14), "导入品牌风格");
+  tgl.onclick = () => brandDialog(null);
+}
+
+// ---------- 导入 / 编辑品牌风格：弹窗建卡片（名称 + 风格代码），创建后出现在列表，可编辑 / 删除 ----------
+function brandDialog(existing) {
+  if (document.querySelector(".modal-mask")) return;
+  const nameIn = el("input", { type: "text", maxlength: "20", value: existing?.brand_name || "", placeholder: "例如：远洋港航品牌风格" });
+  const codeTa = el("textarea", { id: "dlgTokenTa", spellcheck: "false", rows: 14,
+    style: "font-family:var(--font-mono);font-size:var(--font-small);line-height:1.6" });
+  const err = el("div", { class: "field-error" });
+  function parseCode() {
+    err.textContent = "";
+    let tokens;
+    try { tokens = JSON.parse(codeTa.value); } catch (e) { err.textContent = "风格代码不是合法 JSON，可点「填入示例」查看格式。（" + e.message + "）"; return null; }
+    const color = tokens.color || {};
+    const missing = ["primary", "bg_page", "bg_surface", "text_primary"].filter(k => !color[k]);
+    if (missing.length) { err.textContent = "color 缺少必需项：" + missing.join(", "); return null; }
+    return tokens;
+  }
+  (async () => {
+    if (existing) {
+      try { codeTa.value = JSON.stringify(await (await fetch("./brand/" + existing.file)).json(), null, 2); } catch (e) {}
+    }
+  })();
+  const mask2 = UI.modal(existing ? `编辑「${existing.brand_name}」` : "导入品牌风格", el("div", {}, [
+    el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["风格名称"]), nameIn]),
+    el("label", { class: "field" }, [
+      el("span", { class: "label-text", style: "display:flex;align-items:center;gap:8px" }, [
+        el("span", { class: "req" }, ["风格代码（design token JSON）"]),
+        el("span", { style: "flex:1" }),
+        el("button", { class: "btn small ghost", type: "button", onclick: async () => {
+          try {
+            const tokens = await (await fetch("./brand/brand-tokens.default.json")).json();
+            tokens.brand_id = "my-brand"; tokens.brand_name = nameIn.value.trim() || "我的品牌风格";
+            codeTa.value = JSON.stringify(tokens, null, 2); err.textContent = "";
+          } catch (e) { UI.toast("示例加载失败", true); }
+        } }, ["填入示例"])]),
+      codeTa,
+    ]),
+    err,
+    el("div", { style: "display:flex;justify-content:flex-end;gap:8px;margin-top:12px" }, [
+      el("button", { class: "btn", onclick: () => mask2.remove() }, ["取消"]),
+      el("button", { class: "btn", onclick: () => {
+        const tokens = parseCode();
+        if (!tokens) return;
+        Brand.apply(tokens); renderDemos();
+        genNote.textContent = "预览中：弹窗里的风格代码，尚未保存";
+        UI.toast("已应用到右侧组件预览（未保存）");
+      } }, ["预览效果"]),
+      el("button", { class: "btn primary", onclick: async (e) => {
+        const name = nameIn.value.trim();
+        if (!name) { err.textContent = "请填写风格名称"; return; }
+        const tokens = parseCode();
+        if (!tokens) return;
+        const bid = existing ? existing.brand_id : ((tokens.brand_id || "").trim() || "brand-" + Math.random().toString(36).slice(2, 6));
+        if (!existing && brands.find(b => b.brand_id === bid)) { err.textContent = `风格 ID「${bid}」已存在，请修改代码里的 brand_id`; return; }
+        await UI.withBusy(e.currentTarget, async () => {
+          try {
+            const r = await UI.api("/api/brands", { method: "POST", body: { brand_id: bid, brand_name: name, tokens } });
+            brands = (await UI.api("/api/brands")).brands;
+            // 编辑的是生效中的风格：立即重载应用
+            if (existing && existing.file === activeFile) { await Brand.load(existing.file); }
+            mask2.remove();
+            renderBrands(); renderDemos();
+            UI.toast(existing ? "风格已更新" : "已创建风格卡片，点击卡片预览，「应用并保存」后生效");
+          } catch (e2) { err.textContent = e2.data?.error || e2.message; }
+        }, "保存中……");
+      } }, [existing ? "保存修改" : "创建风格"]),
+    ]),
+  ]));
+}
+
+// ---------- 风格预设 ----------
+function currentFile() { return activeFile; }
+
+function renderBrands() {
+  const grid = document.getElementById("brandGrid");
+  grid.innerHTML = "";
+  const activeFile = currentFile();
+  brands.forEach(b => {
+    const isActive = b.file === activeFile;
+    const isSel = pending ? (pending.type === "file" && pending.file === b.file) : isActive;
+    const editBtn = (b.brand_id !== "default")
+      ? el("span", { class: "sel-ico del-ico", style: "right:38px" }, [UI.iconBtn("edit", "编辑此风格", (e) => {
+          e?.stopPropagation?.();
+          brandDialog(b);
+        })])
+      : null;
+    const delBtn = (b.brand_id !== "default")
+      ? el("span", { class: "sel-ico del-ico" }, [UI.iconBtn("trash", "删除此风格", async (e) => {
+          e?.stopPropagation?.();
+          const ok = await UI.confirm("删除风格", `删除「${b.brand_name || b.file}」？不可恢复。${isActive ? "该风格正在生效中，删除后自动回退到默认风格。" : ""}`, { okText: "删除", danger: true });
+          if (!ok) return;
+          try {
+            await UI.api("/api/brands/delete", { method: "POST", body: { file: b.file } });
+            brands = (await UI.api("/api/brands")).brands;
+            renderBrands(); UI.toast("已删除");
+          } catch (err) { UI.toast(err.data?.error || err.message, true); }
+        })])
+      : null;
+    const cardEl = el("div", {
+      class: "brand-card" + (isSel ? " selected" : ""), role: "radio", "aria-checked": isSel ? "true" : "false", tabindex: "0",
+      onclick: () => previewBrand(b),
+      onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); previewBrand(b); } },
+    }, [
+      editBtn, delBtn,
+      el("div", { class: "bname" }, [b.brand_name || b.file, isActive ? el("span", { class: "chip green" }, ["生效中"]) : null]),
+      el("div", { class: "bsub" }, [b.brand_id === "default" ? "平台默认风格" : "已导入的品牌风格"]),
+    ]);
+    if (delBtn) delBtn.onclick = (e) => e.stopPropagation();
+    if (editBtn) editBtn.onclick = (e) => e.stopPropagation();
+    grid.appendChild(cardEl);
+  });
+}
+
+async function previewBrand(b) {
+  try {
+    const tokens = await (await fetch("./brand/" + b.file)).json();
+    Brand.apply(tokens);
+    pending = b.file === currentFile() ? null : { type: "file", file: b.file };
+    genNote.textContent = pending ? `预览中：${b.brand_name}，尚未保存` : "";
+    renderBrands(); renderDemos();
+  } catch (e) { UI.toast("加载风格失败：" + e.message, true); }
+}
+
+// 应用并保存：把当前选中（预览中）的风格设为租户级生效风格
+document.getElementById("saveBtn").onclick = async (e) => {
+  if (!pending) { UI.toast("当前风格已在生效中"); return; }
+  await UI.withBusy(e.currentTarget, async () => {
+    try {
+      await UI.api("/api/brands/active", { method: "POST", body: { file: pending.file } });
+      activeFile = pending.file;
+      await Brand.load(pending.file);
+      pending = null;
+      genNote.textContent = "";
+      renderBrands(); renderDemos();
+      UI.toast("已保存，对所有渲染出的组件生效");
+    } catch (err) { UI.toast(err.data?.error || err.message, true); }
+  }, "保存中……");
+};
+
+// 初始化
+(async function init() {
+  await new Promise(r => { const t = setInterval(() => { if (Brand.get()) { clearInterval(t); r(); } }, 60); setTimeout(() => { clearInterval(t); r(); }, 2500); });
+  try { brands = (await UI.api("/api/brands")).brands; } catch (e) { brands = []; }
+  try { activeFile = (await UI.api("/api/brands/active")).file || activeFile; } catch (e) {}
+  renderBrands();
+  mountDemoControls();
+  renderDemos();
+})();
+</script>
+</body>
+</html>

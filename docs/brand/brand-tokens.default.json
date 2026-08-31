@@ -1,0 +1,68 @@
+{
+  "brand_id": "default",
+  "brand_name": "默认风格 · Sky",
+  "color": {
+    "primary": "#1DA1F2",
+    "primary_weak": "#E9F1FB",
+    "bg_page": "#FFFFFF",
+    "bg_surface": "#F7F8F8",
+    "text_primary": "#0F1B26",
+    "text_secondary": "#43596B",
+    "text_muted": "#71828F",
+    "border": "#E1EAF1",
+    "success": "#17A673",
+    "warning": "#B97A17",
+    "danger": "#E5484D"
+  },
+  "chart": {
+    "categorical": [
+      "#1DA1F2",
+      "#17B890",
+      "#F2C14E",
+      "#2ECC71",
+      "#E0446E",
+      "#6E4BD8",
+      "#B97A17",
+      "#E5484D"
+    ],
+    "sequential": [
+      "#dde5f8",
+      "#b9c8ef",
+      "#93aae5",
+      "#6d8cdb",
+      "#4a6ed1",
+      "#3b5fce",
+      "#2c479c"
+    ],
+    "diverging_positive": "#3b5fce",
+    "diverging_negative": "#d9453c",
+    "diverging_mid": "#eef0f4",
+    "grid": "#E8ECEF",
+    "axis": "#C7D0D8"
+  },
+  "radius": {
+    "card": "20px",
+    "control": "12px",
+    "chip": "999px"
+  },
+  "font": {
+    "family": "'Open Sans', 'Noto Sans SC', -apple-system, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif",
+    "size_base": "14px",
+    "size_small": "12px",
+    "size_title": "16px",
+    "size_hero": "26px"
+  },
+  "spacing": {
+    "unit": "8px",
+    "card_padding": "16px",
+    "gap": "12px"
+  },
+  "density": "regular",
+  "motion": {
+    "duration_fast": "120ms",
+    "duration_base": "220ms"
+  },
+  "shape": {
+    "control_style": "rounded"
+  }
+}

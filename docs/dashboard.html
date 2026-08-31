@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>运营看板 · 智能交互平台</title>
+<link rel="stylesheet" href="./shared.css">
+<style>
+  /* 组件数据卡：白底描边 + 左侧主色条，与灰底整体指标块区分 */
+  .comp-data { background: var(--bg-elevated); border-radius: 16px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+    <div class="page-title" id="pageTitle" style="flex:1">交互数据</div>
+    <select id="daysSel" style="width:auto">
+      <option value="7">近 7 天</option>
+      <option value="14">近 14 天</option>
+      <option value="30" selected>近 30 天</option>
+    </select>
+  </div>
+  <div id="tabContent"></div>
+</div>
+
+<script src="./mock_data.js"></script>
+<script src="./mock_api.js"></script>
+<script src="./tokens.js"></script>
+<script src="./ui.js"></script>
+<script>
+UI.nav("dashboard");
+const { el } = UI;
+// 走查：看板两个视角提升为左侧导航二级项（交互看板 / 路由看板），页内不再放横向 tab
+const SECTION_NAMES = { survey: "交互数据", conversion: "转化看板", routing: "路由数据" };
+const routeFilters = { mode: "", model: "", status: "" };
+let surveyQuery = "";
+let activeTab = "survey";
+
+function days() { return Number(document.getElementById("daysSel").value); }
+document.getElementById("daysSel").onchange = () => { localStorage.setItem("dashboard_days", String(days())); RENDER[activeTab](); };
+if (localStorage.getItem("dashboard_days")) document.getElementById("daysSel").value = localStorage.getItem("dashboard_days");
+// 时间窗换自绘下拉（原生 select 只留作状态容器）
+let daysCtl;
+{
+  // 日期区间选择器：点开选起止日期，下方快捷筛选近 7 / 14 / 30 天。
+  // 演示口径：自定义区间按「起始日 → 今天」折算天数窗口。
+  const nat = document.getElementById("daysSel");
+  nat.style.display = "none";
+  const lab = el("span", {}, ["近 30 天"]);
+  const btn = el("button", { class: "fsel", type: "button" }, [lab]);
+  daysCtl = el("span", { class: "dr-wrap" }, [btn]);
+  const setDays = (n, text) => { nat.value = String(n); lab.textContent = text; nat.onchange(); };
+  btn.onclick = () => {
+    document.querySelectorAll(".menu-pop").forEach(n => n.remove());
+    const today = new Date().toISOString().slice(0, 10);
+    const past = d => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+    const fromIn = el("input", { type: "date", value: past(Number(nat.value)), max: today });
+    const toIn = el("input", { type: "date", value: today, max: today });
+    const apply = () => {
+      if (!fromIn.value) return;
+      const days2 = Math.min(90, Math.max(1, Math.ceil((Date.now() - new Date(fromIn.value).getTime()) / 86400000)));
+      setDays(days2, `${fromIn.value.slice(5).replace("-", "/")} ~ ${(toIn.value || today).slice(5).replace("-", "/")}`);
+      pop.remove();
+    };
+    const chip = (n) => el("button", { class: "btn small", onclick: () => { setDays(n, `近 ${n} 天`); pop.remove(); } }, [`近 ${n} 天`]);
+    const pop = el("div", { class: "menu-pop dr-pop" }, [
+      el("div", { class: "dr-row" }, [el("span", { class: "muted" }, ["起始"]), fromIn]),
+      el("div", { class: "dr-row" }, [el("span", { class: "muted" }, ["终止"]), toIn]),
+      el("div", { class: "dr-row", style: "justify-content:flex-end" }, [el("button", { class: "btn small primary", onclick: apply }, ["应用"])]),
+      el("div", { class: "dr-chips" }, [chip(7), chip(14), chip(30)]),
+    ]);
+    document.body.appendChild(pop);
+    const r = btn.getBoundingClientRect();
+    pop.style.top = (r.bottom + window.scrollY + 4) + "px";
+    pop.style.left = Math.max(12, Math.min(r.left + window.scrollX, window.innerWidth - 280)) + "px";
+    const close = (e) => { if (!pop.contains(e.target) && e.target !== btn) { pop.remove(); document.removeEventListener("click", close, true); } };
+    setTimeout(() => document.addEventListener("click", close, true), 0);
+  };
+  nat.parentElement.appendChild(daysCtl);
+}
+// 交互数据页把时间窗并到工具行；离开时放回页头
+function placeDaysCtl(inSurveyRow) {
+  if (!inSurveyRow) document.getElementById("daysSel").parentElement.appendChild(daysCtl);
+}
+
+function showSection(key, first = false) {
+  if (!RENDER[key]) key = "survey";
+  if (!first && key === activeTab) return;
+  activeTab = key;
+  document.getElementById("pageTitle").textContent = SECTION_NAMES[key];
+  document.title = SECTION_NAMES[key] + " · 智能交互平台";
+  placeDaysCtl(key === "survey");
+  UI.loading(content());
+  RENDER[key]().catch(e => UI.toast("加载失败：" + e.message, true));
+}
+const content = () => document.getElementById("tabContent");
+
+// 导出看板数据：汇总 + 各配置一行（CSV，含 BOM 便于 Excel）
+function exportBoard(questions, k) {
+  const lines = [];
+  lines.push(["指标", "数值"].join(","));
+  lines.push(["统计窗口(天)", days()].join(","));
+  lines.push(["已上线配置", questions.filter(x => x.status === "published").length].join(","));
+  lines.push(["总提交数", k.totalSubmitted].join(","));
+  lines.push(["参与人次", k.totalRespondents].join(","));
+  lines.push(["组件触发次数", k.totalRendered].join(","));
+  lines.push(["埋点接收量", k.ih.total ?? ""].join(","));
+  lines.push(["埋点生成率", k.ih.admit_rate ?? ""].join(","));
+  lines.push([]);
+  lines.push(["配置ID", "名称", "组件", "状态", "回答人数", "提交", "触发", "完成率", "选项分布"].join(","));
+  questions.forEach(x => lines.push([
+    x.card_id, JSON.stringify(x.name || ""), UI.ctName(x.component_type), x.status,
+    x.respondents, x.submitted, x.rendered, x.completion_rate ?? "",
+    JSON.stringify(JSON.stringify(x.distribution || {})),
+  ].join(",")));
+  const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `交互数据看板_近${days()}天.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  UI.toast("已导出数据");
+}
+
+// 走查 D5：提交数超过触发数时（埋点缺失或历史数据）比率失真，不展示大于 100% 的完成率
+function rateText(submitted, rendered) {
+  if (!rendered) return "-";
+  if (submitted > rendered) return "数据不全";
+  return UI.fmtPct(submitted / rendered);
+}
+function tile(label, value, sub, help) {
+  return el("div", { class: "stat-tile" }, [
+    el("div", { class: "stat-label" }, [label, help ? UI.help(help) : null]),
+    el("div", { class: "stat-value" }, [String(value)]),
+    sub ? el("div", { class: "stat-sub" }, [sub]) : null,
+  ]);
+}
+function chartCard(title, note) {
+  const body = el("div", {});
+  const card = el("div", { class: "card" }, [
+    el("div", { style: "font-weight:600;margin-bottom:2px" }, [title]),
+    note ? el("div", { class: "muted", style: "margin-bottom:8px" }, [note]) : null,
+    body,
+  ]);
+  return [card, body];
+}
+function distBars(container, distribution, totalOverride) {
+  const entries = Object.entries(distribution);
+  const total = totalOverride || entries.reduce((s, [, n]) => s + n, 0) || 1;
+  entries.forEach(([opt, n]) => container.appendChild(
+    el("div", { style: "display:flex;align-items:center;gap:8px;margin:3px 0" }, [
+      el("span", { style: "width:150px;font-size:var(--font-small);overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: opt }, [opt]),
+      el("div", { style: "flex:1" }, [el("div", { class: "progress-track" },
+        [el("div", { class: "progress-fill", style: `width:${n / total * 100}%` })])]),
+      el("span", { class: "muted", style: "min-width:80px;text-align:right" }, [`${Math.round(n / total * 100)}%（${n}）`]),
+    ])));
+}
+
+// ================= 工具1：问卷与交互 =================
+
+async function renderSurvey() {
+  const [q, ins] = await Promise.all([
+    UI.api("/api/dashboard/questions?days=" + days()),
+    UI.api("/api/dashboard/insights?days=" + days()),
+  ]);
+  const box = content();
+  box.innerHTML = "";
+  const questions = q.questions;
+  const totalSubmitted = questions.reduce((s, x) => s + x.submitted, 0);
+  const totalRendered = questions.reduce((s, x) => s + x.rendered, 0);
+  const totalRespondents = questions.reduce((s, x) => s + x.respondents, 0);
+
+  const ih = ins.ingest_health || {};
+  // 整体表现（灰底指标块）与下方按组件的数据在样式上拉开
+  box.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:10px" }, [
+    el("span", { class: "section-title", style: "margin:0" }, ["整体表现"]),
+    el("div", { style: "flex:1" }),
+    daysCtl,
+    el("button", { class: "btn small", title: "导出当前窗口的看板汇总与各配置数据（CSV）", onclick: () => exportBoard(questions, { totalSubmitted, totalRendered, totalRespondents, ih }) }, [UI.icon("download", 14), "导出数据"]),
+  ]));
+  box.appendChild(el("div", { class: "grid cols-4", style: "margin-bottom:12px" }, [
+    tile("已上线配置", questions.filter(x => x.status === "published").length),
+    tile("总提交数", totalSubmitted),
+    tile("参与人次", totalRespondents, null, "各配置回答人数合计"),
+    tile("整体完成率", totalRendered && totalSubmitted <= totalRendered ? UI.fmtPct(totalSubmitted / totalRendered) : "-", totalSubmitted > totalRendered ? "数据不全：提交数大于触发数" : "验收线 60%", "提交 / 触发"),
+  ]));
+  // 埋点健康模块在下方图表区与漏斗并列（meterRow 见下）
+
+  // 组件交互情况（白底描边卡，与上方灰底整体指标形成分区差异）
+  box.appendChild(el("div", { style: "display:flex;align-items:baseline;gap:8px;margin:18px 0 10px" }, [
+    el("span", { class: "section-title", style: "margin:0" }, ["组件交互情况"]),
+    el("span", { class: "muted" }, [`${questions.length} 条配置`]),
+  ]));
+  const qWrap = el("div", { class: "grid cols-2", style: "margin-bottom:12px" });
+  box.appendChild(qWrap);
+  function drawQuestions() {
+    qWrap.innerHTML = "";
+    const shown = questions;
+    if (!questions.length) {
+      qWrap.appendChild(el("div", { class: "card empty-state", style: "grid-column:1/-1" }, [
+        el("div", { class: "empty-title" }, ["还没有交互数据"]),
+        el("div", {}, ["发布配置并在对话中触发后显示"]),
+      ]));
+      return;
+    }
+    shown.forEach(item => {
+      // 临近原则分三层：头（是什么+操作）→ 指标（怎么样）→ 问题与分布（用户答了什么，紧挨着放）
+      const rate = rateText(item.submitted, item.rendered);
+      const metricCell = (label, value, warn) => el("div", { class: "mini-metric" }, [
+        el("div", { class: "mm-label" }, [label]),
+        el("div", { class: "mm-value num" + (warn ? " warn" : "") }, [String(value)]),
+      ]);
+      const card = el("div", { class: "card comp-data" }, [
+        el("div", { style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap" }, [
+          el("span", { style: "font-weight:600;font-size:var(--font-title)" }, [item.name || item.question]),
+          UI.ctChip(item.component_type),
+          item.status !== "published" ? el("span", { class: "chip yellow" }, ["已下线"]) : null,
+          el("div", { style: "flex:1" }),
+          el("a", { class: "btn small ghost", href: "./cards.html?edit=" + item.card_id, title: "编辑该配置" }, [UI.icon("edit", 14)]),
+          el("a", { class: "btn small ghost", href: `/api/export/responses.csv?card_id=${item.card_id}&days=${days()}`, title: "导出该配置的提交明细 CSV" }, [UI.icon("download", 14)]),
+        ]),
+        el("div", { class: "mini-metrics" }, [
+          metricCell("触发", item.rendered),
+          metricCell("提交", item.submitted),
+          metricCell("回答人数", item.respondents),
+          metricCell("完成率", rate, rate !== "-" && rate !== "数据不全" && item.rendered && item.submitted / item.rendered < 0.6),
+        ]),
+      ]);
+      const bars = el("div", {});
+      bars.appendChild(el("div", { class: "muted", style: "margin-bottom:4px" }, ["「", item.question, "」的回答分布"]));
+      if (Object.keys(item.distribution).length) {
+        // 评分类：键补「分」，按分值排序（-2 → +2）；其余按票数（服务端已排）
+        const dist = item.component_type === "scale.likert"
+          ? Object.fromEntries(Object.entries(item.distribution)
+              .sort((a, b) => (Number(a[0]) || 0) - (Number(b[0]) || 0))
+              .map(([k, v]) => [/^-?\d+$/.test(k) ? `${k} 分` : k, v]))
+          : item.distribution;
+        distBars(bars, dist);
+      }
+      else bars.appendChild(el("div", { class: "muted" }, ["暂无提交"]));
+      card.appendChild(bars);
+      card.appendChild(el("div", { class: "card-foot-meta" }, [
+        UI.idChip(item.card_id, "配置"),
+        item.echo_results ? el("span", { class: "chip blue", title: "提交后向用户展示群体选择分布" }, ["回显"]) : el("span", { class: "chip gray" }, ["回显关闭"]),
+      ]));
+      qWrap.appendChild(card);
+    });
+  }
+  drawQuestions();
+
+  // 漏斗（真·漏斗）/ 埋点健康 / 触发分布 / 推荐默认项
+}
+
+// ================= 转化看板（漏斗 / 分布 / 埋点健康 / 推荐默认项） =================
+
+async function renderConversion() {
+  const [q, ins] = await Promise.all([
+    UI.api("/api/dashboard/questions?days=" + days()),
+    UI.api("/api/dashboard/insights?days=" + days()),
+  ]);
+  const box = content();
+  box.innerHTML = "";
+  const ih = ins.ingest_health || {};
+  const f = ins.funnel || {};
+  const rendered = f.card_rendered || 0, started = f.card_interaction_started || 0, submitted = f.card_submitted || 0;
+  const abandoned = f.card_abandoned || 0;
+  const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+
+  // 模块 1：KPI 指标行（四块独立指标）
+  box.appendChild(el("div", { class: "grid cols-4", style: "margin-bottom:12px" }, [
+    tile("组件触发", rendered, `近 ${days()} 天`, "组件在对话中被渲染的次数"),
+    tile("开始交互", started, `触达开始率 ${pct(started, rendered)}%`, "触发后用户产生首次操作的次数"),
+    tile("完成提交", submitted, `开始后完成率 ${pct(submitted, started)}%`, "开始交互后走到提交的次数"),
+    tile("整体转化率", pct(submitted, rendered) + "%", abandoned ? `中途放弃 ${abandoned} 次` : "触发 → 完成提交", "完成提交 / 组件触发"),
+  ]));
+
+  // 模块 2 + 3：转化漏斗 / 分组件转化
+  const grid2 = el("div", { class: "grid cols-2", style: "margin-bottom:12px" });
+  const [c1, b1] = chartCard("转化漏斗", "触发 → 开始交互 → 完成提交，逐级留存");
+  const [c2, b2] = chartCard("分组件转化", "浅色为触发量，深色为完成提交量");
+  grid2.append(c1, c2);
+  box.appendChild(grid2);
+
+  [
+    { label: "触发", value: rendered },
+    { label: "开始交互", value: started },
+    { label: "完成提交", value: submitted },
+  ].forEach((st, i, stages) => {
+    const w = Math.max(0.06, st.value / (rendered || 1));
+    b1.appendChild(el("div", { class: "fun-row" }, [
+      el("span", { class: "fun-label" }, [st.label]),
+      el("div", { class: "fun-track" }, [
+        el("div", { class: "fun-bar", style: `width:${w * 100}%`,
+          title: `${st.label} ${st.value} 次（占触发 ${pct(st.value, rendered)}%）` }),
+      ]),
+      el("span", { class: "fun-val num" }, [`${st.value}`]),
+    ]));
+    if (i < stages.length - 1) {
+      b1.appendChild(el("div", { class: "fun-conv num" }, [`${pct(stages[i + 1].value, st.value)}% 进入下一步`]));
+    }
+  });
+  if (abandoned) b1.appendChild(el("div", { class: "muted", style: "margin-top:10px" }, [`中途放弃 ${abandoned} 次（计入触发准确率的负样本）`]));
+
+  // 分组件转化：子弹条（同色相两档明度，同一度量族）
+  const byType = Object.entries(ins.funnel_by_type || {})
+    .map(([ct, v]) => ({ ct, r: v.card_rendered || 0, s: v.card_submitted || 0 }))
+    .sort((a, b) => b.r - a.r);
+  if (byType.length) {
+    const maxR = byType[0].r || 1;
+    byType.forEach(row => {
+      b2.appendChild(el("div", { class: "blt-row" }, [
+        el("span", { class: "blt-label" }, [UI.ctName(row.ct)]),
+        el("div", { class: "blt-track", title: `${UI.ctName(row.ct)}：触发 ${row.r} 次，完成提交 ${row.s} 次` }, [
+          el("div", { class: "blt-base", style: `width:${row.r / maxR * 100}%` }),
+          el("div", { class: "blt-fill", style: `width:${row.s / maxR * 100}%` }),
+        ]),
+        el("span", { class: "blt-val num" }, [`${row.s}/${row.r}`]),
+        el("span", { class: "blt-rate num" + (row.r >= 5 && pct(row.s, row.r) < 30 ? " warn" : "") }, [pct(row.s, row.r) + "%"]),
+      ]));
+    });
+    b2.appendChild(el("div", { class: "muted", style: "margin-top:10px" }, ["转化率 = 完成提交 / 触发；触发不少于 5 次且低于 30% 的标红"]));
+  } else b2.appendChild(el("div", { class: "muted" }, ["暂无数据"]));
+
+  // 模块 4 + 5 + 6：触发分布 / 推荐默认项 / 埋点健康
+  const grid3 = el("div", { class: "grid cols-3", style: "margin-bottom:12px" });
+  const [c3, b3] = chartCard("触发分布", "各组件触发量 Top 8");
+  const [c4, b4] = chartCard("推荐默认项", "选择类组件默认项被接受的比例");
+  const [c5, b5] = chartCard("埋点健康", "事件采集质量对 99% 验收线");
+  grid3.append(c3, c4, c5);
+  box.appendChild(grid3);
+
+  b5.appendChild(el("div", { class: "mini-metrics", style: "margin-top:0" }, [
+    el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["事件接收"]), el("div", { class: "mm-value num" }, [String(ih.total ?? "-")])]),
+    el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["整体判定"]),
+      el("div", { style: "margin-top:2px" }, [(ih.admit_rate != null && ih.admit_rate < 0.99) || (ih.field_complete_rate != null && ih.field_complete_rate < 0.99)
+        ? el("span", { class: "chip red" }, ["低于验收线"]) : el("span", { class: "chip green" }, ["达标"])])]),
+  ]));
+  function meterRow(label, ratio, threshold) {
+    const below = ratio != null && ratio < threshold;
+    return el("div", { class: "meter-row" }, [
+      el("span", { class: "meter-label" }, [label]),
+      el("div", { class: "meter-track" }, [
+        el("div", { class: "meter-fill" + (below ? " warn" : ""), style: `width:${(ratio || 0) * 100}%` }),
+        el("div", { class: "meter-th", style: `left:${threshold * 100}%`, title: `验收线 ${UI.fmtPct(threshold)}` }),
+      ]),
+      el("span", { class: "meter-val num" + (below ? " warn" : "") }, [ratio == null ? "-" : UI.fmtPct(ratio)]),
+    ]);
+  }
+  b5.appendChild(meterRow("事件生成率", ih.admit_rate, 0.99));
+  b5.appendChild(meterRow("字段完整率", ih.field_complete_rate, 0.99));
+
+  requestAnimationFrame(() => {
+    const td = Object.entries(ins.component_trigger_distribution)
+      .map(([ct, srcs]) => [ct, Object.values(srcs).reduce((a, b) => a + b, 0)])
+      .sort((a, b) => b[1] - a[1]).slice(0, 8);
+    if (td.length) UI.barChart(b3, { categories: td.map(x => UI.ctName(x[0])), values: td.map(x => x[1]), horizontal: true, unit: " 次" });
+    else b3.appendChild(el("div", { class: "muted" }, ["暂无数据"]));
+    const dm = ins.default_modification;
+    const total = dm.accepted + dm.modified;
+    if (total > 0) {
+      const pa = Math.round(dm.accepted / total * 100);
+      const cMain = "var(--primary)", cMuted = "var(--border-strong)";
+      b4.appendChild(el("div", { class: "stack-bar" }, [
+        el("div", { class: "seg", style: `width:${pa}%;background:${cMain}` }),
+        el("div", { class: "seg", style: `width:${100 - pa}%;background:${cMuted}` }),
+      ]));
+      b4.appendChild(el("div", { class: "stack-legend" }, [
+        el("span", {}, [el("i", { style: `background:${cMain}` }), `接受推荐 ${dm.accepted} 次（${pa}%）`]),
+        el("span", {}, [el("i", { style: `background:${cMuted}` }), `自行修改 ${dm.modified} 次（${100 - pa}%）`]),
+      ]));
+      b4.appendChild(el("div", { class: "muted", style: "margin-top:8px" }, [pa >= 60 ? "多数用户接受推荐，默认项设置有效" : "改选比例偏高，建议复查推荐默认项是否贴合场景"]));
+    } else b4.appendChild(el("div", { class: "muted" }, ["暂无数据：为选择类配置设置「推荐默认项」后产生"]));
+  });
+}
+
+// ================= 工具2：模型路由 =================
+
+async function renderRouting() {
+  const fq = new URLSearchParams({ days: days() });
+  for (const [k, v] of Object.entries(routeFilters)) if (v) fq.set(k, v);
+  const [d, ins, modelsRes] = await Promise.all([
+    UI.api("/api/dashboard/overview?" + fq),
+    UI.api("/api/dashboard/insights?days=" + days()),
+    UI.api("/v1/models"),
+  ]);
+  const box = content();
+  box.innerHTML = "";
+
+  // 筛选条（标书 F-5-05：按时间 / 调用模式 / 模型 / 结果状态筛选）
+  const MODE_NAMES = { auto: "智能路由", manual: "手动选模型", multi: "多模型回答" };
+  const mkSel = (key, label, options) => UI.fancySelect({
+    value: routeFilters[key],
+    options: [["", "全部"], ...options],
+    display: (v, name) => label + "：" + name,
+    onChange: (v) => { routeFilters[key] = v; renderRouting(); },
+  });
+  const activeFilters = Object.values(routeFilters).filter(Boolean).length;
+  box.appendChild(el("div", { class: "card", style: "margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px" }, [
+    mkSel("mode", "调用模式", Object.entries(MODE_NAMES)),
+    el("span", { class: "v-sep" }),
+    mkSel("model", "模型", modelsRes.models.map(m => [m.model_id, m.display_name])),
+    el("span", { class: "v-sep" }),
+    mkSel("status", "结果状态", [["ok", "成功"], ["error", "失败"]]),
+    activeFilters ? el("button", { class: "btn small ghost", onclick: () => { Object.keys(routeFilters).forEach(k => routeFilters[k] = ""); renderRouting(); } }, ["清空筛选"]) : null,
+    el("span", { class: "muted" }, [activeFilters ? `已筛选 · ${d.total_requests} 条请求` : `${d.total_requests} 条请求`]),
+    el("div", { style: "flex:1" }),
+    el("a", { class: "btn small", href: "/api/export/traces.csv?" + fq, title: "按当前筛选导出 CSV" }, [UI.icon("download", 14), "CSV"]),
+  ]));
+
+  box.appendChild(el("div", { class: "grid cols-4", style: "margin-bottom:12px" }, [
+    tile("请求数", d.total_requests),
+    tile("成本", UI.fmtCost(d.cost_total)),
+    tile("聚合率", UI.fmtPct(d.aggregation_rate), null, "多模型并发后聚合重写的占比，成本的最大杠杆"),
+    tile("快车道", UI.fmtPct(d.fastlane_rate), null, "高置信直接单模型作答的占比"),
+  ]));
+
+  // 调用模式分布（三种模式的占比）
+  const md = d.mode_distribution || {};
+  if (Object.keys(md).length) {
+    const total = Object.values(md).reduce((a, b) => a + b, 0) || 1;
+    box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
+      el("div", { style: "font-weight:600;margin-bottom:8px" }, ["调用模式分布"]),
+      el("div", { style: "display:flex;gap:16px;flex-wrap:wrap" },
+        Object.entries(md).map(([m2, n]) => el("div", { style: "display:flex;gap:8px;align-items:center" }, [
+          el("span", { class: "chip " + (m2 === "auto" ? "blue" : "gray") }, [MODE_NAMES[m2] || m2]),
+          el("span", { class: "num", style: "font-weight:600" }, [`${Math.round(n / total * 100)}%`]),
+          el("span", { class: "muted num" }, [`（${n} 次）`]),
+        ]))),
+    ]));
+  }
+  box.appendChild(el("div", { class: "grid cols-4", style: "margin-bottom:12px" }, [
+    tile("模型多样性", (Number(d.selection_entropy) || 0).toFixed(2), d.entropy_alert ? "低于告警线" : "健康", "路由采用模型的分布熵。越低越集中，可能是探索预算过低或标签被污染；告警线 1.0"),
+    tile("探索流量", UI.fmtPct(d.explore_rate), null, "随机试用非最优模型的比例，防模型池坍缩"),
+    tile("会话成本 P50", UI.fmtCost(d.session_cost.p50)),
+    tile("会话成本 P99", UI.fmtCost(d.session_cost.p99)),
+  ]));
+  if (d.entropy_alert) {
+    box.appendChild(el("div", { class: "card", style: "border-color:var(--danger);margin-bottom:12px" }, [
+      el("span", { class: "chip red" }, ["告警"]),
+      el("span", { class: "secondary", style: "margin-left:8px" },
+        ["路由正在向少数模型集中：检查探索预算或标签污染"]),
+    ]));
+  }
+
+  const grid1 = el("div", { class: "grid cols-2", style: "margin-bottom:12px" });
+  const [c1, b1] = chartCard("路由分布");
+  const [c2, b2] = chartCard("组件触发方式");
+  grid1.appendChild(c1); grid1.appendChild(c2);
+  box.appendChild(grid1);
+  requestAnimationFrame(() => {
+    const rd = Object.entries(d.route_distribution);
+    if (rd.length) UI.barChart(b1, { categories: rd.map(x => x[0]), values: rd.map(x => x[1]), horizontal: true, unit: " 次" });
+    // 工具调用：按触发方式汇总
+    const bySource = {};
+    for (const srcs of Object.values(ins.component_trigger_distribution)) {
+      for (const [src, n] of Object.entries(srcs)) bySource[src] = (bySource[src] || 0) + n;
+    }
+    const srcName = { model_tool_call: "AI 主动调用", post_classification: "后置判定（呈现型）", system_injected: "系统注入（评价型）" };
+    const entries = Object.entries(bySource);
+    if (entries.length) UI.barChart(b2, { categories: entries.map(x => srcName[x[0]] || x[0]), values: entries.map(x => x[1]), horizontal: true, unit: " 次" });
+    else b2.appendChild(el("div", { class: "muted" }, ["暂无数据"]));
+  });
+
+  const grid2 = el("div", { class: "grid cols-2", style: "margin-bottom:12px" });
+  const [c3, b3] = chartCard("成本走势（元）");
+  const [c4, b4] = chartCard("成本按模型");
+  grid2.appendChild(c3); grid2.appendChild(c4);
+  box.appendChild(grid2);
+  const daysArr = Object.entries(d.cost_by_day);
+  requestAnimationFrame(() => {
+    if (daysArr.length) UI.lineChart(b3, {
+      labels: daysArr.map(x => x[0]), series: [{ name: "成本", values: daysArr.map(x => Number(x[1].toFixed(4))) }] });
+    const models = Object.entries(d.cost_by_model);
+    if (models.length) UI.barChart(b4, { categories: models.map(x => x[0]), values: models.map(x => x[1]), horizontal: true, format: v => UI.fmtCost(v) });
+  });
+
+  const latCard = el("div", { class: "card", style: "margin-bottom:12px" }, [
+    el("div", { style: "font-weight:600;margin-bottom:8px" }, ["延迟（按路径）"]),
+    el("table", { class: "data" }, [
+      el("thead", {}, [el("tr", {}, ["路径", "请求数", "P50", "P95", "验收线"].map(h => el("th", {}, [h])))]),
+      el("tbody", {}, Object.entries(d.latency_by_path).map(([path, v]) => {
+        const name = { fastlane: "快车道", routed: "单模型路由", aggregated: "聚合路径", degraded: "降级", manual: "手动指定", await_user: "等待用户（触发组件）" }[path] || path;
+        const target = path === "fastlane" ? 2000 : path === "aggregated" ? 25000 : null;
+        const pass = target == null || v.p95 <= target;
+        return el("tr", {}, [
+          el("td", {}, [name]), el("td", {}, [String(v.count)]),
+          el("td", {}, [UI.fmtMs(v.p50)]), el("td", {}, [UI.fmtMs(v.p95)]),
+          el("td", {}, [target == null ? "-" : el("span", { class: "chip " + (pass ? "green" : "red") },
+            [`P95 不超过 ${UI.fmtMs(target)}${pass ? "，达标" : "，未达标"}`])]),
+        ]);
+      })),
+    ]),
+  ]);
+  box.appendChild(latCard);
+
+  const grid3 = el("div", { class: "grid cols-3", style: "margin-bottom:12px" });
+  const [c5, b5] = chartCard("Token 用量");
+  const [c6, b6] = chartCard("模型质量");
+  const [c7, b7] = chartCard("标签产出");
+  grid3.appendChild(c5); grid3.appendChild(c6); grid3.appendChild(c7);
+  box.appendChild(grid3);
+  requestAnimationFrame(() => {
+    UI.barChart(b5, {
+      categories: ["输入", "输出", "思考", "缓存命中"],
+      values: [d.tokens.input, d.tokens.output, d.tokens.thinking, d.tokens.cache_hit],
+      horizontal: true, unit: " tok" });
+    if (ins.model_quality.length) {
+      b6.appendChild(el("table", { class: "data" }, [
+        el("thead", {}, [el("tr", {}, ["模型", "择优胜率", "点踩率", "标签量"].map(h => el("th", {}, [h])))]),
+        el("tbody", {}, ins.model_quality.map(m => el("tr", {}, [
+          el("td", {}, [m.model_id]),
+          el("td", {}, [m.preference_win_rate == null ? "-" : UI.fmtPct(m.preference_win_rate)]),
+          el("td", {}, [m.downvote_rate == null ? "-" : UI.fmtPct(m.downvote_rate)]),
+          el("td", {}, [String(m.label_count)]),
+        ]))),
+      ]));
+    } else b6.appendChild(el("div", { class: "muted" }, ["暂无质量标签"]));
+    const SRC_CN = { explicit_binary: "赞踩", explicit_preference: "择优", implicit_behavior: "隐式行为", llm_judge: "AI 评审", ground_truth: "人工标注" };
+    const labelDays = Object.entries(ins.labels_by_day).map(([day, v]) => [day, Object.fromEntries(Object.entries(v).map(([k, n]) => [SRC_CN[k] || k, n]))]);
+    if (labelDays.length) {
+      const keys = [...new Set(labelDays.flatMap(([, v]) => Object.keys(v)))];
+      UI.stackedBars(b7, { rows: labelDays.slice(-8).map(([day, v]) => ({ label: day, values: v })), keys });
+    } else b7.appendChild(el("div", { class: "muted" }, ["暂无标签产出"]));
+  });
+
+  const failEntries = Object.entries(d.failures);
+  const [c8, b8] = chartCard("失败与降级");
+  box.appendChild(c8);
+  if (failEntries.length) {
+    requestAnimationFrame(() => UI.barChart(b8, {
+      categories: failEntries.map(x => ({ model_call: "模型调用异常", route_switch: "路由降级", card_render: "渲染降级",
+        render_degraded: "组件降级", card_ref_missing: "配置引用失效" }[x[0]] || x[0])),
+      values: failEntries.map(x => x[1]), horizontal: true, unit: " 次" }));
+  } else {
+    b8.appendChild(el("div", { class: "empty-state", style: "padding:16px" }, ["无"]));
+  }
+}
+
+// 明细下钻（标书 F-5-05：单次返回不超过 1000 条，图表与明细同源）
+// 走查 D3：筛选条件（含调用模式、时间窗）全部下发到服务端，与图表/CSV 同一查询口径；支持翻页
+async function showTraceDrill() {
+  const PAGE = 100;
+  let offset = 0;
+  const PATH_NAMES = { fastlane: "快车道", routed: "单模型路由", aggregated: "聚合", degraded: "降级",
+    manual: "手动指定", await_user: "等待用户" };
+  const tbody = el("tbody", {});
+  const info = el("div", { class: "muted", style: "margin-bottom:8px" });
+  const moreBtn = el("button", { class: "btn small", style: "margin-top:8px", onclick: () => loadPage() }, ["加载更多"]);
+  async function loadPage() {
+    const q = new URLSearchParams({ limit: PAGE, offset, days: days() });
+    if (routeFilters.mode) q.set("mode", routeFilters.mode);
+    if (routeFilters.model) q.set("final_model", routeFilters.model);
+    if (routeFilters.status) q.set("status", routeFilters.status);
+    await UI.withBusy(moreBtn, async () => {
+      const { traces } = await UI.api("/api/traces?" + q);
+      traces.forEach(t => tbody.appendChild(el("tr", { class: "clickable", title: "点击进入链路追踪",
+        onclick: () => location.href = "./trace.html?trace_id=" + t.trace_id }, [
+        el("td", { class: "muted" }, [UI.fmtTs(t.ts)]),
+        el("td", { style: "max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: t.query_text }, [t.query_text || "-"]),
+        el("td", {}, [PATH_NAMES[t.switch_result] || t.switch_result || "-"]),
+        el("td", {}, [t.final_model || "-"]),
+        el("td", {}, [t.status === "ok" || !t.status ? el("span", { class: "chip green" }, ["成功"]) : el("span", { class: "chip red" }, ["失败"])]),
+        el("td", { class: "num" }, [UI.fmtCost(t.total_cost)]),
+        el("td", { class: "num" }, [UI.fmtMs(t.total_latency_ms)]),
+      ])));
+      offset += traces.length;
+      info.textContent = `已加载 ${offset} 条 · 点击行查看链路`;
+      moreBtn.style.display = traces.length < PAGE ? "none" : "";
+      if (!offset) tbody.appendChild(el("tr", {}, [el("td", { colspan: "7", class: "muted", style: "text-align:center;padding:20px" }, ["当前筛选条件下没有请求"])]));
+    }, "加载中……");
+  }
+  const body = el("div", {}, [
+    info,
+    el("div", { style: "overflow-x:auto" }, [
+      el("table", { class: "data" }, [
+        el("thead", {}, [el("tr", {}, ["时间", "问题（脱敏）", "路径", "模型", "状态", "成本", "耗时"].map(h => el("th", {}, [h])))]),
+        tbody,
+      ]),
+    ]),
+    moreBtn,
+  ]);
+  UI.modal("请求明细", body, null, { wide: true });
+  loadPage();
+}
+
+const RENDER = { survey: renderSurvey, conversion: renderConversion, routing: renderRouting };
+window.addEventListener("hashchange", () => showSection(location.hash.replace("#", "")));
+showSection(location.hash.replace("#", "") || "survey", true);
+</script>
+</body>
+</html>

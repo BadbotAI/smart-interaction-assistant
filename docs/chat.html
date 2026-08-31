@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>交互测试 · 智能交互平台</title>
+<link rel="stylesheet" href="./shared.css">
+<style>
+  /* 真实对话助手布局：细头部 / 中间滚动消息流 / 底部固定输入 */
+  html, body { height: 100%; overflow: hidden; }
+  .chat-shell { display: flex; flex-direction: column; height: 100vh; }
+  .chat-top {
+    display: flex; align-items: center; gap: 8px; padding: 10px 24px;
+    background: var(--bg-page); border-bottom: 1px solid var(--border); flex: none;
+  }
+  .chat-scroll { flex: 1; overflow-y: auto; }
+  .chat-inner { max-width: 780px; margin: 0 auto; padding: 20px 20px 24px; }
+
+  .msg { margin: 18px 0; display: flex; gap: 10px; }
+  .msg.user { justify-content: flex-end; }
+  .msg.user .bubble {
+    background: var(--primary); color: #fff; max-width: 72%;
+    padding: 9px 14px; border-radius: 16px 16px 4px 16px; font-size: var(--font-base);
+  }
+  .msg.bot .avatar {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--panel-deep); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center; flex: none; margin-top: 2px;
+  }
+  .msg.bot .bubble { flex: 1; min-width: 0; max-width: 100%; padding-top: 4px; }
+  .msg.bot .bubble > .comp { max-width: 560px; }
+
+  /* 空态：居中欢迎 */
+  .hello { text-align: center; padding: 9vh 20px 20px; }
+  .hello .avatar {
+    width: 52px; height: 52px; border-radius: 16px; background: var(--panel-deep); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center; margin-bottom: 14px;
+  }
+  .hello h2 { font-size: var(--font-hero); font-weight: 700; margin-bottom: 6px; }
+  .hello .sub { color: var(--text-muted); font-size: var(--font-base); margin-bottom: 22px; }
+  .hello .grid-sug { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-width: 560px; margin: 0 auto; }
+  .hello .sug {
+    text-align: left; border: 1px solid var(--border); background: var(--bg-surface);
+    border-radius: var(--radius-card); padding: 10px 14px; font-size: var(--font-base); color: var(--text-secondary);
+    transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+  }
+  .hello .sug:hover { border-color: var(--primary-border); box-shadow: var(--shadow-card); color: var(--text-primary); }
+
+  /* 底部输入区 */
+  .composer-wrap { flex: none; background: linear-gradient(180deg, rgba(238,240,244,0), var(--bg-page) 40%); padding: 8px 20px 16px; }
+  .composer-inner { max-width: 780px; margin: 0 auto; }
+  .composer-tools { display: none; }
+  .model-pick {
+    width: auto; max-width: 168px; border: none; box-shadow: none; background: transparent;
+    color: var(--text-muted); font-size: var(--font-small); padding: 4px 2px 4px 0; flex: none; cursor: pointer;
+  }
+  .model-pick:hover { color: var(--text-primary); }
+  .model-pick:focus { box-shadow: none; }
+  .composer {
+    display: flex; align-items: center; gap: 6px; background: var(--bg-surface);
+    border: 1px solid var(--border-strong); border-radius: 24px; padding: 6px 6px 6px 18px;
+    box-shadow: var(--shadow-card); transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+  }
+  .composer:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
+  .composer input { border: none; box-shadow: none; padding: 6px 0; font-size: var(--font-base); background: transparent; }
+  .composer input:focus { box-shadow: none; }
+  .send-btn {
+    width: 36px; height: 36px; border-radius: 50%; border: none; flex: none;
+    background: var(--primary); color: #fff; display: inline-flex; align-items: center; justify-content: center;
+    transition: background var(--dur-fast);
+  }
+  .send-btn:hover { background: var(--primary-hover); }
+  .send-btn.stop { background: var(--danger); }
+  .send-btn:disabled { opacity: 0.4; }
+
+  .reason-panel { border: 1px dashed var(--border); border-radius: var(--radius-control); padding: 8px 12px; margin: 4px 0 8px; background: var(--bg-surface); }
+  .reason-step { display: flex; gap: 8px; padding: 2px 0; font-size: var(--font-small); color: var(--text-secondary); }
+  .reason-step .dot { color: var(--primary); }
+</style>
+</head>
+<body>
+<div class="chat-shell">
+  <div class="chat-top">
+    <span style="font-weight:600">交互测试</span>
+    <span id="chatHelp"></span>
+    <div style="flex:1"></div>
+    <span class="muted num" id="sessionLabel"></span>
+    <button class="btn small" id="newSessionBtn">新会话</button>
+  </div>
+
+  <div class="chat-scroll" id="chatScroll"><div class="chat-inner">
+    <div id="hello" class="hello">
+      <div class="avatar" id="helloAvatar"></div>
+      <h2>你好，我是智能助手</h2>
+      <div class="sub">试试下面的问题，或直接输入。命中交互配置时我会先给出组件。</div>
+      <div class="grid-sug" id="suggests"></div>
+    </div>
+    <div id="messages"></div>
+  </div></div>
+
+  <div class="composer-wrap"><div class="composer-inner">
+    <div class="composer">
+      <select id="modelSel" class="model-pick" aria-label="选择模型" title="选择回答模型"></select>
+      <input type="text" id="input" placeholder="输入消息…" aria-label="输入消息" autocomplete="off">
+      <button class="send-btn" id="sendBtn" title="发送" aria-label="发送"></button>
+    </div>
+  </div></div>
+</div>
+
+<script src="./mock_data.js"></script>
+<script src="./mock_api.js"></script>
+<script src="./tokens.js"></script>
+<script src="./ui.js"></script>
+<script src="./components.js"></script>
+<script>
+UI.nav("chat");
+const { el } = UI;
+document.getElementById("chatHelp").appendChild(UI.help("终端用户视角。命中交互配置时先出说明与组件；输入框左侧可切换回答模型（默认自动选择）。赞踩 / 复制 / 换模型重答都会回流优化调度。"));
+document.getElementById("helloAvatar").appendChild(UI.icon("bot", 24));
+let SESSION = "sess-" + Math.random().toString(36).slice(2, 8);
+let busy = false;
+let currentController = null;   // 生成中可中断
+let lastQuestion = "";          // 最近一次真实提问（重答/跳过时复用）
+const pendingAsks = [];         // 已渲染未提交的场景组件（弃答埋点用）
+const USER = "demo-user";
+const TENANT = "tenant-demo";
+const messagesBox = document.getElementById("messages");
+const scrollBox = document.getElementById("chatScroll");
+document.getElementById("sessionLabel").textContent = SESSION;
+
+const sendBtn = document.getElementById("sendBtn");
+function renderSendBtn() {
+  sendBtn.innerHTML = "";
+  sendBtn.classList.toggle("stop", busy);
+  sendBtn.title = busy ? "中断" : "发送";
+  sendBtn.appendChild(busy ? el("span", { style: "width:12px;height:12px;background:#fff;border-radius:2px;display:block" }) : UI.icon("send", 16));
+}
+renderSendBtn();
+
+document.getElementById("newSessionBtn").onclick = async () => {
+  if (busy) { UI.toast("请先中断生成", true); return; }
+  if (messagesBox.children.length) {
+    const ok = await UI.confirm("新会话", "清空当前对话？已上报的反馈保留。", { okText: "新会话" });
+    if (!ok) return;
+  }
+  abandonPendingAsks("session_reset");
+  messagesBox.innerHTML = "";
+  document.getElementById("hello").style.display = "";
+  SESSION = "sess-" + Math.random().toString(36).slice(2, 8);
+  document.getElementById("sessionLabel").textContent = SESSION;
+  lastQuestion = "";
+  document.getElementById("input").focus();
+};
+
+const SUGGESTS = [
+  "我的货延误了怎么办",
+  "对比一下这几家供应商",
+  "帮我选一个运输方案",
+  "铁矿石近期价格走势如何",
+  "这批货物出口合规审查要点",
+  "帮我下单采购一批铜精矿",
+];
+const sbox = document.getElementById("suggests");
+SUGGESTS.forEach(s => sbox.appendChild(el("button", { class: "sug", onclick: () => send(s) }, [s])));
+
+// ---------- 模型选择：收进输入框（参考 ChatGPT / Claude），默认自动 + 可切换指定模型 ----------
+const modelSel = document.getElementById("modelSel");
+modelSel.appendChild(el("option", { value: "auto" }, ["自动选择"]));
+UI.api("/v1/models").then(({ models }) => {
+  models.filter(m => m.status === "active").forEach(m =>
+    modelSel.appendChild(el("option", { value: m.model_id }, [m.display_name])));
+  const remembered = localStorage.getItem("chat_model");
+  if (remembered && [...modelSel.options].some(o => o.value === remembered)) modelSel.value = remembered;
+}).catch(() => {});
+modelSel.onchange = () => localStorage.setItem("chat_model", modelSel.value);
+const isAuto = () => modelSel.value === "auto";
+
+function hideHello() { document.getElementById("hello").style.display = "none"; }
+function addUserMsg(text) {
+  hideHello();
+  messagesBox.appendChild(el("div", { class: "msg user" }, [el("div", { class: "bubble" }, [text])]));
+  scrollBottom();
+}
+function botMsg() {
+  hideHello();
+  const bubble = el("div", { class: "bubble" });
+  messagesBox.appendChild(el("div", { class: "msg bot" }, [
+    el("span", { class: "avatar" }, [UI.icon("bot", 16)]), bubble,
+  ]));
+  return bubble;
+}
+function scrollBottom() { scrollBox.scrollTop = scrollBox.scrollHeight; }
+
+// 回流 SDK：事件按 Schema 组装，异步上报，失败本地缓存重试
+const eventQueue = [];
+function sendEvent(eventType, envelope, payload, extras = {}) {
+  const ctx = envelope._ctx || {};
+  const evt = {
+    schema_version: "1.0.0",
+    event_id: crypto.randomUUID(),
+    trace_id: ctx.traceId || "unknown",
+    tenant_id: TENANT, session_id: SESSION,
+    turn_id: ctx.turnId || "unknown", user_id: USER,
+    ts: new Date().toISOString(),
+    event_type: eventType,
+    card: {
+      card_id: envelope.card_ref?.card_id || null,
+      card_version: envelope.card_ref?.version || null,
+      component_type: envelope.component_type,
+      semantic_category: envelope.semantic_category,
+      trigger_source: envelope.trigger_source,
+    },
+    route_context: ctx.routeContext || {},
+    payload: { render_id: envelope.render_id, ...(payload || {}) },
+    group: extras.group || null,
+    label_hint: extras.label_hint || null,
+  };
+  eventQueue.push(evt);
+  flushEvents();
+}
+async function flushEvents() {
+  if (!eventQueue.length) return;
+  const batch = eventQueue.splice(0, eventQueue.length);
+  try {
+    await UI.api("/v1/events", { method: "POST", body: { events: batch } });
+  } catch (e) {
+    eventQueue.unshift(...batch); // 采集失败不阻塞用户操作，缓存重试
+    setTimeout(flushEvents, 3000);
+  }
+}
+
+function abandonPendingAsks(reason) {
+  while (pendingAsks.length) {
+    const env = pendingAsks.pop();
+    if (env._submitted || env._skipped) continue;
+    sendEvent("card_abandoned", env, {
+      reason, time_to_interact_ms: Date.now() - (env._renderTs || Date.now()),
+    });
+  }
+}
+
+async function send(text, cardContext, opts = {}) {
+  if (busy || !text) return;
+  busy = true;
+  modelSel.disabled = true;
+  renderSendBtn();
+  const isRealQuestion = !cardContext && !opts.silent;
+  if (isRealQuestion) {
+    abandonPendingAsks("asked_something_else");  // 用户绕开组件另起提问
+    addUserMsg(text);
+    lastQuestion = text;
+  }
+  const originText = isRealQuestion ? text : lastQuestion;
+
+  const bubble = botMsg();
+  const reasonPanel = el("div", { class: "reason-panel" }, [
+    el("div", { class: "muted", style: "margin-bottom:4px" }, ["思考中……"]),
+  ]);
+  bubble.appendChild(reasonPanel);
+  scrollBottom();
+
+  function addStep(text) {
+    reasonPanel.appendChild(el("div", { class: "reason-step" }, [
+      el("span", { class: "dot" }, ["·"]), el("span", {}, [text])]));
+    scrollBottom();
+  }
+
+  currentController = new AbortController();
+  try {
+    const res = await fetch("/v1/route", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      signal: currentController.signal,
+      body: JSON.stringify({ tenant_id: TENANT, session_id: SESSION, user_id: USER, text,
+        card_context: cardContext, skip_card_match: !!opts.skipCardMatch,
+        mode: isAuto() ? "auto" : "manual", manual_model: isAuto() ? null : modelSel.value }),
+    });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) >= 0) {
+        const chunk = buf.slice(0, idx).trim();
+        buf = buf.slice(idx + 2);
+        if (!chunk.startsWith("data:")) continue;
+        const evt = JSON.parse(chunk.slice(5));
+        if (evt.step === "final") {
+          renderFinal(bubble, reasonPanel, evt, originText);
+        } else if (evt.text) {
+          addStep(evt.text);
+        }
+      }
+    }
+  } catch (err) {
+    if (err.name === "AbortError") {
+      reasonPanel.remove();
+      bubble.appendChild(el("div", { class: "secondary" }, ["已中断"]));
+      sendEvent("control_invoked", {
+        schema_version: "1.0.0", render_id: crypto.randomUUID(),
+        component_type: "control.interrupt", semantic_category: "control",
+        trigger_source: "system_injected", card_ref: null, params: {},
+        _ctx: { traceId: "interrupted-before-final", turnId: "unknown", routeContext: {} },
+      }, { action: "interrupt" });
+    } else {
+      reasonPanel.remove();
+      bubble.appendChild(el("div", { class: "field-error" }, ["请求失败：" + err.message]));
+      bubble.appendChild(el("button", { class: "btn small", style: "margin-top:6px", onclick: (e) => {
+        e.currentTarget.closest(".msg").remove();
+        send(text, cardContext, { ...opts, silent: true });
+      } }, ["重试"]));
+    }
+  }
+  currentController = null;
+  busy = false;
+  modelSel.disabled = false;
+  renderSendBtn();
+  if (isRealQuestion) document.getElementById("input").focus();
+}
+
+function renderFinal(bubble, reasonPanel, evt, originText) {
+  // 收起执行过程
+  const steps = reasonPanel.querySelectorAll(".reason-step").length;
+  if (steps > 0) {
+    const summary = el("details", {}, [
+      el("summary", { class: "muted", style: "cursor:pointer" }, [`思考过程（${steps} 步）`]),
+    ]);
+    [...reasonPanel.querySelectorAll(".reason-step")].forEach(s => summary.appendChild(s));
+    reasonPanel.replaceWith(el("div", { class: "reason-panel" }, [summary]));
+  } else {
+    reasonPanel.remove();
+  }
+
+  const ctx = {
+    traceId: evt.trace_id, turnId: evt.turn_id, sessionId: SESSION, userId: USER,
+    routeContext: evt.route_context || {},
+    titleInBubble: true,
+    sendEvent: (type, envelope, payload, extras) => {
+      envelope._ctx = ctx;
+      sendEvent(type, envelope, payload, extras);
+    },
+    onCollectSubmit: (payload, envelope, extras = {}) => {
+      envelope._ctx = ctx;
+      sendEvent("card_submitted", envelope, payload, { group: extras.group || null });
+      const summary = extras.summaryOverride ||
+        (payload.form_values ? Object.entries(payload.form_values).map(([k, v]) => `${k}=${v}`).join("，")
+          : `选择了「${payload.user_selection}」`);
+      // 带上配置与所选项：服务端按该选项配置的 prompt / 服务接口继续（选项 → 对应服务或回复）
+      send("请基于我的提交继续", { summary, card_id: envelope.card_ref?.card_id || null,
+        selection: Array.isArray(payload.user_selection) ? payload.user_selection[0] : payload.user_selection });
+    },
+    onControl: (action, envelope) => {
+      envelope._ctx = ctx;
+      sendEvent("control_invoked", envelope, { action });
+      if (envelope.component_type === "control.confirm") {
+        if (action === "confirm") send("继续执行刚才的操作", { summary: "用户已确认执行该高风险操作" });
+        else addBotNote("已取消该操作。");
+      } else if (action === "retry") {
+        send("换个模型再回答一次刚才的问题", null);
+      }
+    },
+  };
+
+  if (evt.content) bubble.appendChild(el("div", {}, [evt.content]));
+
+  if (evt.ask_card) {
+    const env = evt.ask_card;
+    env._ctx = ctx;
+    if (env.params?.prompt && env.params.reply_text) bubble.appendChild(el("div", { class: "bubble-prompt" }, [env.params.prompt]));
+    bubble.appendChild(Components.render(env, ctx));
+    pendingAsks.push(env);
+    // 逃生口：触发错了必须让用户能绕开组件
+    bubble.appendChild(el("div", { style: "margin-top:6px" }, [
+      el("button", { class: "btn small", style: "border:none;color:var(--text-muted)", onclick: (e) => {
+        if (env._submitted || env._skipped) return;
+        env._skipped = true;
+        e.target.disabled = true;
+        sendEvent("card_abandoned", env, { reason: "user_skip",
+          time_to_interact_ms: Date.now() - (env._renderTs || Date.now()) });
+        send(originText, null, { silent: true, skipCardMatch: true });
+      } }, ["跳过，直接回答"]),
+    ]));
+  }
+  const comps = evt.components || [];
+  const binaryEnv = comps.find(c => c.component_type === "feedback.binary");
+  comps.filter(c => c !== binaryEnv).forEach(c => {
+    c._ctx = ctx;
+    bubble.appendChild(Components.render(c, ctx));
+  });
+
+  if (evt.decision_summary) {
+    const d = evt.decision_summary;
+    const actions = el("div", { style: "display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap" });
+    if (binaryEnv) {
+      binaryEnv._ctx = ctx;
+      actions.appendChild(Components.render(binaryEnv, ctx));
+    }
+    if (d.final_model) {
+      let copied = false;
+      actions.appendChild(el("button", { class: "btn small ghost", onclick: () => {
+        navigator.clipboard.writeText(evt.content || "");
+        if (!copied) { copied = true; emitImplicit(ctx, d.final_model, 1.0, "copy_answer"); }
+        UI.toast("已复制");
+      } }, ["复制"]));
+    }
+    if (d.final_model && originText) {
+      const manual = d.mode === "manual" || !isAuto();
+      actions.appendChild(el("button", { class: "btn small ghost", title: manual ? "用当前指定的模型重新回答" : "记为弱负反馈，并换一个模型重新回答",
+        onclick: (e) => {
+          e.target.disabled = true;
+          emitImplicit(ctx, d.final_model, -1.0, "retry_with_other_model");
+          send(originText, null, { silent: true, skipCardMatch: true });
+        } }, [manual ? "重新回答" : "换模型重答"]));
+    }
+    bubble.appendChild(actions);
+
+    const pathName = { fastlane: "快车道", routed: "单模型路由", aggregated: "多模型聚合",
+      degraded: "降级", manual: "手动指定" }[d.switch_result] || d.switch_result;
+    const meta = el("div", { class: "muted", style: "margin-top:2px;font-size:var(--font-small)" }, [
+      `${pathName} · ${d.final_model || "-"} · ${UI.fmtMs(d.total_latency_ms)} · ${UI.fmtCost(d.total_cost)}` +
+      (d.is_explore ? " · 探索流量" : "") + " · ",
+      el("a", { href: "#", title: "查看为什么选这个模型", onclick: (e) => { e.preventDefault(); showExplain(evt.trace_id); } }, ["为什么选它"]),
+    ]);
+    bubble.appendChild(meta);
+  } else {
+    comps.length === 0 && binaryEnv && bubble.appendChild(Components.render(binaryEnv, ctx));
+  }
+  scrollBottom();
+}
+
+function emitImplicit(ctx, targetModel, polarity, behavior) {
+  const envelope = {
+    schema_version: "1.0.0", render_id: crypto.randomUUID(),
+    component_type: "implicit.behavior", semantic_category: "evaluate",
+    trigger_source: "system_injected", card_ref: null, params: {}, _ctx: ctx,
+  };
+  sendEvent("feedback_given", envelope, { behavior }, { label_hint: {
+    label_kind: "capability", polarity, confidence: 0.25,
+    target_models: [targetModel], source: "implicit_behavior" } });
+}
+
+function addBotNote(text) {
+  botMsg().appendChild(el("div", {}, [text]));
+  scrollBottom();
+}
+
+async function showExplain(traceId) {
+  try {
+    const d = await UI.api(`/v1/route/${traceId}/explain`);
+    const body = el("div", {}, [
+      el("div", { class: "secondary", style: "margin-bottom:8px" },
+        ["依据：相似历史问题上各模型的命中率"]),
+      el("div", { class: "section-title", style: "font-size: var(--font-base)" }, ["候选打分"]),
+      scoreBars(d.coarse_scores),
+      Object.keys(d.fine_scores || {}).length ? el("div", {}, [
+        el("div", { class: "section-title", style: "font-size: var(--font-base);margin-top:10px" }, ["细排（含回答内容与消耗）"]),
+        scoreBars(d.fine_scores),
+      ]) : null,
+      el("div", { class: "section-title", style: "font-size: var(--font-base);margin-top:10px" }, ["相似历史问题"]),
+      el("div", {}, (d.support_set || []).slice(0, 6).map(s =>
+        el("div", { style: "padding:4px 0;border-bottom:1px solid var(--border)" }, [
+          el("div", {}, [s.query_text]),
+          el("div", { class: "muted" }, ["各模型命中：" + Object.entries(s.model_hits || {})
+            .map(([m, v]) => `${m} ${v >= 0.5 ? "对" : "错"}`).join(" · ")]),
+        ]))),
+      el("div", { style: "margin-top:12px" }, [
+        el("a", { href: "./trace.html?trace_id=" + traceId }, ["完整链路"]),
+      ]),
+    ]);
+    UI.modal("为什么选它", body);
+  } catch (e) { UI.toast("加载失败：" + e.message, true); }
+}
+
+function scoreBars(scores) {
+  const entries = Object.entries(scores || {}).sort((a, b) => b[1] - a[1]);
+  const max = Math.max(...entries.map(([, v]) => v), 0.001);
+  return el("div", {}, entries.map(([m, v]) =>
+    el("div", { style: "display:flex;align-items:center;gap:8px;margin:3px 0" }, [
+      el("span", { style: "width:110px;font-size:var(--font-small)" }, [m]),
+      el("div", { style: "flex:1" }, [el("div", { class: "progress-track" },
+        [el("div", { class: "progress-fill", style: `width:${v / max * 100}%` })])]),
+      el("span", { class: "muted", style: "width:48px;text-align:right" }, [v.toFixed(3)]),
+    ])));
+}
+
+sendBtn.onclick = () => {
+  if (busy) {
+    if (currentController) currentController.abort();
+    return;
+  }
+  const input = document.getElementById("input");
+  const t = input.value.trim();
+  if (t) { input.value = ""; send(t); }
+};
+document.getElementById("input").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !busy) sendBtn.onclick();
+});
+// 深链：交互配置「在对话中测试」带 ?q= 进入，预填并聚焦
+const deepQ = new URLSearchParams(location.search).get("q");
+if (deepQ) { const inp = document.getElementById("input"); inp.value = deepQ; inp.focus(); }
+</script>
+</body>
+</html>

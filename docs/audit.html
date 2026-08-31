@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>操作日志 · 智能交互平台</title>
+<link rel="stylesheet" href="./shared.css">
+</head>
+<body>
+<div class="page">
+  <div class="page-head" style="display:flex;align-items:center;gap:6px">
+    <div class="page-title">操作日志</div>
+    <span id="pageHelp"></span>
+  </div>
+  <div class="card" style="padding:0">
+    <div style="display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+      <span class="muted" id="auditCount"></span>
+      <div style="flex:1"></div>
+      <button class="btn small" id="dlBtn"></button>
+    </div>
+    <div id="auditBox"></div>
+  </div>
+</div>
+
+<script src="./mock_data.js"></script>
+<script src="./mock_api.js"></script>
+<script src="./tokens.js"></script>
+<script src="./ui.js"></script>
+<script>
+UI.nav("audit");
+const { el } = UI;
+document.getElementById("pageHelp").appendChild(UI.help("平台关键操作全量记录：发布 / 下线 / 回滚、策略调参、模型状态变更、凭证操作、数据导出、风格切换等。只读，可导出 CSV。"));
+
+const ACTION_NAMES = {
+  card_publish: "发布配置", card_offline: "下线配置", card_delete: "删除配置",
+  card_rollback: "回滚配置", card_restore_draft: "载入历史版本为草稿", card_republish_same: "原样重新上线",
+  echo_toggle: "切换回显", policy_update: "更新路由规则", policy_rollback: "回滚路由规则",
+  model_register: "添加模型", model_status_change: "变更模型状态", model_set_default: "设默认兜底",
+  credential_delete: "删除凭证并暂停", export_csv: "导出明细", profile_rebuild: "更新画像",
+  brand_activate: "切换组件风格", brand_delete: "删除组件风格", label_review: "标签复核",
+  unmask_trace: "解除脱敏",
+};
+
+function fmtDetail(d) {
+  if (!d || typeof d !== "object") return "";
+  return Object.entries(d).map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ");
+}
+
+document.getElementById("dlBtn").append(UI.icon("download", 14), "导出 CSV");
+let allAudit = [];
+document.getElementById("dlBtn").onclick = () => {
+  const lines = [["时间", "操作人", "动作", "详情"].join(",")];
+  allAudit.forEach(r => lines.push([
+    UI.fmtTs(r.ts), r.actor || "", ACTION_NAMES[r.action] || r.action,
+    JSON.stringify(fmtDetail(r.detail)),
+  ].join(",")));
+  const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "操作日志.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  UI.toast("已导出操作日志");
+};
+let shown = 50;
+async function load() {
+  const { audit } = await UI.api("/api/audit?limit=200");
+  allAudit = audit;
+  document.getElementById("auditCount").textContent = `共 ${audit.length} 条（最近 200 条内）`;
+  const box = document.getElementById("auditBox");
+  box.innerHTML = "";
+  if (!audit.length) {
+    box.appendChild(el("div", { class: "empty-state" }, [
+      el("div", { class: "empty-title" }, ["还没有审计记录"]),
+      el("div", {}, ["发布配置、调整策略等关键操作后会出现在这里"]),
+    ]));
+    return;
+  }
+  box.appendChild(el("table", { class: "data" }, [
+    el("thead", {}, [el("tr", {}, ["时间", "操作人", "动作", "对象与详情"].map(h => el("th", {}, [h])))]),
+    el("tbody", {}, audit.slice(0, shown).map(r => el("tr", {}, [
+      el("td", { class: "num", style: "white-space:nowrap" }, [UI.fmtTs(r.ts)]),
+      el("td", {}, [r.actor || "-"]),
+      el("td", {}, [ACTION_NAMES[r.action] || r.action]),
+      el("td", { class: "muted num", style: "max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: fmtDetail(r.detail) }, [fmtDetail(r.detail)]),
+    ]))),
+  ]));
+  if (audit.length > shown) {
+    box.appendChild(el("div", { style: "text-align:center;padding:10px" }, [
+      el("button", { class: "btn small", onclick: () => { shown += 50; load(); } }, [`显示更多（还有 ${audit.length - shown} 条）`]),
+    ]));
+  }
+}
+load().catch(e => UI.toast("加载失败：" + e.message, true));
+</script>
+</body>
+</html>

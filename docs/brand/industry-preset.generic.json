@@ -1,0 +1,21 @@
+{
+  "preset_id": "generic",
+  "preset_name": "通用行业",
+  "glossary": {},
+  "component_defaults": {
+    "matrix.compare": {
+      "dimensions": ["收益", "成本", "风险", "可行性"],
+      "text_templates": { "title": "方案对比", "submit": "选定方案" }
+    },
+    "select.single": {
+      "text_templates": { "prompt_prefix": "请选择", "submit": "确认" }
+    },
+    "feedback.binary": {
+      "dimensions": [
+        { "key": "capability", "label": "回答准确吗" },
+        { "key": "preference", "label": "符合期望吗" }
+      ]
+    }
+  },
+  "default_option_sources": {}
+}
