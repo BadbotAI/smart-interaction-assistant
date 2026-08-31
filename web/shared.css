@@ -247,6 +247,7 @@ textarea { resize: none; }
 label.field { display: block; margin-bottom: 12px; }
 label.field .label-text { display: block; font-size: var(--font-small); color: var(--text-secondary); margin-bottom: 4px; }
 label.field .label-text.req::after { content: " *"; color: var(--danger); }
+label.field .label-text .req::after { content: " *"; color: var(--danger); }
 .field-error { color: var(--danger); font-size: var(--font-small); margin-top: 2px; }
 .field-error:empty { display: none; }
 label.field.has-error input, label.field.has-error textarea, label.field.has-error select { border-color: var(--danger); }
