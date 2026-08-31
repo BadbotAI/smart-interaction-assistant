@@ -263,6 +263,19 @@ async def _handle_turn(body: dict, emit):
     })
 
 
+@app.get("/v1/embed/envelope/{card_id}")
+def embed_envelope(card_id: str):
+    """植入 SDK：按配置 ID 获取可渲染的协议信封（sia.js 用）。仅已上线配置可被植入。"""
+    card = cards.get_card(card_id)
+    if not card:
+        return JSONResponse({"error": "配置不存在"}, status_code=404)
+    if not (card.get("status") == "published" or (card.get("status") == "draft" and (card.get("version") or 0) >= 1)):
+        return JSONResponse({"error": "配置未上线，不能植入"}, status_code=409)
+    envelope, degraded = _build_ask_envelope(card, "")
+    return {"envelope": envelope, "degraded": bool(degraded),
+            "card": {"card_id": card["card_id"], "name": card["name"], "version": card.get("version")}}
+
+
 def _build_ask_envelope(card: dict, query: str):
     """把命中的采集/控制卡片实例化为组件信封。
     优先使用管理端编辑的模版配置（field_bindings.config）；API 选项源失败 → 空态降级（§2.8）。"""

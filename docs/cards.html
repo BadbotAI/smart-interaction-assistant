@@ -183,6 +183,36 @@ function shortId(cardId) {
   const hex = String(cardId).replace(/-/g, "").slice(0, 8);
   return String(parseInt(hex, 16) % 1000000).padStart(6, "0");
 }
+// 植入代码（GA 式接入）：snippet + 三种触发方式
+function embedSnippet(cardId) {
+  return [
+    `<!-- 第一步：把 SDK 贴进你的产品（Key 在「路由策略」页复制） -->`,
+    `<script async src="https://cdn.your-domain.com/sia.js" data-key="你的接入Key"><\/script>`,
+    ``,
+    `<!-- 触发方式一：对话触发（默认）——对话走 /v1/route，命中触发条件自动返回本组件，无需额外代码 -->`,
+    ``,
+    `<!-- 触发方式二：规则触发（GTM 式）——指定页面元素被点击时渲染本组件 -->`,
+    `<script>sia('on', { selector: '#help-btn', event: 'click' }, '${cardId}');<\/script>`,
+    ``,
+    `<!-- 触发方式三：显式调用——业务代码任意时机唤起 -->`,
+    `<script>sia('show', '${cardId}', { mount: '#slot' });<\/script>`,
+    ``,
+    `<!-- 组件在 Shadow DOM 内渲染（样式与你的页面互不影响），交互数据自动回传平台 -->`,
+  ].join("\n");
+}
+function embedDialog(c) {
+  const code = embedSnippet(c.card_id);
+  UI.modal(`获取植入代码 · ${c.name}`, el("div", {}, [
+    el("div", { style: "display:flex;align-items:center;margin-bottom:6px" }, [
+      el("span", { class: "muted" }, ["像接入统计代码一样，把组件植入你的产品"]),
+      el("div", { style: "flex:1" }),
+      el("button", { class: "btn small", onclick: () => window.open(`./embed-demo.html?card=${c.card_id}`, "_blank") }, ["打开植入演示页"]),
+      el("button", { class: "btn small primary", onclick: () => { navigator.clipboard.writeText(code); UI.toast("已复制植入代码"); } }, [UI.icon("copy", 14), "复制"]),
+    ]),
+    el("pre", { class: "code", style: "max-height:340px;overflow:auto" }, [code]),
+  ]));
+}
+
 let _loadSeq = 0;
 async function loadCards() {
   const seq = ++_loadSeq;
@@ -289,6 +319,7 @@ function moreButton(c, eff) {
   const moreBtn = el("button", { class: "btn small", onclick: () => UI.menu(moreBtn, [
     { label: "测试", onClick: () => openTest((c.trigger_examples || [])[0] || c.name) },
     { label: "查看数据（看板）", onClick: () => { location.href = "./dashboard.html#survey"; } },
+    { label: "获取植入代码", onClick: () => embedDialog(c) },
     { label: "复制配置 ID", onClick: () => { navigator.clipboard.writeText(c.card_id); UI.toast("已复制配置 ID"); } },
     eff !== "published" ? { label: c.version >= 1 ? "删除配置（含线上版本）" : "删除配置", danger: true, onClick: () => doTransition(c, "delete") } : null,
   ]) }, ["更多"]);
@@ -366,7 +397,7 @@ const STEP_DEFS = [
   { key: "trigger", label: "交互配置" },
   { key: "comp", label: "设计内容" },
   { key: "confirm", label: "数据收集" },
-  { key: "done", label: "获取配置 ID" },
+  { key: "done", label: "获取植入代码" },
 ];
 // 每步负责校验的字段（下一步前只拦本步的错）
 const STEP_FIELDS = {
@@ -1179,18 +1210,7 @@ async function openEditor(cardId, prefill, initStep) {
   function stepDone() {
     const box = el("div", {});
     const c = savedCard || {};
-    const embedCode = [
-      `# 配置 ID：${clientCardId}`,
-      `# 1) 对话接入：把用户消息发到路由入口，命中触发条件时返回本组件的协议信封（SSE）`,
-      `curl -N -X POST https://your-domain/v1/route \\`,
-      `  -H "Content-Type: application/json" \\`,
-      `  -d '{"text": "用户消息", "tenant_id": "tenant-demo", "session_id": "sess-1", "user_id": "u-1"}'`,
-      ``,
-      `# 2) 按配置 ID 主动拉取聚合结果（需开启回显）`,
-      `curl https://your-domain/v1/cards/${clientCardId}/responses`,
-      ``,
-      `# 组件渲染 SDK 随正式版提供；协议信封结构见下方接口契约`,
-    ].join("\n");
+    const embedCode = embedSnippet(clientCardId);
     const samplePayload = {
       event: "card_submitted",
       config_id: clientCardId,
@@ -1228,12 +1248,14 @@ async function openEditor(cardId, prefill, initStep) {
     ]));
     box.appendChild(el("div", { class: "field" }, [
       el("div", { style: "display:flex;align-items:center;margin-bottom:4px" }, [
-        el("span", { class: "label-text", style: "margin-bottom:0" }, ["嵌入代码"]),
+        el("span", { class: "label-text", style: "margin-bottom:0" }, ["植入代码",
+          UI.help("像接入统计代码一样：贴一段 SDK snippet，组件即可在你的产品里被触发、渲染，数据自动回传")]),
         el("div", { style: "flex:1" }),
-        el("button", { type: "button", class: "btn small", onclick: () => { navigator.clipboard.writeText(embedCode); UI.toast("已复制嵌入代码"); } }, [UI.icon("copy", 14), "复制"]),
+        el("button", { type: "button", class: "btn small", onclick: () => window.open(`./embed-demo.html?card=${clientCardId}`, "_blank") }, ["打开植入演示页"]),
+        el("button", { type: "button", class: "btn small", onclick: () => { navigator.clipboard.writeText(embedCode); UI.toast("已复制植入代码"); } }, [UI.icon("copy", 14), "复制"]),
       ]),
       el("pre", { class: "code" }, [embedCode]),
-      el("div", { class: "muted" }, ["接入路由入口后，对话中命中触发条件即返回本组件的协议信封，由前端渲染"]),
+      el("div", { class: "muted" }, ["对话产品默认走触发方式一；网页 / 商城类产品用方式二、三把组件挂到任意页面位置"]),
     ]));
     box.appendChild(el("details", {}, [
       el("summary", { class: "muted", style: "cursor:pointer" }, ["接口契约（推送 Webhook / 拉取聚合结果）"]),

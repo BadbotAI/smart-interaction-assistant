@@ -15,6 +15,26 @@
     if (pn.startsWith("/api/dashboard/insights")) return D["/api/dashboard/insights"];
     if (pn.startsWith("/api/dashboard/overview")) return D["/api/dashboard/overview"];
     if (pn.startsWith("/api/profile")) return D["/api/profile"];
+    const em = pn.match(/^\/v1\/embed\/envelope\/([^/]+)$/);
+    if (em && D["/api/cards"]) {
+      const card = D["/api/cards"].cards.find(c => c.card_id === em[1])
+        || D["/api/cards"].cards.find(c => c.status === "published");
+      if (card) {
+        const cfg = (card.field_bindings || {}).config || {};
+        return { envelope: { schema_version: "1.0.0", render_id: "emb-" + Math.random().toString(36).slice(2, 8),
+          component_type: card.component_type, semantic_category: "collect", trigger_source: "sdk_embed",
+          card_ref: { card_id: card.card_id, version: card.version },
+          params: { prompt: (card.text_templates || {}).prompt || card.name,
+            reply_text: (card.text_templates || {}).reply || "",
+            submit_label: (card.text_templates || {}).submit || "提交",
+            options: cfg.options || [], option_meta: cfg.option_meta || {}, option_actions: cfg.option_actions || {},
+            display: cfg.display || "", recommended_default: cfg.recommended_default || null,
+            fields: cfg.fields || [], likert: cfg.likert || null, slider: cfg.slider || null,
+            dimensions: cfg.dimensions || [], values: cfg.values || null, placeholder: cfg.placeholder || "",
+            echo_results: false } },
+          card: { card_id: card.card_id, name: card.name, version: card.version } };
+      }
+    }
     return {};
   }
 
@@ -63,7 +83,17 @@
   }
 
   window.fetch = function (url, opts = {}) {
-    const u = String(url);
+    let u = String(url);
+    // 完整 URL（SDK 用 origin 拼接）归一化成路径，再判断是否 API
+    if (/^https?:/.test(u)) {
+      try {
+        const parsed = new URL(u);
+        if (parsed.origin === location.origin) {
+          const i = parsed.pathname.search(/\/(api|v1)\//);
+          if (i >= 0) u = parsed.pathname.slice(i) + parsed.search;
+        }
+      } catch (e) {}
+    }
     const isApi = u.startsWith("/api") || u.startsWith("/v1");
     if (!isApi) return realFetch(url, opts);
     const method = (opts.method || "GET").toUpperCase();

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>货运宝商城 · 植入演示</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23B4553F'/%3E%3Cpath d='M14 24h24v20H14zM38 30h8l4 6v8h-12z' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+  /* 刻意用与平台完全不同的宿主样式，验证 Shadow DOM 双向隔离 */
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Georgia, "STSong", serif; background: #FAF6F0; color: #3A2E24; }
+  .topbar { background: #B4553F; color: #fff; padding: 14px 28px; display: flex; align-items: center; gap: 14px; }
+  .topbar .logo { font-size: 20px; font-weight: 700; letter-spacing: 1px; }
+  .topbar .note { font-size: 12px; opacity: 0.85; }
+  .wrap { max-width: 860px; margin: 26px auto; padding: 0 20px; }
+  .goods { background: #fff; border: 1px solid #E4D9CC; border-radius: 4px; padding: 22px; display: flex; gap: 20px; }
+  .goods .img { width: 140px; height: 140px; background: #EFE5D8; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #B4553F; font-size: 40px; font-weight: 700; }
+  .goods h1 { margin: 0 0 8px; font-size: 22px; }
+  .goods .price { color: #B4553F; font-size: 26px; font-weight: 700; margin: 8px 0; }
+  .goods p { margin: 4px 0; color: #6E5D4C; font-size: 14px; line-height: 1.7; }
+  .btnrow { margin-top: 14px; display: flex; gap: 10px; }
+  .hbtn { border: 1px solid #B4553F; background: #fff; color: #B4553F; padding: 9px 18px; border-radius: 3px; font-size: 14px; cursor: pointer; font-family: inherit; }
+  .hbtn.solid { background: #B4553F; color: #fff; }
+  .panel { margin-top: 22px; background: #fff; border: 1px solid #E4D9CC; border-radius: 4px; padding: 18px 22px; }
+  .panel h2 { margin: 0 0 6px; font-size: 15px; }
+  .panel .tip { color: #8A7A66; font-size: 12px; margin-bottom: 12px; }
+  #slot:empty::after { content: "组件将渲染到这里"; color: #C4B6A4; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="logo">货运宝商城</span>
+  <span class="note">模拟客户网站 · 与平台无任何样式共享，验证 SDK 植入与隔离</span>
+</div>
+<div class="wrap">
+  <div class="goods">
+    <div class="img">FCL</div>
+    <div>
+      <h1>上海 → 汉堡 整柜海运（40HQ）</h1>
+      <div class="price">¥ 18,600 <span style="font-size:13px;color:#8A7A66;font-weight:400">/ 柜 · 含港杂</span></div>
+      <p>船期每周三固定开航，全程 32 天；含目的港 14 天免柜期。</p>
+      <div class="btnrow">
+        <button class="hbtn solid">立即订舱</button>
+        <button class="hbtn" id="help-btn">物流有问题？点我反馈</button>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>植入点二：显式调用</h2>
+    <div class="tip">客户代码在业务流程里主动唤起组件：sia('show', cardId, { mount: '#slot' })</div>
+    <button class="hbtn" id="show-btn">唤起交互组件</button>
+    <div id="slot" style="margin-top:14px"></div>
+  </div>
+</div>
+
+<script src="./sia.js" data-key="sk-route-demo"></script>
+<script>
+(async () => {
+  // 演示页：取一张已上线配置做示例（真实客户场景由平台下发 cardId）
+  const params = new URLSearchParams(location.search);
+  let cardId = params.get("card");
+  if (!cardId) {
+    try {
+      const { cards } = await (await fetch(new URL("../api/cards", document.currentScript ? document.currentScript.src : location.href))).json();
+      const hit = cards.find(c => c.status === "published" || (c.status === "draft" && c.version >= 1));
+      cardId = hit && hit.card_id;
+    } catch (e) {}
+  }
+  if (!cardId) { document.getElementById("slot").textContent = "没有已上线的配置可演示"; return; }
+  // 植入点一：规则触发（GTM 式）——点击帮助按钮时在其下方渲染组件
+  sia("on", { selector: "#help-btn", event: "click" }, cardId, { mount: ".goods" });
+  // 植入点二：显式调用
+  document.getElementById("show-btn").onclick = () => sia("show", cardId, { mount: "#slot" });
+  if (params.get("auto")) sia("show", cardId, { mount: "#slot" });
+})();
+</script>
+</body>
+</html>
