@@ -196,7 +196,8 @@ async function loadCards() {
   const cards = statusTab ? all.filter(c => effStatus(c) === statusTab) : all;
   const list = document.getElementById("cardList");
   list.innerHTML = "";
-  document.getElementById("listCount").textContent = "";
+  // 搜索 / 筛选反馈：显示命中条数，让检索结果可感知
+  document.getElementById("listCount").textContent = q ? `命中 ${cards.length} 条` : "";
   if (!cards.length) {
     if (q || statusTab) {
       list.appendChild(el("div", { class: "empty-state" }, [
@@ -1600,7 +1601,9 @@ async function openEditor(cardId, prefill, initStep) {
 
 document.getElementById("newBtn").onclick = () => newConfigWizard();
 document.getElementById("searchInput").oninput = UI.debounce(() => loadCards(), 250);
-document.getElementById("searchBtn").onclick = () => loadCards();
+document.getElementById("searchBtn").onclick = async (e) => {
+  await UI.withBusy(e.currentTarget, () => loadCards(), "搜索中");
+};
 document.getElementById("searchInput").onkeydown = (e) => { if (e.key === "Enter") loadCards(); };
 // 深链：工作台待办 ?status=draft 直接带筛选进入
 const initStatus = new URLSearchParams(location.search).get("status");
