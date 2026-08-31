@@ -52,6 +52,26 @@ def overview(days: int = 7, mode: str = None, model: str = None, status: str = N
             continue
         traces_rows.append(t)
 
+    # 聚合效果：聚合 vs 单模型的量 / 成本 / 延迟对比
+    agg_n = agg_cost = agg_lat = 0
+    single_n = single_lat = 0
+    total_cost_all = 0.0
+    for t in traces_rows:
+        d = decision_by_trace.get(t["trace_id"]) or {}
+        c = t["total_cost"] or 0
+        total_cost_all += c
+        if d.get("switch_result") == "aggregated":
+            agg_n += 1; agg_cost += c; agg_lat += (t["total_latency_ms"] or 0)
+        elif d.get("switch_result") in ("routed", "fastlane"):
+            single_n += 1; single_lat += (t["total_latency_ms"] or 0)
+    aggregation_stats = {
+        "requests": agg_n,
+        "cost": round(agg_cost, 6),
+        "cost_share": round(agg_cost / total_cost_all, 4) if total_cost_all else None,
+        "avg_latency_agg": round(agg_lat / agg_n) if agg_n else None,
+        "avg_latency_single": round(single_lat / single_n) if single_n else None,
+    }
+
     tokens = {"input": 0, "output": 0, "thinking": 0, "cache_hit": 0}
     cost_by_model = defaultdict(float)
     tokens_by_model = defaultdict(int)
@@ -98,6 +118,7 @@ def overview(days: int = 7, mode: str = None, model: str = None, status: str = N
         "SELECT * FROM quota_usage ORDER BY day DESC LIMIT 14").fetchall()]
 
     return {
+        "aggregation_stats": aggregation_stats,
         "window_days": days,
         "filters": {"mode": mode, "model": model, "status": status},
         "mode_distribution": dict(sorted(mode_counts.items(), key=lambda x: -x[1])),

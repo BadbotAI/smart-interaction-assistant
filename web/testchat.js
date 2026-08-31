@@ -17,23 +17,47 @@ window.TestChat = (function () {
       [opts.hint || "像用户一样提问开始测试"]);
     msgs.appendChild(hint);
 
-    // 调用方式选择：调度策略（智能路由）或指定单模型（模型测试的核心控件）
-    const modelSel = el("select", { class: "model-pick", "aria-label": "选择调度策略或模型", title: "选择调度策略，或指定单个模型" });
+    // 调用方式选择：自绘分组下拉（调度策略 / 多模型 / 指定模型），不用系统默认 select
+    const pickState = { kind: "policy", value: null, label: "加载中……" };
+    let pickGroups = [];
+    const pickLab = el("span", { class: "fsel-label" }, [pickState.label]);
+    const modelSel = el("button", { class: "fsel tc-pick", type: "button", "aria-label": "选择调用方式" }, [pickLab]);
+    const setPick = (kind, value, label) => { pickState.kind = kind; pickState.value = value; pickState.label = label; pickLab.textContent = label; };
     Promise.all([UI.api("/v1/policies").catch(() => ({ policies: [] })), UI.api("/v1/models").catch(() => ({ models: [] }))])
       .then(([{ policies }, { models }]) => {
-        const gp = el("optgroup", { label: "调度策略" });
-        (policies || []).filter(p => p.enabled).forEach(p =>
-          gp.appendChild(el("option", { value: "policy:" + p.policy_id }, [p.name || p.policy_id])));
-        if (gp.children.length) modelSel.appendChild(gp);
-        const gm = el("optgroup", { label: "指定模型" });
-        (models || []).filter(m => m.status === "active").forEach(m =>
-          gm.appendChild(el("option", { value: m.model_id }, [m.display_name])));
-        if (gm.children.length) modelSel.appendChild(gm);
-        if (opts.model && [...modelSel.options].some(o => o.value === opts.model)) modelSel.value = opts.model;
-        else if (gp.children.length) modelSel.value = gp.children[0].value;
+        const actives = (models || []).filter(m => m.status === "active");
+        pickGroups = [
+          { label: "调度策略", items: (policies || []).filter(p => p.enabled).map(p => ({ kind: "policy", value: p.policy_id, label: p.name || p.policy_id })) },
+          { label: "多模型", items: [{ kind: "multi", value: null, label: "多模型回答 + 择优" }] },
+          { label: "指定模型", items: actives.map(m => ({ kind: "model", value: m.model_id, label: m.display_name })) },
+        ];
+        const preset = opts.model && actives.find(m => m.model_id === opts.model);
+        if (preset) setPick("model", preset.model_id, preset.display_name);
+        else if (pickGroups[0].items.length) { const f = pickGroups[0].items[0]; setPick("policy", f.value, f.label); }
       });
-    const isAuto = () => String(modelSel.value).startsWith("policy:");
-    const pickedPolicy = () => isAuto() ? String(modelSel.value).slice(7) : null;
+    modelSel.onclick = () => {
+      if (modelSel.disabled) return;
+      document.querySelectorAll(".menu-pop").forEach(n => n.remove());
+      const pop = el("div", { class: "menu-pop tc-pick-pop", role: "listbox" });
+      pickGroups.forEach(g => {
+        if (!g.items.length) return;
+        pop.appendChild(el("div", { class: "pop-group" }, [g.label]));
+        g.items.forEach(it => pop.appendChild(el("button", {
+          class: "menu-item" + (pickState.kind === it.kind && pickState.value === it.value ? " on" : ""), role: "option",
+          onclick: () => { pop.remove(); setPick(it.kind, it.value, it.label); },
+        }, [it.label])));
+      });
+      document.body.appendChild(pop);
+      const r = modelSel.getBoundingClientRect();
+      pop.style.minWidth = Math.max(r.width, 180) + "px";
+      pop.style.left = (r.left + window.scrollX) + "px";
+      pop.style.top = (r.top + window.scrollY - pop.offsetHeight - 6) + "px"; // 向上展开（按钮在底部输入条）
+      const close = (e) => { if (!pop.contains(e.target) && e.target !== modelSel) { pop.remove(); document.removeEventListener("click", close, true); } };
+      setTimeout(() => document.addEventListener("click", close, true), 0);
+    };
+    const isAuto = () => pickState.kind !== "model";
+    const pickedPolicy = () => pickState.kind === "policy" ? pickState.value : null;
+    const pickedMode = () => pickState.kind === "multi" ? "multi" : (pickState.kind === "model" ? "manual" : "auto");
 
     const input = el("input", { type: "text", placeholder: "输入消息…", "aria-label": "输入消息", autocomplete: "off" });
     const sendBtn = el("button", { class: "tc-send", title: "发送", "aria-label": "发送" });
@@ -102,7 +126,7 @@ window.TestChat = (function () {
           method: "POST", headers: { "Content-Type": "application/json" }, signal: ctrl.signal,
           body: JSON.stringify({ tenant_id: TENANT, session_id: SESSION, user_id: USER, text,
             card_context: cardContext, skip_card_match: !!o.skipCardMatch,
-            mode: isAuto() ? "auto" : "manual", manual_model: isAuto() ? null : modelSel.value,
+            mode: pickedMode(), manual_model: pickState.kind === "model" ? pickState.value : null,
             policy_id: pickedPolicy() }),
         });
         const reader = res.body.getReader();
@@ -220,6 +244,24 @@ window.TestChat = (function () {
               el("span", { class: "rc-k" }, [k]), el("span", { class: "rc-v" }, [v]),
             ])),
           ]));
+          // 聚合路径：标识 + 候选回答查看
+          if (d.switch_result === "aggregated") {
+            const pref = (evt.components || []).find(c2 => c2.component_type === "feedback.preference");
+            const cands = pref?.params?.candidates || [];
+            bubble.appendChild(el("div", { class: "agg-badge" }, [
+              el("span", { class: "chip blue" }, [`综合了 ${(d.candidates || []).length || cands.length} 个模型的回答`]),
+              cands.length ? (() => {
+                const det = el("details", {}, [
+                  el("summary", { class: "muted", style: "cursor:pointer;font-size:var(--font-small)" }, [`查看 ${cands.length} 份候选回答`]),
+                  ...cands.map(c2 => el("div", { class: "agg-cand" }, [
+                    el("div", { class: "muted num" }, [c2.model_id || c2.alias]),
+                    el("div", {}, [c2.content]),
+                  ])),
+                ]);
+                return det;
+              })() : null,
+            ]));
+          }
         } else {
           bubble.appendChild(el("div", { class: "muted", style: "margin-top:6px;font-size:var(--font-small)" }, [
             el("strong", { style: "color:var(--text-secondary)" }, [d.final_model || "-"]),

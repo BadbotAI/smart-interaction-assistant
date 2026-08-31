@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231DA1F2'/%3E%3Cpath d='M14 18h36a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2H31l-9 9v-9h-8a2 2 0 0 1-2-2V20a2 2 0 0 1 2-2z' fill='%23fff'/%3E%3Ccircle cx='24' cy='29' r='3.2' fill='%231DA1F2'/%3E%3Ccircle cx='32' cy='29' r='3.2' fill='%231DA1F2'/%3E%3Ccircle cx='40' cy='29' r='3.2' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>运营看板 · 智能交互平台</title>
 <link rel="stylesheet" href="/web/shared.css">
 <style>
@@ -431,6 +432,15 @@ async function renderRouting() {
     tile("探索流量", UI.fmtPct(d.explore_rate), null, "随机试用非最优模型的比例，防模型池坍缩"),
     tile("会话成本 P50", UI.fmtCost(d.session_cost.p50)),
     tile("会话成本 P99", UI.fmtCost(d.session_cost.p99)),
+  ]));
+
+  // 聚合效果：聚合到底值不值（量 / 成本占比 / 延迟对比）
+  const ag = d.aggregation_stats || {};
+  box.appendChild(el("div", { class: "grid cols-4", style: "margin-bottom:12px" }, [
+    tile("聚合请求", ag.requests ?? "-", d.total_requests ? `占 ${Math.round((ag.requests || 0) / d.total_requests * 100)}%` : null, "细排分差小于聚合阈值时保留多路回答，由聚合器融合重写"),
+    tile("聚合成本占比", ag.cost_share == null ? "-" : UI.fmtPct(ag.cost_share), ag.cost ? `聚合共 ${UI.fmtCost(ag.cost)}` : null, "聚合请求成本 / 全部成本"),
+    tile("聚合平均延迟", ag.avg_latency_agg == null ? "-" : UI.fmtMs(ag.avg_latency_agg), null, "聚合路径的平均端到端延迟"),
+    tile("单模型平均延迟", ag.avg_latency_single == null ? "-" : UI.fmtMs(ag.avg_latency_single), ag.avg_latency_agg && ag.avg_latency_single ? `聚合慢 ${UI.fmtMs(Math.max(0, ag.avg_latency_agg - ag.avg_latency_single))}` : null, "单模型（含快车道）平均延迟，用于对比聚合代价"),
   ]));
   if (d.entropy_alert) {
     box.appendChild(el("div", { class: "card", style: "border-color:var(--danger);margin-bottom:12px" }, [

@@ -261,6 +261,10 @@ async def run_route(req: dict, recorder, emit):
     g = coarse_scores(support, model_ids, w_t)
     ranked = sorted(g.items(), key=lambda x: -x[1])
     aggregator_id = ranked[0][0] if ranked else model_ids[0]
+    # 策略可显式指定聚合器模型（需在线）
+    _cfg_agg = params.get("aggregator_model")
+    if _cfg_agg and _cfg_agg in g:
+        aggregator_id = _cfg_agg
     candidates = [mid for mid, _ in ranked[:K]]
     recorder.span("route_score", {
         "support_count": len(support), "tenant_weight": round(w_t, 3),
@@ -338,6 +342,9 @@ async def run_route(req: dict, recorder, emit):
     pruned = [a["model_id"] for a in answers if a not in kept]
     if len(kept) > 1 and sum(a["tokens_out"] for a in kept) > int(params["max_agg_tokens"]):
         kept = sorted(kept, key=lambda a: -g_f.get(a["model_id"], 0))[:2]  # aggregatee 截断
+    _max_routes = int(params.get("max_agg_routes") or 0)
+    if _max_routes >= 2:
+        kept = sorted(kept, key=lambda a: -g_f.get(a["model_id"], 0))[:_max_routes]
     recorder.span("route_switch", {
         "fine_scores": {k2: round(v, 4) for k2, v in g_f.items()},
         "threshold": round(t_thresh * max_gf, 4), "pruned": pruned,
