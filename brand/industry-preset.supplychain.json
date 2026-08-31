@@ -1,0 +1,38 @@
+{
+  "preset_id": "supplychain",
+  "preset_name": "国际物流与大宗商品供应链",
+  "glossary": {
+    "option": "方案",
+    "supplier": "供应商",
+    "route": "航线",
+    "cost": "成本"
+  },
+  "component_defaults": {
+    "matrix.compare": {
+      "dimensions": ["价格", "时效", "风险", "合规"],
+      "text_templates": { "title": "方案比选", "submit": "确认选择" }
+    },
+    "select.single": {
+      "text_templates": { "prompt_prefix": "请选择", "submit": "确认" }
+    },
+    "metric.card": {
+      "text_templates": { "delta_up": "较上期上升", "delta_down": "较上期下降" }
+    },
+    "citation.card": {
+      "text_templates": { "source_label": "依据来源" }
+    },
+    "control.confirm": {
+      "text_templates": { "title": "操作确认", "confirm": "确认执行", "cancel": "取消" }
+    },
+    "feedback.binary": {
+      "dimensions": [
+        { "key": "capability", "label": "答得准确吗" },
+        { "key": "preference", "label": "合你的需要吗" }
+      ]
+    }
+  },
+  "default_option_sources": {
+    "supplier_list": { "type": "api", "endpoint": "/mock/suppliers" },
+    "port_list": { "type": "static", "values": ["上海港", "宁波舟山港", "新加坡港", "鹿特丹港", "洛杉矶港"] }
+  }
+}

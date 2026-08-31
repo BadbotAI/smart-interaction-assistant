@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.local/interaction_event/1.0.0",
+  "title": "InteractionEvent",
+  "description": "P1 交互事件回流 Schema（开发文档 §5.2）。所有事件必须携带 trace_id，这是 P1/P2/P3 之间唯一关联键。",
+  "type": "object",
+  "required": ["event_id", "trace_id", "tenant_id", "session_id", "turn_id", "user_id", "ts", "event_type", "schema_version"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "event_id": { "type": "string" },
+    "trace_id": { "type": "string" },
+    "tenant_id": { "type": "string" },
+    "session_id": { "type": "string" },
+    "turn_id": { "type": "string" },
+    "user_id": { "type": "string", "description": "存储前必须哈希或假名化" },
+    "ts": { "type": "string", "format": "date-time" },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "card_rendered",
+        "card_interaction_started",
+        "card_submitted",
+        "card_abandoned",
+        "feedback_given",
+        "control_invoked",
+        "render_degraded",
+        "card_ref_missing"
+      ]
+    },
+    "card": {
+      "type": "object",
+      "required": ["component_type", "semantic_category", "trigger_source"],
+      "properties": {
+        "card_id": { "type": ["string", "null"], "description": "系统注入的评价组件可无卡片定义" },
+        "card_version": { "type": ["integer", "null"] },
+        "component_type": { "type": "string" },
+        "semantic_category": { "type": "string", "enum": ["present", "collect", "control", "evaluate"] },
+        "trigger_source": { "type": "string", "enum": ["model_tool_call", "post_classification", "system_injected"] }
+      }
+    },
+    "route_context": {
+      "type": "object",
+      "description": "由路由服务注入，前端 MUST NOT 自行填写",
+      "properties": {
+        "policy_id": { "type": "string" },
+        "selected_models": { "type": "array", "items": { "type": "string" } },
+        "aggregator": { "type": ["string", "null"] },
+        "switch_result": { "type": ["string", "null"], "enum": ["routed", "aggregated", "fastlane", "degraded", null] },
+        "is_explore": { "type": "boolean" }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "description": "结构随 component_type 变化，子 schema 见 component_payloads/"
+    },
+    "group": {
+      "type": ["object", "null"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "participants_count": { "type": "integer" },
+        "aggregation_rule": { "type": "string", "enum": ["majority", "unanimous", "weighted", "moderator"] },
+        "distribution": { "type": "object" },
+        "final": {},
+        "abstained": { "type": "integer" }
+      }
+    },
+    "label_hint": {
+      "type": ["object", "null"],
+      "description": "仅在卡片 emit_targets 含 label_store 时产出",
+      "required": ["label_kind", "polarity", "confidence", "target_models", "source"],
+      "properties": {
+        "label_kind": { "type": "string", "enum": ["capability", "preference"] },
+        "polarity": { "type": "number", "minimum": -1, "maximum": 1 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "target_models": { "type": "array", "items": { "type": "string" } },
+        "source": {
+          "type": "string",
+          "enum": ["explicit_preference", "explicit_binary", "implicit_behavior", "llm_judge", "ground_truth"]
+        }
+      }
+    }
+  }
+}

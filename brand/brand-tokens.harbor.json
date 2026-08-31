@@ -1,0 +1,68 @@
+{
+  "brand_id": "harbor",
+  "brand_name": "远洋港航（示例品牌B）",
+  "color": {
+    "primary": "#0f766e",
+    "primary_weak": "#e0f2f0",
+    "bg_page": "#f6f8f8",
+    "bg_surface": "#ffffff",
+    "text_primary": "#102a2a",
+    "text_secondary": "#4a5c5c",
+    "text_muted": "#8a9797",
+    "border": "#dbe4e3",
+    "success": "#0ca30c",
+    "warning": "#fab219",
+    "danger": "#d03b3b"
+  },
+  "chart": {
+    "categorical": [
+      "#2a78d6",
+      "#eb6834",
+      "#1baf7a",
+      "#eda100",
+      "#e87ba4",
+      "#008300",
+      "#4a3aa7",
+      "#e34948"
+    ],
+    "sequential": [
+      "#cde2fb",
+      "#9ec5f4",
+      "#6da7ec",
+      "#3987e5",
+      "#256abf",
+      "#184f95",
+      "#0d366b"
+    ],
+    "diverging_positive": "#2a78d6",
+    "diverging_negative": "#e34948",
+    "diverging_mid": "#f0efec",
+    "grid": "#dbe4e3",
+    "axis": "#b9c6c5"
+  },
+  "radius": {
+    "card": "4px",
+    "control": "4px",
+    "chip": "4px"
+  },
+  "font": {
+    "family": "system-ui, -apple-system, 'PingFang SC', 'Segoe UI', sans-serif",
+    "size_base": "13px",
+    "size_small": "11px",
+    "size_title": "15px",
+    "size_hero": "26px"
+  },
+  "spacing": {
+    "unit": "6px",
+    "card_padding": "12px",
+    "gap": "8px"
+  },
+  "density": "compact",
+  "motion": {
+    "duration_fast": "80ms",
+    "duration_base": "160ms"
+  },
+  "shape": {
+    "control_style": "square"
+  }
+}

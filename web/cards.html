@@ -1,0 +1,1629 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>组件工作台 · 智能交互平台</title>
+<link rel="stylesheet" href="/web/shared.css">
+<style>
+  .card-row .name { font-weight: 600; font-size: var(--font-title); }
+  .card-row .cr-line1 { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .card-row .cr-line2 { margin-top: 5px; color: var(--text-secondary); font-size: var(--font-base);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 640px; }
+  .card-row .cr-line3 { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 5px; font-size: var(--font-caption); }
+  .card-row .cr-actions { display: flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: -2px; }
+  .card-row .cr-actions .sep-v { width: 1px; height: 16px; background: var(--border); margin: 0 8px; flex: none; }
+  .card-row .cr-act-row { display: flex; gap: 6px; align-items: center; }
+  .card-row .cr-act-row .toggle-label { font-size: var(--font-small); }
+  .card-row .cr-act-row .btn.small { font-size: var(--font-small); }
+  .card-row .main { flex: 1; min-width: 0; }
+  .card-row .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 7px; }
+  .card-row .actions { display: flex; gap: 6px; align-items: center; flex: none; }
+  .tpl-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  @media (max-width: 900px) { .tpl-grid { grid-template-columns: 1fr 1fr; } }
+  .tpl-pick { position: relative; border: 1px solid var(--border); border-radius: var(--radius-control); padding: 10px 12px; cursor: pointer; background: var(--bg-surface); }
+  .tpl-pick .sel-ico { position: absolute; top: 7px; right: 9px; color: var(--primary); }
+  .tpl-pick.recommended { border-color: var(--ai); animation: aiPulse 1.8s ease-in-out infinite; }
+  .tpl-pick .t { display: flex; align-items: center; gap: 6px; min-height: 18px; }
+  .tpl-pick.recommended .rec-chip { font-size: var(--font-caption); padding: 0 7px; line-height: 16px; flex: none; }
+  @keyframes aiPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(110, 75, 216, 0.30); } 50% { box-shadow: 0 0 0 7px rgba(110, 75, 216, 0); } }
+  .tpl-pick:hover { border-color: var(--primary-border); }
+  .tpl-pick.selected { border-color: var(--primary); background: var(--primary-weak); box-shadow: inset 0 0 0 1px var(--primary); }
+  .tpl-pick.locked { cursor: not-allowed; opacity: 0.45; }
+  .tpl-pick.locked.selected { opacity: 1; }
+  .tpl-pick .t { font-weight: 600; font-size: var(--font-small); }
+  .tpl-pick .d { color: var(--text-muted); font-size: var(--font-caption); line-height: 1.4; margin-top: 3px; min-height: 2.8em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr 48px 32px; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .field-row input[type=text] { padding: 5px 8px; font-size: var(--font-small); }
+  .field-row .muted { font-size: var(--font-caption); }
+  .preview-pane { background: var(--bg-page); border-radius: var(--radius-card); padding: 12px; }
+  .preview-pane .bubble-user { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+  .preview-pane .bubble-user span { background: var(--primary); color: #fff; padding: 6px 12px; border-radius: var(--radius-card); font-size: var(--font-small); max-width: 80%; }
+</style>
+</head>
+<body>
+<div class="page">
+<div id="workbenchMain">
+  <div class="page-head" style="display:flex;justify-content:space-between;align-items:center;gap:16px">
+    <div style="display:flex;align-items:center;gap:6px">
+      <div class="page-title">组件工作台</div>
+      <span id="pageHelp"></span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="testBtn"></button>
+      <button class="btn primary" id="newBtn" style="white-space:nowrap">新建交互配置</button>
+    </div>
+  </div>
+
+  <div class="grid cols-4" id="kpiRow" style="margin-bottom:14px"></div>
+
+  <div class="card" style="padding:0">
+    <div style="display:flex;gap:12px;padding:12px 16px 0;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="searchInput" placeholder="搜索配置名称、触发条件" style="max-width:380px;flex:1" aria-label="搜索配置">
+        <button class="btn small" id="searchBtn">搜索</button>
+      </div>
+      <span class="muted" id="listCount"></span>
+    </div>
+    <div style="display:flex;gap:16px;padding:0 16px;border-bottom:1px solid var(--border);align-items:center">
+      <div id="statusTabs"></div>
+    </div>
+    <div id="cardList"></div>
+  </div>
+</div>
+<div id="editorHost" hidden></div>
+</div>
+
+<script src="/web/tokens.js"></script>
+<script src="/web/ui.js"></script>
+<script src="/web/components.js"></script>
+<script src="/web/testchat.js"></script>
+<script>
+UI.nav("cards");
+const { el } = UI;
+document.getElementById("pageHelp").appendChild(UI.help("组件工作台 = 配置管理 + 数据概览。一条配置 = 触发条件 + 交互组件 + 数据回收；发布后 AI 在对话中按触发条件出组件。"));
+const testBtn = document.getElementById("testBtn");
+testBtn.append(UI.icon("play", 14), "测试");
+const openTest = (prefill) => TestChat.open({ title: "测试", hint: "像用户一样提问，命中配置会直接出组件", prefill });
+testBtn.onclick = () => openTest();
+
+const STATUS_CHIP = {
+  draft: ["草稿", "gray"], published: ["已上线", "blue"],
+  offline: ["已下线", "coral"], archived: ["历史版本", "gray"], deleted: ["已删除", "red"],
+};
+const FIELD_LABEL = { name: "配置名称", trigger_description: "触发条件描述", trigger_examples: "示例问法",
+  component_type: "交互组件", "text_templates.prompt": "交互提问文案", "text_templates.reply": "信息内容",
+  options: "交互选项", fields: "采集字段", webhook: "Webhook 地址" };
+const SELECT_TYPES = ["select.single", "select.multi", "select.card", "matrix.compare+select"];
+// 支持群体回显的组件：选项类 / 对比 / 商品下单 / 入口跳转（统计多少人点开）
+const ECHO_TYPES = [...SELECT_TYPES, "commerce.order", "entry.link"];
+const OPTION_TYPES = [...SELECT_TYPES, "rank.priority", "picker.location", "suggest.followup", "commerce.order", "entry.link"];
+// 每种基础类型的显示样式（MECE：本质定类型，展现做样式）
+const DISPLAY_VARIANTS = {
+  "select.single": [["list", "列表"], ["inline", "胶囊"], ["composer", "输入框浮现"]],
+  "select.multi": [["list", "列表"], ["inline", "胶囊"], ["composer", "输入框浮现"]],
+  "select.card": [["card", "卡片"], ["list", "列表"]],
+  "scale.likert": [["dots", "数字圆点"], ["bar", "分段条"]],
+  "slider.range": [["slider", "滑杆"], ["stepper", "步进器"], ["input", "直接填写"]],
+  "form.structured": [["stacked", "逐字段"], ["compact", "两列"]],
+  "input.followup": [["box", "多行文本"], ["mini", "单行"]],
+  "picker.datetime": [["date", "日期"], ["datetime", "日期+时间"]],
+  "picker.timerange": [["date", "日期段"], ["time", "时间段"]],
+};
+const LIKERT_PRESETS = [["1 ~ 5", 1, 5], ["0 ~ 5", 0, 5], ["0 ~ 3", 0, 3], ["1 ~ 10", 1, 10], ["0 ~ 10", 0, 10], ["-2 ~ +2", -2, 2]];
+
+// ============ 列表（状态 tab + 数据概览合并） ============
+
+let statusTab = "";
+let statsByCard = {};
+const STATUS_TABS = [["", "全部"], ["published", "已上线"], ["offline", "已下线"], ["draft", "草稿箱"]];
+function renderStatusTabs(counts = {}) {
+  const bar = document.getElementById("statusTabs");
+  bar.innerHTML = "";
+  bar.className = "tab-bar";
+  STATUS_TABS.forEach(([key, name]) => bar.appendChild(el("button", {
+    class: "tab" + (key === statusTab ? " active" : ""),
+    onclick: () => { if (key === statusTab) return; statusTab = key; loadCards(); },
+  }, [name, counts[key] != null && key !== "" ? el("span", { class: "tab-count num" }, [String(counts[key])]) : null])));
+}
+
+function validityState(c) {
+  const v = ((c.field_bindings || {}).config || {}).validity || {};
+  const today = new Date().toISOString().slice(0, 10);
+  if (v.from && today < v.from) return { key: "pending", label: "未生效", title: `${v.from} 起生效` };
+  if (v.until && today > v.until) return { key: "expired", label: "已过期", title: `已于 ${v.until} 到期，不再触发` };
+  if (v.from || v.until) return { key: "active", label: null, title: `有效期 ${v.from || "即日"} ~ ${v.until || "长期"}` };
+  return null;
+}
+
+async function loadKpisAndTodos() {
+  try {
+    const [q, { cards: allCards }] = await Promise.all([
+      UI.api("/api/dashboard/questions?days=30"), UI.api("/api/cards"),
+    ]);
+    statsByCard = {};
+    q.questions.forEach(x => statsByCard[x.card_id] = x);
+    // 与列表同口径：有生效快照即已上线
+    const published = allCards.filter(c => c.status === "published" || (c.status === "draft" && c.version >= 1));
+    const totalSubmitted = q.questions.reduce((s, x) => s + x.submitted, 0);
+    const totalRendered = q.questions.reduce((s, x) => s + x.rendered, 0);
+    const kpi = document.getElementById("kpiRow");
+    kpi.innerHTML = "";
+    const tile = (label, value, help) => el("div", { class: "stat-tile" }, [
+      el("div", { class: "stat-label" }, [label, help ? UI.help(help) : null]),
+      el("div", { class: "stat-value" }, [String(value)]),
+    ]);
+    kpi.appendChild(tile("已上线配置", published.length));
+    kpi.appendChild(tile("组件触发", totalRendered, "近 30 天组件被渲染到对话中的次数"));
+    kpi.appendChild(tile("提交率", totalRendered && totalSubmitted <= totalRendered ? UI.fmtPct(totalSubmitted / totalRendered) : "-", "提交 / 触发，近 30 天"));
+    kpi.appendChild(tile("回显", `${published.filter(c => c.echo_results).length}/${published.length}`, "开启后用户提交时会看到群体选择分布；此处为已开启的配置数"));
+    // 异常态以标签形式标注在列表行上（loadCards 读 statsByCard 判定），此处刷新一次列表
+    if (!window.__statsPainted) { window.__statsPainted = true; loadCards(); }
+  } catch (e) { /* 概览失败不阻塞列表 */ }
+}
+
+// 配置异常判定：标注在列表行上（demo 口径）
+function cardAnomalies(c, eff) {
+  const out = [];
+  const st = statsByCard[c.card_id];
+  if (eff === "published" && st && st.rendered >= 10 && st.submitted <= st.rendered && st.submitted / st.rendered < 0.6)
+    out.push({ label: "交互完成率低", title: `近 30 天完成率 ${Math.round(st.submitted / st.rendered * 100)}%，低于 60% 验收线，建议精简交互或检查触发场景` });
+  if (c.component_type === "entry.link") {
+    const acts = (((c.field_bindings || {}).config) || {}).option_actions || {};
+    const bad = Object.entries(acts).filter(([, a]) => a && a.api && !/^https:\/\/\S+$/.test(String(a.api).trim()));
+    if (bad.length) out.push({ label: "跳转异常", title: `${bad.length} 个入口的跳转链接不可用（需 https:// 完整地址）：${bad.map(([k]) => k).join("、")}` });
+  }
+  return out;
+}
+
+function shortId(cardId) {
+  const hex = String(cardId).replace(/-/g, "").slice(0, 8);
+  return String(parseInt(hex, 16) % 1000000).padStart(6, "0");
+}
+let _loadSeq = 0;
+async function loadCards() {
+  const seq = ++_loadSeq;
+  const q = document.getElementById("searchInput").value.trim();
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  const { cards: all } = await UI.api("/api/cards?" + params);
+  if (seq !== _loadSeq) return; // 已有更新的请求在途，丢弃过期响应
+  // 有生效快照就算已上线（编辑中的草稿不影响线上，不在列表另立状态）
+  const effStatus = c => (c.status === "draft" && c.version >= 1) ? "published" : c.status;
+  const counts = { "": all.length };
+  ["published", "offline", "draft"].forEach(k => counts[k] = all.filter(c => effStatus(c) === k).length);
+  renderStatusTabs(counts);
+  const cards = statusTab ? all.filter(c => effStatus(c) === statusTab) : all;
+  const list = document.getElementById("cardList");
+  list.innerHTML = "";
+  document.getElementById("listCount").textContent = "";
+  if (!cards.length) {
+    if (q || statusTab) {
+      list.appendChild(el("div", { class: "empty-state" }, [
+        el("div", { class: "empty-title" }, ["没有匹配的配置"]),
+        el("div", {}, ["换个关键词，或清空筛选条件再试。"]),
+        el("button", { class: "btn", style: "margin-top:10px", onclick: () => {
+          document.getElementById("searchInput").value = "";
+          statusTab = "";
+          loadCards();
+        } }, ["清空筛选"]),
+      ]));
+    } else {
+      list.appendChild(el("div", { class: "empty-state" }, [
+        el("div", { class: "empty-title" }, ["还没有交互配置"]),
+        el("div", { style: "display:flex;gap:8px;justify-content:center;margin-top:10px" }, [
+          el("button", { class: "btn primary", onclick: () => newConfigWizard() }, ["新建第一条配置"]),
+          el("a", { class: "btn", href: "/web/library.html" }, ["去组件库"]),
+        ]),
+      ]));
+    }
+    return;
+  }
+  cards.forEach(c => {
+    const eff = effStatus(c);
+    const [label, color] = STATUS_CHIP[eff] || [eff, "gray"];
+    const editable = eff !== "published";
+    list.appendChild(el("div", { class: "row-item card-row", "data-cid": c.card_id }, [
+      el("div", { class: "main", style: editable ? "cursor:pointer" : "", title: editable ? "点击编辑" : "上线中不可编辑，先下线",
+        onclick: () => { if (editable) openEditor(c.card_id); else UI.toast("已上线的配置不可编辑，请先下线", true); } }, [
+        el("div", { class: "cr-line1" }, [
+          el("span", { class: "cr-id num", title: "配置 ID（点击复制完整 ID）：" + c.card_id,
+            onclick: (e) => { e.stopPropagation(); navigator.clipboard.writeText(c.card_id); UI.toast("已复制配置 ID"); } },
+            ["ID:" + shortId(c.card_id)]),
+          el("span", { class: "name" }, [c.name]),
+          el("span", { class: "chip " + color }, [label]),
+          UI.ctChip(c.component_type),
+          (() => { const v = validityState(c); return v && v.label ? el("span", { class: "chip " + (v.key === "expired" ? "red" : "gray"), title: v.title }, [v.label]) : null; })(),
+          ...cardAnomalies(c, eff).map(x => el("span", { class: "chip red", title: x.title }, [x.label])),
+        ]),
+        el("div", { class: "cr-line2", title: c.trigger_description }, ["触发：" + (c.trigger_description || "（未填写）")]),
+        el("div", { class: "cr-line3 muted" }, [
+          el("span", {}, ["创建 " + UI.fmtTs(c.created_at)]),
+          (() => { const st = statsByCard[c.card_id]; return st ? el("span", { class: "num", title: "近 30 天：组件触发 / 用户提交" }, [`触发 ${st.rendered} · 提交 ${st.submitted}`]) : null; })(),
+          (() => { const v = validityState(c); return v && !v.label ? el("span", { title: v.title }, ["限期"]) : null; })(),
+        ]),
+      ]),
+      el("div", { class: "actions cr-actions" }, [
+        // 状态开关（开 = 上线）+ 编辑 / 更多 icon
+        UI.toggle({ checked: eff === "published",
+          onChange: async (next) => {
+            try {
+              const resp = await UI.api(`/api/cards/${c.card_id}/transition`, { method: "POST", body: { action: next ? "publish" : "offline" } });
+              UI.toast(next ? "已上线" : "已下线，可编辑");
+              if (resp && resp.warning) setTimeout(() => UI.toast(resp.warning, true), 1200);
+              loadCards(); loadKpisAndTodos();
+              return true;
+            } catch (e) {
+              const err = e.data?.error || {};
+              UI.toast(err.message || e.message, true);
+              if (err.errors) UI.modal("无法上线", el("div", {}, [
+                el("div", { class: "secondary", style: "margin-bottom:8px" }, ["以下字段未通过校验："]),
+                ...err.errors.map(x => el("div", { class: "field-error" }, [`${FIELD_LABEL[x.field] || x.field}：${x.message}`])),
+                el("button", { class: "btn primary", style: "margin-top:12px", onclick: () => { document.querySelector(".modal-mask")?.remove(); openEditor(c.card_id); } }, ["去修改"]),
+              ]));
+              return false;
+            }
+          } }),
+        el("span", { class: "sep-v" }),
+        (() => {
+          const b2 = el("button", { class: "btn small" + (editable ? "" : " dim"),
+            title: editable ? "编辑" : "上线中不可编辑，先下线",
+            onclick: () => {
+              if (editable) openEditor(c.card_id);
+              else UI.toast("已上线的配置不可编辑，请先下线", true);
+            } }, ["编辑"]);
+          return b2;
+        })(),
+        moreButton(c, eff),
+      ]),
+    ]));
+  });
+}
+
+function moreButton(c, eff) {
+  // 统一菜单：测试 / 查看数据 / 复制 / 删除（版本历史入口在编辑器步骤条）
+  const moreBtn = el("button", { class: "btn small", onclick: () => UI.menu(moreBtn, [
+    { label: "测试", onClick: () => openTest((c.trigger_examples || [])[0] || c.name) },
+    { label: "查看数据（看板）", onClick: () => { location.href = "/web/dashboard.html#survey"; } },
+    { label: "复制配置 ID", onClick: () => { navigator.clipboard.writeText(c.card_id); UI.toast("已复制配置 ID"); } },
+    eff !== "published" ? { label: c.version >= 1 ? "删除配置（含线上版本）" : "删除配置", danger: true, onClick: () => doTransition(c, "delete") } : null,
+  ]) }, ["更多"]);
+  return moreBtn;
+}
+
+async function doTransition(c, action, force = false, btn = null) {
+  if (action === "offline" && !force) {
+    const ok = await UI.confirm("下线配置", `「${c.name}」下线后 AI 不再触发，数据保留，可重新发布。`, { okText: "下线" });
+    if (!ok) return;
+  }
+  if (action === "delete" && !force) {
+    const ok = await UI.confirm("删除配置", `删除「${c.name}」？不可恢复，历史快照与数据保留用于审计。`, { okText: "删除", danger: true });
+    if (!ok) return;
+  }
+  if (btn) btn.disabled = true;
+  try {
+    const resp = await UI.api(`/api/cards/${c.card_id}/transition`, { method: "POST", body: { action, force } });
+    UI.toast({ publish: "已上线", offline: "已下线", delete: "已删除" }[action] || "完成");
+    if (resp && resp.warning) setTimeout(() => UI.toast(resp.warning, true), 1200);
+    loadCards(); loadKpisAndTodos();
+  } catch (e) {
+    const err = e.data?.error || {};
+    if (err.code === "referenced") {
+      const body = el("div", {}, [
+        el("div", { class: "secondary" }, [err.message]),
+        el("ul", { style: "padding-left:20px;margin:8px 0" },
+          (err.refs || []).map(r => el("li", {}, [`${r.agent_id}（引用 v${r.version}）`]))),
+        el("div", { style: "display:flex;gap:8px;margin-top:10px;justify-content:flex-end" }, [
+          el("button", { class: "btn", onclick: () => mask.remove() }, ["取消"]),
+          el("button", { class: "btn danger", onclick: () => { mask.remove(); doTransition(c, action, true); } },
+            ["强制删除（运行时降级为纯文本）"]),
+        ]),
+      ]);
+      const mask = UI.modal("配置被 Agent 引用", body);
+    } else {
+      UI.toast(err.message || e.message, true);
+      if (err.errors) UI.modal("发布失败", el("div", {}, [
+        el("div", { class: "secondary", style: "margin-bottom:8px" }, ["以下字段未通过校验，配置保持当前状态："]),
+        ...err.errors.map(x => el("div", { class: "field-error" }, [`${FIELD_LABEL[x.field] || x.field}：${x.message}`])),
+        el("button", { class: "btn primary", style: "margin-top:12px", onclick: () => { document.querySelector(".modal-mask")?.remove(); openEditor(c.card_id); } }, ["去修改"]),
+      ]));
+    }
+  } finally { if (btn) btn.disabled = false; }
+}
+
+
+// ============ 编辑器：固定尺寸的分步弹窗 ============
+// 新建：选择组件 → 触发条件 → 配置组件 → 确认 → 获取 Key；编辑：三步可自由切换
+
+function draftKey(id) { return "card_draft_" + (id || "new"); }
+let templateLibrary = null;
+
+// 组件的一句话场景介绍（选组件步用，不写配置细节）
+const WIZ_DESC = {
+  "select.single": "让用户在几个文字选项里做选择",
+  "select.card": "方案、套餐等需要图文展示的选择",
+  "rank.priority": "让用户把诉求按重要程度排序",
+  "matrix.compare+select": "多个候选按几项指标对比后选定",
+  "scale.likert": "满意度、意愿等打分类反馈",
+  "form.structured": "表单式一次收集多个字段，如订单号、电话",
+  "slider.range": "预算、数量等在区间内取一个数",
+  "input.followup": "留言、备注等一段自由文字",
+  "picker.datetime": "约提货、约上门等选一个日期",
+  "picker.timerange": "取件、配送等选一段起止时间",
+  "picker.location": "把配置好的仓库 / 门店地址推给用户确认",
+  "upload.file": "报关单、合同等 PDF / Excel 单据",
+  "upload.image": "破损拍照、回单等图片凭证",
+  "commerce.order": "保价、加固等增值服务与商品直接下单",
+  "entry.link": "专区、活动、服务页的通栏跳转入口",
+};
+
+const STEP_DEFS = [
+  { key: "pick", label: "选择组件" },
+  { key: "trigger", label: "交互配置" },
+  { key: "comp", label: "设计内容" },
+  { key: "confirm", label: "数据收集" },
+  { key: "done", label: "获取配置 ID" },
+];
+// 每步负责校验的字段（下一步前只拦本步的错）
+const STEP_FIELDS = {
+  pick: ["component_type"],
+  trigger: ["name", "trigger_description", "trigger_examples", "valid_from", "valid_until"],
+  comp: ["component_type", "question", "reply_text", "options", "dimensions", "fields",
+    "slider_min", "slider_max", "recommended_default", "likert_scale", "placeholder", "submit"],
+  confirm: ["webhook"],
+};
+
+async function newConfigWizard(preset = {}) { return openEditor(undefined, preset); }
+
+async function openEditor(cardId, prefill, initStep) {
+  if (document.querySelector(".modal.editor")) return; // 防连点叠开多个编辑器
+  if (!templateLibrary) templateLibrary = (await UI.api("/api/templates")).templates;
+  let card = null;
+  if (cardId) {
+    try { card = (await UI.api(`/api/cards/${cardId}`)).card; }
+    catch (e) { UI.toast("配置不存在或已删除", true); return; }
+    if (card.status === "published" || (card.status === "draft" && card.version >= 1)) {
+      UI.toast("已上线的配置不可编辑，请先在工作台下线", true);
+      return;
+    }
+  }
+
+  // 本地草稿静默恢复
+  const saved = localStorage.getItem(draftKey(cardId));
+  let restore = null;
+  if (saved) { try { restore = JSON.parse(saved); } catch (e) {} }
+  if (restore && !cardId) {
+    // 新建一律从白纸开始（不再弹恢复询问）
+    localStorage.removeItem(draftKey(cardId));
+    restore = null;
+  } else if (restore) UI.toast("已恢复上次未保存的编辑");
+
+  const cfg = prefill ? (prefill.config || {}) : ((card?.field_bindings || {}).config || {});
+  const state = restore?.form || {
+    scene: prefill?.description || "",
+    name: card?.name || "",
+    trigger_description: card?.trigger_description || (prefill?.description || ""),
+    trigger_examples: card?.trigger_examples || [],
+    reply_text: card?.text_templates?.reply || "",
+    question: card?.text_templates?.prompt || (prefill?.prompt || ""),
+    component_type: card?.component_type || (prefill?.component_type || ""),
+    optionRows: (cfg.options || card?.option_source?.values || card?.option_source?.hint_values || []).map((o, i) => ({
+      text: o, id: (cfg.option_ids || [])[i] || "opt-" + Math.random().toString(36).slice(2, 8),
+      prompt: (cfg.option_actions || {})[o]?.prompt || "", api: (cfg.option_actions || {})[o]?.api || "",
+      desc: (cfg.option_meta || {})[o]?.desc || "", image: (cfg.option_meta || {})[o]?.image || "",
+      price: (cfg.option_meta || {})[o]?.price ?? "", price_original: (cfg.option_meta || {})[o]?.price_original ?? "",
+      sales: (cfg.option_meta || {})[o]?.sales ?? "", tags: ((cfg.option_meta || {})[o]?.tags || []).join("，") })),
+    recommended_default: cfg.recommended_default || "",
+    dimensions: (cfg.dimensions || []).join("\n"),
+    matrixValues: (cfg.values || []).map(row => [...row]),
+    likert_left: cfg.likert?.left || "非常不满意",
+    likert_right: cfg.likert?.right || "非常满意",
+    likert_from: cfg.likert?.from ?? 1,
+    likert_to: cfg.likert?.to ?? (cfg.likert?.steps || 5),
+    display: cfg.display || "",
+    fieldRows: (cfg.fields || card?.field_bindings?.fields || []).map(f => ({ key: f.key || "", label: f.label || "", required: !!f.required })),
+    placeholder: cfg.placeholder || "",
+    slider_min: cfg.slider?.min ?? 0,
+    slider_max: cfg.slider?.max ?? 100,
+    slider_unit: cfg.slider?.unit || "",
+    submit: card?.text_templates?.submit || "提交",
+    echo_results: card ? !!card.echo_results : true,
+    webhook: cfg.webhook || "",
+    valid_from: (cfg.validity || {}).from || "",
+    valid_until: (cfg.validity || {}).until || "",
+  };
+  if (typeof state.trigger_examples === "string") state.trigger_examples = state.trigger_examples.split("\n").map(s => s.trim()).filter(Boolean);
+  if (!Array.isArray(state.fieldRows)) state.fieldRows = [];
+  if (!Array.isArray(state.optionRows)) state.optionRows = [];
+  if (state.scene === undefined) state.scene = "";
+
+  const isNew = !card;
+  let clientCardId = card?.card_id || crypto.randomUUID();
+  let savedCard = card;          // done 步展示用：保存 / 发布后的服务端结果
+  let publishedNow = false;      // done 步：本次是发布还是仅存草稿
+  let doneWarning = null;        // 发布时服务端返回的风险提示（如触发条件相似度过高）
+  const errorsBox = el("div", {});
+  const fieldErrs = {};
+  const fieldWraps = {};
+  let autosaveTimer = null;
+  let pendingRewrite = null;     // AI 改写建议：先预览，采用才写入
+  let sugs = [];                 // 选组件步的 AI 推荐
+
+  // 步骤：新建走全流程；编辑只有三步（done 在发布后出现）
+  const steps = () => STEP_DEFS.filter(s => {
+    if (s.key === "pick") return isNew;
+    if (s.key === "done") return !!savedCard && (isNew || publishedNow);
+    return true;
+  });
+  let step = initStep && STEP_FIELDS[initStep] ? initStep
+    : restore?.step && STEP_FIELDS[restore.step] ? restore.step
+    : (isNew ? (state.component_type ? "trigger" : "pick") : "trigger");
+  if (step === "done") step = isNew ? "confirm" : "trigger";
+
+  function autosave() {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(() => {
+      localStorage.setItem(draftKey(cardId), JSON.stringify({ form: state, step }));
+      renderPreview();
+    }, 300);
+  }
+  const getOptions = () => state.optionRows.map(r => (r.text || "").trim()).filter(Boolean);
+
+  // 切换组件：套用模板默认内容（不覆盖已填的提问 / 说明）
+  function applyTemplate(ct, c) {
+    const tpl = templateLibrary.find(t => t.component_type === ct) || {};
+    c = c || tpl.default_config || {};
+    state.component_type = ct;
+    state.display = c.display || "";
+    if (c.options) state.optionRows = c.options.map(o => ({
+      text: o, prompt: (c.option_actions || {})[o]?.prompt || "", api: (c.option_actions || {})[o]?.api || "",
+      desc: (c.option_meta || {})[o]?.desc || "", image: (c.option_meta || {})[o]?.image || "" }));
+    else if (!OPTION_TYPES.includes(ct)) state.optionRows = [];
+    if (c.fields) state.fieldRows = c.fields.map(f => ({ key: f.key || "", label: f.label || "", required: !!f.required }));
+    if (c.likert) { state.likert_left = c.likert.left || state.likert_left; state.likert_right = c.likert.right || state.likert_right;
+      state.likert_from = c.likert.from ?? 1; state.likert_to = c.likert.to ?? 5; }
+    if (c.slider) { state.slider_min = c.slider.min ?? 0; state.slider_max = c.slider.max ?? 100; state.slider_unit = c.slider.unit || ""; }
+    if (c.placeholder !== undefined) state.placeholder = c.placeholder;
+    state.recommended_default = c.recommended_default || "";
+  }
+
+  // ---------- 用户视角预览 ----------
+  // 字段未填时的兜底场景：保证预览始终是一段完整的业务对话
+  const PREVIEW_SCENES = {
+    "select.single": { q: "我要开发票", reply: "好的，请确认发票类型。", prompt: "开哪种发票？", options: ["开专票", "开普票"] },
+    "select.multi": { q: "我的货延误了", reply: "很抱歉，我们已记录该异常。", prompt: "需要我们做什么？可多选", options: ["加急催办", "改约送达时间", "申请赔付"] },
+    "select.card": { q: "帮我选个运输方案", reply: "两个方案供你选择：", prompt: "选择运输方案", options: ["海运直达", "海铁联运"],
+      option_meta: { "海运直达": { desc: "35 天 · 成本低，适合不赶时间" }, "海铁联运": { desc: "26 天 · 快 9 天，成本略高" } } },
+    "rank.priority": { q: "这批货怎么安排比较好", reply: "请把你的诉求按重要程度排个序：", prompt: "哪个对你最重要？", options: ["时效最快", "成本最低", "风险最小"] },
+    "matrix.compare+select": { q: "对比一下这几家供应商", reply: "按价格、时效、合规评估如下：", prompt: "选定供应商", options: ["中远供应链", "环球捷运"], dimensions: ["价格", "时效", "合规"] },
+    "scale.likert": { q: "谢谢，问题解决了", reply: "不客气。", prompt: "这次服务满意吗？" },
+    "form.structured": { q: "我要退货", reply: "请补充以下信息，我来为你登记。", prompt: "退货登记",
+      fields: [{ key: "order_no", label: "订单号", required: true }, { key: "phone", label: "联系电话", required: true }] },
+    "slider.range": { q: "帮我做个采购预算", reply: "先确认一下预算范围。", prompt: "预算上限（万元）" },
+    "input.followup": { q: "送货有点要求", reply: "好的，请留下送货备注：", prompt: "送货备注", placeholder: "例如：周五前送到，放前台即可" },
+    "picker.datetime": { q: "帮我约个提货时间", reply: "好的，请选择提货日期：", prompt: "期望提货日期" },
+    "picker.timerange": { q: "什么时候方便上门取件", reply: "请选择方便的时间段：", prompt: "取件时间段" },
+    "picker.location": { q: "这批货送到仓库", reply: "请确认收货地点：", prompt: "收货地点", options: ["上海仓", "宁波港", "青岛港"] },
+    "upload.file": { q: "报关材料给你", reply: "请上传相关单据：", prompt: "上传报关单", placeholder: "请上传报关单或合同文件（PDF / Excel）" },
+    "upload.image": { q: "货有点破损，我拍了照片", reply: "请上传破损部位的照片，我们据此核定赔付：", prompt: "上传破损照片", placeholder: "请拍摄或上传清晰照片" },
+    "suggest.followup": { q: "帮我查一下这票货到哪了", reply: "这票货已到宁波舟山港中转，预计后天送达。", prompt: "你可能还想问",
+      options: ["为什么会延误", "预计什么时候能到", "帮我催一下这票货"] },
+    "entry.link": { q: "还有什么优惠活动吗", reply: "为你找到两个专区，点击直达：", prompt: "",
+      options: ["神券团购专区", "增值服务商城"],
+      option_meta: { "神券团购专区": { desc: "咖啡茶饮 5 折起，限时领券" }, "增值服务商城": { desc: "加固 · 保价 · 包装耗材" } } },
+    "commerce.order": { q: "这批设备怕震，帮我加固一下", reply: "推荐以下增值服务，可直接下单：", prompt: "选择增值服务",
+      options: ["木箱加固", "运输保价"],
+      option_meta: { "木箱加固": { desc: "出口级木箱，防潮防震，适合精密设备", price: 120, price_original: 150, sales: 2300, tags: ["防潮", "承重加强"] },
+                     "运输保价": { desc: "按货值 0.3% 投保，破损丢失全额赔付", price: 50, price_original: 60, sales: 5100, tags: ["全额赔付"] } } },
+    "control.confirm": { q: "帮我下这个订单", reply: "即将执行下单操作，请确认。", prompt: "确认执行？" },
+  };
+  function buildPreviewEnvelope() {
+    const options = getOptions();
+    const dims = state.dimensions.split("\n").map(s => s.trim()).filter(Boolean);
+    const ct = state.component_type;
+    const mock = PREVIEW_SCENES[ct] || {};
+    const params = { prompt: ct === "entry.link" ? state.question.trim() : (state.question.trim() || mock.prompt || "请选择"), submit_label: state.submit.trim() || "提交",
+      reply_text: "", echo_results: false };
+    if (SELECT_TYPES.includes(ct) || ["suggest.followup", "commerce.order", "entry.link"].includes(ct)) {
+      params.options = options.length ? options : (mock.options || ["请选择", "暂不需要"]);
+      if (state.recommended_default.trim() && params.options.includes(state.recommended_default.trim()))
+        params.recommended_default = state.recommended_default.trim();
+    }
+    if (ct === "matrix.compare+select") {
+      params.dimensions = dims.length ? dims : (mock.dimensions || ["价格", "时效"]);
+      params.values = params.options.map((o, i) =>
+        params.dimensions.map((d, j) => {
+          const cfgV = state.matrixValues?.[i]?.[j];
+          return cfgV != null && cfgV !== "" ? Number(cfgV)
+            : Math.round((5 + ((i * 3 + j * 2 + o.length) % 40) / 10) * 10) / 10;
+        }));
+    }
+    if (state.display) params.display = state.display;
+    if (ct === "scale.likert")
+      params.likert = { left: state.likert_left, right: state.likert_right, from: Number(state.likert_from), to: Number(state.likert_to) };
+    if (["rank.priority", "picker.location"].includes(ct)) params.options = getOptions().length ? getOptions() : (mock.options || []);
+    if (ct === "picker.location" || ct === "upload.file") params.placeholder = state.placeholder.trim() || mock.placeholder || "";
+    const actsPrev = {};
+    state.optionRows.forEach(r => { const t = (r.text || "").trim(); if (t && (r.api || "").trim()) actsPrev[t] = { api: r.api.trim() }; });
+    if (Object.keys(actsPrev).length) params.option_actions = actsPrev;
+    const metaPrev = {};
+    state.optionRows.forEach(r => {
+      const t = (r.text || "").trim();
+      if (!t) return;
+      const m = { ...(r.desc ? { desc: r.desc } : {}), ...(r.image ? { image: r.image } : {}) };
+      if (state.component_type === "commerce.order") {
+        if (r.price !== "") m.price = Number(r.price);
+        if (r.price_original !== "") m.price_original = Number(r.price_original);
+        if (r.sales !== "") m.sales = Number(r.sales);
+        const tg = (r.tags || "").split(/[，,]/).map(x => x.trim()).filter(Boolean);
+        if (tg.length) m.tags = tg;
+      }
+      if (Object.keys(m).length) metaPrev[t] = m;
+    });
+    if (Object.keys(metaPrev).length) params.option_meta = metaPrev;
+    else if (!options.length && mock.option_meta) params.option_meta = mock.option_meta;
+    if (ct === "form.structured") {
+      const fs = state.fieldRows.filter(f => f.key || f.label).map(f => ({ key: f.key || f.label, label: f.label || f.key, required: !!f.required }));
+      params.fields = fs.length ? fs : (mock.fields || []);
+    }
+    if (ct === "input.followup") params.placeholder = state.placeholder.trim() || mock.placeholder || "请输入你的回答";
+    if (ct === "slider.range") {
+      params.min = Number(state.slider_min) || 0;
+      params.max = Number(state.slider_max) || 100;
+      params.unit = state.slider_unit.trim();
+    }
+    return { schema_version: "1.0.0", render_id: "preview-" + Date.now(), component_type: ct,
+      semantic_category: "collect", trigger_source: "model_tool_call",
+      card_ref: { card_id: clientCardId, version: (card?.version || 0) + 1 },
+      params, group_mode: null, degraded_text: params.prompt };
+  }
+
+  const previewBox = el("div", {});
+  function renderPreview() {
+    previewBox.innerHTML = "";
+    if (!state.component_type) {
+      previewBox.appendChild(el("div", { class: "empty-state", style: "padding:28px 12px" }, ["选择组件后显示预览"]));
+      return;
+    }
+    let node;
+    try {
+      node = Components.render(buildPreviewEnvelope(), {
+        sendEvent: () => {}, onCollectSubmit: () => UI.toast("预览不产生数据"), onControl: () => {}, userId: "preview", preview: true, titleInBubble: true,
+      });
+    } catch (e) { node = el("div", { class: "muted" }, ["暂不支持预览"]); }
+    const mock = PREVIEW_SCENES[state.component_type] || {};
+    const pv = state.component_type === "entry.link" ? state.question.trim()
+      : (state.question.trim() || mock.prompt || "");
+    previewBox.appendChild(UI.chatMock({ question: state.trigger_examples[0] || mock.q || "", reply: state.reply_text.trim() || mock.reply || "", node, prompt: pv }));
+  }
+
+  function field(key, label, node, hint, required, extraClass = "") {
+    const errBox = el("div", { class: "field-error" });
+    fieldErrs[key] = errBox;
+    const wrap = el("label", { class: "field " + extraClass }, [
+      el("span", { class: "label-text" + (required ? " req" : "") }, [label]), node,
+      hint ? el("div", { class: "muted" }, [hint]) : null, errBox,
+    ]);
+    fieldWraps[key] = wrap;
+    return wrap;
+  }
+  function input(key, attrs = {}) {
+    const n = el("input", { type: "text", value: state[key] ?? "", ...attrs });
+    n.oninput = () => { state[key] = n.value; autosave(); };
+    return n;
+  }
+  function textarea(key, rows = 3, attrs = {}) {
+    const n = el("textarea", { rows, ...attrs });
+    n.value = state[key] ?? "";
+    n.oninput = () => { state[key] = n.value; autosave(); };
+    return n;
+  }
+
+  // ---------- 第 1 步：选择组件（必选置顶；业务场景标签在下，点选自动推荐） ----------
+  const SCENE_TAGS = [
+    ["发票类型确认", "用户说要开发票时，确认开「专票」还是「普票」"],
+    ["物流异常处理", "用户反馈货物延误、丢失、破损等异常，选择处理方式"],
+    ["方案对比选择", "用户需要在多个运输方案或套餐间图文对比后选择一个"],
+    ["供应商比选", "对多家供应商按价格、时效、合规等指标对比后选定"],
+    ["满意度评价", "询问用户对本次服务的满意程度并打分"],
+    ["收集信息", "一次收集订单号、联系电话等多个字段"],
+    ["预约时间段", "用户预约上门取件或送货的起止时间段"],
+    ["确认收货地址", "确认、指定或修改收货地址"],
+    ["上传单据凭证", "收取报关单等文件或破损照片凭证"],
+    ["增值服务下单", "加固、保价等增值服务展示价格并直接下单"],
+    ["优惠活动导流", "引导用户进入优惠专区或服务页"],
+    ["查件后引导", "用户查询物流进度后给出可点的追问与服务入口"],
+  ];
+  function stepPick() {
+    const box = el("div", {});
+    let activeTag = null;
+    const gridBox = el("div", { class: "tpl-grid" });
+    const tagBox = el("div", { class: "scene-tags" });
+    function drawGrid() {
+      const rec = Object.fromEntries(sugs.map((s2, i) => [s2.component_type, { s: s2, top: i === 0 }]));
+      gridBox.innerHTML = "";
+      templateLibrary.forEach(t => {
+        const selAny = state.component_type === t.component_type ||
+          (t.component_type === "select.single" && state.component_type === "select.multi");
+        const r = rec[t.component_type];
+        const pick = () => {
+          applyTemplate(t.component_type, r ? (r.s.prefill_config || r.s.default_config) : null);
+          if (r && r.s.prefill_prompt && !state.question) state.question = r.s.prefill_prompt;
+          autosave(); drawGrid(); renderPreview(); updateFoot();
+        };
+        gridBox.appendChild(el("div", {
+          class: "tpl-pick" + (selAny ? " selected" : "") + (r && !selAny ? " recommended" : ""),
+          role: "radio", "aria-checked": selAny ? "true" : "false", tabindex: "0",
+          title: r ? r.s.reason : (WIZ_DESC[t.component_type] || t.desc || ""),
+          onclick: pick,
+          onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } } },
+          [selAny ? el("span", { class: "sel-ico" }, [UI.icon("check", 14)]) : null,
+           el("div", { class: "t" }, [el("span", {}, [t.name]),
+             r && !selAny ? el("span", { class: (r.top ? "chip ai" : "chip gray") + " rec-chip" }, [r.top ? "最推荐" : "推荐"]) : null]),
+           el("div", { class: "d" }, [WIZ_DESC[t.component_type] || t.desc])]));
+      });
+    }
+    function drawTags() {
+      tagBox.innerHTML = "";
+      SCENE_TAGS.forEach(([label, sentence]) => {
+        tagBox.appendChild(el("button", { type: "button",
+          class: "scene-tag" + (activeTag === label ? " on" : ""),
+          onclick: async () => {
+            if (activeTag === label) {
+              activeTag = null; sugs = []; state.scene = "";
+              drawTags(); drawGrid();
+              return;
+            }
+            activeTag = label;
+            state.scene = sentence;   // 带入触发条件初稿
+            drawTags();
+            try {
+              const r = await UI.api("/api/templates/suggest", { method: "POST", body: { question: sentence } });
+              sugs = (r.suggestions || []).filter(x => (x.score ?? 0) >= 0.2).slice(0, 3);
+              drawGrid();
+              formCol.scrollTop = 0;
+              if (!sugs.length) UI.toast("该场景没有明显更优的组件，直接在上方选择即可", true);
+            } catch (e) { UI.toast("推荐失败：" + e.message, true); }
+            autosave();
+          } }, [label]));
+      });
+    }
+    box.appendChild(el("div", { class: "field", style: "margin-bottom:0" }, [
+      el("span", { class: "label-text req" }, ["选择组件"]),
+      el("div", { class: "tpl-scroll" }, [gridBox]),
+    ]));
+    box.appendChild(el("div", { style: "margin-top:16px" }, [
+      el("div", { style: "font-size:var(--font-small);color:var(--text-secondary);margin-bottom:8px" }, [
+        "不确定选哪个？点一个业务场景，自动推荐组件", UI.help("点选场景后会在上方高亮推荐的组件，并作为下一步触发条件的初稿；再点一次取消")]),
+      tagBox,
+    ]));
+    drawGrid();
+    drawTags();
+    return box;
+  }
+
+  // ---------- 第 2 步：触发条件 ----------
+  function stepTrigger() {
+    const box = el("div", {});
+    // 业务场景（第 1 步）自动带入触发条件初稿
+    if (!state.trigger_description.trim() && state.scene.trim()) state.trigger_description = state.scene.trim();
+    const trigTa = textarea("trigger_description", 3, { placeholder: "什么情况下触发，口语即可。例如：用户反馈货物延误或丢失（1-200 字）", maxlength: "200" });
+    async function runRewrite() {
+      const desc = state.trigger_description.trim();
+      if (!desc) { UI.toast("请先写一句触发条件描述", true); trigTa.focus(); return; }
+      wandBtn.disabled = true; wandBtn.classList.add("busy");
+      try {
+        const r = await UI.api("/api/scenarios/rewrite-trigger", { method: "POST", body: { description: desc } });
+        pendingRewrite = { text: r.trigger_description, examples: (r.trigger_examples || []).slice(0, 10) };
+        rebuild();
+      } catch (err) { UI.toast("AI 改写失败：" + err.message, true); }
+      finally { wandBtn.disabled = false; wandBtn.classList.remove("busy"); }
+    }
+    const wandBtn = el("button", { class: "btn small", type: "button",
+      title: "AI 改写为规范触发描述并生成示例问法（先预览，采用才生效）",
+      onclick: runRewrite }, [UI.icon("sparkles", 14), "AI 改写"]);
+    const rewriteCard = !pendingRewrite ? null : el("div", { class: "ai-suggest" }, [
+      el("div", { class: "head" }, [
+        el("span", { class: "chip ai" }, ["AI 改写建议"]),
+        el("div", { style: "flex:1" }),
+        el("button", { class: "btn small primary", type: "button", onclick: () => {
+          state.trigger_description = pendingRewrite.text;
+          const fresh = pendingRewrite.examples.filter(x => !state.trigger_examples.includes(x));
+          state.trigger_examples = [...state.trigger_examples, ...fresh].slice(0, 10);
+          pendingRewrite = null; autosave(); rebuild();
+          UI.toast(fresh.length ? `已采用，补充 ${fresh.length} 条示例问法` : "已采用");
+        } }, ["采用"]),
+        el("button", { class: "btn small", type: "button", onclick: () => runRewrite() }, ["重试"]),
+        UI.iconBtn("x", "放弃", () => { pendingRewrite = null; rebuild(); }),
+      ]),
+      el("div", { class: "sug-text" }, [pendingRewrite.text]),
+      pendingRewrite.examples.length ? el("div", { style: "display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" }, [
+        el("span", { class: "muted" }, ["示例问法"]),
+        ...pendingRewrite.examples.map(x => el("span", { class: "chip gray" }, [x])),
+      ]) : null,
+    ]);
+    const trigWrap = el("div", { class: "input-wrap ta ta-mid" }, [trigTa, el("span", { class: "input-action" }, [wandBtn])]);
+    const examplesInput = UI.tagInput({ values: state.trigger_examples, max: 10, placeholder: "用户可能怎么问，回车添加（最多 10 条）",
+      onChange: (vals) => { state.trigger_examples = vals; autosave(); } });
+
+    if (state._validityOn === undefined) state._validityOn = !!(state.valid_from || state.valid_until);
+    const valBox = el("div", { class: "field" });
+    function drawValidity() {
+      valBox.innerHTML = "";
+      valBox.appendChild(el("span", { class: "label-text" }, ["是否有效期"]));
+      valBox.appendChild(UI.toggle({ checked: !!state._validityOn,
+        label: state._validityOn ? "限定有效期" : "长期有效",
+        hint: state._validityOn ? null : "开启后只在设定日期范围内触发",
+        onChange: (v) => { state._validityOn = v; if (!v) { state.valid_from = ""; state.valid_until = ""; } autosave(); drawValidity(); return true; } }));
+      if (state._validityOn) {
+        const errBox = el("div", { class: "field-error" });
+        fieldErrs.valid_until = errBox; fieldErrs.valid_from = errBox;
+        valBox.appendChild(el("label", { class: "field", style: "margin:8px 0 0" }, [
+          el("span", { class: "label-text" }, ["上线时间"]),
+          input("valid_from", { type: "datetime-local", "aria-label": "上线时间", style: "max-width:260px" }),
+        ]));
+        valBox.appendChild(el("label", { class: "field", style: "margin:8px 0 0" }, [
+          el("span", { class: "label-text" }, ["下线时间"]),
+          input("valid_until", { type: "datetime-local", "aria-label": "下线时间", style: "max-width:260px" }),
+        ]));
+        valBox.appendChild(el("div", { class: "muted", style: "margin-top:4px" }, ["未到上线时间不触发，过下线时间自动停止（精确到分钟，按平台服务器时区）；留空一端表示不限"]));
+        valBox.appendChild(errBox);
+      }
+    }
+    drawValidity();
+    box.appendChild(el("div", { class: "editor-section" }, [
+      field("name", "配置名称", input("name", { placeholder: "例如：物流异常处理（1-15 字）", maxlength: "15" }), null, true),
+      field("trigger_description", "触发条件", trigWrap, null, true),
+      rewriteCard,
+      field("trigger_examples", "示例问法", examplesInput),
+      valBox,
+    ]));
+    return box;
+  }
+
+  // ---------- 第 3 步：配置组件 ----------
+  // 选项行：文案 + 跳转链接（选填）；卡片选择器另配标题 / 文案 / 配图
+  function optionRowsEditor(withAct) {
+    const isCard = state.component_type === "select.card";
+    const isCommerce = state.component_type === "commerce.order";
+    const isEntry = state.component_type === "entry.link";
+    const wrap = el("div", {});
+    const errBox = el("div", { class: "field-error" });
+    fieldErrs.options = errBox;
+    function aiRow(r, i) {
+      if (!r._open) return null;
+      const promptIn = el("textarea", { rows: 2, placeholder: "选中后 AI 按此 prompt 跟进，例如：告知加急申请已受理，并说明预计时效", style: "font-size: var(--font-base)" });
+      promptIn.value = r.prompt || "";
+      promptIn.oninput = () => { r.prompt = promptIn.value; autosave(); };
+      return el("div", { class: "act-panel" }, [
+        el("label", { class: "field", style: "margin-bottom:0" }, [
+          el("span", { class: "label-text" }, ["选中「" + (r.text || `选项 ${i + 1}`) + "」后的 AI 跟进 prompt"]), promptIn]),
+      ]);
+    }
+    function draw() {
+      wrap.innerHTML = "";
+      if (state.component_type === "suggest.followup" && state.optionRows.length) {
+        const isSugHead = true;
+        wrap.appendChild(el("div", { class: "opt-head" + (isSugHead ? " sug" : "") }, [
+          el("span", {}, [isSugHead ? "引导文案" : "选项文案"]),
+          el("span", {}, [isSugHead ? "去向" : "跳转链接（选填）"]),
+          el("span", {}, [isSugHead ? "去向参数" : ""]), el("span", {}, [""]),
+        ]));
+      }
+      state.optionRows.forEach((r, i) => {
+        const textIn = el("input", { type: "text", value: r.text, placeholder: isCard ? `卡片标题 ${i + 1}（12 字内）` : isCommerce ? `商品名称 ${i + 1}` : isEntry ? `入口名称 ${i + 1}` : `选项 ${i + 1}`,
+          maxlength: isCard ? "12" : "40", "aria-label": "选项文本" });
+        textIn.oninput = () => { r.text = textIn.value; autosave(); };
+        textIn.onchange = () => rebuild(); // 更新推荐默认项下拉
+        const isSug = state.component_type === "suggest.followup";
+        const apiIn = el("input", { type: "url", value: r.api || "", placeholder: "https://…", "aria-label": "跳转链接" });
+        apiIn.oninput = () => { r.api = apiIn.value; autosave(); };
+        // 追问引导器：去向显式可配（追问 / AI 跟进 / 跳转链接）
+        if (isSug && !r._mode) r._mode = (r.api || "").trim() ? "link" : (r.prompt || "").trim() ? "prompt" : "ask";
+        const aiBtn = !withAct ? null : el("button", { type: "button", class: "btn small ghost ghost-ai" + (r.prompt ? " on" : ""),
+          title: "配置用户选中此项后 AI 的跟进话术（选填）",
+          onclick: () => { r._open = !r._open; draw(); } }, [r.prompt ? "已配 AI 跟进" : "AI 跟进"]);
+        const delBtn = UI.iconBtn("x", "删除此选项", () => { state.optionRows.splice(i, 1); autosave(); rebuild(); });
+        if (isCard || isCommerce || isEntry) {
+          const descIn = el("input", { type: "text", value: r.desc || "", placeholder: isCommerce ? "商品详情（40 字内，选填）" : isEntry ? "副标题（选填）" : "卡片文案（40 字内，选填）", maxlength: "40", style: "font-size: var(--font-base)" });
+          descIn.oninput = () => { r.desc = descIn.value; autosave(); };
+          const file = el("input", { type: "file", accept: "image/*", style: "display:none" });
+          file.onchange = () => {
+            const f = file.files[0];
+            if (!f) return;
+            if (f.size > 200 * 1024) { UI.toast("配图需小于 200KB", true); file.value = ""; return; }
+            const rdr = new FileReader();
+            rdr.onload = () => { r.image = rdr.result; autosave(); draw(); renderPreview(); };
+            rdr.readAsDataURL(f);
+          };
+          wrap.appendChild(el("div", { class: "opt-edit-card", style: "margin-bottom:6px" }, [
+            el("div", { style: "display:flex;gap:6px;align-items:center" }, [textIn, delBtn]),
+            el("div", { style: "margin-top:4px" }, [descIn]),
+            el("div", { style: "display:flex;gap:6px;align-items:center;margin-top:4px" }, [
+              ...(isEntry ? (() => {
+                if (!r._mode) r._mode = (r.api || "").trim() ? "link" : (r.prompt || "").trim() ? "prompt" : "ask";
+                const modeSel = el("select", { style: "width:104px;flex:none" },
+                  [["ask", "追问"], ["prompt", "AI 跟进"], ["link", "跳转链接"]].map(([v, l]) =>
+                    el("option", { value: v, ...(r._mode === v ? { selected: "" } : {}) }, [l])));
+                modeSel.onchange = () => {
+                  r._mode = modeSel.value;
+                  if (r._mode !== "link") r.api = "";
+                  if (r._mode !== "prompt") r.prompt = "";
+                  autosave(); draw();
+                };
+                let paramIn;
+                if (r._mode === "link") paramIn = apiIn;
+                else if (r._mode === "prompt") {
+                  paramIn = el("input", { type: "text", value: r.prompt || "", placeholder: "AI 按此话术接管回答" });
+                  paramIn.oninput = () => { r.prompt = paramIn.value; autosave(); };
+                } else paramIn = el("input", { type: "text", disabled: "", placeholder: "点击后按入口名原文追问 AI" });
+                return [modeSel, paramIn];
+              })() : [apiIn]),
+              file,
+              el("button", { type: "button", class: "btn small", style: "flex:none;white-space:nowrap", onclick: () => file.click() },
+                [UI.icon("upload", 14), r.image ? (isEntry ? "更换图标" : "更换配图") : (isEntry ? "上传图标" : "上传配图")]),
+              r.image ? el("img", { src: r.image, alt: "", style: "width:40px;height:28px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex:none" }) : null,
+              r.image ? el("button", { type: "button", class: "btn small ghost", style: "flex:none", onclick: () => { r.image = ""; autosave(); draw(); renderPreview(); } }, ["移除"]) : null,
+              aiBtn,
+            ]),
+            isCommerce ? el("div", { style: "display:flex;gap:6px;align-items:center;margin-top:4px" }, [
+              (() => { const n = el("input", { type: "number", value: r.price, placeholder: "价格", min: "0", style: "max-width:90px" }); n.oninput = () => { r.price = n.value; autosave(); }; return n; })(),
+              (() => { const n = el("input", { type: "number", value: r.price_original, placeholder: "原价（选填）", min: "0", style: "max-width:110px" }); n.oninput = () => { r.price_original = n.value; autosave(); }; return n; })(),
+              (() => { const n = el("input", { type: "number", value: r.sales, placeholder: "销量（选填）", min: "0", style: "max-width:110px" }); n.oninput = () => { r.sales = n.value; autosave(); }; return n; })(),
+              (() => { const n = el("input", { type: "text", value: r.tags || "", placeholder: "标签，逗号分隔（选填）" }); n.oninput = () => { r.tags = n.value; autosave(); }; return n; })(),
+            ]) : null,
+            aiRow(r, i),
+          ]));
+        } else if (withAct && !isSug) {
+          // 规范块结构：行1 文案+删除 · 行2 跳转链接 · 行3 AI 跟进开关（开→话术输入）
+          const blk = el("div", { class: "opt-block" }, [
+            el("div", { class: "ob-row" }, [textIn, delBtn]),
+            el("div", { class: "ob-row" }, [apiIn]),
+            el("div", { class: "ob-toggle" }, [
+              UI.toggle({ checked: !!(r.prompt || r._open), onChange: (v) => { r._open = v; if (!v) r.prompt = ""; autosave(); draw(); return true; } }),
+              el("span", {}, ["AI 跟进", UI.help("开启后，用户选中此项时 AI 按你的话术接管回答")]),
+            ]),
+            (r._open || r.prompt) ? (() => {
+              const pIn = el("input", { type: "text", value: r.prompt || "", placeholder: "用户选中后 AI 按此话术跟进，例如：告知加急申请已受理" });
+              pIn.oninput = () => { r.prompt = pIn.value; autosave(); };
+              return el("div", { class: "ob-row" }, [pIn]);
+            })() : null,
+          ]);
+          apiIn.placeholder = "跳转链接（选填，https://…）";
+          wrap.appendChild(blk);
+        } else if (isSug) {
+          const modeSel = el("select", { style: "width:112px;flex:none" },
+            [["ask", "追问"], ["prompt", "AI 跟进"], ["link", "跳转链接"]].map(([v, l]) =>
+              el("option", { value: v, ...(r._mode === v ? { selected: "" } : {}) }, [l])));
+          modeSel.onchange = () => {
+            r._mode = modeSel.value;
+            if (r._mode !== "link") r.api = "";
+            if (r._mode !== "prompt") r.prompt = "";
+            autosave(); draw();
+          };
+          let paramIn;
+          if (r._mode === "link") paramIn = apiIn;
+          else if (r._mode === "prompt") {
+            paramIn = el("input", { type: "text", value: r.prompt || "", placeholder: "AI 按此话术接管回答", "aria-label": "AI 跟进话术" });
+            paramIn.oninput = () => { r.prompt = paramIn.value; autosave(); };
+          } else paramIn = el("input", { type: "text", disabled: "", placeholder: "点击后按引导文案原文追问 AI" });
+          wrap.appendChild(el("div", { class: "opt-row sug", style: "margin-bottom:6px" }, [textIn, modeSel, paramIn, delBtn]));
+        } else {
+          wrap.appendChild(el("div", { style: "display:flex;gap:8px;align-items:center;margin-bottom:8px" }, [textIn, delBtn]));
+        }
+      });
+      wrap.appendChild(el("button", { class: "opt-add", type: "button", onclick: () => {
+        state.optionRows.push({ text: "", id: "opt-" + Math.random().toString(36).slice(2, 8), prompt: "", api: "", _open: false }); autosave(); draw();
+        const inputs = wrap.querySelectorAll("input[aria-label=选项文本]");
+        inputs[inputs.length - 1]?.focus();
+      } }, [UI.icon("plus", 14), isCard ? "添加卡片" : isCommerce ? "添加商品" : isEntry ? "添加入口" : "添加选项"]));
+      wrap.appendChild(errBox);
+    }
+    draw();
+    const isLoc = state.component_type === "picker.location";
+    const outer = el("div", { class: "field" }, [
+      el("span", { class: "label-text" + (isLoc ? "" : " req") }, [isCard ? "卡片" : isCommerce ? "商品" : isEntry ? "入口" : isLoc ? "常用地点（选填，置顶展示）" : "选项",
+        withAct ? UI.help("跳转链接与 AI 跟进都是选填：配了链接，用户选中后可直达你的页面或服务；配了 AI 跟进，AI 会按你的话术继续对话") : null]),
+      wrap,
+    ]);
+    fieldWraps.options = outer;
+    return outer;
+  }
+
+  function fieldRowsEditor() {
+    const wrap = el("div", {});
+    const errBox = el("div", { class: "field-error" });
+    fieldErrs.fields = errBox;
+    function draw() {
+      wrap.innerHTML = "";
+      wrap.appendChild(el("div", { class: "field-row muted" }, [
+        el("span", {}, ["字段 key"]), el("span", {}, ["标签"]), el("span", { style: "text-align:center" }, ["必填"]), el("span", {}, [""]),
+      ]));
+      state.fieldRows.forEach((f, i) => {
+        const keyIn = el("input", { type: "text", value: f.key, placeholder: "order_no", "aria-label": "字段标识" });
+        keyIn.oninput = () => { f.key = keyIn.value.trim(); autosave(); };
+        const labelIn = el("input", { type: "text", value: f.label, placeholder: "订单号", "aria-label": "显示标签" });
+        labelIn.oninput = () => { f.label = labelIn.value; autosave(); };
+        const reqCb = el("input", { type: "checkbox", style: "width:auto;margin:0 auto;display:block", title: "必填" });
+        reqCb.checked = !!f.required;
+        reqCb.onchange = () => { f.required = reqCb.checked; autosave(); };
+        wrap.appendChild(el("div", { class: "field-row" }, [
+          keyIn, labelIn, reqCb,
+          UI.iconBtn("x", "删除此字段", () => { state.fieldRows.splice(i, 1); autosave(); draw(); }),
+        ]));
+      });
+      wrap.appendChild(el("button", { class: "btn small", type: "button", style: "margin-top:2px", onclick: () => {
+        state.fieldRows.push({ key: "", label: "", required: false }); autosave(); draw();
+        const inputs = wrap.querySelectorAll(".field-row input[type=text]");
+        inputs[inputs.length - 2]?.focus();
+      } }, [UI.icon("plus", 14), "添加字段"]));
+      wrap.appendChild(errBox);
+    }
+    draw();
+    const outer = el("div", { class: "field" }, [
+      el("span", { class: "label-text req" }, ["采集字段"]), wrap,
+    ]);
+    fieldWraps.fields = outer;
+    return outer;
+  }
+
+  function stepComp() {
+    const box = el("div", { class: "editor-section" });
+    // 组件：下拉切换（编辑已有配置时锁定，避免历史数据口径混乱）
+    const tplCt = state.component_type === "select.multi" ? "select.single" : state.component_type;
+    const ctSel = el("select", { ...(card ? { disabled: "" } : {}) }, [
+      ...(!state.component_type ? [el("option", { value: "" }, ["请选择组件"])] : []),
+      ...templateLibrary.map(t => el("option", { value: t.component_type, ...(t.component_type === tplCt ? { selected: "" } : {}) }, [t.name])),
+    ]);
+    ctSel.onchange = () => { applyTemplate(ctSel.value); autosave(); rebuild(); };
+    const ctErr = el("div", { class: "field-error" });
+    fieldErrs.component_type = ctErr;
+    box.appendChild(el("div", { class: "field" }, [
+      el("span", { class: "label-text req" }, ["交互组件",
+        card ? UI.help("已有配置的组件类型不可变更（否则历史数据口径混乱），换组件请新建配置") : null]),
+      ctSel,
+      el("div", { class: "muted", style: "margin-bottom:10px" }, [WIZ_DESC[tplCt] || ""]),
+      ctErr,
+    ]));
+    if (state.component_type === "select.single" || state.component_type === "select.multi") {
+      // 单/多选影响数据口径（user_selection 字符串 vs 列表），已有配置与组件类型一样锁定
+      const modeSeg = el("div", { class: "segmented" });
+      [["select.single", "单选"], ["select.multi", "多选"]].forEach(([key, name]) => modeSeg.appendChild(el("button", {
+        type: "button", class: "seg" + (key === state.component_type ? " active" : ""),
+        ...(card ? { disabled: "" } : { onclick: () => { state.component_type = key; autosave(); rebuild(); } }),
+      }, [name])));
+      box.appendChild(el("div", { class: "field" }, [
+        el("span", { class: "label-text" }, ["选择方式",
+          UI.help(card ? "单选：选一项即提交；多选：可勾选多项后提交。已有配置不可变更（数据口径不同），如需调整请新建配置"
+                       : "单选：选一项即提交；多选：可勾选多项后提交")]),
+        modeSeg,
+      ]));
+    }
+    const variants = DISPLAY_VARIANTS[state.component_type] || [];
+    if (variants.length > 1) {
+      const seg = el("div", { class: "segmented" });
+      const cur = state.display || variants[0][0];
+      variants.forEach(([key, name]) => seg.appendChild(el("button", {
+        type: "button", class: "seg" + (key === cur ? " active" : ""),
+        onclick: () => { state.display = key; autosave(); rebuild(); },
+      }, [name])));
+      box.appendChild(el("div", { class: "field" }, [
+        el("span", { class: "label-text" }, ["显示样式", UI.help("同一组件在对话里的不同展现形式，右侧预览实时切换")]),
+        seg,
+      ]));
+    }
+    box.appendChild(field("question", "提问", input("question", { class: "q-input", placeholder: "组件标题，例如：请选择处理方式", maxlength: "80" }), null, true));
+    box.appendChild(field("reply_text", "说明文案",
+      textarea("reply_text", 2, { placeholder: "组件上方先说的话，选填。例如：很抱歉给你带来不便，我们已记录该异常" })));
+    const ct = state.component_type;
+    if (ct) {
+      const contentFields = [];
+      if (OPTION_TYPES.includes(ct)) contentFields.push(optionRowsEditor(SELECT_TYPES.includes(ct) || ct === "suggest.followup"));
+      if (ct === "commerce.order") contentFields.push(el("div", { class: "muted", style: "margin-top:2px" }, ["原价高于现价时自动显示折扣角标；多件下单自动合计"]));
+      if (SELECT_TYPES.includes(ct)) {
+        const opts = getOptions();
+        const defSel = el("select", {}, [
+          el("option", { value: "" }, ["不设默认项"]),
+          ...opts.map(o => el("option", { value: o, ...(state.recommended_default === o ? { selected: "" } : {}) }, [o])),
+        ]);
+        defSel.onchange = () => { state.recommended_default = defSel.value; autosave(); };
+        contentFields.push(el("div", { class: "form-grid" }, [
+          field("recommended_default", "推荐默认项", defSel),
+          ct === "matrix.compare+select" ? (() => {
+            const ta2 = textarea("dimensions", 3, { placeholder: "价格\n时效\n风险" });
+            ta2.onchange = () => rebuild();
+            return field("dimensions", "对比维度（每行一个）", ta2, null, true);
+          })() : null,
+        ]));
+      }
+      if (ct === "matrix.compare+select") {
+        const dims2 = state.dimensions.split("\n").map(x => x.trim()).filter(Boolean);
+        const opts2 = getOptions();
+        if (dims2.length && opts2.length) {
+          if (!Array.isArray(state.matrixValues)) state.matrixValues = [];
+          opts2.forEach((o, i) => {
+            if (!Array.isArray(state.matrixValues[i])) state.matrixValues[i] = [];
+          });
+          const tbl = el("table", { class: "data mxe-table" }, [
+            el("thead", {}, [el("tr", {}, [el("th", {}, ["方案 \\ 维度"]), ...dims2.map(d => el("th", {}, [d]))])]),
+            el("tbody", {}, opts2.map((o, i) => el("tr", {}, [
+              el("td", { style: "font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: o }, [o]),
+              ...dims2.map((d, j) => {
+                const n = el("input", { type: "number", step: "0.1", value: state.matrixValues[i]?.[j] ?? "",
+                  placeholder: "-", style: "padding:4px 6px;font-size:var(--font-small);max-width:72px" });
+                n.oninput = () => { state.matrixValues[i][j] = n.value === "" ? null : Number(n.value); autosave(); };
+                return el("td", {}, [n]);
+              }),
+            ]))),
+          ]);
+          contentFields.push(el("div", { class: "field" }, [
+            el("span", { class: "label-text" }, ["对比值",
+              UI.help("每个方案在各维度上的评分或数值，用户端按此表展示并计算综合分；留空的格子展示为 -")]),
+            el("div", { style: "overflow-x:auto" }, [tbl]),
+          ]));
+        }
+      }
+      if (ct === "scale.likert") {
+        const scaleSel = el("select", {}, LIKERT_PRESETS.map(([name, f, t]) =>
+          el("option", { value: `${f}|${t}`, ...(state.likert_from === f && state.likert_to === t ? { selected: "" } : {}) }, [name])));
+        scaleSel.onchange = () => { const [f, t] = scaleSel.value.split("|").map(Number); state.likert_from = f; state.likert_to = t; autosave(); renderPreview(); };
+        contentFields.push(el("div", { class: "form-grid cols-3" }, [
+          field("likert_left", "左端文案", input("likert_left")),
+          field("likert_right", "右端文案", input("likert_right")),
+          field("likert_scale", "刻度", scaleSel, "如 -2~+2 适合净推荐值类测量"),
+        ]));
+      }
+      if (ct === "upload.file") contentFields.push(field("placeholder", "文件说明", input("placeholder", { placeholder: "请上传报关单或合同文件（PDF / Excel）" })));
+      if (ct === "upload.image") contentFields.push(field("placeholder", "拍摄说明", input("placeholder", { placeholder: "请拍摄或上传清晰照片" })));
+      if (ct === "picker.location") contentFields.push(field("placeholder", "搜索框提示（选填）", input("placeholder", { placeholder: "搜索地址，或从常用地点选择" })));
+      if (ct === "form.structured") contentFields.push(fieldRowsEditor());
+      if (ct === "input.followup") contentFields.push(field("placeholder", "输入框提示", input("placeholder", { placeholder: "请输入你的回答" })));
+      if (ct === "slider.range") {
+        contentFields.push(el("div", { class: "form-grid cols-3" }, [
+          field("slider_min", "最小值", input("slider_min", { type: "number" })),
+          field("slider_max", "最大值", input("slider_max", { type: "number" })),
+          field("slider_unit", "单位（选填）", input("slider_unit", { placeholder: "天 / 元 / %" })),
+        ]));
+      }
+      if (ct === "commerce.order" && !card && state.submit === "提交") state.submit = "下单";
+      if (!["suggest.followup", "entry.link"].includes(ct)) contentFields.push(el("div", { class: "form-grid" }, [
+        field("submit", "按钮文案", input("submit", { maxlength: "8" }), "默认「提交」，最多 8 字，直接显示为当前值"),
+      ]));
+      else if (ct === "suggest.followup") contentFields.push(el("div", { class: "muted", style: "margin-top:2px" },
+        ["每个引导项三种去向：不配动作 = 作为追问发给 AI；配「AI 跟进」= 按你的话术接管回答；配「跳转链接」= 打开网站或服务入口"]));
+      else contentFields.push(el("div", { class: "muted", style: "margin-top:2px" },
+        ["每个入口配「跳转链接」直达专区 / 服务页；「提问」留空则不显示标题，横条紧跟在回答下方"]));
+      box.appendChild(el("div", { style: "margin-top:4px" }, contentFields));
+    }
+    return box;
+  }
+
+  // ---------- 第 4 步：数据收集（基础信息回顾 + 回收设置） ----------
+  function stepConfirm() {
+    const box = el("div", {});
+    const tpl = templateLibrary.find(t => t.component_type === (state.component_type === "select.multi" ? "select.single" : state.component_type)) || {};
+    const variants = DISPLAY_VARIANTS[state.component_type] || [];
+    const dispName = (variants.find(([k]) => k === (state.display || (variants[0] || [])[0])) || [])[1];
+    const contentSummary = () => {
+      const ct = state.component_type;
+      if (ct === "commerce.order") return `${getOptions().length} 个商品`;
+      if (ct === "entry.link") return `${getOptions().length} 个入口`;
+      if (ct === "suggest.followup") return `${getOptions().length} 个引导项`;
+      if (OPTION_TYPES.includes(ct)) return `${getOptions().length} 个${ct === "select.card" ? "卡片" : "选项"}`;
+      if (ct === "form.structured") return `${state.fieldRows.filter(f => f.key || f.label).length} 个采集字段`;
+      if (ct === "scale.likert") return `刻度 ${state.likert_from} ~ ${state.likert_to}`;
+      if (ct === "slider.range") return `区间 ${state.slider_min} ~ ${state.slider_max}${state.slider_unit ? " " + state.slider_unit : ""}`;
+      return "";
+    };
+    const val = v => v || el("span", { class: "muted" }, ["（未填写）"]);
+    const infoCard = (title, stepKey, rows) => el("div", { class: "info-card" }, [
+      el("div", { class: "ic-head" }, [
+        el("span", { class: "ic-title" }, [title]),
+        el("div", { style: "flex:1" }),
+        el("button", { class: "btn small ghost", type: "button", onclick: () => gotoStep(stepKey) }, ["修改"]),
+      ]),
+      el("div", { class: "sum-rows" }, rows.flatMap(([k, v]) => [
+        el("span", { class: "k" }, [k]),
+        el("div", { class: "v" }, Array.isArray(v) ? v : [val(v)]),
+      ])),
+    ]);
+    box.appendChild(el("div", { class: "editor-section" }, [
+      el("div", { class: "sec-head" }, ["基础信息"]),
+      infoCard("触发信息", "trigger", [
+        ["配置名称", state.name.trim()],
+        ["触发条件", state.trigger_description.trim()],
+        ["示例问法", state.trigger_examples.length
+          ? [el("span", { class: "chips" }, state.trigger_examples.slice(0, 5).map(x => el("span", { class: "chip gray" }, [x])))]
+          : null],
+        ["有效期", (state.valid_from || state.valid_until) ? `${state.valid_from || "即日"} 至 ${state.valid_until || "长期"}` : "长期有效"],
+      ]),
+      infoCard("组件内容", "comp", [
+        ["交互组件", (tpl.name || UI.ctName(state.component_type) || "")
+          + (state.component_type === "select.multi" ? "（多选）" : state.component_type === "select.single" ? "（单选）" : "")
+          + (dispName ? " · " + dispName : "")],
+        ["提问", state.question.trim()],
+        ...(contentSummary() ? [["内容", contentSummary()]] : []),
+      ]),
+    ]));
+
+    const webhookIn = input("webhook", { type: "url", placeholder: "https://your-service.example.com/hooks/interaction" });
+    box.appendChild(el("div", { class: "editor-section" }, [
+      el("div", { class: "sec-head" }, ["数据收集"]),
+      ECHO_TYPES.includes(state.component_type) ? el("div", { class: "recv-row" }, [
+        el("div", { class: "recv-main" }, [
+          el("div", { class: "recv-t" }, ["群体回显"]),
+          el("div", { class: "muted" }, [state.component_type === "entry.link"
+            ? "统计并展示有多少人点开过各入口"
+            : "用户提交后看到大家的选择分布，如「71% 的用户和你选了一样」"]),
+        ]),
+        UI.toggle({ checked: !!state.echo_results,
+          onChange: (v) => { state.echo_results = v; autosave(); renderPreview(); } }),
+      ]) : (() => { state.echo_results = false; return null; })(),
+      el("div", { class: "recv-row" }, [
+        el("div", { class: "recv-main" }, [
+          el("div", { class: "recv-t" }, ["数据推送 Webhook", el("span", { class: "muted", style: "font-weight:400;margin-left:6px" }, ["选填"])]),
+          webhookIn,
+          el("div", { class: "muted", style: "margin-top:4px" }, ["仅 https；每次提交实时 POST 一条记录（演示环境不外发）"]),
+          (() => { const e2 = el("div", { class: "field-error" }); fieldErrs.webhook = e2; return e2; })(),
+        ]),
+      ]),
+      el("div", { class: "muted", style: "margin-top:8px" }, ["配置 ID 与接口契约在发布后生成，可直接复制"]),
+    ]));
+    return box;
+  }
+
+  // ---------- 第 5 步：获取 Key ----------
+  function stepDone() {
+    const box = el("div", {});
+    const c = savedCard || {};
+    const embedCode = [
+      `# 配置 ID：${clientCardId}`,
+      `# 1) 对话接入：把用户消息发到路由入口，命中触发条件时返回本组件的协议信封（SSE）`,
+      `curl -N -X POST https://your-domain/v1/route \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '{"text": "用户消息", "tenant_id": "tenant-demo", "session_id": "sess-1", "user_id": "u-1"}'`,
+      ``,
+      `# 2) 按配置 ID 主动拉取聚合结果（需开启回显）`,
+      `curl https://your-domain/v1/cards/${clientCardId}/responses`,
+      ``,
+      `# 组件渲染 SDK 随正式版提供；协议信封结构见下方接口契约`,
+    ].join("\n");
+    const samplePayload = {
+      event: "card_submitted",
+      config_id: clientCardId,
+      config_name: c.name || state.name,
+      config_version: c.version || 1,
+      submitted_at: "2026-08-26T10:30:00+08:00",
+      user_pseudonym: "u_9f3a17c2",
+      data: state.component_type === "form.structured"
+        ? { form_values: Object.fromEntries(state.fieldRows.filter(f => f.key).map(f => [f.key, "……"])) }
+        : { user_selection: (getOptions()[0] || "……"), options_offered: getOptions() },
+      signature: "HMAC-SHA256(payload, secret)  // 签名密钥在开通 Webhook 时由平台下发；演示环境未启用",
+    };
+    const contractText = [
+      "# 推送：每次提交实时 POST 到你的 Webhook",
+      JSON.stringify(samplePayload, null, 2),
+      "",
+      "# 拉取：按配置 ID 主动获取聚合结果",
+      `GET /v1/cards/${clientCardId}/responses`,
+      "返回：{ total_submissions, respondents, distribution: {选项: 次数}, recent_texts }",
+    ].join("\n");
+    if (doneWarning) box.appendChild(el("div", { class: "warn-banner" }, [
+      el("div", { style: "font-weight:600;margin-bottom:2px" }, ["风险提示"]),
+      el("div", {}, [doneWarning]),
+    ]));
+    box.appendChild(el("div", { class: "done-hero" + (publishedNow ? "" : " draft") }, [
+      el("span", { class: "ico" }, [UI.icon("check", 16)]),
+      el("div", {}, [
+        el("div", { style: "font-weight:600" }, [publishedNow ? `「${c.name || state.name}」已发布上线` : `「${c.name || state.name}」已保存为草稿`]),
+        el("div", { style: "font-size:var(--font-small);margin-top:2px" }, [publishedNow ? "AI 即刻可在对话中触发" : "发布后 AI 才会在对话中触发"]),
+      ]),
+    ]));
+    box.appendChild(el("div", { class: "field" }, [
+      el("span", { class: "label-text" }, ["配置 ID", UI.help("嵌入代码、看板统计、下游接口都按此 ID 关联")]),
+      UI.keyField(null, clientCardId),
+    ]));
+    box.appendChild(el("div", { class: "field" }, [
+      el("div", { style: "display:flex;align-items:center;margin-bottom:4px" }, [
+        el("span", { class: "label-text", style: "margin-bottom:0" }, ["嵌入代码"]),
+        el("div", { style: "flex:1" }),
+        el("button", { type: "button", class: "btn small", onclick: () => { navigator.clipboard.writeText(embedCode); UI.toast("已复制嵌入代码"); } }, [UI.icon("copy", 14), "复制"]),
+      ]),
+      el("pre", { class: "code" }, [embedCode]),
+      el("div", { class: "muted" }, ["接入路由入口后，对话中命中触发条件即返回本组件的协议信封，由前端渲染"]),
+    ]));
+    box.appendChild(el("details", {}, [
+      el("summary", { class: "muted", style: "cursor:pointer" }, ["接口契约（推送 Webhook / 拉取聚合结果）"]),
+      el("div", { class: "contract-box" }, [
+        el("div", { style: "display:flex;align-items:center;margin:8px 0 6px" }, [
+          el("span", { class: "muted" }, ["推送与拉取的完整契约"]),
+          el("div", { style: "flex:1" }),
+          el("button", { type: "button", class: "btn small", onclick: () => { navigator.clipboard.writeText(contractText); UI.toast("已复制接口契约"); } }, [UI.icon("copy", 14), "复制"]),
+        ]),
+        el("pre", { class: "code" }, [contractText]),
+      ]),
+    ]));
+    return box;
+  }
+
+  // ---------- 组装：固定头（标题 + 步骤条）、中部滚动、固定尾 ----------
+  const stepBar = el("div", { class: "ed-steps" });
+  const formCol = el("div", { class: "ed-form" });
+  const foot = el("div", { class: "modal-foot", style: "display:flex;gap:8px;align-items:center" });
+
+  function drawStepBar() {
+    stepBar.innerHTML = "";
+    const list = steps();
+    const idx = list.findIndex(s => s.key === step);
+    list.forEach((s, i) => {
+      if (i) stepBar.appendChild(el("span", { class: "sep" }, [UI.icon("arrow", 12)]));
+      // 步骤条可点跳转；唯一门槛：未选组件不能离开第 1 步
+      const clickable = step !== "done" && s.key !== "done" && (s.key === "pick" || !!state.component_type);
+      stepBar.appendChild(el("span", {
+        class: "st" + (s.key === step ? " active" : i < idx ? " done" : "") + (clickable ? " click" : ""),
+        ...(clickable ? { onclick: () => gotoStep(s.key) } : {}),
+      }, [s.label]));
+    });
+    stepBar.appendChild(el("span", { class: "meta" }, [
+      isNew && !savedCard ? null : el("span", { class: "num" }, [`配置 ${shortId(clientCardId)}`]),
+      card && card.status === "offline" ? el("span", { class: "chip coral" }, ["已下线"]) : null,
+    ]));
+  }
+
+  function gotoStep(next) {
+    // 自由跳转；唯一门槛：离开第 1 步前必须选好组件。字段完整性在保存 / 发布时统一校验并跳回出错步
+    if (next !== "pick" && !state.component_type) {
+      UI.toast("请先选择一个组件", true);
+      return;
+    }
+    step = next;
+    autosave();
+    rebuild(true);
+  }
+
+  function updateFoot() {
+    const nextBtnEl = foot.querySelector("[data-next]");
+    if (nextBtnEl && step === "pick") nextBtnEl.disabled = !state.component_type;
+  }
+
+  function drawFoot() {
+    foot.innerHTML = "";
+    const spacer = el("div", { style: "flex:1" });
+    const nextTo = { pick: ["trigger", "下一步"], trigger: ["comp", "下一步"], comp: ["confirm", "下一步"] };
+    const backTo = { trigger: isNew ? "pick" : null, comp: "trigger", confirm: "comp" };
+    if (step === "done") {
+      foot.append(spacer,
+        el("button", { class: "btn", onclick: () => { closeEditor(); openTest(state.trigger_examples[0] || state.question.trim()); } }, ["测试"]),
+        el("button", { class: "btn primary", onclick: () => closeEditor() }, ["完成"]));
+      return;
+    }
+    if (isNew && backTo[step]) foot.appendChild(el("button", { class: "btn", onclick: () => gotoStep(backTo[step]) }, ["上一步"]));
+    foot.appendChild(errorsBox);
+    foot.appendChild(spacer);
+    if (isNew && nextTo[step]) {
+      const [to, label] = nextTo[step];
+      const b = el("button", { class: "btn primary", "data-next": "1", onclick: () => gotoStep(to) }, [label]);
+      if (step === "pick") b.disabled = !state.component_type;
+      foot.appendChild(b);
+    }
+    if (!isNew || step === "confirm") {
+      foot.appendChild(el("button", { class: "btn", onclick: (e) => save(false, e.currentTarget) }, ["保存草稿"]));
+      foot.appendChild(el("button", { class: "btn primary", onclick: (e) => save(true, e.currentTarget) }, ["保存并发布"]));
+    }
+  }
+
+  function rebuild(resetScroll = false) {
+    const keepScroll = formCol.scrollTop;
+    Object.keys(fieldErrs).forEach(k => delete fieldErrs[k]);
+    Object.keys(fieldWraps).forEach(k => delete fieldWraps[k]);
+    errorsBox.innerHTML = "";
+    formCol.innerHTML = "";
+    formCol.appendChild({ pick: stepPick, trigger: stepTrigger, comp: stepComp, confirm: stepConfirm, done: stepDone }[step]());
+    drawStepBar();
+    drawFoot();
+    renderPreview();
+    // 同步内容重绘（切样式 / 增删选项）保持滚动位置，只有切步才回顶
+    formCol.scrollTop = resetScroll ? 0 : keepScroll;
+  }
+
+  const body = el("div", { class: "ed-body", style: "display:contents" }, [
+    stepBar,
+    el("div", { class: "ed-split" }, [
+      formCol,
+      el("div", { class: "ed-preview" }, [
+        el("div", { style: "display:flex;align-items:center;gap:4px;margin-bottom:8px" }, [
+          el("span", { style: "font-weight:600" }, ["预览"]), UI.help("用户在对话中看到的效果，与线上同一套渲染器；预览中提交不产生数据"),
+        ]),
+        previewBox,
+      ]),
+    ]),
+  ]);
+
+  function collectPayload() {
+    const question = state.question.trim();
+    const options = getOptions();
+    const dimensions = state.dimensions.split("\n").map(s => s.trim()).filter(Boolean);
+    const fields = state.fieldRows.filter(f => f.key || f.label).map(f => ({
+      key: (f.key || f.label).trim(), label: (f.label || f.key).trim(), type: "text", required: !!f.required }));
+    const config = {};
+    if (options.length) {
+      config.options = options;
+      // 选项位 id 与 options 对齐（发布时服务端据此识别「改名」并归并历史数据）
+      config.option_ids = state.optionRows.filter(r => (r.text || "").trim()).map(r => r.id || "opt-" + Math.random().toString(36).slice(2, 8));
+    }
+    if (cfg.option_aliases) config.option_aliases = cfg.option_aliases; // 历史改名别名链透传
+    const optionActions = {};
+    state.optionRows.forEach(r => {
+      const t = (r.text || "").trim();
+      if (!t) return;
+      const act = {};
+      if ((r.prompt || "").trim()) act.prompt = r.prompt.trim();
+      if ((r.api || "").trim()) act.api = r.api.trim();
+      if (Object.keys(act).length) optionActions[t] = act;
+    });
+    if (Object.keys(optionActions).length) config.option_actions = optionActions;
+    if (state.recommended_default.trim() && options.includes(state.recommended_default.trim())) config.recommended_default = state.recommended_default.trim();
+    if (dimensions.length) config.dimensions = dimensions;
+    if (state.component_type === "matrix.compare+select" && Array.isArray(state.matrixValues)) {
+      const vals = options.map((o, i) => dimensions.map((d, j) => {
+        const v = state.matrixValues[i]?.[j];
+        return v == null || v === "" ? null : Number(v);
+      }));
+      if (vals.some(row => row.some(v => v != null))) config.values = vals;
+    }
+    if (state.display) config.display = state.display;
+    if (state.component_type === "scale.likert")
+      config.likert = { left: state.likert_left, right: state.likert_right, from: Number(state.likert_from), to: Number(state.likert_to) };
+    const optionMeta = {};
+    state.optionRows.forEach(r => {
+      const t = (r.text || "").trim();
+      if (!t) return;
+      const m = { ...(r.desc?.trim() ? { desc: r.desc.trim() } : {}), ...(r.image?.trim() ? { image: r.image.trim() } : {}) };
+      if (state.component_type === "commerce.order") {
+        if (r.price !== "" && !isNaN(Number(r.price))) m.price = Number(r.price);
+        if (r.price_original !== "" && !isNaN(Number(r.price_original))) m.price_original = Number(r.price_original);
+        if (r.sales !== "" && !isNaN(Number(r.sales))) m.sales = Number(r.sales);
+        const tg = (r.tags || "").split(/[，,]/).map(x => x.trim()).filter(Boolean);
+        if (tg.length) m.tags = tg;
+      }
+      if (Object.keys(m).length) optionMeta[t] = m;
+    });
+    if (Object.keys(optionMeta).length) config.option_meta = optionMeta;
+    if (fields.length) config.fields = fields;
+    if (state.placeholder.trim()) config.placeholder = state.placeholder.trim();
+    if (state.component_type === "slider.range")
+      config.slider = { min: Number(state.slider_min) || 0, max: Number(state.slider_max) || 100, unit: state.slider_unit.trim() };
+    if (state.webhook.trim()) config.webhook = state.webhook.trim();
+    if (state.valid_from || state.valid_until) config.validity = { ...(state.valid_from ? { from: state.valid_from } : {}), ...(state.valid_until ? { until: state.valid_until } : {}) };
+    const templates = { prompt: question || "请选择", submit: state.submit.trim() || "提交" };
+    if (state.reply_text.trim()) templates.reply = state.reply_text.trim();
+    return {
+      card_id: clientCardId,
+      name: state.name.trim(),
+      description: (state.reply_text.trim() || question).slice(0, 256),
+      component_type: state.component_type,
+      trigger_description: state.trigger_description.trim() || question,
+      trigger_examples: state.trigger_examples.slice(0, 10),
+      model_invokable: true,
+      echo_results: !!state.echo_results,
+      option_source: { type: "static", values: options },
+      field_bindings: { config, fields: config.fields || [] },
+      text_templates: templates,
+      emit_targets: ["model", "dashboard", "label_store"],
+      label_polarity_map: { rule: "selection_accept", label_kind: "preference", confidence: 0.6 },
+    };
+  }
+
+  function fieldKeyOf(err) {
+    const alias = { "text_templates.prompt": "question", "text_templates.reply": "reply_text" };
+    return alias[err.field] || err.field?.split(".")[0];
+  }
+
+  function clientValidate() {
+    const errs = [];
+    if (!state.name.trim()) errs.push({ field: "name", message: "请填写配置名称" });
+    else if (state.name.trim().length > 15) errs.push({ field: "name", message: "配置名称不能超过 15 字" });
+    if (!state.trigger_description.trim()) errs.push({ field: "trigger_description", message: "请填写触发条件" });
+    else if (state.trigger_description.trim().length > 200) errs.push({ field: "trigger_description", message: "触发条件不能超过 200 字" });
+    if (!state.component_type) errs.push({ field: "component_type", message: "请选择一个交互组件" });
+    if (!state.question.trim() && state.component_type !== "entry.link") errs.push({ field: "question", message: "请填写交互提问文案" });
+    const ct = state.component_type;
+    const opts = getOptions();
+    if ((SELECT_TYPES.includes(ct) || ct === "suggest.followup") && opts.length < 2) errs.push({ field: "options", message: "至少 2 个选项" });
+    if (SELECT_TYPES.includes(ct) && new Set(opts).size !== opts.length) errs.push({ field: "options", message: "选项有重复" });
+    if (SELECT_TYPES.includes(ct) && state.optionRows.some(r => (r.api || "").trim() && !/^https:\/\/[^\s]+$/.test(r.api.trim())))
+      errs.push({ field: "options", message: "跳转链接必须是 https:// 开头的完整 URL" });
+    if (ct === "matrix.compare+select" && state.dimensions.split("\n").filter(s => s.trim()).length < 1) errs.push({ field: "dimensions", message: "至少填写 1 个对比维度" });
+    if (ct === "rank.priority" && opts.length < 2) errs.push({ field: "options", message: "至少 2 个候选项" });
+    if (ct === "entry.link" && opts.length < 1) errs.push({ field: "options", message: "至少 1 个入口" });
+    if (ct === "commerce.order") {
+      if (opts.length < 1) errs.push({ field: "options", message: "至少 1 个商品" });
+      else if (state.optionRows.some(r => (r.text || "").trim() && (r.price === "" || isNaN(Number(r.price)) || Number(r.price) < 0))) errs.push({ field: "options", message: "每个商品需要有效价格" });
+    }
+    if (SELECT_TYPES.includes(ct) || ct === "rank.priority") { if (state.optionRows.some(r => (r.image || "").trim() && !/^(https?:\/\/|data:image\/)/.test(r.image.trim()))) errs.push({ field: "options", message: "配图需为 http(s) 链接或本地上传的图片" }); }
+    if (ct === "slider.range" && !(Number(state.slider_min) < Number(state.slider_max))) errs.push({ field: "slider_max", message: "最大值必须大于最小值" });
+    if (ct === "form.structured") {
+      const rows = state.fieldRows.filter(f => f.key || f.label);
+      if (!rows.length) errs.push({ field: "fields", message: "至少添加 1 个采集字段" });
+      else if (rows.some(f => !(f.key || "").trim())) errs.push({ field: "fields", message: "每个字段都需要字段标识" });
+      else if (rows.some(f => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(f.key))) errs.push({ field: "fields", message: "字段标识只能用英文、数字、下划线，且不能以数字开头" });
+      else if (new Set(rows.map(f => f.key)).size !== rows.length) errs.push({ field: "fields", message: "字段标识重复" });
+    }
+    const wh = state.webhook.trim();
+    if (wh && !/^https:\/\/[^\s]+$/.test(wh)) errs.push({ field: "webhook", message: "Webhook 地址必须是 https:// 开头的完整 URL" });
+    if (state.valid_from && state.valid_until && state.valid_from > state.valid_until) errs.push({ field: "valid_until", message: "失效日期不能早于生效日期" });
+    return errs;
+  }
+
+  function showFieldErrors(errors) {
+    Object.values(fieldErrs).forEach(n => n.textContent = "");
+    Object.values(fieldWraps).forEach(n => n.classList.remove("has-error"));
+    errorsBox.innerHTML = "";
+    let first = null;
+    for (const err of errors) {
+      const key = fieldKeyOf(err);
+      const box = fieldErrs[key];
+      if (box) {
+        box.textContent = err.message;
+        fieldWraps[key]?.classList.add("has-error");
+        first = first || fieldWraps[key] || box;
+      } else errorsBox.appendChild(el("div", { class: "field-error" }, [`${FIELD_LABEL[err.field] || err.field}：${err.message}`]));
+    }
+    (first || errorsBox).scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  async function save(thenPublish, btn) {
+    const cerrs = clientValidate();
+    if (cerrs.length) {
+      // 错误可能在前面的步骤：跳回第一个有错的步骤
+      const stepOf = (e) => Object.keys(STEP_FIELDS).find(k => STEP_FIELDS[k].includes(fieldKeyOf(e)));
+      const firstStep = ["trigger", "comp", "confirm"].find(k => cerrs.some(e => stepOf(e) === k || (k === "comp" && stepOf(e) === "pick")));
+      if (firstStep && firstStep !== step) { step = firstStep; rebuild(true); }
+      showFieldErrors(cerrs);
+      UI.toast(`还有 ${cerrs.length} 处需要修正`, true);
+      return;
+    }
+    const payload = collectPayload();
+    await UI.withBusy(btn, async () => {
+      try {
+        let saved2;
+        if (isNew && !savedCard) {
+          saved2 = (await UI.api("/api/cards", { method: "POST", body: payload })).card;
+        } else if (isNew && savedCard) {
+          saved2 = (await UI.api(`/api/cards/${savedCard.card_id}`, {
+            method: "PUT", body: { payload, lock_version: savedCard.lock_version } })).card;
+        } else {
+          saved2 = (await UI.api(`/api/cards/${card.card_id}`, {
+            method: "PUT", body: { payload, lock_version: card.lock_version } })).card;
+        }
+        localStorage.removeItem(draftKey(cardId));
+        savedCard = saved2;
+        clientCardId = saved2.card_id;
+        publishedNow = false;
+        let pubWarning = null;
+        if (thenPublish) {
+          const pubResp = await UI.api(`/api/cards/${saved2.card_id}/transition`, { method: "POST", body: { action: "publish" } });
+          pubWarning = pubResp && pubResp.warning;
+          doneWarning = pubWarning;
+          savedCard = { ...saved2, version: (saved2.version || 0) + 1, status: "published" };
+          publishedNow = true;
+        }
+        loadCards(); loadKpisAndTodos();
+        // 收尾：进入「获取配置 ID」步
+        step = "done";
+        rebuild(true);
+        UI.toast(thenPublish ? "已发布上线" : (card?.status === "published" ? "已存草稿，线上不变" : "已存草稿"));
+      } catch (e) {
+        const errs = e.data?.errors || e.data?.error?.errors;
+        if (e.status === 409 && errs?.some(x => x.code === "conflict")) {
+          conflictDialog(errs.find(x => x.code === "conflict"), payload);
+        } else if (e.status === 409 && errs?.some(x => x.code === "card_deleted")) {
+          const ok = await UI.confirm("配置已被删除", "该配置已被他人删除。是否将当前内容另存为新配置？", { okText: "另存为新配置" });
+          if (ok) {
+            payload.card_id = crypto.randomUUID();
+            const savedNew = (await UI.api("/api/cards", { method: "POST", body: payload })).card;
+            UI.toast("已另存为新配置：" + savedNew.name);
+            mask.remove(); loadCards();
+          }
+        } else if (errs) {
+          // 跳回出错字段所在的步骤（如配置名称重名 → 触发条件步）
+          const stepOf2 = (er) => Object.keys(STEP_FIELDS).find(k => STEP_FIELDS[k].includes(fieldKeyOf(er)));
+          const firstStep2 = ["trigger", "comp", "confirm"].find(k => errs.some(er => stepOf2(er) === k || (k === "comp" && stepOf2(er) === "pick")));
+          if (firstStep2 && firstStep2 !== step) { step = firstStep2; rebuild(true); }
+          showFieldErrors(errs);
+          UI.toast("保存失败：请修正表单中标红的字段", true);
+        } else {
+          UI.toast("保存失败：" + e.message + "。请检查网络后重试，重复提交不会产生重复配置。", true);
+        }
+      }
+    }, thenPublish ? "发布中……" : "保存中……");
+  }
+
+  function conflictDialog(conflict, payload) {
+    const server = conflict.server_state || {};
+    const diffs = [];
+    for (const k of ["name", "trigger_description"]) {
+      if ((server[k] || "") !== (payload[k] || "")) diffs.push([FIELD_LABEL[k] || k, server[k], payload[k]]);
+    }
+    const body2 = el("div", {}, [
+      el("div", { class: "secondary", style: "margin-bottom:8px" }, [conflict.message]),
+      diffs.length ? el("table", { class: "data" }, [
+        el("thead", {}, [el("tr", {}, [el("th", {}, ["字段"]), el("th", {}, ["对方版本"]), el("th", {}, ["我的版本"])])]),
+        el("tbody", {}, diffs.map(([k, a, b]) => el("tr", {}, [
+          el("td", {}, [k]), el("td", {}, [String(a || "（空）")]), el("td", {}, [String(b || "（空）")])]))),
+      ]) : el("div", { class: "muted" }, ["差异在更深层配置中"]),
+      el("div", { style: "display:flex;gap:8px;margin-top:12px;justify-content:flex-end" }, [
+        el("button", { class: "btn", onclick: () => { m2.remove(); mask.remove(); openEditor(cardId); } }, ["放弃我的修改，加载最新"]),
+        el("button", { class: "btn danger", onclick: async () => {
+          card.lock_version = server.lock_version;
+          m2.remove(); save(false, null);
+        } }, ["用我的版本覆盖"]),
+      ]),
+    ]);
+    const m2 = UI.modal("版本冲突", body2);
+  }
+
+  function closeEditor() {
+    if (step === "done") localStorage.removeItem(draftKey(cardId));
+    mask.remove();
+    document.getElementById("editorHost").hidden = true;
+    document.getElementById("workbenchMain").hidden = false;
+    // 深链进入编辑器后返回时清理地址栏参数
+    if (location.search) history.replaceState(null, "", location.pathname);
+    loadCards(); loadKpisAndTodos();
+    window.scrollTo(0, 0);
+  }
+
+  // 页面式编辑器：占据主内容区（左侧导航保留），返回工作台按钮在标题左侧
+  const mask = el("div", { class: "editor-inline" }, [
+    el("div", { class: "modal editor" }, [
+      el("div", { class: "modal-head" }, [
+        el("div", { style: "display:flex;align-items:center;gap:12px" }, [
+          el("button", { class: "btn small", onclick: () => { const cb = mask.querySelector(".close-btn"); cb.onclick ? cb.onclick() : closeEditor(); } }, ["返回工作台"]),
+          el("div", { class: "modal-title" }, [isNew ? "新建交互配置" : `编辑「${card.name}」`]),
+        ]),
+        el("button", { class: "close-btn", "aria-label": "关闭", hidden: "" }, ["×"]),
+      ]),
+      body,
+      foot || null,
+    ]),
+  ]);
+  const host = document.getElementById("editorHost");
+  host.innerHTML = "";
+  host.appendChild(mask);
+  host.hidden = false;
+  document.getElementById("workbenchMain").hidden = true;
+  window.scrollTo(0, 0);
+  mask.querySelector(".close-btn").onclick = closeEditor;
+  rebuild();
+}
+
+document.getElementById("newBtn").onclick = () => newConfigWizard();
+document.getElementById("searchInput").oninput = UI.debounce(() => loadCards(), 250);
+document.getElementById("searchBtn").onclick = () => loadCards();
+document.getElementById("searchInput").onkeydown = (e) => { if (e.key === "Enter") loadCards(); };
+// 深链：工作台待办 ?status=draft 直接带筛选进入
+const initStatus = new URLSearchParams(location.search).get("status");
+if (initStatus && ["draft", "published", "offline"].includes(initStatus)) statusTab = initStatus;
+loadKpisAndTodos();
+loadCards().then(async () => {
+  const params = new URLSearchParams(location.search);
+  if (params.get("edit")) {
+    openEditor(params.get("edit"), undefined, params.get("step"));
+  } else if (params.get("new")) {
+    let prefill = null;
+    try { prefill = JSON.parse(localStorage.getItem("config_prefill") || "null"); } catch (e) {}
+    localStorage.removeItem("config_prefill");
+    // 深链：?new=1&ct=select.single 直接带组件进入（组件库「创建配置」也走这里）
+    if (!prefill && params.get("ct")) prefill = { component_type: params.get("ct") };
+    if (prefill && prefill.component_type) {
+      if (!templateLibrary) templateLibrary = (await UI.api("/api/templates")).templates;
+      const tpl = templateLibrary.find(t => t.component_type === prefill.component_type);
+      if (!prefill.config && tpl) prefill.config = tpl.default_config || {};
+      openEditor(undefined, prefill, params.get("step"));
+    } else newConfigWizard(prefill || {});
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.local/component_protocol/1.0.0",
+  "title": "ComponentEnvelope",
+  "description": "组件协议：模型/系统 → 渲染器 的组件描述信封（开发文档 §2）。语义层 + 结构层，与视觉表现完全无关。模型输出中不得出现颜色、尺寸、位置、组件库名称。",
+  "type": "object",
+  "required": ["schema_version", "render_id", "component_type", "semantic_category", "trigger_source", "params"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "render_id": { "type": "string" },
+    "component_type": {
+      "type": "string",
+      "enum": [
+        "text.emphasis", "metric.card", "list.ordered", "timeline", "steps", "table",
+        "chart.line", "chart.area", "chart.bar", "chart.pie", "chart.stacked",
+        "chart.scatter", "chart.range", "chart.box", "tree", "treemap",
+        "graph.network", "map.geo", "gantt", "calendar",
+        "matrix.compare", "flow.reasoning", "citation.card",
+        "select.single", "select.card", "select.multi", "rank.priority",
+        "slider.range", "scale.likert", "form.structured", "input.followup",
+        "picker.datetime", "picker.location", "upload.file", "matrix.compare+select",
+        "control.confirm", "control.interrupt", "control.retry", "control.branch",
+        "feedback.binary", "feedback.preference", "feedback.span"
+      ]
+    },
+    "semantic_category": { "type": "string", "enum": ["present", "collect", "control", "evaluate"] },
+    "trigger_source": { "type": "string", "enum": ["model_tool_call", "post_classification", "system_injected"] },
+    "card_ref": {
+      "type": ["object", "null"],
+      "description": "由卡片实例化时引用发布快照（card_id + version）；协议直渲染时为 null",
+      "properties": {
+        "card_id": { "type": "string" },
+        "version": { "type": "integer" }
+      }
+    },
+    "params": {
+      "type": "object",
+      "description": "组件参数，仅含语义与数据，子 schema 按 component_type 定义（见 component_params 定义区）"
+    },
+    "group_mode": {
+      "type": ["object", "null"],
+      "description": "群体决策为采集型组件的正交模式开关，不是独立组件（§2.4）",
+      "required": ["participants", "aggregation_rule", "visibility", "deadline", "revisable", "feedback_to_model"],
+      "properties": {
+        "participants": { "type": "string", "enum": ["session_all", "explicit_list", "role_based"] },
+        "aggregation_rule": { "type": "string", "enum": ["majority", "unanimous", "weighted", "moderator"] },
+        "visibility": { "type": "string", "enum": ["realtime", "sealed"] },
+        "deadline": { "type": "object" },
+        "revisable": { "type": "boolean" },
+        "feedback_to_model": { "type": "string", "enum": ["result_only", "distribution"], "default": "distribution" }
+      }
+    },
+    "degraded_text": {
+      "type": "string",
+      "description": "协议渲染兜底：任何渲染失败时降级展示的 Markdown 纯文本，必填于服务端生成侧"
+    }
+  },
+  "$defs": {
+    "component_params_examples": {
+      "text.emphasis": { "required": ["value"], "optional": ["unit", "tone", "caption"] },
+      "metric.card": { "required": ["value"], "optional": ["unit", "delta", "baseline", "label"] },
+      "table": { "required": ["columns", "rows"], "optional": ["sortable", "pagination"] },
+      "chart.line": { "required": ["series", "x_axis"], "optional": ["y_axis"] },
+      "matrix.compare": { "required": ["options", "dimensions", "values"], "optional": ["recommended"] },
+      "flow.reasoning": { "required": ["nodes"], "optional": ["edges", "evidence_refs"] },
+      "citation.card": { "required": ["claim", "sources"] },
+      "select.single": { "required": ["prompt", "options"], "optional": ["recommended_default"] },
+      "select.multi": { "required": ["prompt", "options"], "optional": ["min", "max"] },
+      "form.structured": { "required": ["fields"] },
+      "control.confirm": { "required": ["action_desc", "risk_level"] },
+      "feedback.binary": { "required": ["dimensions"], "note": "必须区分 capability 与 preference 两种语义" },
+      "feedback.preference": { "required": ["candidates"], "note": "candidates: [{model_ref, content}]，model_ref 为脱敏引用" }
+    }
+  }
+}
