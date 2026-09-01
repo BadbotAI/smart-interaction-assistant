@@ -137,14 +137,14 @@ async function renderModels() {
       const running = bf?.status === "running";
       const statusText = running ? `评测中 ${bf.done}/${bf.total} · 预估成本 ¥${bf.cost_est}`
         : (bf?.done ? `已暂停（${bf.done}/${bf.total}）` : "未开始评测");
-      rows.appendChild(el("div", { class: "bf-row" }, [
+      rows.appendChild(el("div", { class: "bf-row", "data-mid": m.model_id }, [
         el("div", { class: "bf-main" }, [
           el("div", { style: "font-weight:600" }, [m.display_name]),
           el("div", { class: "muted num" }, [m.model_id]),
         ]),
         el("div", { class: "bf-prog" }, [
-          el("div", { class: "progress-track" }, [el("div", { class: "progress-fill", style: `width:${coverage}%` })]),
-          el("div", { class: "muted" }, [`${coverage}% · ${statusText}`]),
+          el("div", { class: "progress-track" }, [el("div", { class: "progress-fill bf-fill", style: `width:${coverage}%` })]),
+          el("div", { class: "muted bf-status" }, [`${coverage}% · ${statusText}`]),
         ]),
         running
           ? el("button", { class: "btn small", onclick: async (e) => { await UI.withBusy(e.currentTarget, async () => { await UI.api(`/v1/models/${m.model_id}/backfill/pause`, { method: "POST" }); renderModels(); }); } }, ["暂停评测"])
@@ -176,7 +176,29 @@ async function renderModels() {
   ]));
   if (models.some(m => m.backfill?.status === "running")) {
     clearInterval(pollTimer);
-    pollTimer = setInterval(() => { if (activeTab === "models") renderModels(); else clearInterval(pollTimer); }, 1500);
+    // 局部轮询：只更新进度条与状态文本；某模型评测完成（覆盖率 100%）才整页刷新一次
+    pollTimer = setInterval(async () => {
+      if (activeTab !== "models") { clearInterval(pollTimer); return; }
+      try {
+        const { models: ms } = await UI.api("/v1/models");
+        let anyRunning = false, needFull = false;
+        document.querySelectorAll(".bf-row[data-mid]").forEach(rowEl => {
+          const m = ms.find(x => x.model_id === rowEl.dataset.mid);
+          if (!m || (m.bank_coverage || 0) >= 1) { needFull = true; return; }
+          const cov = Math.round((m.bank_coverage || 0) * 100);
+          const bf = m.backfill;
+          if (bf?.status === "running") anyRunning = true;
+          const fill = rowEl.querySelector(".bf-fill");
+          const st = rowEl.querySelector(".bf-status");
+          if (fill) fill.style.width = cov + "%";
+          if (st) st.textContent = `${cov}% · ` + (bf?.status === "running"
+            ? `评测中 ${bf.done}/${bf.total} · 预估成本 ¥${bf.cost_est}`
+            : (bf?.done ? `已暂停（${bf.done}/${bf.total}）` : "未开始评测"));
+        });
+        if (needFull) { clearInterval(pollTimer); renderModels(); return; }
+        if (!anyRunning) clearInterval(pollTimer);
+      } catch (e) { /* 单次轮询失败不中断 */ }
+    }, 1500);
   }
 }
 

@@ -177,6 +177,9 @@ function cardAnomalies(c, eff) {
   return out;
 }
 
+// 有生效快照就算已上线（编辑中的草稿不影响线上）
+function effStatus(c) { return (c.status === "draft" && c.version >= 1) ? "published" : c.status; }
+
 function shortId(cardId) {
   const hex = String(cardId).replace(/-/g, "").slice(0, 8);
   return String(parseInt(hex, 16) % 1000000).padStart(6, "0");
@@ -214,13 +217,12 @@ function embedDialog(c) {
 let _loadSeq = 0;
 async function loadCards() {
   const seq = ++_loadSeq;
+  if (!document.querySelector(".card-row")) UI.loading(document.getElementById("cardList"));
   const q = document.getElementById("searchInput").value.trim();
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   const { cards: all } = await UI.api("/api/cards?" + params);
   if (seq !== _loadSeq) return; // 已有更新的请求在途，丢弃过期响应
-  // 有生效快照就算已上线（编辑中的草稿不影响线上，不在列表另立状态）
-  const effStatus = c => (c.status === "draft" && c.version >= 1) ? "published" : c.status;
   const counts = { "": all.length };
   ["published", "offline", "draft"].forEach(k => counts[k] = all.filter(c => effStatus(c) === k).length);
   renderStatusTabs(counts);
@@ -251,11 +253,16 @@ async function loadCards() {
     }
     return;
   }
-  cards.forEach(c => {
+  cards.forEach(c => list.appendChild(buildCardRow(c)));
+}
+
+// 单行构建：局部刷新用（状态开关切换后只替换该行，不重建整个列表）
+function buildCardRow(c) {
+  {
     const eff = effStatus(c);
     const [label, color] = STATUS_CHIP[eff] || [eff, "gray"];
     const editable = eff !== "published";
-    list.appendChild(el("div", { class: "row-item card-row", "data-cid": c.card_id }, [
+    return el("div", { class: "row-item card-row", "data-cid": c.card_id }, [
       el("div", { class: "main", style: editable ? "cursor:pointer" : "", title: editable ? "点击编辑" : "上线中不可编辑，先下线",
         onclick: () => { if (editable) openEditor(c.card_id); else UI.toast("已上线的配置不可编辑，请先下线", true); } }, [
         el("div", { class: "cr-line1" }, [
@@ -283,7 +290,14 @@ async function loadCards() {
               const resp = await UI.api(`/api/cards/${c.card_id}/transition`, { method: "POST", body: { action: next ? "publish" : "offline" } });
               UI.toast(next ? "已上线" : "已下线，可编辑");
               if (resp && resp.warning) setTimeout(() => UI.toast(resp.warning, true), 1200);
-              loadCards(); loadKpisAndTodos();
+              // 局部刷新：只替换本行，避免整个列表重建带来的闪动
+              try {
+                const { card } = await UI.api(`/api/cards/${c.card_id}`);
+                const rowEl = document.querySelector(`.card-row[data-cid="${c.card_id}"]`);
+                if (rowEl && card) rowEl.replaceWith(buildCardRow(card));
+                else loadCards();
+              } catch (e2) { loadCards(); }
+              loadKpisAndTodos();
               return true;
             } catch (e) {
               const err = e.data?.error || {};
@@ -308,8 +322,8 @@ async function loadCards() {
         })(),
         moreButton(c, eff),
       ]),
-    ]));
-  });
+    ]);
+  }
 }
 
 function moreButton(c, eff) {

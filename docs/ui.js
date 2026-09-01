@@ -78,10 +78,13 @@ window.UI = (function () {
   async function withBusy(btn, fn, busyText) {
     if (!btn || btn.disabled) return;
     const orig = btn.textContent;
+    // 锁定当前宽度：忙碌文案长度不同不再引起按钮与整行跳动
+    const w = btn.offsetWidth;
+    if (w) btn.style.minWidth = w + "px";
     btn.disabled = true;
     if (busyText) btn.textContent = busyText;
     try { return await fn(); }
-    finally { btn.disabled = false; btn.textContent = orig; }
+    finally { btn.disabled = false; btn.textContent = orig; btn.style.minWidth = ""; }
   }
 
   // 内容区加载占位（走查 R7）

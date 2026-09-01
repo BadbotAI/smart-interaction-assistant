@@ -1,3 +1,16 @@
+/* ================================================================
+   SIA Design System v1.0 —— 唯一事实源（Figma：BadBot-for-MCP / SIA Foundations · SIA Components）
+   颜色：primary 蓝为唯一品牌色（主按钮/选中/链接/开关/图表）；语义色只表状态
+     （success 达标·warning 待处理·danger 异常删除·coral 已下线）；AI 紫仅 AI 功能；
+     正文永远用文字三档（primary/secondary/muted），不上系列色；图表主题蓝单色相。
+   字体：五档 20 页面标题 / 16 弹窗标题 / 15 卡片标题 / 13 正文按钮输入 / 12 标签说明组件正文 / 11 chip 标注；
+     字重 400/600/700，禁 500；等宽仅 ID·代码·数字。
+   间距：4px 基线。页边 24 · 卡 padding 20（紧凑 14）· 卡间 12 · 区块 18-28 · 字段 16 · 标签→控件 6 · 行内 8-10。
+   控件：输入 36 · 按钮 34/28 · 分段 32 · 自绘下拉 30 · 开关 22 · 表格行 48 · 触点 ≥40（次要 28）。
+   页面模板：列表页=页头→KPI→工具行→列表卡；数据页=页头→工具行(时间窗+导出右上)→KPI→图表→明细；
+     配置页=页头→总览→核心卡(底部动作行)→高级折叠；编辑页=返回+标题→步骤条→双栏→吸底操作栏。
+   交互原语：破坏性必确认 · 异步必忙碌态 · 完成必 toast · 空态=标题+说明+CTA · 禁 emoji · ID 等宽胶囊可复制。
+   ================================================================ */
 /* ============================================================
    Sky 设计主题 · 智能交互平台
    白底 + 浅灰卡片 + 天蓝主色 + 大圆角 + 无投影扁平层次（描边分层）。
@@ -258,6 +271,7 @@ input:disabled, select:disabled, textarea:disabled { background: var(--bg-page);
   position: absolute; z-index: 120; min-width: 168px; padding: 4px;
   background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px;
   box-shadow: var(--shadow-popover);
+  animation: popIn 0.1s ease-out;
 }
 .menu-pop .menu-item {
   display: block; width: 100%; text-align: left; border: none; background: none;
@@ -1089,3 +1103,5 @@ table.data tr.provider-row td { background: var(--bg-surface); padding-top: 10px
 @view-transition { navigation: auto; }
 ::view-transition-old(root) { animation-duration: 0.12s; }
 ::view-transition-new(root) { animation-duration: 0.12s; }
+
+@keyframes popIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
