@@ -212,13 +212,6 @@ function brandDialog(existing) {
     err,
     el("div", { style: "display:flex;justify-content:flex-end;gap:8px;margin-top:12px" }, [
       el("button", { class: "btn", onclick: () => mask2.remove() }, ["取消"]),
-      el("button", { class: "btn", onclick: () => {
-        const tokens = parseCode();
-        if (!tokens) return;
-        Brand.apply(tokens); renderDemos();
-        genNote.textContent = "预览中：弹窗里的风格代码，尚未保存";
-        UI.toast("已应用到右侧组件预览（未保存）");
-      } }, ["预览效果"]),
       el("button", { class: "btn primary", onclick: async (e) => {
         const name = nameIn.value.trim();
         if (!name) { err.textContent = "请填写风格名称"; return; }
