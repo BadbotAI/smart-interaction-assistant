@@ -21,8 +21,8 @@ window.TestChat = (function () {
     const pickState = { kind: "policy", value: null, label: "加载中……" };
     let pickGroups = [];
     const pickLab = el("span", { class: "fsel-label" }, [pickState.label]);
-    const modelSel = el("button", { class: "fsel tc-pick", type: "button", "aria-label": "选择调用方式" }, [pickLab]);
-    const setPick = (kind, value, label) => { pickState.kind = kind; pickState.value = value; pickState.label = label; pickLab.textContent = label; };
+    const modelSel = el("button", { class: "fsel tc-pick", type: "button", "aria-label": "选择调用方式" }, [pickLab, el("span", { class: "fsel-caret" }, [UI.icon("chevron", 13)])]);
+    const setPick = (kind, value, label) => { pickState.kind = kind; pickState.value = value; pickState.label = label; pickLab.textContent = label; modelSel.title = label; };
     Promise.all([UI.api("/v1/policies").catch(() => ({ policies: [] })), UI.api("/v1/models").catch(() => ({ models: [] }))])
       .then(([{ policies }, { models }]) => {
         const actives = (models || []).filter(m => m.status === "active");

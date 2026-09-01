@@ -6,6 +6,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231DA1F2'/%3E%3Cpath d='M14 18h36a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2H31l-9 9v-9h-8a2 2 0 0 1-2-2V20a2 2 0 0 1 2-2z' fill='%23fff'/%3E%3Ccircle cx='24' cy='29' r='3.2' fill='%231DA1F2'/%3E%3Ccircle cx='32' cy='29' r='3.2' fill='%231DA1F2'/%3E%3Ccircle cx='40' cy='29' r='3.2' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>模型路由 · 智能交互平台</title>
 <link rel="stylesheet" href="./shared.css">
+<link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./router.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html">
 </head>
 <body>
 <div class="page">
@@ -54,40 +55,31 @@ async function renderModels() {
   const statusChip = { active: ["在线", "green"], registering: ["注册中", "yellow"],
     paused: ["已停用", "gray"], retired: ["已退役", "red"] };
   const table = el("table", { class: "data" }, [
-    el("thead", {}, [el("tr", {}, ["模型", "供应商", "状态", "单价 ¥/M（入 / 出）", "能力", "数据集覆盖率", "凭证", "操作"]
+    el("thead", {}, [el("tr", {}, ["供应商", "模型", "状态", "单价 ¥/M（入 / 出）", "思考模式", "数据集覆盖率", "启用情况", "操作"]
       .map(h => el("th", {}, [h])))]),
     el("tbody", {}, models.filter(m => (m.bank_coverage || 0) >= 1)
       .sort((a2, b2) => String(a2.provider).localeCompare(String(b2.provider)) || String(a2.display_name).localeCompare(String(b2.display_name)))
-      .flatMap((m, i, arr) => {
-        const rows2 = [];
-        if (i === 0 || arr[i - 1].provider !== m.provider) {
-          rows2.push(el("tr", { class: "provider-row" }, [el("td", { colspan: "8" }, [
-            el("span", { style: "font-weight:700" }, [m.provider]),
-            el("span", { class: "muted num", style: "margin-left:8px" }, [`${arr.filter(x => x.provider === m.provider).length} 个模型`]),
-          ])]));
-        }
-        rows2.push(renderModelRow(m));
-        return rows2;
-      })),
+      .map((m, i, arr) => renderModelRow(m, i === 0 || arr[i - 1].provider !== m.provider))),
   ]);
-  function renderModelRow(m) {
+  function renderModelRow(m, firstOfProvider) {
       const [lb, color] = statusChip[m.status] || [m.status, "gray"];
       const caps = m.capabilities || {};
-      const capChips = [caps.tool_call && "工具调用", caps.vision && "视觉", caps.thinking && "深度思考",
-        caps.context_window && (caps.context_window / 1024) + "k"].filter(Boolean);
       const coverage = Math.round((m.bank_coverage || 0) * 100);
       const backfill = m.backfill;
+      const noCred = m.credential_masked === "****";
       return el("tr", {}, [
+        el("td", { style: "font-weight:600" }, [firstOfProvider ? m.provider : ""]),
         el("td", { style: "min-width:200px" }, [
           el("div", { style: "font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap" }, [m.display_name,
             m.is_default ? el("span", { class: "chip blue", style: "flex:none;max-width:none", title: "默认兜底：路由 / 手动模式故障时切换到此模型；不能停用或删凭证" }, ["默认兜底"]) : null]),
-          el("div", { class: "muted num" }, [m.model_id])]),
-        el("td", {}, [m.provider]),
-        el("td", {}, [el("span", { class: "chip " + color, title: m.status === "registering" ? "入池评测未完成，不参与路由" : (m.status === "paused" ? "已停用，不参与路由，可随时上线" : "") }, [lb])]),
+          el("div", { class: "muted num" }, [m.model_id + (caps.context_window ? " · " + (caps.context_window / 1024) + "k" : "")])]),
+        el("td", {}, [el("span", { class: "chip " + color, title: m.status === "registering" ? "入池评测未完成，不参与路由" : (m.status === "paused" ? "已停用，不参与路由，可随时启用" : "") }, [lb])]),
         el("td", { class: "num", title: "每百万 token 的输入 / 输出单价（人民币）" }, [
           (Number(m.price_input) || Number(m.price_output)) ? `${m.price_input} / ${m.price_output}`
             : el("span", { class: "chip yellow", title: "在「更多」里导入画像数据" }, ["画像数据未导入"])]),
-        el("td", { style: "min-width:150px" }, capChips.map(c => el("span", { class: "chip gray", style: "margin:0 4px 2px 0" }, [c]))),
+        el("td", {}, [caps.thinking
+          ? el("span", { class: "chip blue", title: "支持深度思考（thinking）模式" }, ["支持"])
+          : el("span", { class: "muted" }, ["-"])]),
         el("td", { style: "min-width:110px" }, [
           coverage >= 100 && !(backfill && backfill.status === "running")
             ? el("span", { class: "num" }, ["100%"])
@@ -98,37 +90,24 @@ async function renderModels() {
                 ]),
               ]),
         ]),
-        el("td", {}, [m.credential_masked === "****"
-          ? el("span", { class: "chip gray", title: "未配置凭证" }, ["未配置"])
-          : el("span", { class: "chip green", title: "凭证引用（脱敏）：" + m.credential_masked }, ["已配置"])]),
+        el("td", {}, [
+          UI.toggle({ checked: m.status === "active",
+            disabled: noCred || m.is_default,
+            disabledHint: noCred ? "凭证未配置，不能启用" : "默认兜底模型不能停用",
+            onChange: async (next) => {
+              if (!next) {
+                const ok = await UI.confirm("停用模型", `停用「${m.display_name}」后立即退出路由候选，进行中的请求自动切换到其他模型。继续？`, { okText: "确认停用" });
+                if (!ok) return false;
+              }
+              try {
+                await UI.api(`/v1/models/${m.model_id}/status`, { method: "POST", body: { status: next ? "active" : "paused" } });
+                UI.toast(next ? "已启用，即时参与路由" : "已停用");
+                renderModels();
+                return true;
+              } catch (err) { UI.toast(err.data?.error || err.message, true); return false; }
+            } }),
+        ]),
         el("td", {}, [el("div", { style: "display:flex;gap:6px;align-items:center" }, [
-          // 主操作：入池 / 上线 / 停用（走查 R1：停用影响线上，加确认；默认模型不可停用）
-          (m.bank_coverage || 0) < 1
-            ? (backfill?.status === "running"
-              ? el("button", { class: "btn small", onclick: async (e) => { await UI.withBusy(e.currentTarget, async () => { await UI.api(`/v1/models/${m.model_id}/backfill/pause`, { method: "POST" }); renderModels(); }); } }, ["暂停评测"])
-              : el("button", { class: "btn small primary", onclick: async (e) => {
-                  await UI.withBusy(e.currentTarget, async () => {
-                    await UI.api(`/v1/models/${m.model_id}/backfill`, { method: "POST" });
-                    UI.toast("入池评测已启动：对各场景数据集逐题作答（可暂停、断点续跑）");
-                    renderModels();
-                  }, "启动中……");
-                } }, [backfill?.done ? "继续评测" : "开始入池评测"]))
-            : (m.status === "active"
-              ? el("button", { class: "btn small", ...(m.is_default ? { disabled: "", title: "默认兜底模型不能停用，请先把默认切到其他模型" } : {}),
-                  onclick: async (e) => {
-                    const ok = await UI.confirm("停用模型", `停用「${m.display_name}」后立即退出路由候选，进行中的请求自动切换到其他模型。继续？`, { okText: "确认停用" });
-                    if (!ok) return;
-                    await UI.withBusy(e.currentTarget, async () => {
-                      try { await UI.api(`/v1/models/${m.model_id}/status`, { method: "POST", body: { status: "paused" } }); UI.toast("已停用"); renderModels(); }
-                      catch (err) { UI.toast(err.data?.error || err.message, true); }
-                    });
-                  } }, ["停用"])
-              : el("button", { class: "btn small primary", onclick: async (e) => {
-                  await UI.withBusy(e.currentTarget, async () => {
-                    try { await UI.api(`/v1/models/${m.model_id}/status`, { method: "POST", body: { status: "active" } }); UI.toast("已上线，即时参与路由"); renderModels(); }
-                    catch (err) { UI.toast(err.data?.error || err.message, true); }
-                  });
-                } }, ["上线"])),
           (() => {
             const more = el("button", { class: "btn small", "aria-label": "更多操作", onclick: () => UI.menu(more, [
               !m.is_default && m.status === "active" ? { label: "设为默认兜底", onClick: async () => {

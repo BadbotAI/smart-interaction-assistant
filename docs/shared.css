@@ -689,10 +689,12 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 input[type=range]::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--primary); }
 
 /* ---------- 原生控件收编：不再出现系统默认样式 ---------- */
-/* 下拉框：去系统箭头，不加自绘箭头（按设计要求无箭头） */
+/* 下拉框：去系统箭头，统一 V 形 chevron（不带柄） */
 select {
   -webkit-appearance: none; appearance: none;
-  padding-right: 16px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%23657786' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+  padding-right: 30px;
 }
 select:disabled { background-color: var(--bg-page); }
 /* 展开框（details/summary）：去系统三角，统一为可点行 + 旋转 chevron */
@@ -1078,3 +1080,12 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: a
 .agg-cand .muted { margin-bottom: 3px; }
 /* 模型表供应商分组行 */
 table.data tr.provider-row td { background: var(--bg-surface); padding-top: 10px; padding-bottom: 6px; border-bottom: none; }
+
+.fsel .fsel-caret { color: var(--text-muted); display: inline-flex; margin-left: 2px; flex: none; }
+/* 模型测试左下选择器：放宽显示不截断，超长悬停看全名 */
+.tc-pick { max-width: 230px; }
+
+/* 跨页切换过渡（MPA View Transitions）：页面跳转淡入淡出，消除白屏突变 */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation-duration: 0.12s; }
+::view-transition-new(root) { animation-duration: 0.12s; }

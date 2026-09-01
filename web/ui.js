@@ -112,7 +112,8 @@ window.UI = (function () {
     const labelOf = v => { const hit = options.find(o => o[0] === v); return hit ? hit[1] : v; };
     const shown = v => display ? display(v, labelOf(v)) : labelOf(v);
     const lab = el("span", { class: "fsel-label" }, [shown(value)]);
-    const btn = el("button", { class: "fsel", type: "button", ...(width ? { style: `width:${width}` } : {}) }, [lab]);
+    const caret = el("span", { class: "fsel-caret" }, [icon("chevron", 13)]);
+    const btn = el("button", { class: "fsel", type: "button", ...(width ? { style: `width:${width}` } : {}) }, [lab, caret]);
     let cur = value;
     btn.onclick = () => {
       document.querySelectorAll(".menu-pop").forEach(n => n.remove());
@@ -421,6 +422,7 @@ window.UI = (function () {
     trash: '<path d="M4 7h16M10 7V5h4v2M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
     check: '<path d="m5 12 4.5 4.5L19 7"/>',
+    chevron: '<path d="m6 9 6 6 6-6"/>',
     link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
     arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
     refresh: '<path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16"/><path d="M20 20v-4h-4"/>',
