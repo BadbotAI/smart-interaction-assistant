@@ -61,7 +61,7 @@
   let cardId = params.get("card");
   if (!cardId) {
     try {
-      const { cards } = await (await fetch(new URL("../api/cards", document.currentScript ? document.currentScript.src : location.href))).json();
+      const { cards } = await (await fetch("../api/cards")).json();
       const hit = cards.find(c => c.status === "published" || (c.status === "draft" && c.version >= 1));
       cardId = hit && hit.card_id;
     } catch (e) {}

@@ -84,16 +84,14 @@
 
   window.fetch = function (url, opts = {}) {
     let u = String(url);
-    // 完整 URL（SDK 用 origin 拼接）归一化成路径，再判断是否 API
-    if (/^https?:/.test(u)) {
-      try {
-        const parsed = new URL(u);
-        if (parsed.origin === location.origin) {
-          const i = parsed.pathname.search(/\/(api|v1)\//);
-          if (i >= 0) u = parsed.pathname.slice(i) + parsed.search;
-        }
-      } catch (e) {}
-    }
+    // 任意形式（完整 URL / 相对路径）归一化成 /api 或 /v1 开头的路径
+    try {
+      const parsed = new URL(u, location.href);
+      if (parsed.origin === location.origin) {
+        const i = parsed.pathname.search(/\/(api|v1)\//);
+        if (i >= 0) u = parsed.pathname.slice(i) + parsed.search;
+      }
+    } catch (e) {}
     const isApi = u.startsWith("/api") || u.startsWith("/v1");
     if (!isApi) return realFetch(url, opts);
     const method = (opts.method || "GET").toUpperCase();
