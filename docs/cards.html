@@ -676,7 +676,11 @@ async function openEditor(cardId, prefill, initStep) {
     function drawGrid() {
       const rec = Object.fromEntries(sugs.map((s2, i) => [s2.component_type, { s: s2, top: i === 0 }]));
       gridBox.innerHTML = "";
-      templateLibrary.forEach(t => {
+      // 有推荐时推荐卡置顶（已选组件时也一眼可见），组内保持原顺序
+      const list = sugs.length
+        ? [...templateLibrary].sort((a2, b2) => ((rec[b2.component_type] ? 1 : 0) - (rec[a2.component_type] ? 1 : 0)))
+        : templateLibrary;
+      list.forEach(t => {
         const selAny = state.component_type === t.component_type ||
           (t.component_type === "select.single" && state.component_type === "select.multi");
         const r = rec[t.component_type];
@@ -693,7 +697,7 @@ async function openEditor(cardId, prefill, initStep) {
           onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } } },
           [selAny ? el("span", { class: "sel-ico" }, [UI.icon("check", 14)]) : null,
            el("div", { class: "t" }, [el("span", {}, [t.name]),
-             r && !selAny ? el("span", { class: (r.top ? "chip ai" : "chip gray") + " rec-chip" }, [r.top ? "最推荐" : "推荐"]) : null]),
+             r ? el("span", { class: (r.top ? "chip ai" : "chip gray") + " rec-chip" }, [r.top ? "最推荐" : "推荐"]) : null]),
            el("div", { class: "d" }, [WIZ_DESC[t.component_type] || t.desc])]));
       });
     }
@@ -716,6 +720,8 @@ async function openEditor(cardId, prefill, initStep) {
               sugs = (r.suggestions || []).filter(x => (x.score ?? 0) >= 0.2).slice(0, 3);
               drawGrid();
               formCol.scrollTop = 0;
+              const scroller = gridBox.closest(".tpl-scroll");
+              if (scroller) scroller.scrollTop = 0;
               if (!sugs.length) UI.toast("该场景没有明显更优的组件，直接在上方选择即可", true);
             } catch (e) { UI.toast("推荐失败：" + e.message, true); }
             autosave();
