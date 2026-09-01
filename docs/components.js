@@ -1000,18 +1000,33 @@ window.Components = (function () {
           () => !picked ? "请选择一个时间段" : null),
       ]);
     }
-    // 日期段：起止日期 + 快捷区间
-    const a2 = el("input", { type: "date", "aria-label": "开始" });
-    const b2 = el("input", { type: "date", "aria-label": "结束" });
+    // 日期段：起止日期 + 快捷区间；即时校验（起止联动约束 + 行内提示）
+    const today = _dstr(0);
+    const a2 = el("input", { type: "date", "aria-label": "开始", min: today });
+    const b2 = el("input", { type: "date", "aria-label": "结束", min: today });
+    const rangeErr = el("div", { class: "field-error", style: "margin-top:4px" });
+    function syncRange() {
+      // 选完开始，结束的可选下限自动跟上；反向同理
+      if (a2.value) b2.min = a2.value;
+      if (b2.value) a2.max = b2.value;
+      rangeErr.textContent = "";
+      if (a2.value && a2.value < today) rangeErr.textContent = "开始时间不能早于今天";
+      else if (a2.value && b2.value && a2.value > b2.value) rangeErr.textContent = "结束时间不能早于开始时间";
+    }
+    a2.onchange = syncRange;
+    b2.onchange = syncRange;
     const quick = _quickChips(
       [["今明两天", _dstr(0), _dstr(1)], ["未来三天", _dstr(0), _dstr(2)], ["未来一周", _dstr(0), _dstr(6)]],
-      pr => { a2.value = pr[1]; b2.value = pr[2]; });
+      pr => { a2.value = pr[1]; b2.value = pr[2]; syncRange(); });
     return compCard([
       compTitle(p.prompt),
       quick,
       el("div", { class: "range-row" }, [a2, el("span", { class: "muted" }, ["至"]), b2]),
+      rangeErr,
       submitBar(env, ctx, () => ({ user_selection: `${a2.value} ~ ${b2.value}` }),
-        () => (!a2.value || !b2.value) ? "请选择起止" : (a2.value > b2.value ? "结束不能早于开始" : null)),
+        () => (!a2.value || !b2.value) ? "请选择起止时间"
+          : (a2.value < today ? "开始时间不能早于今天"
+          : (a2.value > b2.value ? "结束时间不能早于开始时间" : null))),
     ]);
   }
 
