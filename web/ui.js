@@ -158,18 +158,20 @@ window.UI = (function () {
       ["library", "组件库", "/web/library.html", "grid"],
       ["design", "组件风格", "/web/design.html", "palette"],
       ["dashboard:survey", "交互数据", "/web/dashboard.html#survey", "chart"],
+      ["playground:comp", "组件测试", "/web/playground.html#comp", "chat"],
     ] },
     { title: "模型路由", items: [
       ["router:models", "模型接入", "/web/router.html#models", "cpu"],
       ["router:dispatch", "路由策略", "/web/router.html#dispatch", "route"],
       ["router:flow", "数据回流", "/web/router.html#flow", "refresh"],
       ["dashboard:routing", "路由数据", "/web/dashboard.html#routing", "activity"],
+      ["playground:model", "模型测试", "/web/playground.html#model", "play"],
     ] },
   ];
   function nav(active) {
     const side = el("aside", { class: "sidenav" }, [
       (() => {
-        const a = el("a", { class: "logo", href: "/web/cards.html" });
+        const a = el("a", { class: "logo", href: "/web/index.html", title: "回到首页" });
         const mark = el("span", { class: "logo-mark", "aria-hidden": "true" });
         mark.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none">'
           + '<path d="M4 6a3.5 3.5 0 0 1 3.5-3.5h9A3.5 3.5 0 0 1 20 6v6.5a3.5 3.5 0 0 1-3.5 3.5H10l-4.2 3.7c-.7.6-1.8.1-1.8-.8z" fill="var(--primary)"/>'
@@ -426,6 +428,7 @@ window.UI = (function () {
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
     check: '<path d="m5 12 4.5 4.5L19 7"/>',
     chevron: '<path d="m6 9 6 6 6-6"/>',
+    calendar: '<rect x="4" y="6" width="16" height="14" rx="2"/><path d="M8 3v4M16 3v4M4 11h16"/>',
     link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
     arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
     refresh: '<path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16"/><path d="M20 20v-4h-4"/>',

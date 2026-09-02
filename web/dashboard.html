@@ -46,7 +46,7 @@ let daysCtl;
   const nat = document.getElementById("daysSel");
   nat.style.display = "none";
   const lab = el("span", {}, ["近 30 天"]);
-  const btn = el("button", { class: "fsel", type: "button" }, [lab]);
+  const btn = el("button", { class: "btn small", type: "button", title: "选择日期范围" }, [UI.icon("calendar", 13), lab, el("span", { class: "fsel-caret" }, [UI.icon("chevron", 12)])]);
   daysCtl = el("span", { class: "dr-wrap" }, [btn]);
   const setDays = (n, text) => { nat.value = String(n); lab.textContent = text; nat.onchange(); };
   btn.onclick = () => {

@@ -70,11 +70,20 @@ window.TestChat = (function () {
     renderSendBtn();
 
     const composer = el("div", { class: "tc-composer" }, [modelSel, input, sendBtn]);
-    const mask = UI.drawer(opts.title || "测试", msgs, composer);
-    mask.querySelector(".drawer").style.width = "540px";
-    const closeBtn = mask.querySelector(".close-btn");
-    if (closeBtn) { closeBtn.textContent = "结束测试"; closeBtn.className = "btn small"; }
-    const bodyBox = mask.querySelector(".drawer-body");
+    // 两种宿主：默认右侧抽屉；opts.mountEl 提供容器则渲染为页面内对话区（独立测试页用）
+    let mask = null, bodyBox;
+    if (opts.mountEl) {
+      const host = typeof opts.mountEl === "string" ? document.querySelector(opts.mountEl) : opts.mountEl;
+      bodyBox = el("div", { class: "tc-pagebody" }, [msgs]);
+      host.innerHTML = "";
+      host.appendChild(el("div", { class: "tc-page" }, [bodyBox, el("div", { class: "tc-pagefoot" }, [composer])]));
+    } else {
+      mask = UI.drawer(opts.title || "测试", msgs, composer);
+      mask.querySelector(".drawer").style.width = "540px";
+      const closeBtn = mask.querySelector(".close-btn");
+      if (closeBtn) { closeBtn.textContent = "结束测试"; closeBtn.className = "btn small"; }
+      bodyBox = mask.querySelector(".drawer-body");
+    }
     const scrollBottom = () => { bodyBox.scrollTop = bodyBox.scrollHeight; };
     setTimeout(() => input.focus(), 150);
     if (opts.prefill) input.value = opts.prefill;

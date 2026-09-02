@@ -171,7 +171,7 @@ async function renderModels() {
     el("div", { style: "display:flex;justify-content:space-between;margin-bottom:10px" }, [
       el("div", { class: "section-title", style: "margin:0;display:flex;align-items:center" }, ["已接入模型", UI.help("新模型需先对评测数据集全量回填（入池），覆盖率 100% 才能上线。凭证加密存储、展示脱敏；默认兜底模型不可暂停。")]),
       el("div", { style: "display:flex;gap:8px" }, [
-        el("button", { class: "btn", onclick: () => TestChat.open({ title: "模型测试", keepReasoning: true, hint: "提问并观察选用的模型型号与完整思考过程；左下可指定模型" }) }, [UI.icon("play", 14), "测试"]),
+        el("a", { class: "btn", href: "./playground.html#model" }, [UI.icon("play", 14), "测试"]),
         el("button", { class: "btn primary", onclick: registerDialog }, [UI.icon("plus", 14), "添加模型"]),
       ]),
     ]),

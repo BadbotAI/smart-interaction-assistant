@@ -12,7 +12,8 @@
   .card-row .cr-line1 { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .card-row .cr-line2 { margin-top: 5px; color: var(--text-secondary); font-size: var(--font-base);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 640px; }
-  .card-row .cr-line3 { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 5px; font-size: var(--font-caption); }
+  .card-row .cr-line3 { display: flex; gap: 0; align-items: baseline; flex-wrap: wrap; margin-top: 5px; font-size: var(--font-caption); font-variant-numeric: tabular-nums; }
+  .card-row .cr-line3 > span + span::before { content: "·"; margin: 0 8px; color: var(--border-strong); }
   .card-row .cr-actions { display: flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: -2px; }
   .card-row .cr-actions .sep-v { width: 1px; height: 16px; background: var(--border); margin: 0 8px; flex: none; }
   .card-row .cr-act-row { display: flex; gap: 6px; align-items: center; }
@@ -88,7 +89,7 @@ const { el } = UI;
 document.getElementById("pageHelp").appendChild(UI.help("组件工作台 = 配置管理 + 数据概览。一条配置 = 触发条件 + 交互组件 + 数据回收；发布后 AI 在对话中按触发条件出组件。"));
 const testBtn = document.getElementById("testBtn");
 testBtn.append(UI.icon("play", 14), "测试");
-const openTest = (prefill) => TestChat.open({ title: "测试", hint: "像用户一样提问，命中配置会直接出组件", prefill });
+const openTest = (prefill) => { location.href = "./playground.html" + (prefill ? "?q=" + encodeURIComponent(prefill) : "") + "#comp"; };
 testBtn.onclick = () => openTest();
 
 const STATUS_CHIP = {
@@ -133,10 +134,15 @@ function renderStatusTabs(counts = {}) {
 
 function validityState(c) {
   const v = ((c.field_bindings || {}).config || {}).validity || {};
-  const today = new Date().toISOString().slice(0, 10);
-  if (v.from && today < v.from) return { key: "pending", label: "未生效", title: `${v.from} 起生效` };
-  if (v.until && today > v.until) return { key: "expired", label: "已过期", title: `已于 ${v.until} 到期，不再触发` };
-  if (v.from || v.until) return { key: "active", label: null, title: `有效期 ${v.from || "即日"} ~ ${v.until || "长期"}` };
+  // 与服务端同口径：纯日期归一为 00:00 / 23:59 后按分钟比较（本地时区）
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  const now = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const vf = v.from ? (String(v.from).includes("T") ? v.from : v.from + "T00:00") : null;
+  const vu = v.until ? (String(v.until).includes("T") ? v.until : v.until + "T23:59") : null;
+  if (vf && now < vf) return { key: "pending", label: "未生效", title: `${String(v.from).replace("T", " ")} 起生效` };
+  if (vu && now > vu) return { key: "expired", label: "已过期", title: `已于 ${String(v.until).replace("T", " ")} 到期，不再触发` };
+  if (v.from || v.until) return { key: "active", label: null, title: `有效期 ${String(v.from || "即日").replace("T", " ")} ~ ${String(v.until || "长期").replace("T", " ")}` };
   return null;
 }
 
@@ -281,7 +287,7 @@ function buildCardRow(c) {
         el("div", { class: "cr-line2", title: c.trigger_description }, ["触发：" + (c.trigger_description || "（未填写）")]),
         el("div", { class: "cr-line3 muted" }, [
           el("span", {}, ["创建 " + UI.fmtTs(c.created_at)]),
-          (() => { const st = statsByCard[c.card_id]; return st ? el("span", { class: "num", title: "近 30 天：组件触发 / 用户提交" }, [`触发 ${st.rendered} · 提交 ${st.submitted}`]) : null; })(),
+          (() => { const st = statsByCard[c.card_id]; return st ? el("span", { title: "近 30 天：组件触发 / 用户提交" }, [`触发 ${st.rendered} · 提交 ${st.submitted}`]) : null; })(),
           (() => { const v = validityState(c); return v && !v.label ? el("span", { title: v.title }, ["限期"]) : null; })(),
         ]),
       ]),
