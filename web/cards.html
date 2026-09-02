@@ -130,10 +130,15 @@ function renderStatusTabs(counts = {}) {
 
 function validityState(c) {
   const v = ((c.field_bindings || {}).config || {}).validity || {};
-  const today = new Date().toISOString().slice(0, 10);
-  if (v.from && today < v.from) return { key: "pending", label: "未生效", title: `${v.from} 起生效` };
-  if (v.until && today > v.until) return { key: "expired", label: "已过期", title: `已于 ${v.until} 到期，不再触发` };
-  if (v.from || v.until) return { key: "active", label: null, title: `有效期 ${v.from || "即日"} ~ ${v.until || "长期"}` };
+  // 与服务端同口径：纯日期归一为 00:00 / 23:59 后按分钟比较（本地时区）
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  const now = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const vf = v.from ? (String(v.from).includes("T") ? v.from : v.from + "T00:00") : null;
+  const vu = v.until ? (String(v.until).includes("T") ? v.until : v.until + "T23:59") : null;
+  if (vf && now < vf) return { key: "pending", label: "未生效", title: `${String(v.from).replace("T", " ")} 起生效` };
+  if (vu && now > vu) return { key: "expired", label: "已过期", title: `已于 ${String(v.until).replace("T", " ")} 到期，不再触发` };
+  if (v.from || v.until) return { key: "active", label: null, title: `有效期 ${String(v.from || "即日").replace("T", " ")} ~ ${String(v.until || "长期").replace("T", " ")}` };
   return null;
 }
 

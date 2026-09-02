@@ -443,13 +443,19 @@ def published_invokable_cards(tenant_id: str):
         "AND (status='published' OR (status='draft' AND version>=1))", (tenant_id,)).fetchall()
     from datetime import datetime as _dt
     def _in_validity(card_dict):
-        """有效期范围（config.validity.from/until，YYYY-MM-DD）之外的配置不参与触发。"""
+        """有效期之外的配置不参与触发。值可为 YYYY-MM-DD 或 YYYY-MM-DDTHH:MM（精确到分钟）；
+        纯日期归一为 from=当天 00:00 / until=当天 23:59 后再与当前时刻比较。"""
         v = ((card_dict.get("field_bindings") or {}).get("config") or {}).get("validity") or {}
-        today = _dt.now().strftime("%Y-%m-%d")
-        if v.get("from") and today < v["from"]:
-            return False
-        if v.get("until") and today > v["until"]:
-            return False
+        now = _dt.now().strftime("%Y-%m-%dT%H:%M")
+        vf, vu = v.get("from"), v.get("until")
+        if vf:
+            vf = vf if "T" in str(vf) else str(vf) + "T00:00"
+            if now < vf:
+                return False
+        if vu:
+            vu = vu if "T" in str(vu) else str(vu) + "T23:59"
+            if now > vu:
+                return False
         return True
     out = []
     for r in rows:

@@ -1354,6 +1354,16 @@ def bank_import_status():
 
 
 async def _run_import(items, tenant_id):
+    try:
+        await _run_import_inner(items, tenant_id)
+    except Exception as e:
+        # 任务异常必须落 done，否则全局导入任务永远锁在 running
+        _import_task["status"] = "done"
+        _import_task["error"] = str(e)[:200]
+        db.audit("demo-admin", "bank_import_failed", {"error": str(e)[:200]})
+
+
+async def _run_import_inner(items, tenant_id):
     conn = db.get_conn()
     custom = db.dj(_get_setting("custom_scenes"), []) or []
     valid_scenes = set(mockmodels.DOMAIN_KEYWORDS.keys()) | {"general", "chat"} | {c["key"] for c in custom}
@@ -1484,6 +1494,8 @@ async def bank_import(request: Request):
     """标注数据导入（冷启动工具，§3.5）。items: [{query, domain, labels: {model_id: 0/1}}]"""
     body = await request.json()
     items = body.get("items") or []
+    if len(items) > 5000:
+        return JSONResponse({"error": f"单次最多导入 5000 条（当前 {len(items)} 条），请分批导入"}, status_code=422)
     tenant_id = body.get("tenant_id") or seed.TENANT
     conn = db.get_conn()
     n = 0
