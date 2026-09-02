@@ -162,7 +162,9 @@ def insights(days: int = 30):
     """B 类：洞察视角（T+1 语义，演示环境直接现算）。"""
     conn = db.get_conn()
     since = time.time() - days * 86400
-    rows = [dict(r) for r in conn.execute("SELECT * FROM events WHERE ts>?", (since,)).fetchall()]
+    # 业务口径与 questions / 回显一致：测试抽屉流量（channel=test）不进漏斗与分布
+    rows = [dict(r) for r in conn.execute(
+        "SELECT * FROM events WHERE ts>? AND COALESCE(channel,'')!='test'", (since,)).fetchall()]
     for r in rows:
         r["card"] = db.dj(r["card"], {})
         r["payload"] = db.dj(r["payload"], {})

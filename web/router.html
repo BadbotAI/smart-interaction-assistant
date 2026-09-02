@@ -739,8 +739,24 @@ async function renderFlow() {
     sc.scenes.forEach(r => {
       const cntCell = el("td", { class: "num" }, [`${r.total} 题`]);
       const tsCell = el("td", { class: "muted num" }, [r.last_ts ? UI.fmtTs(r.last_ts) : "-"]);
+      const isCustom = String(r.domain).startsWith("custom-");
       const row = el("tr", { style: "cursor:pointer", title: "点击展开，可直接输入题目追加到该场景" }, [
-        el("td", { style: "font-weight:600" }, [SCENE_NAMES[r.domain] || r.domain]),
+        el("td", { style: "font-weight:600" }, [
+          el("span", { style: "display:inline-flex;align-items:center;gap:6px" }, [
+            SCENE_NAMES[r.domain] || r.domain,
+            isCustom ? (() => {
+              const d = UI.iconBtn("trash", "删除该自定义场景（有题目时不可删）", async (e) => {
+                e?.stopPropagation?.();
+                const ok = await UI.confirm("删除场景", `删除自定义场景「${SCENE_NAMES[r.domain] || r.domain}」？`, { okText: "删除", danger: true });
+                if (!ok) return;
+                try { await UI.api("/api/scenes/delete", { method: "POST", body: { key: r.domain } }); UI.toast("场景已删除"); renderFlow(); }
+                catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
+              });
+              d.classList.add("scene-del");
+              return d;
+            })() : null,
+          ]),
+        ]),
         cntCell, tsCell,
         el("td", { class: "num" }, [r.rounds ? `${r.rounds} 轮` : "-"]),
       ]);

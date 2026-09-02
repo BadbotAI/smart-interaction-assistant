@@ -1340,6 +1340,8 @@ async def bank_import_start(request: Request):
     items = body.get("items") or []
     if not items:
         return JSONResponse({"error": "没有可导入的数据"}, status_code=422)
+    if len(items) > 5000:
+        return JSONResponse({"error": f"单次最多导入 5000 条（当前 {len(items)} 条），请分批导入"}, status_code=422)
     _import_task.update({"status": "running", "done": 0, "total": len(items),
                          "imported": 0, "skipped": 0, "invalid": 0, "domain": body.get("domain")})
     asyncio.create_task(_run_import(items, body.get("tenant_id") or seed.TENANT))
@@ -1404,6 +1406,28 @@ async def bank_staged_relabel(request: Request):
     conn.commit()
     if not n:
         return JSONResponse({"error": "条目不存在或已处理"}, status_code=404)
+    return {"ok": True}
+
+
+@app.post("/api/scenes/delete")
+async def delete_scene(request: Request):
+    """删除自定义业务场景：仅限自定义场景；场景下还有题目时拦截，避免数据悬空。"""
+    body = await request.json()
+    key = (body.get("key") or "").strip()
+    custom = db.dj(_get_setting("custom_scenes"), []) or []
+    hit = next((c for c in custom if c["key"] == key), None)
+    if not hit:
+        return JSONResponse({"error": "只能删除自定义场景"}, status_code=422)
+    conn = db.get_conn()
+    n = 0
+    for r in conn.execute("SELECT domain_tags FROM bank_queries WHERE tenant_id IS NULL OR tenant_id=?",
+                          (seed.TENANT,)).fetchall():
+        if (db.dj(r["domain_tags"], ["general"]) or ["general"])[0] == key:
+            n += 1
+    if n:
+        return JSONResponse({"error": f"该场景下还有 {n} 道题目，请先在回流校验/数据集中处理后再删除"}, status_code=409)
+    _set_setting("custom_scenes", db.j([c for c in custom if c["key"] != key]))
+    db.audit("demo-admin", "scene_delete", {"key": key, "name": hit["name"]})
     return {"ok": True}
 
 
