@@ -153,19 +153,22 @@ window.UI = (function () {
 
   // 左侧导航：三大模块 + 底部账户。二级项可指向同一页面的不同 tab（#hash）
   const NAV_GROUPS = [
+    { title: "", items: [
+      ["home", "首页", "/web/index.html", "home"],
+    ] },
     { title: "智能交互", items: [
-      ["cards", "组件工作台", "/web/cards.html", "home"],
+      ["cards", "组件工作台", "/web/cards.html", "layers"],
       ["library", "组件库", "/web/library.html", "grid"],
       ["design", "组件风格", "/web/design.html", "palette"],
+      ["playground:comp", "智能交互测试", "/web/playground.html#comp", "chat"],
       ["dashboard:survey", "交互数据", "/web/dashboard.html#survey", "chart"],
-      ["playground:comp", "组件测试", "/web/playground.html#comp", "chat"],
     ] },
     { title: "模型路由", items: [
-      ["router:models", "模型接入", "/web/router.html#models", "cpu"],
       ["router:dispatch", "路由策略", "/web/router.html#dispatch", "route"],
       ["router:flow", "数据回流", "/web/router.html#flow", "refresh"],
-      ["dashboard:routing", "路由数据", "/web/dashboard.html#routing", "activity"],
-      ["playground:model", "模型测试", "/web/playground.html#model", "play"],
+      ["playground:model", "模型路由测试", "/web/playground.html#model", "play"],
+      ["dashboard:routing", "模型路由数据", "/web/dashboard.html#routing", "activity"],
+      ["router:models", "模型接入", "/web/router.html#models", "cpu"],
     ] },
   ];
   function nav(active) {

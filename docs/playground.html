@@ -11,7 +11,7 @@
 <body>
 <div class="page">
   <div class="page-head" style="display:flex;align-items:center;gap:6px">
-    <div class="page-title" id="pgTitle">组件测试</div>
+    <div class="page-title" id="pgTitle">智能交互测试</div>
     <span id="pgHelp"></span>
     <div style="flex:1"></div>
     <button class="btn small" id="newSess">新对话</button>
@@ -28,10 +28,10 @@
 <script>
 const { el } = UI;
 const MODES = {
-  comp: { nav: "playground:comp", title: "组件测试",
+  comp: { nav: "playground:comp", title: "智能交互测试",
     help: "像用户一样提问：验证触发命中、组件交互、提交续轮与数据回传的全链路。测试流量不计入业务看板。",
     opts: { hint: "像用户一样提问开始测试，例如：我的货三天没更新了" } },
-  model: { nav: "playground:model", title: "模型测试",
+  model: { nav: "playground:model", title: "模型路由测试",
     help: "验证路由决策：左下选择调度策略、多模型回答或指定模型，每次回答展示完整思考过程与路由决策（策略 / 候选模型 / 成本明细）。",
     opts: { keepReasoning: true, hint: "提问并观察选用的模型与完整决策过程；左下可切换调度策略" } },
 };

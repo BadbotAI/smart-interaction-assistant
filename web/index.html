@@ -7,97 +7,42 @@
 <title>智能交互平台</title>
 <link rel="stylesheet" href="/web/shared.css">
 <style>
-  body { background: var(--bg-page); }
-  .portal { max-width: 960px; margin: 0 auto; padding: 64px 24px 48px; }
-  .hero { text-align: center; margin-bottom: 44px; }
-  .hero .mark { width: 56px; height: 56px; border-radius: 14px; background: var(--primary); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 18px; }
-  .hero h1 { font-size: 28px; font-weight: 700; margin: 0 0 10px; color: var(--text-primary); }
-  .hero .sub { font-size: var(--font-title); color: var(--text-secondary); margin: 0 0 6px; }
-  .hero .flow { font-size: var(--font-small); color: var(--text-muted); }
-  .hero .flow b { color: var(--text-secondary); font-weight: 600; }
-  .gates { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
-  @media (max-width: 760px) { .gates { grid-template-columns: 1fr; } }
-  .gate { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 26px 26px 22px; display: flex; flex-direction: column; gap: 12px; transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
-  .gate:hover { border-color: var(--primary-border); box-shadow: var(--shadow-popover); }
-  .gate .gi { width: 40px; height: 40px; border-radius: 12px; background: var(--primary-weak); color: var(--primary); display: flex; align-items: center; justify-content: center; }
-  .gate h2 { margin: 0; font-size: 17px; font-weight: 700; }
-  .gate .gd { font-size: var(--font-base); color: var(--text-secondary); line-height: 1.7; margin: 0; }
-  .gate ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
-  .gate li { font-size: var(--font-small); color: var(--text-muted); display: flex; gap: 8px; align-items: baseline; }
-  .gate li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--primary); flex: none; position: relative; top: -2px; }
-  .gate .cta { margin-top: auto; padding-top: 6px; }
-  .stats { display: flex; justify-content: center; gap: 36px; margin-bottom: 30px; }
-  .stats .st { text-align: center; }
-  .stats .sv { font-size: 22px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
-  .stats .sl { font-size: var(--font-caption); color: var(--text-muted); margin-top: 2px; }
-  .quick { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  .home { max-width: 760px; margin: 0 auto; padding-top: 9vh; text-align: center; }
+  .home .mark { width: 64px; height: 64px; border-radius: 16px; background: var(--primary); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 20px; }
+  .home h1 { font-size: 26px; font-weight: 700; margin: 0 0 10px; color: var(--text-primary); }
+  .home .slogan { font-size: var(--font-title); color: var(--text-secondary); margin: 0 0 40px; }
+  .home-gates { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; text-align: left; }
+  @media (max-width: 860px) { .home-gates { grid-template-columns: 1fr; } }
+  .hg { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 26px; display: flex; flex-direction: column; gap: 10px; transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
+  .hg:hover { border-color: var(--primary-border); box-shadow: var(--shadow-popover); }
+  .hg h2 { margin: 0; font-size: 17px; font-weight: 700; }
+  .hg p { margin: 0 0 8px; font-size: var(--font-base); color: var(--text-secondary); line-height: 1.7; }
+  .hg .cta { margin-top: auto; }
 </style>
 </head>
 <body>
-<div class="portal">
-  <div class="hero">
-    <span class="mark"><svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M4 6a3.5 3.5 0 0 1 3.5-3.5h9A3.5 3.5 0 0 1 20 6v6.5a3.5 3.5 0 0 1-3.5 3.5H10l-4.2 3.7c-.7.6-1.8.1-1.8-.8z" fill="#fff"/><circle cx="9" cy="9.5" r="1.3" fill="var(--primary)"/><circle cx="13.5" cy="9.5" r="1.3" fill="var(--primary)"/></svg></span>
+<div class="page">
+  <div class="home">
+    <span class="mark"><svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M4 6a3.5 3.5 0 0 1 3.5-3.5h9A3.5 3.5 0 0 1 20 6v6.5a3.5 3.5 0 0 1-3.5 3.5H10l-4.2 3.7c-.7.6-1.8.1-1.8-.8z" fill="#fff"/><circle cx="9" cy="9.5" r="1.3" fill="var(--primary)"/><circle cx="13.5" cy="9.5" r="1.3" fill="var(--primary)"/></svg></span>
     <h1>智能交互平台</h1>
-    <p class="sub">让 AI 对话从「自由回复」变成「结构化交互」，再让每次交互反哺模型调度</p>
-    <p class="flow"><b>交互产生标签</b> → <b>标签影响路由</b> → <b>效果在看板可见</b></p>
-  </div>
-
-  <div class="stats" id="stats" hidden>
-    <div class="st"><div class="sv" id="stCards">-</div><div class="sl">已上线配置</div></div>
-    <div class="st"><div class="sv">15</div><div class="sl">类交互组件</div></div>
-    <div class="st"><div class="sv" id="stModels">-</div><div class="sl">在线模型</div></div>
-    <div class="st"><div class="sv" id="stScenes">-</div><div class="sl">业务场景数据集</div></div>
-  </div>
-
-  <div class="gates">
-    <div class="gate">
-      <span class="gi"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6h14v9H9l-4 4z"/></svg></span>
-      <h2>智能交互</h2>
-      <p class="gd">把交互组件配置进 AI 对话：什么条件触发、出什么组件、数据收回到哪。也可以像接统计代码一样，一段 SDK 植入你自己的产品。</p>
-      <ul>
-        <li>15 类交互组件库，对话式陈列即选即用</li>
-        <li>组件工作台：触发条件、内容、回显、五步配置上线</li>
-        <li>交互数据与转化漏斗，提交明细可导出</li>
-      </ul>
-      <div class="cta"><a class="btn primary" href="/web/cards.html">进入智能交互</a>
-        <a class="btn" href="/web/playground.html#comp" style="margin-left:8px">先试试组件测试</a></div>
+    <p class="slogan">让每次交互反哺智能</p>
+    <div class="home-gates">
+      <div class="hg">
+        <h2>富交互</h2>
+        <p>把交互组件配置进 AI 对话，收集群体决策</p>
+        <div class="cta"><a class="btn primary" href="/web/cards.html">进入智能交互</a></div>
+      </div>
+      <div class="hg">
+        <h2>模型路由</h2>
+        <p>通过智能路由，为每次对话选择更合适的模型，优化整体效果及成本</p>
+        <div class="cta"><a class="btn primary" href="/web/router.html#models">进入模型路由</a></div>
+      </div>
     </div>
-    <div class="gate">
-      <span class="gi"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></span>
-      <h2>模型路由</h2>
-      <p class="gd">多模型统一接入与 JiSi 智能路由：按你在成本与效果之间的偏好自动选模型，答不准时多模型聚合，一个接入 Key 即可配到产品里。</p>
-      <ul>
-        <li>模型接入与入池评测，供应商分组管理</li>
-        <li>路由策略与聚合机制，画像持续更新</li>
-        <li>场景数据集冷启动 + 对话回流，Judge 评审闭环</li>
-      </ul>
-      <div class="cta"><a class="btn primary" href="/web/router.html#models">进入模型路由</a>
-        <a class="btn" href="/web/playground.html#model" style="margin-left:8px">先试试模型测试</a></div>
-    </div>
-  </div>
-
-  <div class="quick">
-    <a class="btn small ghost" href="/web/embed-demo.html">植入演示页</a>
-    <a class="btn small ghost" href="/web/dashboard.html#survey">交互数据</a>
-    <a class="btn small ghost" href="/web/dashboard.html#routing">路由数据</a>
-    <a class="btn small ghost" href="/web/audit.html">操作日志</a>
   </div>
 </div>
 
-<script>
-(async () => {
-  try {
-    const [cards, models, scenes] = await Promise.all([
-      fetch("/api/cards").then(r => r.json()),
-      fetch("/v1/models").then(r => r.json()),
-      fetch("/v1/bank/scenes").then(r => r.json()),
-    ]);
-    document.getElementById("stCards").textContent = cards.cards.filter(c => c.status === "published" || (c.status === "draft" && c.version >= 1)).length;
-    document.getElementById("stModels").textContent = models.models.filter(m => m.status === "active").length;
-    document.getElementById("stScenes").textContent = scenes.scenes.length;
-    document.getElementById("stats").hidden = false;
-  } catch (e) { /* 统计失败不影响首页 */ }
-})();
-</script>
+<script src="/web/tokens.js"></script>
+<script src="/web/ui.js"></script>
+<script>UI.nav("home");</script>
 </body>
 </html>
