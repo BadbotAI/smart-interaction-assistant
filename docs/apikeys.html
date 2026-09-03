@@ -12,12 +12,11 @@
 <div class="page">
   <div class="page-head" style="display:flex;align-items:center;gap:6px">
     <div class="page-title">API 接入管理</div>
-    <span id="pageHelp"></span>
-    <div style="flex:1"></div>
+        <div style="flex:1"></div>
     <button class="btn primary" id="createBtn">创建密钥</button>
   </div>
 
-  <div class="segmented" id="akTabs" style="margin-bottom:14px"></div>
+  <div class="tab-bar" id="akTabs" style="margin-bottom:14px"></div>
 
   <div id="tabKeys">
     <div class="card" style="padding:0">
@@ -57,7 +56,7 @@ function drawAkTabs() {
   const bar = document.getElementById("akTabs");
   bar.innerHTML = "";
   AK_TABS.forEach(([k, name]) => bar.appendChild(el("button", { type: "button",
-    class: "seg" + (akTab === k ? " on" : ""),
+    class: "tab" + (akTab === k ? " active" : ""),
     onclick: () => { akTab = k;
       document.getElementById("tabKeys").hidden = k !== "keys";
       document.getElementById("tabDocs").hidden = k !== "docs";
@@ -67,7 +66,6 @@ function drawAkTabs() {
     } }, [name])));
 }
 drawAkTabs();
-document.getElementById("pageHelp").appendChild(UI.help("对外接入的产品级密钥：明文只在创建时展示一次，库中仅存哈希。密钥用于对话路由 / 事件回传 / 植入 SDK 的调用鉴权与统计。"));
 
 const DOCS = [
   ["对话路由 API", `curl -N -X POST https://your-domain/v1/route \\\\\n  -H "Content-Type: application/json" \\\\\n  -d '{"api_key": "sk-live-你的密钥", "text": "用户消息", "session_id": "sess-1", "user_id": "u-1"}'`,

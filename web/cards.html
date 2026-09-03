@@ -49,8 +49,7 @@
   <div class="page-head" style="display:flex;justify-content:space-between;align-items:center;gap:16px">
     <div style="display:flex;align-items:center;gap:6px">
       <div class="page-title">组件工作台</div>
-      <span id="pageHelp"></span>
-    </div>
+          </div>
     <div style="display:flex;gap:8px">
       <button class="btn" id="testBtn"></button>
       <button class="btn primary" id="newBtn" style="white-space:nowrap">新建交互配置</button>
@@ -90,7 +89,6 @@
 <script>
 UI.nav("cards");
 const { el } = UI;
-document.getElementById("pageHelp").appendChild(UI.help("组件工作台 = 配置管理 + 数据概览。一条配置 = 触发条件 + 交互组件 + 数据回收；发布后 AI 在对话中按触发条件出组件。"));
 const testBtn = document.getElementById("testBtn");
 testBtn.append(UI.icon("play", 14), "测试");
 const openTest = (prefill) => { location.href = "/web/playground.html" + (prefill ? "?q=" + encodeURIComponent(prefill) : "") + "#comp"; };
@@ -1757,6 +1755,15 @@ loadCards().then(async () => {
       if (!prefill.config && tpl) prefill.config = tpl.default_config || {};
       openEditor(undefined, prefill, params.get("step"));
     } else newConfigWizard(prefill || {});
+  } else if (params.get("focus")) {
+    // 深链：从交互数据卡点名称跳回，定位列表行并高亮
+    const row = document.querySelector(`.card-row[data-cid="${params.get("focus")}"]`);
+    if (row) {
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
+      row.classList.add("card-flash");
+      setTimeout(() => row.classList.remove("card-flash"), 2600);
+    } else UI.toast("没找到这条配置，可能在其他状态标签下");
+    history.replaceState(null, "", location.pathname);
   }
 });
 </script>

@@ -1159,9 +1159,10 @@ tr:hover .scene-del { opacity: 1; }
 
 /* Judge 打分裁判条（与策略卡区分的横幅形态） */
 .judge-bar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; margin-bottom: 14px;
-  background: var(--primary-weak); border-radius: 12px; color: var(--text-primary); }
+  background: var(--bg-elevated); border: 1px solid var(--border); border-left: 3px solid var(--primary);
+  border-radius: 12px; color: var(--text-primary); }
 .judge-bar > .ico { color: var(--primary); flex: none; }
-.judge-bar.missing { background: var(--danger-bg); }
+.judge-bar.missing { background: var(--bg-elevated); border-left-color: var(--danger); }
 .judge-bar.missing > .ico { color: var(--danger); }
 .policy-card.grayed { opacity: 0.55; }
 /* 表格表头滚动固定（长列表页：操作日志/明细表） */
@@ -1180,3 +1181,37 @@ details.explain .explain-body p { margin: 0 0 8px; font-size: var(--font-base); 
 .echo-item { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--border); cursor: pointer; border-radius: 8px; }
 .echo-item:hover { background: var(--bg-surface); }
 .echo-item:last-child { border-bottom: none; }
+
+/* 各场景路由去向：选中策略卡的从属面板（与策略卡视觉区分） */
+.directions-panel { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-card);
+  padding: 16px 18px; margin-top: 2px; }
+.directions-panel .directions-table { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 4px 8px; }
+
+/* 返回链接：文字链形态（替代突兀的胶囊按钮） */
+.back-link { display: inline-flex; align-items: center; gap: 4px; color: var(--text-secondary); text-decoration: none;
+  font-size: var(--font-base); font-weight: 600; padding: 4px 8px 4px 4px; border-radius: 8px; }
+.back-link:hover { color: var(--primary); background: var(--bg-sunken); }
+.back-link .ico { transform: rotate(180deg); }
+
+/* 参数配置抽屉：字段间距拉开 */
+.policy-form .field { margin-bottom: 24px; }
+.policy-form .drawer-meta { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 24px;
+  background: var(--bg-sunken); border-radius: 10px; font-size: var(--font-caption); color: var(--text-secondary); }
+/* 候选模型：下拉添加 + 标签可删 */
+.tagsel-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.tagsel-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 8px;
+  background: var(--primary-weak); color: var(--primary); font-size: var(--font-caption); font-weight: 600; }
+.tagsel-tag button { border: 0; background: none; cursor: pointer; color: inherit; opacity: .7; padding: 0 2px; font-size: 14px; line-height: 1; }
+.tagsel-tag button:hover { opacity: 1; }
+/* 卡片上的 icon 按钮 */
+.btn.iconic { padding: 6px 8px; }
+
+/* 日期弹层快捷项：无边框文字快捷，置于起止行下方 */
+.dr-chips { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px; display: flex; gap: 4px; }
+.dr-quick { border: 0; background: none; cursor: pointer; color: var(--text-secondary); font-size: var(--font-small);
+  font-weight: 600; padding: 4px 8px; border-radius: 8px; }
+.dr-quick:hover { color: var(--primary); background: var(--bg-sunken); }
+.link-hover:hover { color: var(--primary) !important; }
+/* 行内危险操作按钮：默认灰、悬停转红 */
+.btn.danger-text { color: var(--text-secondary); }
+.btn.danger-text:hover { color: var(--danger); border-color: var(--danger); }

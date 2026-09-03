@@ -11,8 +11,7 @@
 <div class="page">
   <div class="page-head" style="display:flex;align-items:center;gap:12px">
     <div class="page-title" id="pgTitle">对话测试</div>
-    <span id="pgHelp"></span>
-    <div class="segmented" id="modeTabs"></div>
+    <div class="tab-bar" id="modeTabs" style="align-self:flex-end"></div>
     <div style="flex:1"></div>
     <button class="btn small" id="newSess"></button>
   </div>
@@ -60,7 +59,7 @@ function drawTabs() {
   const box = document.getElementById("modeTabs");
   box.innerHTML = "";
   Object.entries(MODES).forEach(([k, m]) => {
-    box.appendChild(el("button", { type: "button", class: "seg" + (k === cur ? " on" : ""),
+    box.appendChild(el("button", { type: "button", class: "tab" + (k === cur ? " active" : ""),
       onclick: () => { if (k !== cur) location.hash = "#" + k; } }, [m.seg]));
   });
 }
@@ -72,8 +71,6 @@ async function boot() {
   drawTabs();
   document.getElementById("pgTitle").textContent = "对话测试";
   document.title = m.title + " · 智能交互平台";
-  const help = document.getElementById("pgHelp"); help.innerHTML = "";
-  help.appendChild(UI.help(m.help));
   const prefill = new URLSearchParams(location.search).get("q") || "";
   const suggestions = await buildSuggestions(k);
   TestChat.open({

@@ -1187,6 +1187,10 @@ async def create_policy(request: Request):
                                                      "eps": 0.5, "sigma": 0.3, "delta": 0.2, "t": 0.8, "max_agg_tokens": 13000}
     if body.get("t") is not None:
         params["t"] = max(0.0, min(1.0, float(body["t"])))
+    if body.get("alpha") is not None:
+        params["alpha"] = max(0.0, min(1.0, float(body["alpha"])))
+    if body.get("profile_w") is not None:
+        params["profile_w"] = max(1.0, min(2.0, float(body["profile_w"])))
     if body.get("fallback_model"):
         params["fallback_model"] = body["fallback_model"]
     policy_id = "policy-" + db.new_id()[:8]
@@ -1493,6 +1497,14 @@ async def bank_import_start(request: Request):
         return JSONResponse({"error": "没有可导入的数据"}, status_code=422)
     if len(items) > 5000:
         return JSONResponse({"error": f"单次最多导入 5000 条（当前 {len(items)} 条），请分批导入"}, status_code=422)
+    if body.get("replace") and body.get("domain"):
+        if not any((it.get("query") or "").strip() for it in items):
+            return JSONResponse({"error": "替换模式下没有解析到有效题目，未清空原数据"}, status_code=422)
+        conn0 = db.get_conn()
+        ids0 = _scene_query_ids(conn0, body["domain"])
+        _delete_bank_queries(conn0, ids0)
+        conn0.commit()
+        db.audit("demo-admin", "bank_scene_replace", {"domain": body["domain"], "cleared": len(ids0)})
     _import_task.update({"status": "running", "done": 0, "total": len(items),
                          "imported": 0, "skipped": 0, "invalid": 0, "domain": body.get("domain")})
     asyncio.create_task(_run_import(items, body.get("tenant_id") or seed.TENANT))
@@ -1570,25 +1582,90 @@ async def bank_staged_relabel(request: Request):
     return {"ok": True}
 
 
-@app.post("/api/scenes/delete")
-async def delete_scene(request: Request):
-    """删除自定义业务场景：仅限自定义场景；场景下还有题目时拦截，避免数据悬空。"""
-    body = await request.json()
-    key = (body.get("key") or "").strip()
-    custom = db.dj(_get_setting("custom_scenes"), []) or []
-    hit = next((c for c in custom if c["key"] == key), None)
-    if not hit:
-        return JSONResponse({"error": "只能删除自定义场景"}, status_code=422)
-    conn = db.get_conn()
-    n = 0
-    for r in conn.execute("SELECT domain_tags FROM bank_queries WHERE tenant_id IS NULL OR tenant_id=?",
+def _scene_query_ids(conn, key):
+    ids = []
+    for r in conn.execute("SELECT query_id, domain_tags FROM bank_queries WHERE tenant_id IS NULL OR tenant_id=?",
                           (seed.TENANT,)).fetchall():
         if (db.dj(r["domain_tags"], ["general"]) or ["general"])[0] == key:
-            n += 1
-    if n:
-        return JSONResponse({"error": f"该场景下还有 {n} 道题目，请先在回流校验/数据集中处理后再删除"}, status_code=409)
-    _set_setting("custom_scenes", db.j([c for c in custom if c["key"] != key]))
-    db.audit("demo-admin", "scene_delete", {"key": key, "name": hit["name"]})
+            ids.append(r["query_id"])
+    return ids
+
+
+def _delete_bank_queries(conn, ids):
+    for qid in ids:
+        conn.execute("DELETE FROM bank_responses WHERE query_id=?", (qid,))
+        conn.execute("DELETE FROM bank_queries WHERE query_id=?", (qid,))
+
+
+@app.post("/api/scenes/delete")
+async def delete_scene(request: Request):
+    """删除业务场景（通用场景除外）：连同该场景下的题目与作答一并删除。"""
+    body = await request.json()
+    key = (body.get("key") or "").strip()
+    if key == "general":
+        return JSONResponse({"error": "通用场景是兜底分类，不能删除"}, status_code=422)
+    custom = db.dj(_get_setting("custom_scenes"), []) or []
+    conn = db.get_conn()
+    ids = _scene_query_ids(conn, key)
+    hit = next((c for c in custom if c["key"] == key), None)
+    if not hit and not ids:
+        return JSONResponse({"error": "场景不存在或已为空"}, status_code=404)
+    _delete_bank_queries(conn, ids)
+    conn.commit()
+    if hit:
+        _set_setting("custom_scenes", db.j([c for c in custom if c["key"] != key]))
+    db.audit("demo-admin", "scene_delete", {"key": key, "questions_deleted": len(ids)})
+    return {"ok": True, "deleted": len(ids)}
+
+
+@app.get("/v1/bank/questions")
+def bank_questions(scene: str):
+    """场景详情：该场景下的题目清单（含打分状态）。"""
+    conn = db.get_conn()
+    out = []
+    for r in conn.execute(
+            "SELECT q.query_id, q.query_text, q.domain_tags, q.source, q.created_at, q.ideal, q.tenant_id, "
+            "EXISTS(SELECT 1 FROM bank_responses b WHERE b.query_id=q.query_id) AS has_resp "
+            "FROM bank_queries q WHERE (q.tenant_id IS NULL OR q.tenant_id=?) AND q.source!='reflow_staged' "
+            "ORDER BY q.created_at DESC", (seed.TENANT,)).fetchall():
+        if (db.dj(r["domain_tags"], ["general"]) or ["general"])[0] != scene:
+            continue
+        out.append({"query_id": r["query_id"], "query": r["query_text"], "source": r["source"],
+                    "created_at": r["created_at"], "ideal": r["ideal"] or "", "scored": bool(r["has_resp"])})
+        if len(out) >= 500:
+            break
+    return {"questions": out, "scene": scene}
+
+
+@app.post("/v1/bank/question/delete")
+async def bank_question_delete(request: Request):
+    body = await request.json()
+    qid = (body.get("query_id") or "").strip()
+    conn = db.get_conn()
+    row = conn.execute("SELECT query_id FROM bank_queries WHERE query_id=?", (qid,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "题目不存在"}, status_code=404)
+    _delete_bank_queries(conn, [qid])
+    conn.commit()
+    db.audit("demo-admin", "bank_question_delete", {"query_id": qid})
+    return {"ok": True}
+
+
+@app.post("/v1/bank/question/relabel")
+async def bank_question_relabel(request: Request):
+    """更改题目的场景标签。"""
+    body = await request.json()
+    qid = (body.get("query_id") or "").strip()
+    domain = (body.get("domain") or "").strip()
+    if not domain:
+        return JSONResponse({"error": "缺少目标场景"}, status_code=422)
+    conn = db.get_conn()
+    row = conn.execute("SELECT query_id FROM bank_queries WHERE query_id=?", (qid,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "题目不存在"}, status_code=404)
+    conn.execute("UPDATE bank_queries SET domain_tags=? WHERE query_id=?", (db.j([domain]), qid))
+    conn.commit()
+    db.audit("demo-admin", "bank_question_relabel", {"query_id": qid, "domain": domain})
     return {"ok": True}
 
 

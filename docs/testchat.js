@@ -41,7 +41,7 @@ window.TestChat = (function () {
       .then(([{ policies }, { models }]) => {
         const actives = (models || []).filter(m => m.status === "active");
         pickGroups = [
-          { label: "调度策略", items: (policies || []).filter(p => p.enabled).map(p => ({ kind: "policy", value: p.policy_id, label: p.name || p.policy_id })) },
+          { label: "调度策略", items: (policies || []).filter(p => p.enabled && !p.ab_group).map(p => ({ kind: "policy", value: p.policy_id, label: p.name || p.policy_id })) },
           { label: "多模型", items: [{ kind: "multi", value: null, label: "多模型回答 + 择优" }] },
           { label: "指定模型", items: actives.map(m => ({ kind: "model", value: m.model_id, label: m.display_name })) },
         ];
@@ -92,13 +92,13 @@ window.TestChat = (function () {
       const segs = el("div", { class: "segmented", style: "overflow-x:auto" });
       pickGroups.filter(g => g.label === "调度策略").forEach(g => g.items.forEach(it => {
         segs.appendChild(el("button", { type: "button",
-          class: "seg" + (pickState.kind === "policy" && pickState.value === it.value ? " on" : ""),
+          class: "seg" + (pickState.kind === "policy" && pickState.value === it.value ? " active" : ""),
           onclick: () => { setPick("policy", it.value, it.label); drawModeBar(); } }, [it.label]));
       }));
-      segs.appendChild(el("button", { type: "button", class: "seg" + (pickState.kind === "multi" ? " on" : ""),
+      segs.appendChild(el("button", { type: "button", class: "seg" + (pickState.kind === "multi" ? " active" : ""),
         onclick: () => { setPick("multi", null, "多模型回答 + 择优"); drawModeBar(); } }, ["多模型"]));
       const actives = (pickGroups.find(g => g.label === "指定模型") || { items: [] }).items;
-      segs.appendChild(el("button", { type: "button", class: "seg" + (pickState.kind === "model" ? " on" : ""),
+      segs.appendChild(el("button", { type: "button", class: "seg" + (pickState.kind === "model" ? " active" : ""),
         onclick: () => { const f = actives[0]; if (!f) { UI.toast("还没有在线模型", true); return; }
           setPick("model", pickState.kind === "model" ? pickState.value : f.value,
             pickState.kind === "model" ? pickState.label : f.label);
@@ -106,7 +106,7 @@ window.TestChat = (function () {
       modeBar.appendChild(segs);
       modeBar.appendChild(el("div", { style: "flex:1" }));
       if (pickState.kind === "model") {
-        modeBar.appendChild(UI.fancySelect({ value: pickState.value,
+        modeBar.appendChild(UI.fancySelect({ value: pickState.value, width: "180px",
           options: actives.map(it => [it.value, it.label]),
           onChange: (v) => { const hit = actives.find(x => x.value === v); setPick("model", v, hit ? hit.label : v); } }));
       } else {

@@ -9,16 +9,13 @@
 </head>
 <body>
 <div class="page">
-  <div class="page-head" style="display:flex;align-items:center;gap:6px">
-    <div class="page-title">操作日志</div>
-    <span id="pageHelp"></span>
+  <div class="page-head"><div class="page-title">操作日志</div></div>
+  <div style="display:flex;align-items:center;margin-bottom:10px">
+    <span class="muted" id="auditCount"></span>
+    <div style="flex:1"></div>
+    <button class="btn small" id="dlBtn"></button>
   </div>
   <div class="card" style="padding:0">
-    <div style="display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
-      <span class="muted" id="auditCount"></span>
-      <div style="flex:1"></div>
-      <button class="btn small" id="dlBtn"></button>
-    </div>
     <div id="auditBox"></div>
   </div>
 </div>
@@ -28,7 +25,6 @@
 <script>
 UI.nav("audit");
 const { el } = UI;
-document.getElementById("pageHelp").appendChild(UI.help("平台关键操作全量记录：发布 / 下线 / 回滚、策略调参、模型状态变更、凭证操作、数据导出、风格切换等。只读，可导出 CSV。"));
 
 const ACTION_NAMES = {
   card_publish: "发布配置", card_offline: "下线配置", card_delete: "删除配置",
@@ -38,6 +34,15 @@ const ACTION_NAMES = {
   credential_delete: "删除凭证并暂停", export_csv: "导出明细", profile_rebuild: "更新画像",
   brand_activate: "切换组件风格", brand_delete: "删除组件风格", label_review: "标签复核",
   unmask_trace: "解除脱敏",
+  policy_create: "新增路由策略", policy_delete: "删除路由策略", policy_duplicate: "复制路由策略",
+  scene_add: "添加业务场景", scene_delete: "删除业务场景",
+  bank_question_delete: "删除数据集题目", bank_question_relabel: "更改题目场景",
+  bank_scene_replace: "替换场景数据集", apikey_create: "创建 API Key", apikey_delete: "删除 API Key",
+  judge_model_set: "配置 Judge 模型", model_thinking: "切换思考模式", model_rename: "编辑模型", model_delete: "删除模型",
+  model_profile_data: "导入画像数据", bank_import: "导入数据集", bank_import_failed: "导入数据集失败",
+  bank_eval_pending: "评测回填", bank_staged_commit: "并入回流数据", bank_staged_discard: "移除回流数据",
+  brand_import: "导入组件风格", label_source_toggle: "切换信号源", card_refs_upgrade: "升级配置引用",
+  ab_create: "创建 AB 实验", ab_stop: "停止 AB 实验",
 };
 
 function fmtDetail(d) {

@@ -4,7 +4,11 @@
   const realFetch = window.fetch.bind(window);
   const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
 
-  function getMock(pn) {
+  function getMock(pn, full) {
+    if (pn === "/v1/bank/questions") {
+      const sc = new URLSearchParams((full || "").split("?")[1] || "").get("scene") || "general";
+      return D["bankq:" + sc] || { questions: [], scene: sc };
+    }
     if (D[pn] !== undefined) return D[pn];
     const m = pn.match(/^\/api\/cards\/([^/]+)$/);
     if (m && D["/api/cards"]) {
@@ -58,6 +62,10 @@
     if (pn === "/v1/bank/import/start") return { task: { status: "done", done: (body && body.items || []).length, total: (body && body.items || []).length, imported: (body && body.items || []).length, skipped: 0, invalid: 0 } };
     if (pn === "/v1/bank/staged/commit") return { committed: (body && body.query_ids || []).length };
     if (pn === "/v1/bank/staged/discard") return { discarded: (body && body.query_ids || []).length };
+    if (pn === "/v1/bank/question/delete" || pn === "/v1/bank/question/relabel") return { ok: true };
+    if (pn === "/api/scenes/delete") return { ok: true, deleted: 0 };
+    if (pn === "/v1/policies") return { policy_id: "policy-demo-" + Math.random().toString(36).slice(2, 8), api_key: "sk-route-demo0000" };
+    if (/^\/v1\/policies\/[^/]+\/duplicate$/.test(pn)) return { policy_id: "policy-demo-" + Math.random().toString(36).slice(2, 8), name: "策略 副本" };
     return { ok: true, demo: true };
   }
 
@@ -83,7 +91,7 @@
             { model_id: "sage-r1", tokens_in: 120, tokens_out: 260, tokens_thinking: 80, cost: 0.0041, latency_ms: 980 },
             { model_id: "nova-x", tokens_in: 120, tokens_out: 210, tokens_thinking: 0, cost: 0.0035, latency_ms: 860 },
             { model_id: "atlas-72b", tokens_in: 120, tokens_out: 150, tokens_thinking: 0, cost: 0.0007, latency_ms: 640 }],
-          policy: { policy_id: "policy-global-balanced", name: "全局默认 · 均衡档", latency_tier: "balanced", explore_ratio: 0.05, K: 3 } },
+          policy: { policy_id: "policy-global-balanced", name: "全局均衡", latency_tier: "balanced", explore_ratio: 0.05, K: 3 } },
         usage: { cost: 0.0083, tokens: 1060 }, route_context: { policy_id: "policy-global-balanced" } },
     ];
     const enc = new TextEncoder();
@@ -116,7 +124,7 @@
     let body = null;
     if (opts.body) { try { body = JSON.parse(opts.body); } catch (e) {} }
     if (pn === "/v1/route") return Promise.resolve(sseRoute());
-    if (method === "GET") return Promise.resolve(json(getMock(pn)));
+    if (method === "GET") return Promise.resolve(json(getMock(pn, u)));
     return Promise.resolve(json(postMock(pn, body)));
   };
 })();

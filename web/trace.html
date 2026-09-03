@@ -27,7 +27,7 @@
 <body>
 <div class="page">
   <div class="page-head" style="display:flex;align-items:center;gap:6px">
-    <div class="page-title">对话记录</div><span id="pageHelp"></span>
+    <div class="page-title">对话记录</div>
   </div>
 
   <div class="card" style="margin-bottom:14px">
@@ -66,7 +66,6 @@
 <script>
 UI.nav("trace");
 const { el } = UI;
-document.getElementById("pageHelp").appendChild(UI.help("每条记录 = 用户一次提问的完整处理过程：是否命中配置、用户选了什么、AI 用哪个模型回答。原文默认脱敏，解除脱敏记审计。"));
 
 const SPAN_NAMES = {
   user_input: "用户输入", embed: "向量化", route_score: "候选模型打分", model_call: "模型调用",

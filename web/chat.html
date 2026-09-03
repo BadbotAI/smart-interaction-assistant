@@ -82,8 +82,7 @@
 <div class="chat-shell">
   <div class="chat-top">
     <span style="font-weight:600">交互测试</span>
-    <span id="chatHelp"></span>
-    <div style="flex:1"></div>
+        <div style="flex:1"></div>
     <span class="muted num" id="sessionLabel"></span>
     <button class="btn small" id="newSessionBtn">新会话</button>
   </div>
@@ -113,7 +112,6 @@
 <script>
 UI.nav("chat");
 const { el } = UI;
-document.getElementById("chatHelp").appendChild(UI.help("终端用户视角。命中交互配置时先出说明与组件；输入框左侧可切换回答模型（默认自动选择）。赞踩 / 复制 / 换模型重答都会回流优化调度。"));
 document.getElementById("helloAvatar").appendChild(UI.icon("bot", 24));
 let SESSION = "sess-" + Math.random().toString(36).slice(2, 8);
 let busy = false;

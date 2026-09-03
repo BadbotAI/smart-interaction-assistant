@@ -35,10 +35,7 @@
 </head>
 <body>
 <div class="page">
-  <div class="page-head" style="display:flex;align-items:center;gap:6px">
-    <div class="page-title">组件风格</div>
-    <span id="pageHelp"></span>
-  </div>
+  <div class="page-head"><div class="page-title">组件风格</div></div>
 
   <div class="style-split">
     <div class="card" style="align-self:start">
@@ -75,7 +72,6 @@
 <script>
 UI.nav("design");
 const { el } = UI;
-document.getElementById("pageHelp").appendChild(UI.help("风格只作用于对话里渲染的交互组件（含嵌入客户前端的组件），不改变本管理平台的界面。选预设或导入参数 → 预览下方组件效果 → 应用并保存。"));
 document.getElementById("demoHelp").appendChild(UI.help("与线上同一套渲染器；风格预览后此处实时更新，提交不产生数据"));
 
 
@@ -168,7 +164,7 @@ function renderDemos() {
 }
 function mountDemoControls() {
   document.getElementById("compSelMount").appendChild(UI.fancySelect({
-    value: demoCt,
+    value: demoCt, width: "170px",
     options: [...Object.entries(SCENES).map(([ct, sc]) => [ct, sc.name]), ["track.map", "物流轨迹卡"]],
     onChange: (v) => { demoCt = v; renderDemos(); },
   }));
