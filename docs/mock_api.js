@@ -63,18 +63,28 @@
 
   function sseRoute() {
     const steps = [
-      { step: "route", text: "检索相似历史问题，构建支撑集（静态演示）" },
-      { step: "route", text: "粗排候选：3 路模型并发作答" },
-      { step: "route", text: "细排完成：单模型胜出，无需聚合" },
+      { step: "support", text: "检索相似历史问题：命中 42 条支撑样本" },
+      { step: "coarse", text: "计算各模型在该场景的历史命中率",
+        scores: { "sage-r1": 0.72, "nova-x": 0.70, "atlas-72b": 0.69, "swift-4b": 0.68, "harbor-13b": 0.56 },
+        candidates: ["sage-r1", "nova-x", "atlas-72b"] },
+      { step: "parallel", text: "3 路候选模型并发作答" },
+      { step: "switch", text: "细排：两份回答得分接近，保留 2 份交给聚合器 沉思 Sage-R1 融合重写" },
       { step: "final", trace_id: "demo-trace", turn_id: "demo-turn",
-        content: "这是 GitHub Pages 静态演示：回答与数据均为预置快照。完整交互（真实路由、组件触发、数据回流）请克隆仓库本地运行。",
-        components: [],
-        decision_summary: { mode: "auto", switch_result: "routed", final_model: "swift-4b",
-          candidates: ["swift-4b", "sage-r1", "harbor-13b"], aggregator: null, is_explore: false,
-          total_cost: 0.0021, total_latency_ms: 860,
-          model_calls: [{ model_id: "swift-4b", tokens_in: 120, tokens_out: 210, tokens_thinking: 0, cost: 0.0021, latency_ms: 860 }],
+        content: "近八周价格整体呈上行趋势，最新值较期初上涨约 22%。建议关注供需两端的边际变化与港口库存去化速度。（静态演示：回答与打分为预置数据，完整能力请本地运行仓库）",
+        components: [{ schema_version: "1.0.0", render_id: "demo-pref", component_type: "feedback.preference",
+          semantic_category: "evaluate", trigger_source: "system_injected", card_ref: null,
+          params: { candidates: [
+            { model_id: "sage-r1", alias: "候选1", content: "近八周价格上行，涨幅 22%，动力来自供给收缩。" },
+            { model_id: "nova-x", alias: "候选2", content: "价格中枢上移，建议关注库存与需求端边际变化。" }] } }],
+        decision_summary: { mode: "auto", switch_result: "aggregated", final_model: "sage-r1",
+          candidates: ["sage-r1", "nova-x", "atlas-72b"], aggregator: "sage-r1", is_explore: false,
+          total_cost: 0.0083, total_latency_ms: 1240,
+          model_calls: [
+            { model_id: "sage-r1", tokens_in: 120, tokens_out: 260, tokens_thinking: 80, cost: 0.0041, latency_ms: 980 },
+            { model_id: "nova-x", tokens_in: 120, tokens_out: 210, tokens_thinking: 0, cost: 0.0035, latency_ms: 860 },
+            { model_id: "atlas-72b", tokens_in: 120, tokens_out: 150, tokens_thinking: 0, cost: 0.0007, latency_ms: 640 }],
           policy: { policy_id: "policy-global-balanced", name: "全局默认 · 均衡档", latency_tier: "balanced", explore_ratio: 0.05, K: 3 } },
-        usage: { cost: 0.0021, tokens: 330 }, route_context: { policy_id: "policy-global-balanced" } },
+        usage: { cost: 0.0083, tokens: 1060 }, route_context: { policy_id: "policy-global-balanced" } },
     ];
     const enc = new TextEncoder();
     const stream = new ReadableStream({
@@ -83,7 +93,7 @@
         const t = setInterval(() => {
           if (i >= steps.length) { clearInterval(t); c.close(); return; }
           c.enqueue(enc.encode("data:" + JSON.stringify(steps[i++]) + "\n\n"));
-        }, 380);
+        }, 420);
       },
     });
     return new Response(stream, { status: 200 });

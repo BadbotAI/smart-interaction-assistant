@@ -60,15 +60,13 @@
 
   <div class="grid cols-4" id="kpiRow" style="margin-bottom:14px"></div>
 
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+    <input type="text" id="searchInput" placeholder="搜索配置名称、触发条件" style="width:340px;min-width:220px" aria-label="搜索配置">
+    <button class="btn" id="searchBtn" style="height:36px;padding:0 18px">搜索</button>
+    <span class="muted" id="listCount"></span>
+  </div>
   <div class="card" style="padding:0">
-    <div style="display:flex;gap:12px;padding:12px 16px 0;align-items:center">
-      <div style="display:flex;gap:8px;align-items:center">
-        <input type="text" id="searchInput" placeholder="搜索配置名称、触发条件" style="width:320px;min-width:220px" aria-label="搜索配置">
-        <button class="btn" id="searchBtn" style="height:36px;padding:0 18px">搜索</button>
-      </div>
-      <span class="muted" id="listCount"></span>
-    </div>
-    <div style="display:flex;gap:16px;padding:0 16px;border-bottom:1px solid var(--border);align-items:center">
+    <div style="display:flex;gap:16px;padding:4px 16px 0;border-bottom:1px solid var(--border);align-items:center">
       <div id="statusTabs"></div>
     </div>
     <div id="cardList"></div>
@@ -175,7 +173,29 @@ async function loadKpisAndTodos() {
     kpi.appendChild(tile("已上线配置", published.length));
     kpi.appendChild(tile("组件触发", totalRendered, "近 30 天组件被渲染到对话中的次数"));
     kpi.appendChild(tile("提交率", totalRendered && totalSubmitted <= totalRendered ? UI.fmtPct(totalSubmitted / totalRendered) : "-", "提交 / 触发，近 30 天"));
-    kpi.appendChild(tile("回显", `${published.filter(c => c.echo_results).length}/${published.length}`, "开启后用户提交时会看到群体选择分布；此处为已开启的配置数"));
+    const echoTile = tile("回显", `${published.filter(c => c.echo_results).length}/${published.length}`, "开启后用户提交时会看到群体选择分布；点击查看开启回显的配置列表");
+    echoTile.style.cursor = "pointer";
+    echoTile.onclick = () => {
+      const list2 = published.filter(c => c.echo_results);
+      UI.modal("开启回显的配置", el("div", {}, [
+        list2.length ? el("div", {}, list2.map(c => el("div", { class: "echo-item", onclick: () => {
+            document.querySelector(".modal-mask")?.remove();
+            const rowEl = document.querySelector(`.card-row[data-cid="${c.card_id}"]`);
+            if (rowEl) { rowEl.scrollIntoView({ behavior: "smooth", block: "center" }); rowEl.classList.add("card-flash"); setTimeout(() => rowEl.classList.remove("card-flash"), 2600); }
+          } }, [
+          el("span", { class: "cr-id num" }, ["ID:" + shortId(c.card_id)]),
+          el("span", { style: "font-weight:600" }, [c.name]),
+          UI.ctChip(c.component_type),
+          el("span", { style: "flex:1" }),
+          el("span", { class: "muted" }, ["点击定位"]),
+        ])))
+        : el("div", { class: "empty-state" }, [
+            el("div", { class: "empty-title" }, ["还没有配置开启回显"]),
+            el("div", {}, ["在配置的「数据收集」步打开群体回显后出现在这里"]),
+          ]),
+      ]));
+    };
+    kpi.appendChild(echoTile);
     // 异常态以标签形式标注在列表行上（loadCards 读 statsByCard 判定），此处刷新一次列表
     if (!window.__statsPainted) { window.__statsPainted = true; loadCards(); }
   } catch (e) { /* 概览失败不阻塞列表 */ }

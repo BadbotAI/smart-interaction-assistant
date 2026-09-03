@@ -14,7 +14,7 @@
     <span id="pgHelp"></span>
     <div class="segmented" id="modeTabs"></div>
     <div style="flex:1"></div>
-    <button class="btn small" id="newSess">新对话</button>
+    <button class="btn small" id="newSess"></button>
   </div>
   <div id="chatHost"></div>
 </div>
@@ -86,7 +86,9 @@ async function boot() {
     editableCards: k === "comp",
   });
 }
-document.getElementById("newSess").onclick = () => boot();
+const _ns = document.getElementById("newSess");
+_ns.append(UI.icon("refresh", 14), "新对话");
+_ns.onclick = () => boot();
 window.addEventListener("hashchange", () => boot());
 boot();
 </script>

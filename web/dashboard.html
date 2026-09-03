@@ -419,20 +419,6 @@ async function renderRouting() {
     tile("快车道", UI.fmtPct(d.fastlane_rate), null, "高置信直接单模型作答的占比"),
   ]));
 
-  // 调用模式分布（三种模式的占比）
-  const md = d.mode_distribution || {};
-  if (Object.keys(md).length) {
-    const total = Object.values(md).reduce((a, b) => a + b, 0) || 1;
-    box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
-      el("div", { style: "font-weight:600;margin-bottom:8px" }, ["调用模式分布"]),
-      el("div", { style: "display:flex;gap:16px;flex-wrap:wrap" },
-        Object.entries(md).map(([m2, n]) => el("div", { style: "display:flex;gap:8px;align-items:center" }, [
-          el("span", { class: "chip " + (m2 === "auto" ? "blue" : "gray") }, [MODE_NAMES[m2] || m2]),
-          el("span", { class: "num", style: "font-weight:600" }, [`${Math.round(n / total * 100)}%`]),
-          el("span", { class: "muted num" }, [`（${n} 次）`]),
-        ]))),
-    ]));
-  }
   box.appendChild(el("div", { class: "grid cols-4", style: "margin-bottom:12px" }, [
     tile("模型多样性", (Number(d.selection_entropy) || 0).toFixed(2), d.entropy_alert ? "低于告警线" : "健康", "路由采用模型的分布熵。越低越集中，可能是探索预算过低或标签被污染；告警线 1.0"),
     tile("探索流量", UI.fmtPct(d.explore_rate), null, "随机试用非最优模型的比例，防模型池坍缩"),

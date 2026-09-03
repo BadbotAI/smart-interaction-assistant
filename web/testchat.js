@@ -48,6 +48,7 @@ window.TestChat = (function () {
         const preset = opts.model && actives.find(m => m.model_id === opts.model);
         if (preset) setPick("model", preset.model_id, preset.display_name);
         else if (pickGroups[0].items.length) { const f = pickGroups[0].items[0]; setPick("policy", f.value, f.label); }
+        drawModeBar();
       });
     modelSel.onclick = () => {
       if (modelSel.disabled) return;
@@ -83,14 +84,45 @@ window.TestChat = (function () {
     }
     renderSendBtn();
 
-    const composer = el("div", { class: "tc-composer" }, [modelSel, input, sendBtn]);
+    // 页面模式的两级选择：左 tab 选策略（右侧显示自动路由）或「固定模型」（右侧出模型下拉）
+    const modeBar = el("div", { class: "tc-modebar" });
+    function drawModeBar() {
+      if (!opts.mountEl) return;
+      modeBar.innerHTML = "";
+      const segs = el("div", { class: "segmented", style: "overflow-x:auto" });
+      pickGroups.filter(g => g.label === "调度策略").forEach(g => g.items.forEach(it => {
+        segs.appendChild(el("button", { type: "button",
+          class: "seg" + (pickState.kind === "policy" && pickState.value === it.value ? " on" : ""),
+          onclick: () => { setPick("policy", it.value, it.label); drawModeBar(); } }, [it.label]));
+      }));
+      segs.appendChild(el("button", { type: "button", class: "seg" + (pickState.kind === "multi" ? " on" : ""),
+        onclick: () => { setPick("multi", null, "多模型回答 + 择优"); drawModeBar(); } }, ["多模型"]));
+      const actives = (pickGroups.find(g => g.label === "指定模型") || { items: [] }).items;
+      segs.appendChild(el("button", { type: "button", class: "seg" + (pickState.kind === "model" ? " on" : ""),
+        onclick: () => { const f = actives[0]; if (!f) { UI.toast("还没有在线模型", true); return; }
+          setPick("model", pickState.kind === "model" ? pickState.value : f.value,
+            pickState.kind === "model" ? pickState.label : f.label);
+          drawModeBar(); } }, ["固定模型"]));
+      modeBar.appendChild(segs);
+      modeBar.appendChild(el("div", { style: "flex:1" }));
+      if (pickState.kind === "model") {
+        modeBar.appendChild(UI.fancySelect({ value: pickState.value,
+          options: actives.map(it => [it.value, it.label]),
+          onChange: (v) => { const hit = actives.find(x => x.value === v); setPick("model", v, hit ? hit.label : v); } }));
+      } else {
+        modeBar.appendChild(el("span", { class: "chip blue", title: pickState.kind === "multi"
+          ? "所有候选模型都答一遍，你来选更好的一份"
+          : "按所选策略自动选模型（含聚合）" }, [pickState.kind === "multi" ? "全员作答" : "自动路由"]));
+      }
+    }
+    const composer = el("div", { class: "tc-composer" }, [opts.mountEl ? null : modelSel, input, sendBtn]);
     // 两种宿主：默认右侧抽屉；opts.mountEl 提供容器则渲染为页面内对话区（独立测试页用）
     let mask = null, bodyBox;
     if (opts.mountEl) {
       const host = typeof opts.mountEl === "string" ? document.querySelector(opts.mountEl) : opts.mountEl;
       bodyBox = el("div", { class: "tc-pagebody" }, [msgs]);
       host.innerHTML = "";
-      host.appendChild(el("div", { class: "tc-page" }, [bodyBox, el("div", { class: "tc-pagefoot" }, [composer])]));
+      host.appendChild(el("div", { class: "tc-page" }, [bodyBox, el("div", { class: "tc-pagefoot" }, [modeBar, composer])]));
     } else {
       mask = UI.drawer(opts.title || "测试", msgs, composer);
       mask.querySelector(".drawer").style.width = "540px";

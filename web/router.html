@@ -52,7 +52,7 @@ async function renderModels() {
   const statusChip = { active: ["在线", "green"], registering: ["注册中", "yellow"],
     paused: ["已停用", "gray"], retired: ["已退役", "red"] };
   const table = el("table", { class: "data" }, [
-    el("thead", {}, [el("tr", {}, ["供应商", "模型", "单价 ¥/M（入 / 出）", "思考模式", "数据集覆盖率", "启用情况", "操作"]
+    el("thead", {}, [el("tr", {}, ["供应商", "名称", "模型型号", "单价 ¥/M（入 / 出）", "思考模式", "启用情况", "操作"]
       .map(h => el("th", {}, [h])))]),
     el("tbody", {}, models.filter(m => (m.bank_coverage || 0) >= 1)
       .sort((a2, b2) => String(a2.provider).localeCompare(String(b2.provider)) || String(a2.display_name).localeCompare(String(b2.display_name)))
@@ -66,35 +66,33 @@ async function renderModels() {
       const noCred = m.credential_masked === "****";
       return el("tr", {}, [
         el("td", { style: "font-weight:600" }, [firstOfProvider ? m.provider : ""]),
-        el("td", { style: "min-width:200px" }, [
+        el("td", { style: "min-width:160px" }, [
           el("div", { style: "font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap" }, [m.display_name,
             m.is_default ? el("span", { class: "chip blue", style: "flex:none;max-width:none", title: "默认兜底：路由 / 手动模式故障时切换到此模型；不能停用或删凭证" }, ["默认兜底"]) : null]),
-          el("div", { class: "muted num" }, [m.model_id + (caps.context_window ? " · " + (caps.context_window / 1024) + "k" : "")])]),
+        ]),
+        el("td", { class: "muted num" }, [m.model_id]),
         el("td", { class: "num", title: "每百万 token 的输入 / 输出单价（人民币）" }, [
           (Number(m.price_input) || Number(m.price_output)) ? `${m.price_input} / ${m.price_output}`
-            : el("span", { class: "chip yellow", title: "在「更多」里导入画像数据" }, ["画像数据未导入"])]),
+            : el("span", { class: "muted", title: "点「编辑」补充单价（可贴定价页链接由 AI 读取）" }, ["待补充"])]),
         el("td", {}, [caps.thinking
-          ? UI.toggle({ checked: caps.thinking_enabled !== false,
-              title: "深度思考模式：开启后该模型用更长的推理换更准的回答",
-              onChange: async (next) => {
-                try { await UI.api(`/v1/models/${m.model_id}/thinking`, { method: "POST", body: { enabled: next } }); UI.toast(next ? "已开启思考模式" : "已关闭思考模式"); return true; }
-                catch (err) { UI.toast(err.data?.error || err.message, true); return false; }
-              } })
+          ? (() => {
+              const lab2 = el("span", { class: "muted", style: "font-size:var(--font-caption)" }, [caps.thinking_enabled !== false ? "开启" : "关闭"]);
+              return el("span", { style: "display:inline-flex;align-items:center;gap:8px" }, [
+                UI.toggle({ checked: caps.thinking_enabled !== false,
+                  onChange: async (next) => {
+                    try {
+                      await UI.api(`/v1/models/${m.model_id}/thinking`, { method: "POST", body: { enabled: next } });
+                      lab2.textContent = next ? "开启" : "关闭";
+                      UI.toast(next ? "已开启思考模式" : "已关闭思考模式");
+                      return true;
+                    } catch (err) { UI.toast(err.data?.error || err.message, true); return false; }
+                  } }), lab2]);
+            })()
           : el("span", { class: "muted", title: "该模型不支持深度思考" }, ["不支持"])]),
-        el("td", { style: "min-width:110px" }, [
-          coverage >= 100 && !(backfill && backfill.status === "running")
-            ? el("span", { class: "num" }, ["100%"])
-            : el("div", {}, [
-                el("div", { class: "progress-track" }, [el("div", { class: "progress-fill", style: `width:${coverage}%` })]),
-                el("div", { class: "muted" }, [
-                  coverage + "%" + (backfill && backfill.status === "running" ? `（评测中 ${backfill.done}/${backfill.total}，预估成本 ¥${backfill.cost_est}）` : ""),
-                ]),
-              ]),
-        ]),
         el("td", {}, [
-          UI.toggle({ checked: m.status === "active",
-            disabled: noCred || m.is_default,
-            disabledHint: noCred ? "凭证未配置，不能启用" : "默认兜底模型不能停用",
+          m.is_default ? el("span", { class: "chip blue", title: "兜底模型常开，不能停用；先切换默认兜底才能操作" }, ["常开 · 兜底"])
+          : noCred ? el("span", { class: "chip gray", title: "凭证未配置，不能启用" }, ["不可用"])
+          : UI.toggle({ checked: m.status === "active",
             onChange: async (next) => {
               if (!next) {
                 const ok = await UI.confirm("停用模型", `停用「${m.display_name}」后立即退出路由候选，进行中的请求自动切换到其他模型。继续？`, { okText: "确认停用" });
@@ -109,6 +107,7 @@ async function renderModels() {
             } }),
         ]),
         el("td", {}, [el("div", { style: "display:flex;gap:6px;align-items:center" }, [
+          el("button", { class: "btn small", onclick: () => editModelDrawer(m) }, ["编辑"]),
           (() => {
             const more = el("button", { class: "btn small", "aria-label": "更多操作", onclick: () => UI.menu(more, [
               !m.is_default && m.status === "active" ? { label: "设为默认兜底", onClick: async () => {
@@ -117,7 +116,6 @@ async function renderModels() {
                 try { await UI.api(`/v1/models/${m.model_id}/set-default`, { method: "POST" }); UI.toast("已设为默认兜底模型"); renderModels(); }
                 catch (e) { UI.toast(e.data?.error || e.message, true); }
               } } : null,
-              { label: "编辑", onClick: () => editModelDrawer(m) },
               { label: "复制 model_id", onClick: () => { navigator.clipboard.writeText(m.model_id); UI.toast("已复制"); } },
               !m.is_default ? { label: "删除模型", danger: true, onClick: async () => {
                 const ok = await UI.confirm("删除模型", `删除「${m.display_name}」后立即退出路由；历史成绩与调用记录保留用于审计。`, { okText: "删除", danger: true });
