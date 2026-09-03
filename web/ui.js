@@ -169,6 +169,7 @@ window.UI = (function () {
       ["playground:model", "模型路由测试", "/web/playground.html#model", "play"],
       ["dashboard:routing", "模型路由数据", "/web/dashboard.html#routing", "activity"],
       ["router:models", "模型接入", "/web/router.html#models", "cpu"],
+      ["apikeys", "API 接入管理", "/web/apikeys.html", "link"],
     ] },
   ];
   function nav(active) {
@@ -203,9 +204,6 @@ window.UI = (function () {
     });
     // 审计日志：低频入口，收在底部账户上方
     side.appendChild(el("div", { class: "nav-group", style: "margin-top:auto" }, [
-      el("a", { class: "navlink" + (active === "apikeys" ? " active" : ""), href: "/web/apikeys.html", "data-key": "apikeys" }, [
-        icon("link", 17), el("span", {}, ["API 接入管理"]),
-      ]),
       el("a", { class: "navlink" + (active === "audit" ? " active" : ""), href: "/web/audit.html", "data-key": "audit" }, [
         icon("layers", 17), el("span", {}, ["操作日志"]),
       ]),
