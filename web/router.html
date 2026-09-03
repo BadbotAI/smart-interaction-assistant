@@ -89,7 +89,7 @@ async function renderModels() {
             })()
           : el("span", { class: "muted", title: "该模型不支持深度思考" }, ["不支持"])]),
         el("td", {}, [
-          m.is_default ? el("span", { class: "chip blue", title: "兜底模型常开，不能停用；先切换默认兜底才能操作" }, ["常开 · 兜底"])
+          m.is_default ? el("span", { class: "chip blue", title: "兜底模型常开，不能停用；先切换默认兜底才能操作" }, ["兜底"])
           : noCred ? el("span", { class: "chip gray", title: "凭证未配置，不能启用" }, ["不可用"])
           : UI.toggle({ checked: m.status === "active",
             onChange: async (next) => {
@@ -514,10 +514,9 @@ async function renderPolicies(container, policies, actives, judgeReady = true) {
   policies.forEach(p => {
     const isDefault = p.scope === "global";
     const grayed = !judgeReady && !isDefault;
-    const isSel = selectedPolicyId === p.policy_id;
     const prm = p.params || {};
     const wlN = (p.model_whitelist || []).length || actives.length;
-    const card = el("div", { class: "card policy-card" + (isSel ? " selected" : "") + (grayed ? " grayed" : ""),
+    const card = el("div", { class: "card policy-card" + (grayed ? " grayed" : ""),
       title: grayed ? "未配置 Judge 打分裁判，该策略暂不可用" : "",
       style: "margin-bottom:10px;cursor:pointer",
       onclick: () => { selectedPolicyId = p.policy_id; renderDispatch(); } }, [
@@ -565,7 +564,7 @@ function shortPolicyId(pid) {
 let profilePollTimer = null;
 let profileAlpha = Number(localStorage.getItem("profile_alpha") || 0.7);
 
-async function renderDirections(container, policyId, alphaVal) {
+async function renderDirections(container, policyId, alphaVal, policyName) {
   container.innerHTML = "";
   const useAlpha = alphaVal ?? profileAlpha;
   const p = await UI.api(`/api/profile?alpha=${useAlpha}${policyId ? "&policy_id=" + policyId : ""}`);
@@ -622,12 +621,13 @@ async function renderDirections(container, policyId, alphaVal) {
   container.appendChild(el("div", { class: "directions-panel" }, [
     el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap" }, [
       el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["各场景路由去向"]),
+      policyName ? el("span", { class: "chip blue" }, [policyName]) : null,
       el("span", { class: "muted" }, [`按该策略的偏好（${Number(useAlpha).toFixed(2)}）计算，偏好在「参数配置」里调整`]),
       el("div", { style: "flex:1" }), rebuildStatus, rebuildBtn,
     ]),
     el("div", { class: "directions-table", style: "overflow-x:auto" }, [clusters.length ? table : el("div", { class: "empty-state" }, [
       el("div", { class: "empty-title" }, ["还没有打分数据"]),
-      el("div", {}, ["先到「场景数据集」导入题目并点「开始打分」"]),
+      el("div", {}, ["先到「场景数据集」导入题目，再回来点「重新生成」"]),
     ])]),
   ]));
   pollRebuild();
@@ -676,15 +676,15 @@ async function renderFlow() {
         el("td", { class: "num" }, [`${r.total} 题`]),
         el("td", { class: "muted num" }, [r.last_ts ? UI.fmtTs(r.last_ts) : "-"]),
         el("td", {}, [el("span", { style: "display:inline-flex;gap:6px" }, [
-          el("button", { class: "btn small", onclick: () => { sessionStorage.setItem("scene_detail", r.domain); location.hash = "#scene"; } }, ["编辑"]),
-          r.domain !== "general" ? el("button", { class: "btn small danger-text", onclick: async () => {
+          el("button", { class: "btn small ghost", onclick: () => { sessionStorage.setItem("scene_detail", r.domain); location.hash = "#scene"; } }, ["编辑"]),
+          el("button", { class: "btn small ghost danger-text", onclick: async () => {
             const ok = await UI.confirm("删除场景",
               `删除「${SCENE_NAMES2[r.domain] || r.domain}」将连同它的 ${r.total} 道题目和打分记录一并删除，不可恢复。`,
               { okText: "删除", danger: true });
             if (!ok) return;
             try { await UI.api("/api/scenes/delete", { method: "POST", body: { key: r.domain } }); UI.toast("场景已删除"); renderFlow(); }
             catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
-          } }, ["删除"]) : null,
+          } }, ["删除"]),
         ])]),
       ]);
       tbody.appendChild(row);
@@ -749,7 +749,7 @@ async function renderScene() {
     const qIn = el("textarea", { rows: 3, placeholder: "用户真实会问的问题，一行一道，回车分隔" });
     const idealIn = el("input", { type: "text", placeholder: "选填；只加一道题时生效，供 Judge 打分参考" });
     const err = el("div", { class: "field-error" });
-    const mask2 = UI.modal("添加题目", el("div", {}, [
+    const mask2 = UI.modal("添加单个数据", el("div", {}, [
       el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["题目"]), qIn]),
       el("label", { class: "field" }, [el("span", { class: "label-text" }, ["参考答案"]), idealIn]),
       err,
@@ -812,7 +812,7 @@ async function renderScene() {
       sessionStorage.setItem("import_replace", "1");
       location.hash = "#import";
     } }, ["替换数据集"]),
-    el("button", { class: "btn small primary", onclick: addQuestionDialog }, [UI.icon("plus", 14), "添加题目"]),
+    el("button", { class: "btn small primary", onclick: addQuestionDialog }, [UI.icon("plus", 14), "添加单个数据"]),
   ]));
   box.appendChild(el("div", { class: "card", style: "padding:0" }, [
     questions.length
@@ -822,7 +822,7 @@ async function renderScene() {
         ])])
       : el("div", { class: "empty-state" }, [
           el("div", { class: "empty-title" }, ["这个场景还没有题目"]),
-          el("div", {}, ["点右上角「添加题目」逐条加，或「导入数据集」批量导"]),
+          el("div", {}, ["点右上角「添加单个数据」逐条加，或「导入数据集」批量导"]),
         ]),
   ]));
 }
@@ -1025,7 +1025,7 @@ async function renderDispatch() {
   box.appendChild(dirBox);
   if (selectedPolicyId) {
     const selP = policies.find(p2 => p2.policy_id === selectedPolicyId);
-    await renderDirections(dirBox, selectedPolicyId, selP?.params?.alpha ?? 0.7);
+    await renderDirections(dirBox, selectedPolicyId, selP?.params?.alpha ?? 0.7, selP?.name);
   }
 
 }

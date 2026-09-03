@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=24bd5ff2">
+<link rel="stylesheet" href="./shared.css?v=b11ce3d4">
 <link rel="prefetch" href="./apikeys.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./chat.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./router.html"><link rel="prefetch" href="./trace.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -75,7 +75,7 @@
     <div class="explain-body">
       <p>1. 一条配置 = 「什么情况下（触发条件）出什么组件（设计内容）」。上线后，用户在对话里问到相关问题，AI 就会插入这个组件。</p>
       <p>2. 用户在组件里的每次选择、提交都会回到「交互数据」看板；开了群体回显的组件，用户提交后还能看到大家的选择分布。</p>
-      <p>3. 想放到你自己的产品里：在配置的「获取植入代码」里复制一段代码即可，和接统计代码一样简单。</p>
+      <p>3. 想放到你自己的产品里：在配置的「获取嵌入代码」里复制一段代码即可，和接统计代码一样简单。</p>
       <p>4. 已上线的配置不能直接改：先在这里下线，改完再上线，避免线上效果被误改。</p>
     </div>
   </details>
@@ -86,9 +86,9 @@
 <script src="./mock_data.js?v=7e277d7d"></script>
 <script src="./mock_api.js?v=3f7ad7c8"></script>
 <script src="./tokens.js?v=323789e0"></script>
-<script src="./ui.js?v=3514b768"></script>
+<script src="./ui.js?v=fb530bcd"></script>
 <script src="./components.js?v=2e39e148"></script>
-<script src="./testchat.js?v=04f1f68b"></script>
+<script src="./testchat.js?v=1d10440b"></script>
 <script>
 UI.nav("cards");
 const { el } = UI;
@@ -137,19 +137,6 @@ function renderStatusTabs(counts = {}) {
   }, [name, counts[key] != null && key !== "" ? el("span", { class: "tab-count num" }, [String(counts[key])]) : null])));
 }
 
-function validityState(c) {
-  const v = ((c.field_bindings || {}).config || {}).validity || {};
-  // 与服务端同口径：纯日期归一为 00:00 / 23:59 后按分钟比较（本地时区）
-  const d = new Date();
-  const pad = n => String(n).padStart(2, "0");
-  const now = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  const vf = v.from ? (String(v.from).includes("T") ? v.from : v.from + "T00:00") : null;
-  const vu = v.until ? (String(v.until).includes("T") ? v.until : v.until + "T23:59") : null;
-  if (vf && now < vf) return { key: "pending", label: "未生效", title: `${String(v.from).replace("T", " ")} 起生效` };
-  if (vu && now > vu) return { key: "expired", label: "已过期", title: `已于 ${String(v.until).replace("T", " ")} 到期，不再触发` };
-  if (v.from || v.until) return { key: "active", label: null, title: `有效期 ${String(v.from || "即日").replace("T", " ")} ~ ${String(v.until || "长期").replace("T", " ")}` };
-  return null;
-}
 
 async function loadKpisAndTodos() {
   try {
@@ -239,12 +226,12 @@ function embedSnippet(cardId) {
 }
 function embedDialog(c) {
   const code = embedSnippet(c.card_id);
-  UI.modal(`获取植入代码 · ${c.name}`, el("div", {}, [
-    el("div", { style: "display:flex;align-items:center;margin-bottom:6px" }, [
-      el("span", { class: "muted" }, ["像接入统计代码一样，把组件植入你的产品"]),
+  UI.modal(`获取嵌入代码 · ${c.name}`, el("div", {}, [
+    el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [
+      el("span", { class: "muted" }, ["像接入统计代码一样，把组件嵌入你的产品"]),
       el("div", { style: "flex:1" }),
-      el("button", { class: "btn small", onclick: () => window.open(`./embed-demo.html?card=${c.card_id}`, "_blank") }, ["打开植入演示页"]),
-      el("button", { class: "btn small primary", onclick: () => { navigator.clipboard.writeText(code); UI.toast("已复制植入代码"); } }, [UI.icon("copy", 14), "复制"]),
+      el("button", { class: "btn small", onclick: () => window.open(`./embed-demo.html?card=${c.card_id}`, "_blank") }, ["打开嵌入演示页"]),
+      el("button", { class: "btn small primary", onclick: () => { navigator.clipboard.writeText(code); UI.toast("已复制嵌入代码"); } }, [UI.icon("copy", 14), "复制"]),
     ]),
     el("pre", { class: "code", style: "max-height:340px;overflow:auto" }, [code]),
   ]));
@@ -308,14 +295,14 @@ function buildCardRow(c) {
           el("span", { class: "name" }, [c.name]),
           el("span", { class: "chip " + color }, [label]),
           UI.ctChip(c.component_type),
-          (() => { const v = validityState(c); return v && v.label ? el("span", { class: "chip " + (v.key === "expired" ? "red" : "gray"), title: v.title }, [v.label]) : null; })(),
+
           ...cardAnomalies(c, eff).map(x => el("span", { class: "chip red", title: x.title }, [x.label])),
         ]),
         el("div", { class: "cr-line2", title: c.trigger_description }, ["触发：" + (c.trigger_description || "（未填写）")]),
         el("div", { class: "cr-line3 muted" }, [
           el("span", {}, ["创建 " + UI.fmtTs(c.created_at)]),
           (() => { const st = statsByCard[c.card_id]; return st ? el("span", { title: "近 30 天：组件触发 / 用户提交" }, [`触发 ${st.rendered} · 提交 ${st.submitted}`]) : null; })(),
-          (() => { const v = validityState(c); return v && !v.label ? el("span", { title: v.title }, ["限期"]) : null; })(),
+
         ]),
       ]),
       el("div", { class: "actions cr-actions" }, [
@@ -367,7 +354,7 @@ function moreButton(c, eff) {
   const moreBtn = el("button", { class: "btn small", onclick: () => UI.menu(moreBtn, [
     { label: "测试", onClick: () => openTest((c.trigger_examples || [])[0] || c.name) },
     { label: "查看数据（看板）", onClick: () => { location.href = "./dashboard.html?card=" + c.card_id + "#survey"; } },
-    { label: "获取植入代码", onClick: () => embedDialog(c) },
+    { label: "获取嵌入代码", onClick: () => embedDialog(c) },
     { label: "复制配置 ID", onClick: () => { navigator.clipboard.writeText(c.card_id); UI.toast("已复制配置 ID"); } },
     eff !== "published" ? { label: c.version >= 1 ? "删除配置（含线上版本）" : "删除配置", danger: true, onClick: () => doTransition(c, "delete") } : null,
   ]) }, ["更多"]);
@@ -446,12 +433,12 @@ const STEP_DEFS = [
   { key: "trigger", label: "交互配置" },
   { key: "comp", label: "设计内容" },
   { key: "confirm", label: "数据收集" },
-  { key: "done", label: "获取植入代码" },
+  { key: "done", label: "获取嵌入代码" },
 ];
 // 每步负责校验的字段（下一步前只拦本步的错）
 const STEP_FIELDS = {
   pick: ["component_type"],
-  trigger: ["name", "trigger_description", "trigger_examples", "valid_from", "valid_until"],
+  trigger: ["name", "trigger_description", "trigger_examples"],
   comp: ["component_type", "question", "reply_text", "options", "dimensions", "fields",
     "slider_min", "slider_max", "recommended_default", "likert_scale", "placeholder", "submit"],
   confirm: ["webhook"],
@@ -514,8 +501,6 @@ async function openEditor(cardId, prefill, initStep) {
     submit: card?.text_templates?.submit || "提交",
     echo_results: card ? !!card.echo_results : true,
     webhook: cfg.webhook || "",
-    valid_from: (cfg.validity || {}).from || "",
-    valid_until: (cfg.validity || {}).until || "",
   };
   if (typeof state.trigger_examples === "string") state.trigger_examples = state.trigger_examples.split("\n").map(s => s.trim()).filter(Boolean);
   if (!Array.isArray(state.fieldRows)) state.fieldRows = [];
@@ -844,37 +829,11 @@ async function openEditor(cardId, prefill, initStep) {
     const examplesInput = UI.tagInput({ values: state.trigger_examples, max: 10, placeholder: "用户可能怎么问，回车添加（最多 10 条）",
       onChange: (vals) => { state.trigger_examples = vals; autosave(); } });
 
-    if (state._validityOn === undefined) state._validityOn = !!(state.valid_from || state.valid_until);
-    const valBox = el("div", { class: "field" });
-    function drawValidity() {
-      valBox.innerHTML = "";
-      valBox.appendChild(el("span", { class: "label-text" }, ["是否有效期"]));
-      valBox.appendChild(UI.toggle({ checked: !!state._validityOn,
-        label: state._validityOn ? "限定有效期" : "长期有效",
-        hint: state._validityOn ? null : "开启后只在设定日期范围内触发",
-        onChange: (v) => { state._validityOn = v; if (!v) { state.valid_from = ""; state.valid_until = ""; } autosave(); drawValidity(); return true; } }));
-      if (state._validityOn) {
-        const errBox = el("div", { class: "field-error" });
-        fieldErrs.valid_until = errBox; fieldErrs.valid_from = errBox;
-        valBox.appendChild(el("label", { class: "field", style: "margin:8px 0 0" }, [
-          el("span", { class: "label-text" }, ["上线时间"]),
-          input("valid_from", { type: "datetime-local", "aria-label": "上线时间", style: "max-width:260px" }),
-        ]));
-        valBox.appendChild(el("label", { class: "field", style: "margin:8px 0 0" }, [
-          el("span", { class: "label-text" }, ["下线时间"]),
-          input("valid_until", { type: "datetime-local", "aria-label": "下线时间", style: "max-width:260px" }),
-        ]));
-        valBox.appendChild(el("div", { class: "muted", style: "margin-top:4px" }, ["未到上线时间不触发，过下线时间自动停止（精确到分钟，按平台服务器时区）；留空一端表示不限"]));
-        valBox.appendChild(errBox);
-      }
-    }
-    drawValidity();
     box.appendChild(el("div", { class: "editor-section" }, [
       field("name", "配置名称", input("name", { placeholder: "例如：物流异常处理（1-15 字）", maxlength: "15" }), null, true),
       field("trigger_description", "触发条件", trigWrap, null, true),
       rewriteCard,
       field("trigger_examples", "示例问法", examplesInput),
-      valBox,
     ]));
     return box;
   }
@@ -1275,7 +1234,6 @@ async function openEditor(cardId, prefill, initStep) {
         ["示例问法", state.trigger_examples.length
           ? [el("span", { class: "chips" }, state.trigger_examples.slice(0, 5).map(x => el("span", { class: "chip gray" }, [x])))]
           : null],
-        ["有效期", (state.valid_from || state.valid_until) ? `${state.valid_from || "即日"} 至 ${state.valid_until || "长期"}` : "长期有效"],
       ]),
       infoCard("组件内容", "comp", [
         ["交互组件", (tpl.name || UI.ctName(state.component_type) || "")
@@ -1357,8 +1315,8 @@ async function openEditor(cardId, prefill, initStep) {
         el("span", { class: "label-text", style: "margin-bottom:0" }, ["植入代码",
           UI.help("像接入统计代码一样：贴一段 SDK snippet，组件即可在你的产品里被触发、渲染，数据自动回传")]),
         el("div", { style: "flex:1" }),
-        el("button", { type: "button", class: "btn small", onclick: () => window.open(`./embed-demo.html?card=${clientCardId}`, "_blank") }, ["打开植入演示页"]),
-        el("button", { type: "button", class: "btn small", onclick: () => { navigator.clipboard.writeText(embedCode); UI.toast("已复制植入代码"); } }, [UI.icon("copy", 14), "复制"]),
+        el("button", { type: "button", class: "btn small", onclick: () => window.open(`./embed-demo.html?card=${clientCardId}`, "_blank") }, ["打开嵌入演示页"]),
+        el("button", { type: "button", class: "btn small", onclick: () => { navigator.clipboard.writeText(embedCode); UI.toast("已复制嵌入代码"); } }, [UI.icon("copy", 14), "复制"]),
       ]),
       el("pre", { class: "code" }, [embedCode]),
       el("div", { class: "muted" }, ["对话产品默认走触发方式一；网页 / 商城类产品用方式二、三把组件挂到任意页面位置"]),
@@ -1528,7 +1486,6 @@ async function openEditor(cardId, prefill, initStep) {
     if (state.component_type === "guide.steps")
       config.steps = state.guideSteps.filter(st => st.title.trim() || st.body.trim())
         .map(st => ({ title: st.title.trim(), body: st.body.trim() }));
-    if (state.valid_from || state.valid_until) config.validity = { ...(state.valid_from ? { from: state.valid_from } : {}), ...(state.valid_until ? { until: state.valid_until } : {}) };
     const templates = { prompt: question || "请选择", submit: state.submit.trim() || "提交" };
     if (state.reply_text.trim()) templates.reply = state.reply_text.trim();
     return {
@@ -1585,7 +1542,6 @@ async function openEditor(cardId, prefill, initStep) {
     }
     const wh = state.webhook.trim();
     if (wh && !/^https:\/\/[^\s]+$/.test(wh)) errs.push({ field: "webhook", message: "Webhook 地址必须是 https:// 开头的完整 URL" });
-    if (state.valid_from && state.valid_until && state.valid_from > state.valid_until) errs.push({ field: "valid_until", message: "失效日期不能早于生效日期" });
     return errs;
   }
 

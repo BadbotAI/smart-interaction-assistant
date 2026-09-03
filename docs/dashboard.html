@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>运营看板 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=24bd5ff2">
+<link rel="stylesheet" href="./shared.css?v=b11ce3d4">
 <link rel="prefetch" href="./apikeys.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./chat.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./router.html"><link rel="prefetch" href="./trace.html">
 <style>
   /* 组件数据卡：白底描边 + 左侧主色条，与灰底整体指标块区分 */
@@ -28,7 +28,7 @@
 <script src="./mock_data.js?v=7e277d7d"></script>
 <script src="./mock_api.js?v=3f7ad7c8"></script>
 <script src="./tokens.js?v=323789e0"></script>
-<script src="./ui.js?v=3514b768"></script>
+<script src="./ui.js?v=fb530bcd"></script>
 <script>
 UI.nav("dashboard");
 const { el } = UI;
@@ -48,7 +48,7 @@ let daysCtl;
   const nat = document.getElementById("daysSel");
   nat.style.display = "none";
   const lab = el("span", {}, ["近 30 天"]);
-  const btn = el("button", { class: "btn small", type: "button", title: "选择日期范围", style: "width:168px;justify-content:space-between" }, [UI.icon("calendar", 13), lab, el("span", { class: "fsel-caret" }, [UI.icon("chevron", 12)])]);
+  const btn = el("button", { class: "btn small", type: "button", title: "选择日期范围", style: "width:140px;justify-content:space-between" }, [UI.icon("calendar", 13), lab, el("span", { class: "fsel-caret" }, [UI.icon("chevron", 12)])]);
   daysCtl = el("span", { class: "dr-wrap" }, [btn]);
   const setDays = (n, text) => { nat.value = String(n); lab.textContent = text; nat.onchange(); };
   btn.onclick = () => {
@@ -395,27 +395,37 @@ async function renderRouting() {
     el("a", { class: "btn small", href: "/api/export/traces.csv?" + fq, title: "导出当前窗口的请求明细 CSV" }, [UI.icon("download", 14), "导出数据"]),
   ]));
 
-  box.appendChild(el("div", { class: "grid cols-4", style: "margin-bottom:12px" }, [
-    tile("请求数", d.total_requests),
-    tile("成本", UI.fmtCost(d.cost_total)),
-    tile("会话成本 P50", UI.fmtCost(d.session_cost.p50), null, "一半会话的成本不超过这个数"),
-    tile("会话成本 P99", UI.fmtCost(d.session_cost.p99), null, "最贵的 1% 会话成本线"),
-  ]));
-
-  box.appendChild(el("div", { class: "grid cols-4", style: "margin-bottom:12px" }, [
-    tile("聚合率", UI.fmtPct(d.aggregation_rate), null, "多模型并发后聚合重写的占比，成本的最大杠杆"),
-    tile("快车道", UI.fmtPct(d.fastlane_rate), null, "高置信直接单模型作答的占比"),
-    tile("模型多样性", (Number(d.selection_entropy) || 0).toFixed(2), d.entropy_alert ? "低于告警线" : "健康", "路由采用模型的分布熵。越低越集中，可能是探索预算过低或标签被污染；告警线 1.0"),
-    tile("探索流量", UI.fmtPct(d.explore_rate), null, "随机试用非最优模型的比例，防模型池坍缩"),
-  ]));
-
-  // 聚合效果：聚合到底值不值（量 / 成本占比 / 延迟对比）
+  // 同类指标合并成三张复合卡：成本与用量 / 路由行为 / 聚合效果
   const ag = d.aggregation_stats || {};
-  box.appendChild(el("div", { class: "grid cols-4", style: "margin-bottom:12px" }, [
-    tile("聚合请求", ag.requests ?? "-", d.total_requests ? `占 ${Math.round((ag.requests || 0) / d.total_requests * 100)}%` : null, "细排分差小于聚合阈值时保留多路回答，由聚合器融合重写"),
-    tile("聚合成本占比", ag.cost_share == null ? "-" : UI.fmtPct(ag.cost_share), ag.cost ? `聚合共 ${UI.fmtCost(ag.cost)}` : null, "聚合请求成本 / 全部成本"),
-    tile("聚合平均延迟", ag.avg_latency_agg == null ? "-" : UI.fmtMs(ag.avg_latency_agg), null, "聚合路径的平均端到端延迟"),
-    tile("单模型平均延迟", ag.avg_latency_single == null ? "-" : UI.fmtMs(ag.avg_latency_single), ag.avg_latency_agg && ag.avg_latency_single ? `聚合慢 ${UI.fmtMs(Math.max(0, ag.avg_latency_agg - ag.avg_latency_single))}` : null, "单模型（含快车道）平均延迟，用于对比聚合代价"),
+  const mm = (label, value, sub, help) => el("div", { class: "mini-metric" }, [
+    el("div", { class: "mm-label" }, [label, help ? UI.help(help) : null]),
+    el("div", { class: "mm-value num" }, [String(value)]),
+    sub ? el("div", { class: "mm-sub" }, [sub]) : null,
+  ]);
+  const kpiCard = (title, cells) => el("div", { class: "card" }, [
+    el("div", { style: "font-weight:600;margin-bottom:8px" }, [title]),
+    el("div", { class: "mini-metrics duo" }, cells),
+  ]);
+  box.appendChild(el("div", { class: "grid cols-3", style: "margin-bottom:12px" }, [
+    kpiCard("成本与用量", [
+      mm("请求数", d.total_requests),
+      mm("总成本", UI.fmtCost(d.cost_total)),
+      mm("会话成本 P50", UI.fmtCost(d.session_cost.p50), null, "一半会话的成本不超过这个数"),
+      mm("会话成本 P99", UI.fmtCost(d.session_cost.p99), null, "最贵的 1% 会话成本线"),
+    ]),
+    kpiCard("路由行为", [
+      mm("聚合率", UI.fmtPct(d.aggregation_rate), null, "多模型并发后聚合重写的占比，成本的最大杠杆"),
+      mm("快车道", UI.fmtPct(d.fastlane_rate), null, "高置信直接单模型作答的占比"),
+      mm("模型多样性", (Number(d.selection_entropy) || 0).toFixed(2), d.entropy_alert ? "低于告警线" : "健康", "路由采用模型的分布熵，越低越集中；告警线 1.0"),
+      mm("探索流量", UI.fmtPct(d.explore_rate), null, "随机试用非最优模型的比例，防模型池坍缩"),
+    ]),
+    kpiCard("聚合效果", [
+      mm("聚合请求", ag.requests ?? "-", d.total_requests ? `占 ${Math.round((ag.requests || 0) / d.total_requests * 100)}%` : null, "成绩接近时多路回答由聚合器融合重写"),
+      mm("聚合成本占比", ag.cost_share == null ? "-" : UI.fmtPct(ag.cost_share), ag.cost ? `共 ${UI.fmtCost(ag.cost)}` : null),
+      mm("聚合平均延迟", ag.avg_latency_agg == null ? "-" : UI.fmtMs(ag.avg_latency_agg)),
+      mm("单模型平均延迟", ag.avg_latency_single == null ? "-" : UI.fmtMs(ag.avg_latency_single),
+        ag.avg_latency_agg && ag.avg_latency_single ? `聚合慢 ${UI.fmtMs(Math.max(0, ag.avg_latency_agg - ag.avg_latency_single))}` : null),
+    ]),
   ]));
   if (d.entropy_alert) {
     box.appendChild(el("div", { class: "card", style: "border-color:var(--danger);margin-bottom:12px" }, [

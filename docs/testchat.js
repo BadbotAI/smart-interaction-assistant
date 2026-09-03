@@ -89,31 +89,32 @@ window.TestChat = (function () {
     function drawModeBar() {
       if (!opts.mountEl) return;
       modeBar.innerHTML = "";
-      const segs = el("div", { class: "segmented", style: "overflow-x:auto" });
-      pickGroups.filter(g => g.label === "调度策略").forEach(g => g.items.forEach(it => {
-        segs.appendChild(el("button", { type: "button",
-          class: "seg" + (pickState.kind === "policy" && pickState.value === it.value ? " active" : ""),
-          onclick: () => { setPick("policy", it.value, it.label); drawModeBar(); } }, [it.label]));
-      }));
-      segs.appendChild(el("button", { type: "button", class: "seg" + (pickState.kind === "multi" ? " active" : ""),
-        onclick: () => { setPick("multi", null, "多模型回答 + 择优"); drawModeBar(); } }, ["多模型"]));
+      // 组合选择器：左边选模式、右边选具体策略 / 模型，拼成一个圆角长条
+      const policies2 = (pickGroups.find(g => g.label === "调度策略") || { items: [] }).items;
       const actives = (pickGroups.find(g => g.label === "指定模型") || { items: [] }).items;
-      segs.appendChild(el("button", { type: "button", class: "seg" + (pickState.kind === "model" ? " active" : ""),
-        onclick: () => { const f = actives[0]; if (!f) { UI.toast("还没有在线模型", true); return; }
-          setPick("model", pickState.kind === "model" ? pickState.value : f.value,
-            pickState.kind === "model" ? pickState.label : f.label);
-          drawModeBar(); } }, ["固定模型"]));
-      modeBar.appendChild(segs);
-      modeBar.appendChild(el("div", { style: "flex:1" }));
-      if (pickState.kind === "model") {
-        modeBar.appendChild(UI.fancySelect({ value: pickState.value, width: "180px",
+      const duo = el("span", { class: "duo-sel" });
+      duo.appendChild(UI.fancySelect({ value: pickState.kind, width: "120px",
+        options: [["policy", "调度策略"], ["multi", "多模型回答"], ["model", "固定模型"]],
+        onChange: (v) => {
+          if (v === "policy") { const f = policies2[0]; setPick("policy", f ? f.value : null, f ? f.label : ""); }
+          else if (v === "multi") setPick("multi", null, "多模型回答 + 择优");
+          else { const f = actives[0]; if (!f) { UI.toast("还没有在线模型", true); return; } setPick("model", f.value, f.label); }
+          drawModeBar();
+        } }));
+      duo.appendChild(el("span", { class: "duo-div" }));
+      if (pickState.kind === "policy") {
+        duo.appendChild(UI.fancySelect({ value: pickState.value, width: "160px",
+          options: policies2.map(it => [it.value, it.label]),
+          onChange: (v) => { const hit = policies2.find(x => x.value === v); setPick("policy", v, hit ? hit.label : v); } }));
+      } else if (pickState.kind === "model") {
+        duo.appendChild(UI.fancySelect({ value: pickState.value, width: "160px",
           options: actives.map(it => [it.value, it.label]),
           onChange: (v) => { const hit = actives.find(x => x.value === v); setPick("model", v, hit ? hit.label : v); } }));
       } else {
-        modeBar.appendChild(el("span", { class: "chip blue", title: pickState.kind === "multi"
-          ? "所有候选模型都答一遍，你来选更好的一份"
-          : "按所选策略自动选模型（含聚合）" }, [pickState.kind === "multi" ? "全员作答" : "自动路由"]));
+        duo.appendChild(el("span", { class: "duo-static", title: "所有候选模型都答一遍，你来选更好的一份" }, ["全员作答"]));
       }
+      modeBar.appendChild(duo);
+      modeBar.appendChild(el("div", { style: "flex:1" }));
     }
     const composer = el("div", { class: "tc-composer" }, [opts.mountEl ? null : modelSel, input, sendBtn]);
     // 两种宿主：默认右侧抽屉；opts.mountEl 提供容器则渲染为页面内对话区（独立测试页用）

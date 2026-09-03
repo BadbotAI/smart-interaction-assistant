@@ -1602,8 +1602,6 @@ async def delete_scene(request: Request):
     """删除业务场景（通用场景除外）：连同该场景下的题目与作答一并删除。"""
     body = await request.json()
     key = (body.get("key") or "").strip()
-    if key == "general":
-        return JSONResponse({"error": "通用场景是兜底分类，不能删除"}, status_code=422)
     custom = db.dj(_get_setting("custom_scenes"), []) or []
     conn = db.get_conn()
     ids = _scene_query_ids(conn, key)

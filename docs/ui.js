@@ -172,6 +172,7 @@ window.UI = (function () {
     ] },
   ];
   function nav(active) {
+    document.querySelectorAll(".sidenav").forEach(n => n.remove());
     const side = el("aside", { class: "sidenav" }, [
       (() => {
         const a = el("a", { class: "logo", href: "./index.html", title: "回到首页" });

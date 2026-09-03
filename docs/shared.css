@@ -1105,3 +1105,21 @@ details.explain .explain-body p { margin: 0 0 8px; font-size: var(--font-base); 
 
 .btn.danger-text { color: var(--text-secondary); }
 .btn.danger-text:hover { color: var(--danger); border-color: var(--danger); }
+
+.judge-bar { background: var(--primary-weak); border: 1px solid var(--primary-border); border-left: 3px solid var(--primary); }
+.judge-bar.missing { background: var(--danger-bg); border-color: var(--danger); border-left-color: var(--danger); }
+
+.duo-sel { display: inline-flex; align-items: stretch; border: 1px solid var(--border); border-radius: var(--radius-control);
+  background: var(--bg-elevated); overflow: hidden; }
+.duo-sel .fsel { border: none; border-radius: 0; background: none; box-shadow: none; }
+.duo-sel .duo-div { width: 1px; background: var(--border); }
+.duo-sel .duo-static { display: inline-flex; align-items: center; padding: 0 14px; color: var(--text-secondary); font-size: var(--font-small); font-weight: 600; }
+
+.brand-card.add-card { border-style: dashed; color: var(--text-secondary); background: none; }
+.brand-card.add-card .bname { color: var(--text-secondary); }
+.brand-card.add-card:hover { border-color: var(--primary); color: var(--primary); }
+.brand-card.add-card:hover .bname { color: var(--primary); }
+
+.mini-metrics.duo { grid-template-columns: repeat(2, 1fr); margin: 0; }
+.mini-metric .mm-sub { font-size: var(--font-caption); color: var(--text-muted); margin-top: 2px; }
+.mini-metric .mm-label .help { margin-left: 2px; }

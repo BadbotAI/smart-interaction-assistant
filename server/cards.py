@@ -142,12 +142,6 @@ def validate_card_content(payload: dict) -> list:
         img = ((meta or {}).get("image") or "").strip()
         if img and not (img.startswith("http://") or img.startswith("https://") or img.startswith("data:image/")):
             errors.append({"field": "options", "message": f"选项「{opt}」的配图需为 http(s) 链接或本地上传的图片"})
-    v = config.get("validity") or {}
-    for k in ("from", "until"):
-        if v.get(k) and not _re2.fullmatch(r"\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?", str(v[k])):
-            errors.append({"field": "valid_until", "message": "有效期格式需为 YYYY-MM-DD 或 YYYY-MM-DDTHH:MM"})
-    if v.get("from") and v.get("until") and str(v["from"]) > str(v["until"]):
-        errors.append({"field": "valid_until", "message": "失效日期不能早于生效日期"})
     return errors
 
 
@@ -441,22 +435,6 @@ def published_invokable_cards(tenant_id: str):
         "SELECT * FROM cards WHERE tenant_id=? AND model_invokable=1 "
         "AND semantic_category IN ('collect','control') "
         "AND (status='published' OR (status='draft' AND version>=1))", (tenant_id,)).fetchall()
-    from datetime import datetime as _dt
-    def _in_validity(card_dict):
-        """有效期之外的配置不参与触发。值可为 YYYY-MM-DD 或 YYYY-MM-DDTHH:MM（精确到分钟）；
-        纯日期归一为 from=当天 00:00 / until=当天 23:59 后再与当前时刻比较。"""
-        v = ((card_dict.get("field_bindings") or {}).get("config") or {}).get("validity") or {}
-        now = _dt.now().strftime("%Y-%m-%dT%H:%M")
-        vf, vu = v.get("from"), v.get("until")
-        if vf:
-            vf = vf if "T" in str(vf) else str(vf) + "T00:00"
-            if now < vf:
-                return False
-        if vu:
-            vu = vu if "T" in str(vu) else str(vu) + "T23:59"
-            if now > vu:
-                return False
-        return True
     out = []
     for r in rows:
         card = row_to_card(r)
@@ -470,8 +448,6 @@ def published_invokable_cards(tenant_id: str):
                 continue
             snap_card["card_id"] = card["card_id"]
             card = snap_card
-        if not _in_validity(card):
-            continue
         out.append(card)
     return out
 
