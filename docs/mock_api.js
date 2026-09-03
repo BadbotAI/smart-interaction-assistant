@@ -39,6 +39,13 @@
   }
 
   function postMock(pn, body) {
+    if (pn === "/api/apikeys") {
+      const name = (body && body.name || "").trim();
+      if (!name || name.length > 15) return { error: "名称必填，1-15 字" };
+      return { key_id: Math.random().toString(36).slice(2, 10), name,
+        secret: "sk-live-" + Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b2 => b2.toString(16).padStart(2, "0")).join("") };
+    }
+    if (/^\/api\/apikeys\/[^/]+\/delete$/.test(pn)) return { ok: true };
     if (pn === "/v1/events") return { accepted: (body && body.events || []).length || 1 };
     if (pn.endsWith("/transition")) return { ok: true, demo: true };
     if (pn === "/api/templates/suggest") {

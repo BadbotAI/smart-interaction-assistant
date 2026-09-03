@@ -6,7 +6,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>模型路由 · 智能交互平台</title>
 <link rel="stylesheet" href="./shared.css">
-<link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./router.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html">
+<link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./router.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./playground.html">
 </head>
 <body>
 <div class="page">
@@ -55,7 +55,7 @@ async function renderModels() {
   const statusChip = { active: ["在线", "green"], registering: ["注册中", "yellow"],
     paused: ["已停用", "gray"], retired: ["已退役", "red"] };
   const table = el("table", { class: "data" }, [
-    el("thead", {}, [el("tr", {}, ["供应商", "模型", "状态", "单价 ¥/M（入 / 出）", "思考模式", "数据集覆盖率", "启用情况", "操作"]
+    el("thead", {}, [el("tr", {}, ["供应商", "模型", "单价 ¥/M（入 / 出）", "思考模式", "数据集覆盖率", "启用情况", "操作"]
       .map(h => el("th", {}, [h])))]),
     el("tbody", {}, models.filter(m => (m.bank_coverage || 0) >= 1)
       .sort((a2, b2) => String(a2.provider).localeCompare(String(b2.provider)) || String(a2.display_name).localeCompare(String(b2.display_name)))
@@ -73,13 +73,17 @@ async function renderModels() {
           el("div", { style: "font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap" }, [m.display_name,
             m.is_default ? el("span", { class: "chip blue", style: "flex:none;max-width:none", title: "默认兜底：路由 / 手动模式故障时切换到此模型；不能停用或删凭证" }, ["默认兜底"]) : null]),
           el("div", { class: "muted num" }, [m.model_id + (caps.context_window ? " · " + (caps.context_window / 1024) + "k" : "")])]),
-        el("td", {}, [el("span", { class: "chip " + color, title: m.status === "registering" ? "入池评测未完成，不参与路由" : (m.status === "paused" ? "已停用，不参与路由，可随时启用" : "") }, [lb])]),
         el("td", { class: "num", title: "每百万 token 的输入 / 输出单价（人民币）" }, [
           (Number(m.price_input) || Number(m.price_output)) ? `${m.price_input} / ${m.price_output}`
             : el("span", { class: "chip yellow", title: "在「更多」里导入画像数据" }, ["画像数据未导入"])]),
         el("td", {}, [caps.thinking
-          ? el("span", { class: "chip blue", title: "支持深度思考（thinking）模式" }, ["支持"])
-          : el("span", { class: "muted" }, ["-"])]),
+          ? UI.toggle({ checked: caps.thinking_enabled !== false,
+              title: "深度思考模式：开启后该模型用更长的推理换更准的回答",
+              onChange: async (next) => {
+                try { await UI.api(`/v1/models/${m.model_id}/thinking`, { method: "POST", body: { enabled: next } }); UI.toast(next ? "已开启思考模式" : "已关闭思考模式"); return true; }
+                catch (err) { UI.toast(err.data?.error || err.message, true); return false; }
+              } })
+          : el("span", { class: "muted", title: "该模型不支持深度思考" }, ["不支持"])]),
         el("td", { style: "min-width:110px" }, [
           coverage >= 100 && !(backfill && backfill.status === "running")
             ? el("span", { class: "num" }, ["100%"])
@@ -116,8 +120,14 @@ async function renderModels() {
                 try { await UI.api(`/v1/models/${m.model_id}/set-default`, { method: "POST" }); UI.toast("已设为默认兜底模型"); renderModels(); }
                 catch (e) { UI.toast(e.data?.error || e.message, true); }
               } } : null,
-              { label: "导入画像数据", onClick: () => profileDataDialog(m) },
+              { label: "编辑", onClick: () => editModelDrawer(m) },
               { label: "复制 model_id", onClick: () => { navigator.clipboard.writeText(m.model_id); UI.toast("已复制"); } },
+              !m.is_default ? { label: "删除模型", danger: true, onClick: async () => {
+                const ok = await UI.confirm("删除模型", `删除「${m.display_name}」后立即退出路由；历史成绩与调用记录保留用于审计。`, { okText: "删除", danger: true });
+                if (!ok) return;
+                try { await UI.api(`/v1/models/${m.model_id}/delete`, { method: "POST" }); UI.toast("已删除"); renderModels(); }
+                catch (e) { UI.toast(e.data?.error || e.message, true); }
+              } } : null,
               m.credential_masked !== "****" ? { label: "删除凭证并暂停", danger: true, onClick: async () => {
                 if (m.is_default) { UI.toast("默认兜底模型的凭证不能删除，请先切换默认模型", true); return; }
                 const ok = await UI.confirm("删除凭证", `删除「${m.display_name}」的凭证后模型立即暂停，进行中的会话自动切换备选模型。此操作不可撤销。`, { okText: "确认删除", danger: true });
@@ -295,7 +305,62 @@ function registerDialog() {
   const mask = UI.modal("添加模型", body, null, { persistent: true });
 }
 
-// 导入模型画像数据：贴官方定价页链接由 AI 自动获取，或手动填写（非必选步骤）
+// 编辑模型：改名 + 画像数据（贴定价页链接 AI 自动获取单价/上下文，或手动填）
+function editModelDrawer(m) {
+  const nameIn = el("input", { type: "text", maxlength: "24", value: m.display_name });
+  const urlIn = el("input", { type: "url", placeholder: "https://provider.com/pricing（官方定价 / 模型文档页）" });
+  const pin = el("input", { type: "number", step: "0.05", min: "0", value: Number(m.price_input) || "", placeholder: "例如 0.4" });
+  const pout = el("input", { type: "number", step: "0.05", min: "0", value: Number(m.price_output) || "", placeholder: "例如 0.8" });
+  const ctx = el("input", { type: "number", step: "1", min: "0", value: (m.capabilities?.context_window || 0) / 1024 || "", placeholder: "例如 128" });
+  const err = el("div", { class: "field-error" });
+  const aiBtn = el("button", { class: "btn ai", type: "button", onclick: async (e) => {
+    if (!/^https:\/\/\S+$/.test(urlIn.value.trim())) { err.textContent = "请先填写 https:// 开头的定价页链接"; return; }
+    err.textContent = "";
+    await UI.withBusy(e.currentTarget, async () => {
+      await new Promise(r => setTimeout(r, 900)); // 演示：模拟 AI 抓取定价页
+      let h = 0; const u = urlIn.value.trim();
+      for (let i = 0; i < u.length; i++) h = (h * 31 + u.charCodeAt(i)) >>> 0;
+      pin.value = (0.2 + (h % 8) * 0.1).toFixed(1);
+      pout.value = (Number(pin.value) * 2).toFixed(1);
+      ctx.value = [32, 64, 128, 256][h % 4];
+      UI.toast("AI 已从页面读出单价与上下文长度，请核对后保存");
+    }, "AI 获取中……");
+  } }, [UI.icon("wand", 14), "AI 自动获取"]);
+  const foot = el("div", { style: "display:flex;gap:8px;justify-content:flex-end;align-items:center;width:100%" }, [
+    err, el("div", { style: "flex:1" }),
+    el("button", { class: "btn", onclick: () => mask2.querySelector(".close-btn")?.click() }, ["取消"]),
+    el("button", { class: "btn primary", onclick: async (e) => {
+      if (!nameIn.value.trim()) { err.textContent = "显示名必填"; return; }
+      await UI.withBusy(e.currentTarget, async () => {
+        try {
+          await UI.api(`/v1/models/${m.model_id}/update`, { method: "POST", body: { display_name: nameIn.value.trim() } });
+          if (pin.value !== "" || pout.value !== "" || ctx.value !== "") {
+            await UI.api(`/v1/models/${m.model_id}/profile-data`, { method: "POST", body: {
+              price_input: Number(pin.value) || 0, price_output: Number(pout.value) || 0,
+              context_window: Math.round((Number(ctx.value) || 0) * 1024) } });
+          }
+          UI.toast("已保存");
+          mask2.querySelector(".close-btn")?.click();
+          renderModels();
+        } catch (e2) { err.textContent = e2.data?.error || e2.message; }
+      }, "保存中……");
+    } }, ["保存"]),
+  ]);
+  const mask2 = UI.drawer(`编辑模型 · ${m.display_name}`, el("div", {}, [
+    el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["模型名称"]), nameIn]),
+    el("div", { class: "sec-head", style: "margin-top:8px" }, ["单价与上下文",
+      el("span", { class: "muted", style: "margin-left:8px;font-weight:400;font-size:var(--font-caption)" }, ["贴官方定价页链接让 AI 自动读取，或手动填写"])]),
+    el("label", { class: "field" }, [el("span", { class: "label-text" }, ["定价页链接"]),
+      el("div", { style: "display:flex;gap:8px" }, [urlIn, aiBtn])]),
+    el("div", { style: "display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 12px" }, [
+      el("label", { class: "field" }, [el("span", { class: "label-text" }, ["输入单价（¥/M）"]), pin]),
+      el("label", { class: "field" }, [el("span", { class: "label-text" }, ["输出单价（¥/M）"]), pout]),
+      el("label", { class: "field" }, [el("span", { class: "label-text" }, ["上下文（k）"]), ctx]),
+    ]),
+    el("div", { class: "muted" }, ["模型 ID、接口地址与凭证在注册时确定；换凭证走「更多 → 删除凭证并暂停」后重新添加"]),
+  ]), foot);
+}
+
 function profileDataDialog(m) {
   if (document.querySelector(".modal-mask")) return;
   const urlIn = el("input", { type: "url", placeholder: "https://provider.com/pricing（官方定价 / 模型文档页）" });
@@ -480,13 +545,16 @@ async function editPolicy(p, actives) {
   const mask2 = UI.drawer(`参数配置 · ${p.name || ""}`, form.node, foot);
 }
 
-async function renderPolicies(container, policies, actives) {
+async function renderPolicies(container, policies, actives, judgeReady = true) {
   policies.forEach(p => {
     const isDefault = p.scope === "global";
+    const grayed = !judgeReady && !isDefault;
     const isSel = selectedPolicyId === p.policy_id;
     const prm = p.params || {};
     const wlN = (p.model_whitelist || []).length || actives.length;
-    const card = el("div", { class: "card policy-card" + (isSel ? " selected" : ""), style: "margin-bottom:10px;cursor:pointer",
+    const card = el("div", { class: "card policy-card" + (isSel ? " selected" : "") + (grayed ? " grayed" : ""),
+      title: grayed ? "未配置 Judge 打分裁判，该策略暂不可用" : "",
+      style: "margin-bottom:10px;cursor:pointer",
       onclick: () => { selectedPolicyId = p.policy_id; renderDispatch(); } }, [
       el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
         el("span", { style: "font-weight:700;font-size:var(--font-title)" }, [p.name || "未命名策略"]),
@@ -886,24 +954,26 @@ async function renderDispatch() {
     selectedPolicyId = g ? g.policy_id : (policies[0] && policies[0].policy_id);
   }
 
-  // Judge 评审模型：打分裁判（评测与画像的前置条件，放最上方醒目位置）
-  box.appendChild(el("div", { class: "card", style: "margin-bottom:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;border-left:3px solid " + (judge ? "var(--primary)" : "var(--danger)") }, [
-    el("div", { style: "min-width:220px" }, [
-      el("div", { style: "font-weight:600;font-size:var(--font-title)" }, ["Judge 评审模型（打分裁判）"]),
-      el("div", { class: "muted" }, ["给各模型的答题打分，产出「各场景路由去向」的成绩依据"]),
+  // Judge 打分裁判：条形横幅（非卡片，与策略卡区分）；未配置=红调空态并禁用其余策略
+  box.appendChild(el("div", { class: "judge-bar" + (judge ? "" : " missing") }, [
+    UI.icon(judge ? "check" : "info", 16),
+    el("div", { style: "min-width:0" }, [
+      el("div", { style: "font-weight:600" }, [judge
+        ? `打分裁判：${judge.display_name || judge.model_id}`
+        : "还没配置 Judge 打分裁判"]),
+      el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [judge
+        ? "负责给各模型答题打分，是「各场景路由去向」的成绩来源"
+        : "没有裁判就没有成绩：除默认策略（兜底直连）外，其余路由策略都无法生效"]),
     ]),
-    judge ? el("span", { style: "display:inline-flex;align-items:center;gap:8px" }, [
-      el("span", { class: "chip blue" }, [judge.display_name || judge.model_id]),
-      el("span", { class: "chip green" }, ["已就绪"]),
-    ]) : el("span", { class: "chip red" }, ["未配置：不能打分与更新去向"]),
     el("div", { style: "flex:1" }),
     judge
       ? el("span", { style: "display:inline-flex;gap:8px" }, [
           el("button", { class: "btn small", onclick: () => judgeDialog(judge, () => renderDispatch()) }, ["更换"]),
           el("button", { class: "btn small", onclick: async () => {
-            const ok = await UI.confirm("移除 Judge 模型", "移除后不能打分与更新场景去向，直到重新配置。", { okText: "移除", danger: true });
+            const ok = await UI.confirm("移除 Judge 模型",
+              "移除后无法打分：除「默认策略」（走兜底模型直连）外，其余路由策略都将不可用（变灰），直到重新配置裁判。", { okText: "仍要移除", danger: true });
             if (!ok) return;
-            try { await UI.api("/api/settings/judge-model", { method: "POST", body: { model_id: "" } }); UI.toast("已移除"); renderDispatch(); }
+            try { await UI.api("/api/settings/judge-model", { method: "POST", body: { model_id: "" } }); UI.toast("已移除，其余策略已停用"); renderDispatch(); }
             catch (e) { UI.toast(e.data?.error || e.message, true); }
           } }, ["移除"]),
         ])
@@ -928,7 +998,7 @@ async function renderDispatch() {
   ]));
   const listBox = el("div", {});
   box.appendChild(listBox);
-  renderPolicies(listBox, policies, actives);
+  renderPolicies(listBox, policies, actives, !!judge);
 
   const dirBox = el("div", { style: "margin-top:6px" });
   box.appendChild(dirBox);

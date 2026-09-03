@@ -13,8 +13,22 @@ window.TestChat = (function () {
     let lastQuestion = "";
 
     const msgs = el("div", { class: "tc-msgs" });
-    const hint = el("div", { class: "muted", style: "text-align:center;padding:36px 12px" },
-      [opts.hint || "像用户一样提问开始测试"]);
+    let hint;
+    if (opts.suggestions && opts.suggestions.length) {
+      // 引导空态：说明 + 预设问法（点击即发送），让测试者第一眼知道能做什么
+      hint = el("div", { class: "tc-guide" }, [
+        el("div", { class: "tg-title" }, [opts.guideTitle || "试试这些真实场景"]),
+        opts.hint ? el("div", { class: "tg-sub" }, [opts.hint]) : null,
+        el("div", { class: "tg-chips" }, opts.suggestions.map(sg => el("button", { type: "button", class: "tg-chip",
+          onclick: () => send(sg.text) }, [
+          el("span", { class: "tg-q" }, [sg.text]),
+          sg.label ? el("span", { class: "tg-l" }, [sg.label]) : null,
+        ]))),
+      ]);
+    } else {
+      hint = el("div", { class: "muted", style: "text-align:center;padding:36px 12px" },
+        [opts.hint || "像用户一样提问开始测试"]);
+    }
     msgs.appendChild(hint);
 
     // 调用方式选择：自绘分组下拉（调度策略 / 多模型 / 指定模型），不用系统默认 select
@@ -127,7 +141,22 @@ window.TestChat = (function () {
       const reason = el("div", { class: "reason-panel" }, [el("div", { class: "muted", style: "margin-bottom:4px" }, ["思考过程"])]);
       bubble.appendChild(reason);
       scrollBottom();
-      const addStep = (t) => { reason.appendChild(el("div", { class: "reason-step" }, [el("span", { class: "dot" }, ["·"]), el("span", {}, [t])])); scrollBottom(); };
+      const addStep = (t, evt2) => {
+        const node = el("div", { class: "reason-step" }, [el("span", { class: "dot" }, ["·"]), el("span", {}, [t])]);
+        reason.appendChild(node);
+        // 粗排打分：展示各候选模型的历史命中率（论文 Step 2 的过程数据）
+        if (opts.keepReasoning && evt2 && evt2.scores) {
+          const ranked = Object.entries(evt2.scores).sort((x, y) => y[1] - x[1]).slice(0, 5);
+          const maxV = ranked.length ? ranked[0][1] || 1 : 1;
+          reason.appendChild(el("div", { class: "rs-bars" }, ranked.map(([mid, v]) =>
+            el("div", { class: "rs-row" }, [
+              el("span", { class: "rs-m num" }, [mid]),
+              el("div", { class: "rs-track" }, [el("div", { class: "rs-fill" + ((evt2.candidates || []).includes(mid) ? " on" : ""), style: `width:${Math.round(v / maxV * 100)}%` })]),
+              el("span", { class: "rs-v num" }, [Number(v).toFixed(2)]),
+            ]))));
+        }
+        scrollBottom();
+      };
 
       ctrl = new AbortController();
       try {
@@ -152,7 +181,7 @@ window.TestChat = (function () {
             if (!chunk.startsWith("data:")) continue;
             const evt = JSON.parse(chunk.slice(5));
             if (evt.step === "final") renderFinal(bubble, reason, evt, originText);
-            else if (evt.text) addStep(evt.text);
+            else if (evt.text) addStep(evt.text, evt);
           }
         }
       } catch (err) {
@@ -204,12 +233,16 @@ window.TestChat = (function () {
         env._ctx = ctx;
         if (env.params?.prompt && env.params.reply_text) bubble.appendChild(el("div", { class: "bubble-prompt" }, [env.params.prompt]));
         bubble.appendChild(Components.render(env, ctx));
-        bubble.appendChild(el("div", { style: "margin-top:6px" }, [
+        bubble.appendChild(el("div", { style: "margin-top:6px;display:flex;gap:8px;align-items:center" }, [
           el("button", { class: "btn small", style: "border:none;color:var(--text-muted)", onclick: (e) => {
             if (env._submitted || env._skipped) return;
             env._skipped = true; e.target.disabled = true;
             send(originText, null, { silent: true, skipCardMatch: true });
           } }, ["跳过，直接回答"]),
+          opts.editableCards && env.card_ref?.card_id
+            ? el("a", { class: "btn small ghost", href: "/web/cards.html?edit=" + env.card_ref.card_id,
+                title: "对触发效果或组件内容不满意？直接改这条配置" }, [UI.icon("edit", 13), "编辑这条配置"])
+            : null,
         ]));
       }
       // 呈现型组件照常渲染（评价型在测试抽屉里省略）

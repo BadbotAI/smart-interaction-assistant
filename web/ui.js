@@ -157,21 +157,18 @@ window.UI = (function () {
       ["home", "首页", "/web/index.html", "home"],
     ] },
     { title: "智能交互", items: [
-      ["cards", "组件工作台", "/web/cards.html", "layers"],
+      ["cards", "组件工作台", "/web/cards.html", "board"],
       ["library", "组件库", "/web/library.html", "grid"],
-      ["design", "组件风格", "/web/design.html", "palette"],
+      ["design", "组件风格", "/web/design.html", "palette2"],
       ["playground:comp", "智能交互测试", "/web/playground.html#comp", "chat"],
       ["dashboard:survey", "交互数据", "/web/dashboard.html#survey", "chart"],
     ] },
     { title: "模型路由", items: [
-      ["router:dispatch", "路由策略", "/web/router.html#dispatch", "route"],
-      ["router:flow", "场景数据集", "/web/router.html#flow", "refresh"],
+      ["router:dispatch", "路由策略", "/web/router.html#dispatch", "route2"],
+      ["router:flow", "场景数据集", "/web/router.html#flow", "database"],
       ["playground:model", "模型路由测试", "/web/playground.html#model", "play"],
       ["dashboard:routing", "模型路由数据", "/web/dashboard.html#routing", "activity"],
       ["router:models", "模型接入", "/web/router.html#models", "cpu"],
-    ] },
-    { title: "对外接入", items: [
-      ["apikeys", "API 接入管理", "/web/apikeys.html", "link"],
     ] },
   ];
   function nav(active) {
@@ -179,7 +176,11 @@ window.UI = (function () {
       (() => {
         const a = el("a", { class: "logo", href: "/web/index.html", title: "回到首页" });
         const mark = el("span", { class: "logo-mark", "aria-hidden": "true" });
-        mark.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="10.5" y="3" width="10.5" height="8" rx="3" fill="none" stroke="#fff" stroke-width="1.7" opacity="0.75"/><path d="M3 12a4 4 0 0 1 4-4h6.5a4 4 0 0 1 4 4v2.5a4 4 0 0 1-4 4H9.8l-3.4 2.9c-.6.5-1.4.1-1.4-.7v-2.6A4 4 0 0 1 3 14.5z" fill="#fff"/><circle cx="7.6" cy="13.2" r="1.15" fill="var(--primary)"/><circle cx="10.75" cy="13.2" r="1.15" fill="var(--primary)"/><circle cx="13.9" cy="13.2" r="1.15" fill="var(--primary)"/></svg>';
+        mark.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none">'
+          + '<rect x="10.5" y="3" width="10.5" height="8" rx="3" fill="none" stroke="var(--primary)" stroke-width="1.7" opacity="0.45"/>'
+          + '<path d="M3 12a4 4 0 0 1 4-4h6.5a4 4 0 0 1 4 4v2.5a4 4 0 0 1-4 4H9.8l-3.4 2.9c-.6.5-1.4.1-1.4-.7v-2.6A4 4 0 0 1 3 14.5z" fill="var(--primary)"/>'
+          + '<circle cx="7.6" cy="13.2" r="1.15" fill="#fff"/><circle cx="10.75" cy="13.2" r="1.15" fill="#fff"/><circle cx="13.9" cy="13.2" r="1.15" fill="#fff"/>'
+          + '</svg>';
         a.append(mark, el("span", {}, ["智能交互平台"]));
         return a;
       })(),
@@ -196,13 +197,16 @@ window.UI = (function () {
       const box = el("div", { class: "nav-group" }, [g.title ? el("div", { class: "nav-title" }, [g.title]) : null]);
       g.items.forEach(([key, name, href, ic]) => box.appendChild(el("a", {
         class: "navlink" + (isActive(key) ? " active" : ""), href, "data-key": key,
-      }, [icon(ic, 16), el("span", {}, [name])])));
+      }, [icon(ic, 17), el("span", {}, [name])])));
       side.appendChild(box);
     });
     // 审计日志：低频入口，收在底部账户上方
     side.appendChild(el("div", { class: "nav-group", style: "margin-top:auto" }, [
+      el("a", { class: "navlink" + (active === "apikeys" ? " active" : ""), href: "/web/apikeys.html", "data-key": "apikeys" }, [
+        icon("link", 17), el("span", {}, ["API 接入管理"]),
+      ]),
       el("a", { class: "navlink" + (active === "audit" ? " active" : ""), href: "/web/audit.html", "data-key": "audit" }, [
-        icon("layers", 16), el("span", {}, ["操作日志"]),
+        icon("layers", 17), el("span", {}, ["操作日志"]),
       ]),
     ]));
     side.appendChild(el("div", { class: "nav-account", style: "margin-top:0" }, [
@@ -430,6 +434,10 @@ window.UI = (function () {
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
     check: '<path d="m5 12 4.5 4.5L19 7"/>',
     chevron: '<path d="m6 9 6 6 6-6"/>',
+    board: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 9h16M9 9v11"/>',
+    database: '<ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6"/><path d="M5 12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8"/>',
+    palette2: '<circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="9.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="14.5" cy="8.8" r="1.2" fill="currentColor" stroke="none"/><circle cx="15.5" cy="13.5" r="1.2" fill="currentColor" stroke="none"/><path d="M12 20.5c-1.8 0-2.4-1.4-1.4-2.5.9-1 .3-2.5-1-2.5H8"/>',
+    route2: '<path d="M5 20V10a4 4 0 0 1 4-4h10"/><path d="m15 2 4 4-4 4"/><path d="M5 14h7a4 4 0 0 1 4 4v2"/>',
     calendar: '<rect x="4" y="6" width="16" height="14" rx="2"/><path d="M8 3v4M16 3v4M4 11h16"/>',
     link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
     arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
@@ -460,7 +468,7 @@ window.UI = (function () {
   function icon(name, size = 16) {
     const span = document.createElement("span");
     span.className = "ico";
-    span.innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ""}</svg>`;
+    span.innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ""}</svg>`;
     return span;
   }
   function iconBtn(name, title, onClick, cls = "") {

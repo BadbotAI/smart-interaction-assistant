@@ -6,13 +6,14 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>测试 · 智能交互平台</title>
 <link rel="stylesheet" href="./shared.css">
-<link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./router.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html">
+<link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./router.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./playground.html">
 </head>
 <body>
 <div class="page">
-  <div class="page-head" style="display:flex;align-items:center;gap:6px">
-    <div class="page-title" id="pgTitle">智能交互测试</div>
+  <div class="page-head" style="display:flex;align-items:center;gap:12px">
+    <div class="page-title" id="pgTitle">对话测试</div>
     <span id="pgHelp"></span>
+    <div class="segmented" id="modeTabs"></div>
     <div style="flex:1"></div>
     <button class="btn small" id="newSess">新对话</button>
   </div>
@@ -28,23 +29,63 @@
 <script>
 const { el } = UI;
 const MODES = {
-  comp: { nav: "playground:comp", title: "智能交互测试",
-    help: "像用户一样提问：验证触发命中、组件交互、提交续轮与数据回传的全链路。测试流量不计入业务看板。",
-    opts: { hint: "像用户一样提问开始测试，例如：我的货三天没更新了" } },
-  model: { nav: "playground:model", title: "模型路由测试",
-    help: "验证路由决策：左下选择调度策略、多模型回答或指定模型，每次回答展示完整思考过程与路由决策（策略 / 候选模型 / 成本明细）。",
-    opts: { keepReasoning: true, hint: "提问并观察选用的模型与完整决策过程；左下可切换调度策略" } },
+  comp: { nav: "playground:comp", title: "智能交互测试", seg: "智能交互测试",
+    help: "像用户一样提问：命中触发条件时，AI 会在回答里插入你配置的交互组件。在这里验证触发词准不准、组件长什么样、提交后续动作对不对；对效果不满意可从组件直接进编辑。测试数据不计入业务看板。" },
+  model: { nav: "playground:model", title: "模型路由测试", seg: "模型路由测试",
+    help: "验证路由怎么选模型：左下切换调度策略 / 多模型回答 / 指定模型，每次回答展示完整过程——检索相似题、各模型历史命中率打分、并发作答、单模型胜出或聚合，以及这一次花了多少钱。" },
 };
 function mode() { return MODES[location.hash.replace("#", "")] ? location.hash.replace("#", "") : "comp"; }
-function boot() {
-  const m = MODES[mode()];
+
+async function buildSuggestions(m) {
+  if (m === "comp") {
+    try {
+      const { cards } = await UI.api("/api/cards");
+      const live = cards.filter(c => (c.status === "published" || (c.status === "draft" && c.version >= 1)) && (c.trigger_examples || []).length);
+      const picks = live.slice(0, 6).map(c => ({ text: c.trigger_examples[0], label: "会触发「" + c.name + "」" }));
+      if (picks.length) return picks;
+    } catch (e) {}
+    return [{ text: "我的货三天没更新了", label: "触发物流异常处理" }, { text: "我要开发票", label: "触发发票类型确认" }];
+  }
+  return [
+    { text: "铁矿石近期价格怎么看", label: "价格行情：看模型打分与聚合" },
+    { text: "旺季舱位紧张运力怎么保障", label: "运力调度：换个策略对比决策" },
+    { text: "压港滞期费怎么申诉", label: "港口作业" },
+    { text: "这批货物出口合规要注意什么", label: "合规审查" },
+    { text: "帮我总结一下本季度物流成本结构", label: "经营分析" },
+    { text: "你好，在吗", label: "闲聊：观察快车道直连" },
+  ];
+}
+
+function drawTabs() {
+  const cur = mode();
+  const box = document.getElementById("modeTabs");
+  box.innerHTML = "";
+  Object.entries(MODES).forEach(([k, m]) => {
+    box.appendChild(el("button", { type: "button", class: "seg" + (k === cur ? " on" : ""),
+      onclick: () => { if (k !== cur) location.hash = "#" + k; } }, [m.seg]));
+  });
+}
+
+async function boot() {
+  const k = mode();
+  const m = MODES[k];
   UI.nav(m.nav);
-  document.getElementById("pgTitle").textContent = m.title;
+  drawTabs();
+  document.getElementById("pgTitle").textContent = "对话测试";
   document.title = m.title + " · 智能交互平台";
   const help = document.getElementById("pgHelp"); help.innerHTML = "";
   help.appendChild(UI.help(m.help));
   const prefill = new URLSearchParams(location.search).get("q") || "";
-  TestChat.open({ ...m.opts, mountEl: "#chatHost", prefill });
+  const suggestions = await buildSuggestions(k);
+  TestChat.open({
+    mountEl: "#chatHost", prefill, suggestions,
+    guideTitle: k === "comp" ? "试试这些会触发组件的问法" : "换一种策略，问同一个问题，对比路由决策",
+    hint: k === "comp"
+      ? "点击任意问法发送；命中触发条件时 AI 会插入对应的交互组件，可直接操作提交、也可从组件进入编辑"
+      : "左下角可切换调度策略 / 多模型回答 / 指定模型；每次回答都会展示打分过程、最终去向与本次成本",
+    keepReasoning: k === "model",
+    editableCards: k === "comp",
+  });
 }
 document.getElementById("newSess").onclick = () => boot();
 window.addEventListener("hashchange", () => boot());

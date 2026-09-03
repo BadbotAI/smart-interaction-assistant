@@ -16,21 +16,30 @@
     <button class="btn primary" id="createBtn">创建密钥</button>
   </div>
 
-  <div class="grid cols-3" id="statRow" style="margin-bottom:12px"></div>
+  <div class="segmented" id="akTabs" style="margin-bottom:14px"></div>
 
-  <div class="card" style="margin-bottom:12px">
-    <div style="font-weight:600;font-size:var(--font-title);margin-bottom:4px">接入说明</div>
-    <div class="muted" style="margin-bottom:12px">把整个平台包装成一个服务：你的产品带 API Key 调用下面任一入口，即可使用智能路由与交互组件能力，调用情况自动计入统计。</div>
-    <div id="docBox"></div>
+  <div id="tabKeys">
+    <div class="card" style="padding:0">
+      <div style="display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)">
+        <span style="font-weight:600;font-size:var(--font-title)">API Key 列表</span>
+        <div style="flex:1"></div>
+        <span class="muted" id="keyCount"></span>
+      </div>
+      <div id="keyBox"></div>
+    </div>
   </div>
 
-  <div class="card" style="padding:0">
-    <div style="display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)">
-      <span style="font-weight:600;font-size:var(--font-title)">API Key 列表</span>
-      <div style="flex:1"></div>
-      <span class="muted" id="keyCount"></span>
+  <div id="tabDocs" hidden>
+    <div class="card">
+      <div style="font-weight:600;font-size:var(--font-title);margin-bottom:4px">接入说明</div>
+      <div class="muted" style="margin-bottom:12px">把整个平台包装成一个服务：你的产品带 API Key 调用下面任一入口，即可使用智能路由与交互组件能力，调用情况自动计入统计。</div>
+      <div id="docBox"></div>
     </div>
-    <div id="keyBox"></div>
+  </div>
+
+  <div id="tabStats" hidden>
+    <div class="grid cols-3" id="statRow" style="margin-bottom:12px"></div>
+    <div class="card muted">统计口径：调用量按对话路由请求计；带 Key 的调用会更新对应密钥的最后使用时间。</div>
   </div>
 </div>
 
@@ -39,6 +48,22 @@
 <script>
 UI.nav("apikeys");
 const { el } = UI;
+const AK_TABS = [["keys", "API Key 列表"], ["docs", "接入说明"], ["stats", "API 接入统计"]];
+let akTab = "keys";
+function drawAkTabs() {
+  const bar = document.getElementById("akTabs");
+  bar.innerHTML = "";
+  AK_TABS.forEach(([k, name]) => bar.appendChild(el("button", { type: "button",
+    class: "seg" + (akTab === k ? " on" : ""),
+    onclick: () => { akTab = k;
+      document.getElementById("tabKeys").hidden = k !== "keys";
+      document.getElementById("tabDocs").hidden = k !== "docs";
+      document.getElementById("tabStats").hidden = k !== "stats";
+      document.getElementById("createBtn").style.display = k === "keys" ? "" : "none";
+      drawAkTabs();
+    } }, [name])));
+}
+drawAkTabs();
 document.getElementById("pageHelp").appendChild(UI.help("对外接入的产品级密钥：明文只在创建时展示一次，库中仅存哈希。密钥用于对话路由 / 事件回传 / 植入 SDK 的调用鉴权与统计。"));
 
 const DOCS = [

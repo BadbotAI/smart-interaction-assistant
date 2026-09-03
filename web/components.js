@@ -828,14 +828,14 @@ window.Components = (function () {
   // 步骤说明书：分步阅读引导（标题 + 正文 + 底部步骤圆点 + 上一步/下一步），读完记提交
   function rGuideSteps(env, ctx) {
     const p = env.params;
-    const steps = (p.steps || []).filter(st => st && (st.title || st.body));
+    const steps = (p.steps || []).filter(st => st && (st.title || st.body)).slice(0, 10);
     if (!steps.length) return compCard([compTitle(p.prompt), emptyState(env)]);
     let idx = 0;
     const viewed = new Set([0]);
     const box = el("div", { class: "gs-body" });
     const dots = el("div", { class: "gs-dots" });
-    const backB = el("button", { class: "btn small", type: "button" }, ["上一步"]);
-    const nextB = el("button", { class: "btn small primary", type: "button" }, ["下一步"]);
+    const backB = el("button", { class: "btn small", type: "button", "aria-label": "上一步" }, ["上一步"]);
+    const nextB = el("button", { class: "btn small primary", type: "button", "aria-label": "下一步" }, ["下一步"]);
     function finish() {
       env._submitted = true;
       const root = box.closest(".comp");

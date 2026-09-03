@@ -171,12 +171,22 @@ function mountDemoControls() {
   }));
   const tgl = document.getElementById("importToggle");
   tgl.append(UI.icon("plus", 14), "导入品牌风格");
-  tgl.onclick = () => brandDialog(null);
+  tgl.onclick = () => {
+    // 点击导入：列表立即新增一张「配置中」草稿卡，保存变正式、取消移除
+    const grid = document.getElementById("brandGrid");
+    const draft = el("div", { class: "brand-card draft-card" }, [
+      el("div", { class: "bname" }, ["新风格", el("span", { class: "chip yellow" }, ["配置中"])]),
+      el("div", { class: "bsub" }, ["正在弹窗中填写名称与风格代码……"]),
+    ]);
+    grid.appendChild(draft);
+    draft.scrollIntoView({ block: "nearest" });
+    brandDialog(null, () => draft.remove());
+  };
 }
 
 // ---------- 导入 / 编辑品牌风格：弹窗建卡片（名称 + 风格代码），创建后出现在列表，可编辑 / 删除 ----------
-function brandDialog(existing) {
-  if (document.querySelector(".modal-mask")) return;
+function brandDialog(existing, onClose) {
+  if (document.querySelector(".modal-mask")) { onClose && onClose(); return; }
   const nameIn = el("input", { type: "text", maxlength: "20", value: existing?.brand_name || "", placeholder: "例如：远洋港航品牌风格" });
   const codeTa = el("textarea", { id: "dlgTokenTa", spellcheck: "false", rows: 14,
     style: "font-family:var(--font-mono);font-size:var(--font-small);line-height:1.6" });
@@ -212,7 +222,7 @@ function brandDialog(existing) {
     ]),
     err,
     el("div", { style: "display:flex;justify-content:flex-end;gap:8px;margin-top:12px" }, [
-      el("button", { class: "btn", onclick: () => mask2.remove() }, ["取消"]),
+      el("button", { class: "btn", onclick: () => { mask2.remove(); onClose && onClose(); } }, ["取消"]),
       el("button", { class: "btn primary", onclick: async (e) => {
         const name = nameIn.value.trim();
         if (!name) { err.textContent = "请填写风格名称"; return; }
@@ -227,7 +237,7 @@ function brandDialog(existing) {
             brands = (await UI.api("/api/brands")).brands;
             // 编辑的是生效中的风格：立即重载应用
             if (existing && existing.file === activeFile) { await Brand.load(existing.file); }
-            mask2.remove();
+            mask2.remove(); onClose && onClose();
             renderBrands(); renderDemos();
             UI.toast(existing ? "风格已更新" : "已创建风格卡片，点击卡片预览，「应用并保存」后生效");
           } catch (e2) { err.textContent = e2.data?.error || e2.message; }
@@ -235,6 +245,8 @@ function brandDialog(existing) {
       } }, [existing ? "保存修改" : "创建风格"]),
     ]),
   ]));
+  const _cb = mask2.querySelector(".close-btn");
+  if (_cb) { const _o = _cb.onclick; _cb.onclick = () => { _o && _o(); onClose && onClose(); }; }
 }
 
 // ---------- 风格预设 ----------

@@ -770,6 +770,55 @@ def _policy_api_key(policy_id: str) -> str:
     return "sk-route-" + _h.md5(("route-key:" + policy_id).encode()).hexdigest()[:16]
 
 
+@app.post("/v1/models/{model_id}/thinking")
+async def toggle_thinking(model_id: str, request: Request):
+    """思考模式开关：仅支持深度思考的模型可切换。"""
+    body = await request.json()
+    conn = db.get_conn()
+    row = conn.execute("SELECT capabilities FROM models WHERE model_id=?", (model_id,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "模型不存在"}, status_code=404)
+    caps = db.dj(row["capabilities"], {}) or {}
+    if not caps.get("thinking"):
+        return JSONResponse({"error": "该模型不支持思考模式"}, status_code=409)
+    caps["thinking_enabled"] = bool(body.get("enabled"))
+    conn.execute("UPDATE models SET capabilities=? WHERE model_id=?", (db.j(caps), model_id))
+    conn.commit()
+    db.audit("demo-admin", "model_thinking", {"model_id": model_id, "enabled": caps["thinking_enabled"]})
+    return {"ok": True, "enabled": caps["thinking_enabled"]}
+
+
+@app.post("/v1/models/{model_id}/update")
+async def update_model_info(model_id: str, request: Request):
+    """编辑模型基础信息：当前支持改显示名。"""
+    body = await request.json()
+    name = (body.get("display_name") or "").strip()
+    if not name or len(name) > 24:
+        return JSONResponse({"error": "显示名必填，不超过 24 字"}, status_code=422)
+    conn = db.get_conn()
+    n = conn.execute("UPDATE models SET display_name=? WHERE model_id=?", (name, model_id)).rowcount
+    conn.commit()
+    if not n:
+        return JSONResponse({"error": "模型不存在"}, status_code=404)
+    db.audit("demo-admin", "model_rename", {"model_id": model_id, "display_name": name})
+    return {"ok": True}
+
+
+@app.post("/v1/models/{model_id}/delete")
+async def delete_model(model_id: str):
+    """删除模型：默认兜底模型不可删；历史评测成绩与调用记录保留用于审计。"""
+    conn = db.get_conn()
+    row = conn.execute("SELECT is_default, display_name FROM models WHERE model_id=?", (model_id,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "模型不存在"}, status_code=404)
+    if row["is_default"]:
+        return JSONResponse({"error": "默认兜底模型不能删除，请先把默认切换到其他模型"}, status_code=409)
+    conn.execute("DELETE FROM models WHERE model_id=?", (model_id,))
+    conn.commit()
+    db.audit("demo-admin", "model_delete", {"model_id": model_id, "display_name": row["display_name"]})
+    return {"ok": True}
+
+
 @app.post("/v1/models/{model_id}/profile-data")
 async def import_model_profile_data(model_id: str, request: Request):
     """导入模型画像数据（第二步，非必选）：单价与上下文长度。支持 AI 从网页链接自动获取（演示模拟）。"""
