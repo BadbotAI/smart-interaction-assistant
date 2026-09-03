@@ -271,6 +271,10 @@ def init_db():
         conn.execute("ALTER TABLE bank_queries ADD COLUMN ideal TEXT")
     except sqlite3.OperationalError:
         pass
+    # 增量迁移：对外接入 API Key（密钥只存哈希，明文仅创建时返回一次）
+    conn.execute("""CREATE TABLE IF NOT EXISTS api_keys (
+        key_id TEXT PRIMARY KEY, name TEXT NOT NULL, secret_hash TEXT NOT NULL,
+        prefix TEXT NOT NULL, created_at REAL NOT NULL, last_used REAL)""")
     conn.commit()
 
 

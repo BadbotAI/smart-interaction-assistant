@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231DA1F2'/%3E%3Cpath d='M14 18h36a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2H31l-9 9v-9h-8a2 2 0 0 1-2-2V20a2 2 0 0 1 2-2z' fill='%23fff'/%3E%3Ccircle cx='24' cy='29' r='3.2' fill='%231DA1F2'/%3E%3Ccircle cx='32' cy='29' r='3.2' fill='%231DA1F2'/%3E%3Ccircle cx='40' cy='29' r='3.2' fill='%231DA1F2'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
 <link rel="stylesheet" href="./shared.css">
 <link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./router.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html">
@@ -339,7 +339,7 @@ function moreButton(c, eff) {
   // 统一菜单：测试 / 查看数据 / 复制 / 删除（版本历史入口在编辑器步骤条）
   const moreBtn = el("button", { class: "btn small", onclick: () => UI.menu(moreBtn, [
     { label: "测试", onClick: () => openTest((c.trigger_examples || [])[0] || c.name) },
-    { label: "查看数据（看板）", onClick: () => { location.href = "./dashboard.html#survey"; } },
+    { label: "查看数据（看板）", onClick: () => { location.href = "./dashboard.html?card=" + c.card_id + "#survey"; } },
     { label: "获取植入代码", onClick: () => embedDialog(c) },
     { label: "复制配置 ID", onClick: () => { navigator.clipboard.writeText(c.card_id); UI.toast("已复制配置 ID"); } },
     eff !== "published" ? { label: c.version >= 1 ? "删除配置（含线上版本）" : "删除配置", danger: true, onClick: () => doTransition(c, "delete") } : null,
@@ -402,6 +402,7 @@ const WIZ_DESC = {
   "matrix.compare+select": "多个候选按几项指标对比后选定",
   "scale.likert": "满意度、意愿等打分类反馈",
   "form.structured": "表单式一次收集多个字段，如订单号、电话",
+  "guide.steps": "把操作流程拆成分步说明，翻页阅读记完成率",
   "slider.range": "预算、数量等在区间内取一个数",
   "input.followup": "留言、备注等一段自由文字",
   "picker.datetime": "约提货、约上门等选一个日期",
@@ -478,6 +479,7 @@ async function openEditor(cardId, prefill, initStep) {
     likert_to: cfg.likert?.to ?? (cfg.likert?.steps || 5),
     display: cfg.display || "",
     fieldRows: (cfg.fields || card?.field_bindings?.fields || []).map(f => ({ key: f.key || "", label: f.label || "", required: !!f.required })),
+    guideSteps: (cfg.steps || []).map(st => ({ title: st.title || "", body: st.body || "" })),
     placeholder: cfg.placeholder || "",
     slider_min: cfg.slider?.min ?? 0,
     slider_max: cfg.slider?.max ?? 100,
@@ -490,6 +492,7 @@ async function openEditor(cardId, prefill, initStep) {
   };
   if (typeof state.trigger_examples === "string") state.trigger_examples = state.trigger_examples.split("\n").map(s => s.trim()).filter(Boolean);
   if (!Array.isArray(state.fieldRows)) state.fieldRows = [];
+  if (!Array.isArray(state.guideSteps)) state.guideSteps = [];
   if (!Array.isArray(state.optionRows)) state.optionRows = [];
   if (state.scene === undefined) state.scene = "";
 
@@ -536,6 +539,7 @@ async function openEditor(cardId, prefill, initStep) {
       desc: (c.option_meta || {})[o]?.desc || "", image: (c.option_meta || {})[o]?.image || "" }));
     else if (!OPTION_TYPES.includes(ct)) state.optionRows = [];
     if (c.fields) state.fieldRows = c.fields.map(f => ({ key: f.key || "", label: f.label || "", required: !!f.required }));
+    if (c.steps) state.guideSteps = c.steps.map(st => ({ title: st.title || "", body: st.body || "" }));
     if (c.likert) { state.likert_left = c.likert.left || state.likert_left; state.likert_right = c.likert.right || state.likert_right;
       state.likert_from = c.likert.from ?? 1; state.likert_to = c.likert.to ?? 5; }
     if (c.slider) { state.slider_min = c.slider.min ?? 0; state.slider_max = c.slider.max ?? 100; state.slider_unit = c.slider.unit || ""; }
@@ -553,6 +557,7 @@ async function openEditor(cardId, prefill, initStep) {
     "rank.priority": { q: "这批货怎么安排比较好", reply: "请把你的诉求按重要程度排个序：", prompt: "哪个对你最重要？", options: ["时效最快", "成本最低", "风险最小"] },
     "matrix.compare+select": { q: "对比一下这几家供应商", reply: "按价格、时效、合规评估如下：", prompt: "选定供应商", options: ["中远供应链", "环球捷运"], dimensions: ["价格", "时效", "合规"] },
     "scale.likert": { q: "谢谢，问题解决了", reply: "不客气。", prompt: "这次服务满意吗？" },
+    "guide.steps": { q: "破损赔付怎么申请？", reply: "按下面三步操作即可，全程在对话里完成。", prompt: "赔付申请指引" },
     "form.structured": { q: "我要退货", reply: "请补充以下信息，我来为你登记。", prompt: "退货登记",
       fields: [{ key: "order_no", label: "订单号", required: true }, { key: "phone", label: "联系电话", required: true }] },
     "slider.range": { q: "帮我做个采购预算", reply: "先确认一下预算范围。", prompt: "预算上限（万元）" },
@@ -618,6 +623,11 @@ async function openEditor(cardId, prefill, initStep) {
     });
     if (Object.keys(metaPrev).length) params.option_meta = metaPrev;
     else if (!options.length && mock.option_meta) params.option_meta = mock.option_meta;
+    if (ct === "guide.steps") {
+      const st2 = state.guideSteps.filter(st => st.title.trim() || st.body.trim())
+        .map(st => ({ title: st.title.trim(), body: st.body.trim() }));
+      params.steps = st2.length ? st2 : (mock.steps || []);
+    }
     if (ct === "form.structured") {
       const fs = state.fieldRows.filter(f => f.key || f.label).map(f => ({ key: f.key || f.label, label: f.label || f.key, required: !!f.required }));
       params.fields = fs.length ? fs : (mock.fields || []);
@@ -991,6 +1001,34 @@ async function openEditor(cardId, prefill, initStep) {
     return outer;
   }
 
+  function guideStepsEditor() {
+    const wrap = el("div", {});
+    function draw() {
+      wrap.innerHTML = "";
+      wrap.appendChild(el("span", { class: "label-text" }, ["步骤", UI.help("用户按步骤翻页阅读；每步一个标题加一段说明，至少 2 步")]));
+      state.guideSteps.forEach((st, i) => {
+        const tIn = el("input", { type: "text", value: st.title, maxlength: "20", placeholder: `第 ${i + 1} 步标题，例如：准备材料`, "aria-label": "步骤标题" });
+        tIn.oninput = () => { st.title = tIn.value; autosave(); };
+        const bIn = el("textarea", { rows: "2", placeholder: "这一步用户要做什么、注意什么" });
+        bIn.value = st.body;
+        bIn.oninput = () => { st.body = bIn.value; autosave(); };
+        wrap.appendChild(el("div", { class: "opt-block" }, [
+          el("div", { class: "ob-row" }, [
+            el("span", { class: "gs-dot on", style: "flex:none" }, [String(i + 1)]),
+            tIn,
+            el("button", { class: "icon-btn", type: "button", "aria-label": "删除步骤", onclick: () => { state.guideSteps.splice(i, 1); autosave(); draw(); renderPreview(); } }, [UI.icon("x", 14)]),
+          ]),
+          el("div", { class: "ob-row" }, [bIn]),
+        ]));
+      });
+      wrap.appendChild(el("button", { class: "opt-add", type: "button", onclick: () => {
+        state.guideSteps.push({ title: "", body: "" }); autosave(); draw();
+      } }, [UI.icon("plus", 14), "添加步骤"]));
+    }
+    draw();
+    return wrap;
+  }
+
   function fieldRowsEditor() {
     const wrap = el("div", {});
     const errBox = el("div", { class: "field-error" });
@@ -1138,6 +1176,7 @@ async function openEditor(cardId, prefill, initStep) {
       if (ct === "upload.image") contentFields.push(field("placeholder", "拍摄说明", input("placeholder", { placeholder: "请拍摄或上传清晰照片" })));
       if (ct === "picker.location") contentFields.push(field("placeholder", "搜索框提示（选填）", input("placeholder", { placeholder: "搜索地址，或从常用地点选择" })));
       if (ct === "form.structured") contentFields.push(fieldRowsEditor());
+      if (ct === "guide.steps") contentFields.push(guideStepsEditor());
       if (ct === "input.followup") contentFields.push(field("placeholder", "输入框提示", input("placeholder", { placeholder: "请输入你的回答" })));
       if (ct === "slider.range") {
         contentFields.push(el("div", { class: "form-grid cols-3" }, [
@@ -1172,6 +1211,7 @@ async function openEditor(cardId, prefill, initStep) {
       if (ct === "suggest.followup") return `${getOptions().length} 个引导项`;
       if (OPTION_TYPES.includes(ct)) return `${getOptions().length} 个${ct === "select.card" ? "卡片" : "选项"}`;
       if (ct === "form.structured") return `${state.fieldRows.filter(f => f.key || f.label).length} 个采集字段`;
+      if (ct === "guide.steps") return `${state.guideSteps.filter(st => st.title || st.body).length} 个步骤`;
       if (ct === "scale.likert") return `刻度 ${state.likert_from} ~ ${state.likert_to}`;
       if (ct === "slider.range") return `区间 ${state.slider_min} ~ ${state.slider_max}${state.slider_unit ? " " + state.slider_unit : ""}`;
       return "";
@@ -1446,6 +1486,9 @@ async function openEditor(cardId, prefill, initStep) {
     if (state.component_type === "slider.range")
       config.slider = { min: Number(state.slider_min) || 0, max: Number(state.slider_max) || 100, unit: state.slider_unit.trim() };
     if (state.webhook.trim()) config.webhook = state.webhook.trim();
+    if (state.component_type === "guide.steps")
+      config.steps = state.guideSteps.filter(st => st.title.trim() || st.body.trim())
+        .map(st => ({ title: st.title.trim(), body: st.body.trim() }));
     if (state.valid_from || state.valid_until) config.validity = { ...(state.valid_from ? { from: state.valid_from } : {}), ...(state.valid_until ? { until: state.valid_until } : {}) };
     const templates = { prompt: question || "请选择", submit: state.submit.trim() || "提交" };
     if (state.reply_text.trim()) templates.reply = state.reply_text.trim();

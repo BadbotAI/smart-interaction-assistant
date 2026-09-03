@@ -98,6 +98,7 @@ async def _handle_turn(body: dict, emit):
     policy = router_core.resolve_policy(tenant_id, scene, session_id)
     # 对外接入：api_key 即策略凭证，用户产品带 Key 调用即绑定对应策略（无需感知策略 ID）
     if body.get("api_key"):
+        _touch_api_key(body["api_key"])
         for _r in db.get_conn().execute("SELECT policy_id FROM policies WHERE enabled=1").fetchall():
             if _policy_api_key(_r["policy_id"]) == body["api_key"]:
                 body["policy_id"] = _r["policy_id"]
@@ -187,24 +188,7 @@ async def _handle_turn(body: dict, emit):
     final = result["final"]
     decision = result["decision"]
 
-    # 自动收集：命中业务场景的 query 去重后进入「待并入区」，由管理员在场景数据页逐条审核后并入数据集
-    try:
-        _dom = mockmodels.classify_domain(text)
-        if text and len(text) >= 4 and _dom not in ("chat", "general", "untagged") and not card_context:
-            _conn = db.get_conn()
-            _dup = _conn.execute(
-                "SELECT 1 FROM bank_queries WHERE (tenant_id IS NULL OR tenant_id=?) AND TRIM(query_text)=TRIM(?)",
-                (tenant_id, text)).fetchone()
-            if not _dup:
-                _qid = "rf-" + db.new_id()[:8]
-                _conn.execute(
-                    "INSERT INTO bank_queries (query_id, tenant_id, embedding, text_ref, query_text, domain_tags, "
-                    "created_at, ttl_days, source) VALUES (?,?,?,?,?,?,?,?,?)",
-                    (_qid, tenant_id, db.j(embeddings.embed(text)), f"vault://reflow/{_qid}", text,
-                     db.j([_dom]), db.now_ts(), 180, "reflow_staged"))
-                _conn.commit()
-    except Exception:
-        pass  # 采集失败不影响对话主链路
+    # （已按产品决策停用对话 query 自动回流采集：场景数据集以导入为准）
 
     components = []
 
@@ -287,6 +271,8 @@ def _build_ask_envelope(card: dict, query: str):
               "submit_label": templates.get("submit") or "提交",
               "reply_text": templates.get("reply") or "",
               "echo_results": bool(card.get("echo_results"))}
+    if config.get("steps"):
+        params["steps"] = config["steps"]
     if config.get("display"):
         params["display"] = config["display"]  # 显示样式变体
     if config.get("option_meta"):
@@ -727,6 +713,58 @@ def list_models():
     return {"models": out}
 
 
+# ---------- 对外接入：API Key 管理（明文仅创建时返回一次，库中只存哈希） ----------
+
+@app.get("/api/apikeys")
+def list_api_keys():
+    conn = db.get_conn()
+    keys = [dict(r) for r in conn.execute(
+        "SELECT key_id, name, prefix, created_at, last_used FROM api_keys ORDER BY created_at DESC").fetchall()]
+    total_calls = conn.execute("SELECT COUNT(*) AS c FROM traces").fetchone()["c"]
+    import time as _t2
+    calls_7d = conn.execute("SELECT COUNT(*) AS c FROM traces WHERE ts>?", (_t2.time() - 7 * 86400,)).fetchone()["c"]
+    return {"keys": keys, "stats": {"total_calls": total_calls, "calls_7d": calls_7d, "key_count": len(keys)}}
+
+
+@app.post("/api/apikeys")
+async def create_api_key(request: Request):
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    if not name or len(name) > 15:
+        return JSONResponse({"error": "名称必填，1-15 字"}, status_code=422)
+    import hashlib as _h, secrets as _sec
+    secret = "sk-live-" + _sec.token_hex(16)
+    key_id = db.new_id()[:8]
+    conn = db.get_conn()
+    conn.execute("INSERT INTO api_keys (key_id, name, secret_hash, prefix, created_at, last_used) VALUES (?,?,?,?,?,NULL)",
+                 (key_id, name, _h.sha256(secret.encode()).hexdigest(), secret[:15], db.now_ts()))
+    conn.commit()
+    db.audit("demo-admin", "apikey_create", {"key_id": key_id, "name": name})
+    return {"key_id": key_id, "name": name, "secret": secret}
+
+
+@app.post("/api/apikeys/{key_id}/delete")
+async def delete_api_key(key_id: str):
+    conn = db.get_conn()
+    n = conn.execute("DELETE FROM api_keys WHERE key_id=?", (key_id,)).rowcount
+    conn.commit()
+    if not n:
+        return JSONResponse({"error": "密钥不存在"}, status_code=404)
+    db.audit("demo-admin", "apikey_delete", {"key_id": key_id})
+    return {"ok": True}
+
+
+def _touch_api_key(api_key: str):
+    """产品级 Key（sk-live-）调用计数：更新最后使用时间。"""
+    if not api_key or not api_key.startswith("sk-live-"):
+        return
+    import hashlib as _h
+    conn = db.get_conn()
+    conn.execute("UPDATE api_keys SET last_used=? WHERE secret_hash=?",
+                 (db.now_ts(), _h.sha256(api_key.encode()).hexdigest()))
+    conn.commit()
+
+
 def _policy_api_key(policy_id: str) -> str:
     import hashlib as _h
     return "sk-route-" + _h.md5(("route-key:" + policy_id).encode()).hexdigest()[:16]
@@ -1087,6 +1125,68 @@ def list_policies():
     return {"policies": out}
 
 
+@app.post("/v1/policies")
+async def create_policy(request: Request):
+    """新增路由策略：名称 + 三个主参数（成本上限 / 候选模型 / 聚合值），其余参数继承全局默认。"""
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    if not name or len(name) > 15:
+        return JSONResponse({"error": "策略名称必填，1-15 字"}, status_code=422)
+    conn = db.get_conn()
+    base = conn.execute("SELECT * FROM policies WHERE scope='global' LIMIT 1").fetchone()
+    params = db.dj(base["params"], {}) if base else {"K": 3, "N_base": 50, "beta": 0.5, "gamma": 0.95,
+                                                     "eps": 0.5, "sigma": 0.3, "delta": 0.2, "t": 0.8, "max_agg_tokens": 13000}
+    if body.get("t") is not None:
+        params["t"] = max(0.0, min(1.0, float(body["t"])))
+    if body.get("fallback_model"):
+        params["fallback_model"] = body["fallback_model"]
+    policy_id = "policy-" + db.new_id()[:8]
+    budget = {"daily_usd": float(body["daily_usd"])} if body.get("daily_usd") not in (None, "") else {}
+    conn.execute(
+        "INSERT INTO policies (policy_id, name, scope, tenant_id, scene, params, latency_tier, "
+        "allow_aggregation, explore_ratio, model_whitelist, budget_cap, enabled, ab_group, ab_split, version) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,1,NULL,50,1)",
+        (policy_id, name, "custom", seed.TENANT, None, db.j(params),
+         body.get("latency_tier") or "balanced", 1 if body.get("allow_aggregation", True) else 0,
+         float(body.get("explore_ratio", 0.05)), db.j(body.get("model_whitelist") or []), db.j(budget)))
+    conn.commit()
+    db.audit("demo-admin", "policy_create", {"policy_id": policy_id, "name": name})
+    return {"policy_id": policy_id, "api_key": _policy_api_key(policy_id)}
+
+
+@app.post("/v1/policies/{policy_id}/delete")
+async def delete_policy(policy_id: str):
+    conn = db.get_conn()
+    row = conn.execute("SELECT scope, name FROM policies WHERE policy_id=?", (policy_id,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "策略不存在"}, status_code=404)
+    if row["scope"] == "global":
+        return JSONResponse({"error": "默认策略不能删除"}, status_code=409)
+    conn.execute("DELETE FROM policies WHERE policy_id=?", (policy_id,))
+    conn.commit()
+    db.audit("demo-admin", "policy_delete", {"policy_id": policy_id, "name": row["name"]})
+    return {"ok": True}
+
+
+@app.post("/v1/policies/{policy_id}/duplicate")
+async def duplicate_policy(policy_id: str):
+    conn = db.get_conn()
+    row = conn.execute("SELECT * FROM policies WHERE policy_id=?", (policy_id,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "策略不存在"}, status_code=404)
+    new_id2 = "policy-" + db.new_id()[:8]
+    name = (row["name"] or "策略") + " 副本"
+    conn.execute(
+        "INSERT INTO policies (policy_id, name, scope, tenant_id, scene, params, latency_tier, "
+        "allow_aggregation, explore_ratio, model_whitelist, budget_cap, enabled, ab_group, ab_split, version) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,1,NULL,50,1)",
+        (new_id2, name[:20], "custom", seed.TENANT, None, row["params"], row["latency_tier"],
+         row["allow_aggregation"], row["explore_ratio"], row["model_whitelist"], row["budget_cap"]))
+    conn.commit()
+    db.audit("demo-admin", "policy_duplicate", {"from": policy_id, "to": new_id2})
+    return {"policy_id": new_id2, "name": name[:20]}
+
+
 @app.put("/v1/policies/{policy_id}")
 async def update_policy(policy_id: str, request: Request):
     body = await request.json()
@@ -1128,6 +1228,8 @@ async def update_policy(policy_id: str, request: Request):
         pass
     new_version = row["version"] + 1
     params = {**db.dj(row["params"], {}), **(body.get("params") or {})}
+    if body.get("name") and 1 <= len(body["name"].strip()) <= 15:
+        conn.execute("UPDATE policies SET name=? WHERE policy_id=?", (body["name"].strip(), policy_id))
     conn.execute(
         "UPDATE policies SET params=?, latency_tier=?, allow_aggregation=?, explore_ratio=?, "
         "model_whitelist=?, budget_cap=?, enabled=?, version=? WHERE policy_id=?",
@@ -1534,7 +1636,7 @@ _profile_task = {"status": "idle", "done": 0, "total": 0, "version": 1}
 
 
 @app.get("/api/profile")
-def routing_profile(tenant_id: str = None, alpha: float = Query(0.7, ge=0.0, le=1.0)):
+def routing_profile(tenant_id: str = None, alpha: float = Query(0.7, ge=0.0, le=1.0), policy_id: str = None):
     """路由画像：按问题簇（领域）× 模型 输出 性能分 / 效率分 / α 综合分。
     性能分来自评测数据集（bank）的历史命中率；效率分由模型单价归一化。
     综合分 = α·性能 + (1-α)·效率 —— α 是管理员可调的质量-成本旋钮。"""
@@ -1542,8 +1644,17 @@ def routing_profile(tenant_id: str = None, alpha: float = Query(0.7, ge=0.0, le=
     tid = tenant_id or seed.TENANT
     models = {r["model_id"]: dict(r) for r in conn.execute(
         "SELECT model_id, display_name, price_input, price_output, is_default FROM models WHERE status='active'")}
+    # 按策略过滤候选模型 + 取聚合参数（不同策略 → 不同去向）
+    pol = None
+    if policy_id:
+        prow = conn.execute("SELECT * FROM policies WHERE policy_id=?", (policy_id,)).fetchone()
+        if prow:
+            pol = dict(prow)
+            wl = db.dj(pol.get("model_whitelist"), []) or []
+            if wl:
+                models = {k: v for k, v in models.items() if k in wl}
     if not models:
-        return {"clusters": [], "alpha": alpha}
+        return {"clusters": [], "alpha": alpha, "policy_id": policy_id}
     prices = {mid: m["price_input"] + m["price_output"] for mid, m in models.items()}
     inv = {mid: 1.0 / max(0.01, p) for mid, p in prices.items()}
     lo, hi = min(inv.values()), max(inv.values())
@@ -1573,8 +1684,16 @@ def routing_profile(tenant_id: str = None, alpha: float = Query(0.7, ge=0.0, le=
             combined = round(alpha * perf + (1 - alpha) * eff[mid], 3) if perf is not None else None
             scores[mid] = {"perf": perf, "eff": eff[mid], "combined": combined}
         valid = {m: s["combined"] for m, s in scores.items() if s["combined"] is not None}
+        best = max(valid, key=valid.get) if valid else None
+        agg_with = None
+        if pol and pol.get("allow_aggregation") and len(valid) >= 2:
+            ranked2 = sorted(valid.items(), key=lambda x: -x[1])
+            t_val = (db.dj(pol.get("params"), {}) or {}).get("t", 0.8)
+            # 聚合值越低越容易聚合：两名分差小于阈值时该场景走「聚合」
+            if ranked2[0][1] - ranked2[1][1] < max(0.02, (1 - float(t_val)) * 0.3):
+                agg_with = ranked2[1][0]
         clusters.append({"domain": d, "queries": len(counts.get(d, set())),
-                         "scores": scores, "best": max(valid, key=valid.get) if valid else None})
+                         "scores": scores, "best": best, "agg_with": agg_with})
     return {"clusters": clusters, "alpha": alpha, "version": _profile_task["version"],
             "models": {mid: m["display_name"] for mid, m in models.items()}}
 

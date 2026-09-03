@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231DA1F2'/%3E%3Cpath d='M14 18h36a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2H31l-9 9v-9h-8a2 2 0 0 1-2-2V20a2 2 0 0 1 2-2z' fill='%23fff'/%3E%3Ccircle cx='24' cy='29' r='3.2' fill='%231DA1F2'/%3E%3Ccircle cx='32' cy='29' r='3.2' fill='%231DA1F2'/%3E%3Ccircle cx='40' cy='29' r='3.2' fill='%231DA1F2'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>模型路由 · 智能交互平台</title>
 <link rel="stylesheet" href="./shared.css">
 <link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./router.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html">
@@ -26,7 +26,7 @@ UI.nav("router");
 const { el } = UI;
 document.getElementById("pageHelp").appendChild(UI.help("注册模型 → 数据集回填 → 生成路由画像 → 在线自动路由 → 回流数据持续优化。左侧导航切换板块。"));
 // 走查：板块入口只保留左侧导航一处，页内不再放横向 tab（按 #hash 渲染）
-const SECTION_NAMES = { models: "模型接入", dispatch: "路由策略", flow: "数据回流", import: "导入数据集", review: "回流数据集校验" };
+const SECTION_NAMES = { models: "模型接入", dispatch: "路由策略", flow: "场景数据集", import: "导入数据集", review: "场景数据集" };
 let activeTab = "models";
 const DOMAIN_NAMES = { price: "价格行情", sourcing: "采购寻源", capacity: "运力调度", port: "港口作业",
   compliance: "合规审查", weather: "气象风险", analytics: "经营分析", chat: "日常闲聊", general: "通用", untagged: "未标注领域" };
@@ -353,152 +353,187 @@ const PARAM_DESCS = {
   delta: "消耗相似度权重", t: "聚合准入阈值", max_agg_tokens: "总结输入 token 上限",
 };
 
-async function renderPolicies(container) {
-  let { policies } = await UI.api("/v1/policies");
-  policies = policies.filter(p => !p.ab_group); // A/B 已从产品中移除，隐藏实验组策略
-  const box = container || content();
-  if (!container) box.innerHTML = "";
-  policies.forEach(p => {
-    const prm = p.params || {};
-    const advanced = Object.entries(prm).filter(([k]) => !["K", "t"].includes(k)).map(([k, v]) => `${PARAM_DESCS[k] || k} ${k}=${v}`).join("\n");
-    const paramsRow = el("div", { style: "display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;align-items:center" }, [
-      el("span", { class: "chip gray", title: "并发候选模型数 K" }, [`候选 ${prm.K ?? "-"} 路`]),
-      el("span", { class: "chip gray", title: "聚合准入阈值 t：候选回答一致度低于此值才触发多模型聚合" }, [`聚合阈值 ${prm.t ?? "-"}`]),
-      UI.help("高级参数\n" + advanced),
-    ]);
-    box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
-      el("div", { style: "display:flex;align-items:center;gap:8px" }, [
-        el("span", { style: "font-weight:600" }, [p.name || p.policy_id]),
-        el("span", { class: "chip blue" }, [{ global: "全局", tenant: "租户", scene: "场景" }[p.scope] + (p.scene ? "：" + (SCENE_NAMES[p.scene] || p.scene) : "")]),
-        el("span", { class: "chip gray" }, ["v" + p.version]),
-        p.ab_group ? el("span", { class: "chip yellow" }, [`A/B：${p.ab_group} 组（${p.ab_split}%）`]) : null,
-        p.enabled ? null : el("span", { class: "chip red" }, ["已停用"]),
-        el("div", { style: "flex:1" }),
-        el("button", { class: "btn small", onclick: () => editPolicy(p) }, ["参数配置"]),
-      ]),
-      paramsRow,
-      p.api_key ? el("div", { style: "display:flex;align-items:center;gap:8px;margin:6px 0 8px" }, [
-        el("span", { class: "muted" }, ["接入 Key"]),
-        el("span", { class: "chip gray num", style: "cursor:pointer", title: "把该 Key 配到你的产品（POST /v1/route 携带 api_key）即按此策略路由；点击复制",
-          onclick: () => { navigator.clipboard.writeText(p.api_key); UI.toast("已复制接入 Key"); } },
-          [p.api_key.slice(0, 12) + "····" + p.api_key.slice(-4)]),
-        UI.help("对外接入方式：你的产品无需感知策略配置，携带此 Key 调用路由接口即可；换策略只需换 Key"),
-      ]) : null,
-      el("div", { class: "muted" }, [
-        `延迟档位：${{ fast: "极速（单模型直连）", balanced: "均衡", quality: "高质" }[p.latency_tier]} · ` +
-        `多模型聚合：${p.allow_aggregation ? "允许" : "禁止"} · 探索预算：${(p.explore_ratio * 100).toFixed(0)}% · ` +
-        `日预算：${p.budget_cap?.daily_usd != null ? "$" + p.budget_cap.daily_usd + "（超限自动降级单模型）" : "未设（成本无上限，建议设置）"}`,
-      ]),
-    ]));
-  });
-}
-
-// 走查 R3：调参项分「常用」与「高级」，常用项用业务语言；保存加 busy 与错误提示，补取消按钮
-async function editPolicy(p) {
-  const { models: _allM } = await UI.api("/v1/models").catch(() => ({ models: [] }));
-  const _actives = (_allM || []).filter(m => m.status === "active");
-  const state = { params: { ...p.params }, latency_tier: p.latency_tier,
-    allow_aggregation: !!p.allow_aggregation, explore_ratio: p.explore_ratio,
-    daily_usd: p.budget_cap?.daily_usd ?? "" };
-  const numField = (label, value, opts, onInput, help) => {
-    const n = el("input", { type: "number", value, ...opts });
-    n.oninput = () => onInput(n.value);
-    return el("label", { class: "field" }, [
-      el("span", { class: "label-text" }, [label, help ? UI.help(help) : null]), n]);
-  };
-  // 分组：路由方式 / 成本与探索 / 高级参数（折叠）
-  const routeSec = el("div", { class: "editor-section" }, [
-    el("div", { class: "sec-head" }, ["路由方式"]),
+// 策略表单（新增与编辑共用）：名称 / 成本上限 / 聚合值滑杆 / 候选模型多选 / 兜底模型 / 延迟档
+function policyForm(init, actives, advancedParams) {
+  const st = { name: init.name || "", daily_usd: init.daily_usd ?? "", t: init.t ?? 0.8,
+    whitelist: new Set(init.whitelist || []), fallback: init.fallback || "", latency_tier: init.latency_tier || "balanced" };
+  const nameIn = el("input", { type: "text", maxlength: "15", value: st.name, placeholder: "例如：夜间省钱档（1-15 字）" });
+  nameIn.oninput = () => st.name = nameIn.value;
+  const costIn = el("input", { type: "number", min: "0", step: "0.5", value: st.daily_usd, placeholder: "留空 = 不设上限" });
+  costIn.oninput = () => st.daily_usd = costIn.value;
+  const tVal = el("span", { class: "num", style: "font-weight:600;min-width:34px;text-align:right" }, [Number(st.t).toFixed(2)]);
+  const tIn = el("input", { type: "range", min: "0", max: "1", step: "0.05", value: st.t, style: "flex:1" });
+  const setFill = () => tIn.style.setProperty("--fill", (Number(tIn.value) * 100) + "%");
+  setFill();
+  tIn.oninput = () => { st.t = Number(tIn.value); tVal.textContent = Number(st.t).toFixed(2); setFill(); };
+  const wlBox = el("div", { class: "wl-box" }, actives.map(m => {
+    const cb = el("input", { type: "checkbox", ...(st.whitelist.size === 0 || st.whitelist.has(m.model_id) ? { checked: "" } : {}) });
+    cb.onchange = () => { cb.checked ? st.whitelist.add(m.model_id) : st.whitelist.delete(m.model_id); };
+    if (st.whitelist.size === 0) st.whitelist.add(m.model_id);
+    return el("label", { class: "wl-item" }, [cb, el("span", {}, [m.display_name])]);
+  }));
+  const fbSel = el("select", {}, [
+    el("option", { value: "" }, ["跟随平台默认兜底"]),
+    ...actives.map(m => el("option", { value: m.model_id, ...(st.fallback === m.model_id ? { selected: "" } : {}) }, [m.display_name])),
+  ]);
+  fbSel.onchange = () => st.fallback = fbSel.value;
+  const tierSel = el("select", {}, [["fast", "极速（更快，单模型直连）"], ["balanced", "均衡"], ["quality", "高质（更准，成本更高）"]]
+    .map(([v, lb]) => el("option", { value: v, ...(st.latency_tier === v ? { selected: "" } : {}) }, [lb])));
+  tierSel.onchange = () => st.latency_tier = tierSel.value;
+  const node = el("div", {}, [
+    el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["策略名称"]), nameIn]),
     el("div", { class: "grid cols-2" }, [
-      (() => {
-        const n = el("select", {}, [["fast", "极速（单模型直连）"], ["balanced", "均衡"], ["quality", "高质"]]
-          .map(([v, lb]) => el("option", { value: v, ...(state.latency_tier === v ? { selected: "" } : {}) }, [lb])));
-        n.onchange = () => state.latency_tier = n.value;
-        return el("label", { class: "field" }, [el("span", { class: "label-text" }, ["延迟档位"]), n]);
-      })(),
-      "K" in state.params ? numField("并发候选模型数", state.params.K, { step: "1", min: "1", max: "6" },
-        v => state.params.K = Number(v), "同时请求几个模型参与比较") : null,
+      el("label", { class: "field" }, [el("span", { class: "label-text" }, ["成本值（每天最多花多少，¥）",
+        UI.help("当天花费到达上限后，自动降级为最便宜的单模型直连，不会超支")]), costIn]),
+      el("label", { class: "field" }, [el("span", { class: "label-text" }, ["响应速度"]), tierSel]),
+    ]),
+    el("label", { class: "field" }, [
+      el("span", { class: "label-text" }, ["聚合值",
+        UI.help("多个模型答案都不错时，是否让它们「合写」一个更好的答案。值越低越容易触发合写（更准但更贵），越高越倾向单模型（更省）")]),
+      el("div", { style: "display:flex;align-items:center;gap:10px" }, [
+        el("span", { class: "muted", style: "flex:none" }, ["更容易合写"]), tIn, el("span", { class: "muted", style: "flex:none" }, ["更省钱"]), tVal,
+      ]),
     ]),
     el("div", { class: "field" }, [
-      el("span", { class: "label-text" }, ["多模型聚合"]),
-      UI.toggle({ checked: state.allow_aggregation, label: "允许聚合多个模型的回答",
-        hint: "质量更高，但成本显著上升",
-        onChange: v => { state.allow_aggregation = v; return true; } }),
+      el("span", { class: "label-text" }, ["候选模型（可多选）", UI.help("这个策略允许用哪些模型；不选等于全部可用")]),
+      wlBox,
     ]),
-    "t" in state.params ? numField("聚合准入阈值", state.params.t, { step: "0.05", min: "0", max: "1" },
-      v => state.params.t = Number(v), "0-1：阈值越高越少触发聚合、越省钱") : null,
-    el("div", { class: "grid cols-2" }, [
-      (() => {
-        const n = el("select", {}, [
-          el("option", { value: "" }, ["自动（历史命中率最高的候选）"]),
-          ..._actives.map(m => el("option", { value: m.model_id, ...(state.params.aggregator_model === m.model_id ? { selected: "" } : {}) }, [m.display_name])),
-        ]);
-        n.onchange = () => { if (n.value) state.params.aggregator_model = n.value; else delete state.params.aggregator_model; };
-        return el("label", { class: "field" }, [el("span", { class: "label-text" }, ["聚合器模型",
-          UI.help("负责把多份候选回答融合重写成最终回答的模型；不指定则自动选粗排第一的模型")]), n]);
-      })(),
-      numField("最多聚合路数", state.params.max_agg_routes ?? 2, { step: "1", min: "2", max: "4" },
-        v => state.params.max_agg_routes = Number(v), "参与聚合的候选回答上限，路数越多质量越高、成本越高"),
-    ]),
+    el("label", { class: "field" }, [el("span", { class: "label-text" }, ["兜底模型",
+      UI.help("候选模型全部失败时用它保底回答")]), fbSel]),
+    advancedParams || null,
   ]);
-  const costSec = el("div", { class: "editor-section" }, [
-    el("div", { class: "sec-head" }, ["成本与探索"]),
-    el("div", { class: "grid cols-2" }, [
-      numField("探索预算", state.explore_ratio, { step: "0.01", min: "0", max: "0.5" },
-        v => state.explore_ratio = Number(v), "随机试用非最优模型的比例，防模型池坍缩，建议不低于 0.05"),
-      numField("日预算（美元）", state.daily_usd, { step: "0.5", min: "0", placeholder: "留空不设上限" },
-        v => state.daily_usd = v, "超限自动降级为单模型直连"),
+  return { node, st, nameIn };
+}
+
+function policyRefSnippet(p) {
+  return [
+    `// 在你的产品里引用「${p.name}」这条路由策略：请求带上它的接入 Key 即可`,
+    `fetch("https://your-domain/v1/route", {`,
+    `  method: "POST", headers: { "Content-Type": "application/json" },`,
+    `  body: JSON.stringify({ api_key: "${p.api_key}", text: "用户消息", session_id: "sess-1", user_id: "u-1" })`,
+    `});`,
+  ].join("\n");
+}
+
+let selectedPolicyId = null;
+
+async function newPolicyDialog(actives) {
+  if (!actives.length) { UI.toast("请先在「模型接入」里接入模型", true); return; }
+  const form = policyForm({}, actives);
+  const err = el("div", { class: "field-error" });
+  const mask2 = UI.modal("新增路由策略", el("div", {}, [form.node, err,
+    el("div", { style: "display:flex;justify-content:flex-end;gap:8px;margin-top:12px" }, [
+      el("button", { class: "btn", onclick: () => mask2.remove() }, ["取消"]),
+      el("button", { class: "btn primary", onclick: async (e) => {
+        if (!form.st.name.trim()) { err.textContent = "请填写策略名称（1-15 字）"; return; }
+        await UI.withBusy(e.currentTarget, async () => {
+          try {
+            const body = { name: form.st.name.trim(), t: form.st.t, latency_tier: form.st.latency_tier,
+              model_whitelist: form.st.whitelist.size === actives.length ? [] : [...form.st.whitelist],
+              fallback_model: form.st.fallback || undefined,
+              daily_usd: form.st.daily_usd === "" ? undefined : Number(form.st.daily_usd) };
+            const r = await UI.api("/v1/policies", { method: "POST", body });
+            UI.toast("策略已创建");
+            selectedPolicyId = r.policy_id;
+            mask2.remove(); renderDispatch();
+          } catch (e2) { err.textContent = e2.data?.error || e2.message; }
+        }, "创建中……");
+      } }, ["创建策略"]),
     ]),
-  ]);
-  const advanced = Object.entries(state.params).filter(([k]) => !["K", "t", "aggregator_model", "max_agg_routes"].includes(k));
+  ]), null, { persistent: true });
+  setTimeout(() => form.nameIn.focus(), 100);
+}
+
+async function editPolicy(p, actives) {
+  const prm = p.params || {};
+  const advanced = Object.entries(prm).filter(([k]) => !["t", "aggregator_model", "max_agg_routes", "fallback_model"].includes(k));
   const advSec = advanced.length ? el("details", { class: "editor-section" }, [
     el("summary", { class: "muted" }, [`高级参数（${advanced.length}，一般无需调整）`]),
-    el("div", { class: "grid cols-2", style: "margin-top:10px" }, advanced.map(([k, v]) => {
-      const isInt = k === "N_base" || k === "max_agg_tokens";
-      return numField(k, v, { step: isInt ? "1" : "0.05", min: "0" },
-        val => state.params[k] = Number(val), PARAM_DESCS[k] || "");
-    })),
+    el("div", { class: "muted", style: "margin-top:8px;font-size:var(--font-caption)" },
+      [advanced.map(([k, v]) => `${PARAM_DESCS[k] || k}=${v}`).join(" · ")]),
   ]) : null;
-  const body = el("div", {}, [routeSec, costSec, advSec]);
-  const foot = el("div", { style: "display:flex;justify-content:flex-end;gap:8px" }, [
-    el("button", { class: "btn", onclick: () => mask.close() }, ["取消"]),
+  const form = policyForm({ name: p.name, daily_usd: p.budget_cap?.daily_usd ?? "", t: prm.t ?? 0.8,
+    whitelist: p.model_whitelist || [], fallback: prm.fallback_model || "", latency_tier: p.latency_tier }, actives, advSec);
+  const err = el("div", { class: "field-error" });
+  const foot = el("div", { style: "display:flex;gap:8px;justify-content:flex-end;align-items:center;width:100%" }, [
+    err, el("div", { style: "flex:1" }),
+    el("button", { class: "btn", onclick: () => mask2.querySelector(".close-btn")?.click() }, ["取消"]),
     el("button", { class: "btn primary", onclick: async (e) => {
-      if (state.params.K != null && !(state.params.K >= 1)) { UI.toast("候选模型数至少为 1", true); return; }
-      if (state.params.t != null && !(state.params.t >= 0 && state.params.t <= 1)) { UI.toast("聚合准入阈值需在 0-1 之间", true); return; }
-      if (!(state.explore_ratio >= 0 && state.explore_ratio <= 0.5)) { UI.toast("探索预算需在 0-0.5 之间", true); return; }
-      if (state.daily_usd !== "" && state.daily_usd != null && !(Number(state.daily_usd) > 0)) { UI.toast("日预算需为正数，或留空表示不设", true); return; }
+      if (!form.st.name.trim()) { err.textContent = "策略名称必填"; return; }
       await UI.withBusy(e.currentTarget, async () => {
         try {
           const r = await UI.api(`/v1/policies/${p.policy_id}`, { method: "PUT", body: {
-            params: state.params, latency_tier: state.latency_tier,
-            allow_aggregation: state.allow_aggregation, explore_ratio: Number(state.explore_ratio),
-            budget_cap: state.daily_usd === "" || state.daily_usd == null ? {} : { daily_usd: Number(state.daily_usd) },
+            name: form.st.name.trim(),
+            params: { t: form.st.t, ...(form.st.fallback ? { fallback_model: form.st.fallback } : {}) },
+            latency_tier: form.st.latency_tier,
+            model_whitelist: form.st.whitelist.size === actives.length ? [] : [...form.st.whitelist],
+            budget_cap: form.st.daily_usd === "" ? {} : { daily_usd: Number(form.st.daily_usd) },
           } });
-          UI.toast("已下发");
-          if (r && r.warning) setTimeout(() => UI.toast(r.warning, true), 1200);
-          mask.close(); showSection("dispatch", true);
-        } catch (err) { UI.toast("下发失败：" + (err.data?.error || err.message), true); }
-      }, "下发中……");
-    } }, ["保存并下发"]),
+          UI.toast("已保存并生效");
+          if (r && r.warning) setTimeout(() => UI.toast(r.warning, true), 1000);
+          mask2.querySelector(".close-btn")?.click();
+          renderDispatch();
+        } catch (e2) { err.textContent = e2.data?.error || e2.message; }
+      }, "保存中……");
+    } }, ["保存并生效"]),
   ]);
-  const mask = UI.drawer(`参数配置 · ${p.name || p.policy_id}`, body, foot);
+  const mask2 = UI.drawer(`参数配置 · ${p.name || ""}`, form.node, foot);
 }
 
-// ================= 数据集与路由画像（Avengers-Pro 产品化） =================
+async function renderPolicies(container, policies, actives) {
+  policies.forEach(p => {
+    const isDefault = p.scope === "global";
+    const isSel = selectedPolicyId === p.policy_id;
+    const prm = p.params || {};
+    const wlN = (p.model_whitelist || []).length || actives.length;
+    const card = el("div", { class: "card policy-card" + (isSel ? " selected" : ""), style: "margin-bottom:10px;cursor:pointer",
+      onclick: () => { selectedPolicyId = p.policy_id; renderDispatch(); } }, [
+      el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
+        el("span", { style: "font-weight:700;font-size:var(--font-title)" }, [p.name || "未命名策略"]),
+        isDefault ? el("span", { class: "chip blue", title: "对话没有指定策略时，走这条默认策略" }, ["默认"]) : null,
+        el("span", { class: "cr-id num", title: "策略 ID（点击复制完整 ID）：" + p.policy_id,
+          onclick: (e) => { e.stopPropagation(); navigator.clipboard.writeText(p.policy_id); UI.toast("已复制策略 ID"); } },
+          ["ID:" + shortPolicyId(p.policy_id)]),
+        p.enabled ? null : el("span", { class: "chip red" }, ["已停用"]),
+        el("div", { style: "flex:1" }),
+        el("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); navigator.clipboard.writeText(policyRefSnippet(p)); UI.toast("已复制引用代码，贴进你的产品即可"); } }, ["复制引用代码"]),
+        el("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); editPolicy(p, actives); } }, ["参数配置"]),
+        (() => { const more = el("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); UI.menu(more, [
+          { label: "复制一份新策略", onClick: async () => {
+            try { const r = await UI.api(`/v1/policies/${p.policy_id}/duplicate`, { method: "POST" }); UI.toast(`已复制为「${r.name}」`); selectedPolicyId = r.policy_id; renderDispatch(); }
+            catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
+          } },
+          !isDefault ? { label: "删除策略", danger: true, onClick: async () => {
+            const ok = await UI.confirm("删除策略", `删除「${p.name}」后，使用它接入 Key 的调用将回落到默认策略。`, { okText: "删除", danger: true });
+            if (!ok) return;
+            try { await UI.api(`/v1/policies/${p.policy_id}/delete`, { method: "POST" }); UI.toast("已删除"); if (selectedPolicyId === p.policy_id) selectedPolicyId = null; renderDispatch(); }
+            catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
+          } } : null,
+        ]); } }, ["更多"]); return more; })(),
+      ]),
+      el("div", { class: "muted", style: "margin-top:8px" }, [
+        `每天最多花 ${p.budget_cap?.daily_usd != null ? "¥" + p.budget_cap.daily_usd : "不限"} · ` +
+        `候选模型 ${wlN} 个 · 聚合值 ${prm.t ?? "-"} · ` +
+        `响应${({ fast: "极速", balanced: "均衡", quality: "高质" })[p.latency_tier] || p.latency_tier}` +
+        (prm.fallback_model ? ` · 兜底 ${prm.fallback_model}` : ""),
+      ]),
+    ]);
+    container.appendChild(card);
+  });
+}
 
-let profileAlpha = Number(localStorage.getItem("profile_alpha") || 0.7);
+function shortPolicyId(pid) {
+  const hex = String(pid).replace(/[^0-9a-f]/gi, "").slice(0, 8) || "0";
+  return String(parseInt(hex, 16) % 1000000).padStart(6, "0");
+}
+
 let profilePollTimer = null;
+let profileAlpha = Number(localStorage.getItem("profile_alpha") || 0.7);
 
-async function renderProfile(container) {
-  const box = container || content();
-  box.innerHTML = "";
-  const [p0, h] = await Promise.all([
-    UI.api("/api/profile?alpha=" + profileAlpha),
-    UI.api("/v1/bank/health"),
-  ]);
-  let p = p0;
-
-  // 质量-成本旋钮 + 重建（此卡只建一次；α 变化只刷新下方矩阵，避免整区闪动）
+async function renderDirections(container, policyId) {
+  container.innerHTML = "";
+  const p = await UI.api(`/api/profile?alpha=${profileAlpha}${policyId ? "&policy_id=" + policyId : ""}`);
+  const clusters = p.clusters || [];
   const alphaLabel = el("span", { class: "num", style: "font-weight:600;min-width:36px;text-align:right" }, [profileAlpha.toFixed(2)]);
   const slider = el("input", { type: "range", min: "0", max: "1", step: "0.05", value: profileAlpha, style: "flex:1" });
   const setFill = () => slider.style.setProperty("--fill", (Number(slider.value) * 100) + "%");
@@ -507,229 +542,105 @@ async function renderProfile(container) {
   slider.oninput = () => {
     alphaLabel.textContent = Number(slider.value).toFixed(2);
     setFill();
-    // 拖动中节流刷新矩阵，只动矩阵不动其他
     clearTimeout(alphaTimer);
-    alphaTimer = setTimeout(async () => {
+    alphaTimer = setTimeout(() => {
       profileAlpha = Number(slider.value);
       localStorage.setItem("profile_alpha", String(profileAlpha));
-      p = await UI.api("/api/profile?alpha=" + profileAlpha);
-      drawMatrix();
-    }, 200);
+      renderDirections(container, policyId);
+    }, 250);
   };
   const rebuildStatus = el("span", { class: "muted" });
-  // 走查 R5：重建期间按钮禁用，防止重复触发
-  const rebuildBtn = el("button", { class: "btn", onclick: async () => {
-    const ok = await UI.confirm("更新画像", "按当前数据集与 α 重新生成矩阵，完成后以新版本生效；期间线上不受影响。", { okText: "更新" });
+  const rebuildBtn = el("button", { class: "btn small", onclick: async () => {
+    const ok = await UI.confirm("重新打分", "按最新的场景数据集与偏好，重新给每个模型打分并更新各场景去向；期间线上不受影响。", { okText: "重新打分" });
     if (!ok) return;
     rebuildBtn.disabled = true;
     try { await UI.api("/api/profile/rebuild", { method: "POST" }); pollRebuild(); }
     catch (e) { rebuildBtn.disabled = false; UI.toast("启动失败：" + e.message, true); }
-  } }, ["更新画像"]);
-  const verChip = el("span", { class: "chip blue num" }, ["画像 v" + (p.version || 1)]);
+  } }, ["重新打分"]);
   async function pollRebuild() {
     const { task } = await UI.api("/api/profile/rebuild/status");
     if (!task || task.status === "idle") { rebuildStatus.textContent = ""; rebuildBtn.disabled = false; return; }
     if (task.status === "running") {
       rebuildBtn.disabled = true;
-      rebuildStatus.textContent = `更新中 ${task.done}/${task.total}`;
+      rebuildStatus.textContent = `打分中 ${task.done}/${task.total}`;
       clearTimeout(profilePollTimer);
-      profilePollTimer = setTimeout(pollRebuild, 600);
-    } else {
-      rebuildStatus.textContent = "";
-      rebuildBtn.disabled = false;
-      if (task.version && task.version !== (p.version || 1)) {
-        UI.toast("画像已更新为 v" + task.version);
-        p = await UI.api("/api/profile?alpha=" + profileAlpha);
-        verChip.textContent = "画像 v" + (p.version || 1);
-        drawMatrix();
-      }
-    }
+      if (activeTab === "dispatch") profilePollTimer = setTimeout(pollRebuild, 700);
+    } else { rebuildStatus.textContent = ""; rebuildBtn.disabled = false; }
   }
-  box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
-    el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:8px" }, [verChip,
-      el("span", { class: "muted" }, [`数据来源：公共 ${h.public.queries} 题 + 回流 ${h.tenant.queries} 题（明细见反馈优化）`]),
-      el("div", { style: "flex:1" }), rebuildStatus, rebuildBtn]),
-    el("div", { class: "section-title", style: "font-size: var(--font-base);display:flex;align-items:center" }, ["质量-成本 α",
-      UI.help("综合分 = α × 效果 + (1-α) × 成本。效果分来自各模型在场景数据集上的评测得分（见「数据回流」页）；拖动即时重算矩阵，重建画像后新版本才用于线上路由")]),
-    el("div", { style: "display:flex;gap:12px;align-items:center" }, [
-      el("span", { class: "muted" }, ["更省钱"]),
+  const mids = clusters.length ? Object.keys(clusters[0].scores || {}) : [];
+  const nameOf = m => (p.models || {})[m] || m;
+  const table = el("table", { class: "data" }, [
+    el("thead", {}, [el("tr", {}, [
+      el("th", {}, ["业务场景"]), el("th", {}, ["题目数"]),
+      ...mids.map(m => el("th", {}, [nameOf(m)])),
+      el("th", {}, ["路由去向"]),
+    ])]),
+    el("tbody", {}, clusters.map(c => el("tr", {}, [
+      el("td", {}, [el("a", { href: "./router.html#flow", style: "font-weight:600;color:var(--text-primary);text-decoration:none;border-bottom:1px dashed var(--border-strong)",
+        title: "查看这个场景的数据集" }, [DOMAIN_NAMES[c.domain] || c.domain])]),
+      el("td", { class: "num" }, [String(c.queries)]),
+      ...mids.map(m => {
+        const sc2 = (c.scores || {})[m];
+        const v = sc2 && sc2.combined != null ? sc2.combined : null;
+        const isBest = m === c.best;
+        return el("td", { class: "num", style: isBest && !c.agg_with ? "background:var(--primary-weak);font-weight:600;border-radius:4px" : "",
+          title: v == null ? "还没打过分" : `效果 ${sc2.perf} · 省钱 ${sc2.eff} · 综合 ${v.toFixed(2)}` }, [v == null ? "-" : v.toFixed(2)]);
+      }),
+      el("td", {}, [c.agg_with
+        ? el("span", { class: "chip ai", title: "两个模型得分接近：都答一遍再合写成更好的答案" }, [`聚合：${nameOf(c.best)} + ${nameOf(c.agg_with)}`])
+        : (c.best ? el("span", { class: "chip blue" }, [nameOf(c.best)]) : el("span", { class: "muted" }, ["待打分"]))]),
+    ]))),
+  ]);
+  container.appendChild(el("div", { class: "card" }, [
+    el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap" }, [
+      el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["各场景路由去向"]),
+      UI.help("这条策略下，每类问题会交给哪个模型回答。分数 = 效果与省钱的加权（拖动下面的偏好条即时重算）；两名接近时该场景走「聚合」——多个模型合写答案"),
+      el("div", { style: "flex:1" }), rebuildStatus, rebuildBtn,
+    ]),
+    el("div", { style: "display:flex;gap:12px;align-items:center;margin:8px 0 12px" }, [
+      el("span", { class: "muted", style: "flex:none" }, ["更省钱"]),
       el("div", { style: "flex:1;display:flex;flex-direction:column;gap:2px" }, [
         slider,
-        el("div", { class: "alpha-ticks num" }, ["0", "0.25", "0.5", "0.75", "1"].map(t => el("span", {}, [t]))),
+        el("div", { class: "alpha-ticks num" }, ["0", "0.25", "0.5", "0.75", "1"].map(t2 => el("span", {}, [t2]))),
       ]),
-      el("span", { class: "muted" }, ["更高质量"]), alphaLabel,
+      el("span", { class: "muted", style: "flex:none" }, ["更高质量"]), alphaLabel,
     ]),
-  ]));
-
-  // 画像矩阵：簇（问题类型）× 模型；独立容器 + 占位高度，刷新不跳
-  const matrixBox = el("div", { style: "overflow-x:auto;min-height:340px" });
-  function drawMatrix() {
-    const mids = Object.keys(p.models || {});
-    const matrix = el("table", { class: "data" }, [
-      el("thead", {}, [el("tr", {}, [el("th", {}, ["问题簇"]), el("th", {}, ["样本数"]),
-        ...mids.map(m => el("th", {}, [p.models[m]])), el("th", {}, ["路由去向"])])]),
-      el("tbody", {}, (p.clusters || []).map(c => el("tr", {}, [
-        el("td", {}, [DOMAIN_NAMES[c.domain] || c.domain]),
-        el("td", { class: "muted" }, [String(c.queries)]),
-        ...mids.map(m => {
-          const s2 = c.scores[m] || {};
-          const isBest = c.best === m;
-          return el("td", {
-            class: "num",
-            style: isBest ? "background:var(--primary-weak);font-weight:600;border-radius:4px" : "",
-            title: s2.perf == null ? "无评测数据" : `性能 ${s2.perf} · 效率 ${s2.eff} · 综合 ${s2.combined}`,
-          }, [s2.combined == null ? "-" : s2.combined.toFixed(2)]);
-        }),
-        el("td", {}, [c.best ? el("span", { class: "chip blue" }, [p.models[c.best] || c.best]) : "-"]),
-      ]))),
-    ]);
-    matrixBox.innerHTML = "";
-    matrixBox.appendChild(matrix);
-  }
-  drawMatrix();
-  box.appendChild(el("div", { class: "card" }, [
-    el("div", { class: "section-title", style: "font-size: var(--font-base);display:flex;align-items:center" }, ["路由画像", UI.help("行 = 问题簇，列 = 模型，高亮 = 该簇当前最优。在线路由按此表选择；悬停看性能 / 效率拆分")]),
-    matrixBox,
+    el("div", { style: "overflow-x:auto" }, [clusters.length ? table : el("div", { class: "empty-state" }, [
+      el("div", { class: "empty-title" }, ["还没有打分数据"]),
+      el("div", {}, ["先到「场景数据集」导入题目并点「开始打分」"]),
+    ])]),
   ]));
   pollRebuild();
 }
 
-// ================= 回流优化（反馈 → 更新画像 两步，反馈自动入库） =================
+// ================= 场景数据集 =================
 
 async function renderFlow() {
-  const box = content();
-  box.innerHTML = "";
-  const [h, p, sum] = await Promise.all([
-    UI.api("/v1/bank/health"),
-    UI.api("/api/profile?alpha=" + profileAlpha),
+  const [sc, sum] = await Promise.all([
+    UI.api("/v1/bank/scenes"),
     UI.api("/api/labels/summary"),
   ]);
-
-  // ---------- 一、数据管道总览：冷启动底座 → 回流数据集 → 画像生效 ----------
-  const threshold = h.tenant_activation_threshold || 500;
-  const pct = Math.min(100, Math.round((h.tenant.responses / threshold) * 100));
-  const rebuildStatus = el("span", { class: "muted" });
-  const rebuildBtn = el("button", { class: "btn small", onclick: async () => {
-    const ok = await UI.confirm("更新画像", `把 ${sum.since_rebuild} 条新反馈并入数据集，重新生成路由画像；期间线上不受影响。`, { okText: "更新" });
-    if (!ok) return;
-    rebuildBtn.disabled = true;
-    try { await UI.api("/api/profile/rebuild", { method: "POST" }); pollRebuild(); }
-    catch (e) { rebuildBtn.disabled = false; UI.toast(e.message, true); }
-  } }, ["更新画像"]);
-  let _sawRunning = false; // 只有本轮观察到任务运行过，完成时才刷新（否则完成态残留会造成无限重渲染）
-  async function pollRebuild() {
-    const { task } = await UI.api("/api/profile/rebuild/status");
-    if (!task || task.status === "idle") { rebuildStatus.textContent = ""; rebuildBtn.disabled = false; return; }
-    if (task.status === "running") {
-      _sawRunning = true;
-      rebuildBtn.disabled = true;
-      rebuildStatus.textContent = `更新中 ${task.done}/${task.total}`;
-      if (activeTab === "flow") setTimeout(pollRebuild, 700);
-    } else {
-      rebuildStatus.textContent = "";
-      rebuildBtn.disabled = false;
-      if (_sawRunning && activeTab === "flow") { UI.toast("画像已更新"); renderFlow(); }
-    }
-  }
-  const pipe = (title, value, subNodes, extra, headBtn) => el("div", { class: "stat-tile", style: "display:flex;flex-direction:column" }, [
-    el("div", { class: "stat-label", style: headBtn ? "display:flex;align-items:center;gap:8px" : "" },
-      headBtn ? [title, el("span", { style: "flex:1" }), headBtn] : [title]),
-    el("div", { class: "stat-value" }, [String(value)]),
-    el("div", { class: "stat-sub", style: "flex:1" }, subNodes),
-    extra ? el("div", { style: "margin-top:8px;display:flex;gap:8px;align-items:center" }, extra) : null,
-  ]);
-  box.appendChild(el("div", { class: "grid cols-3", style: "margin-bottom:12px" }, [
-    pipe("冷启动底座（公共评测集）", `${h.public.queries} 题`,
-      [`${h.public.responses} 条评测标签 · 平台内置只读，保证新租户第一天就能路由`], null),
-    pipe("线上回流标签（本租户）", `${h.tenant.responses} 条标签`, [
-      el("div", { class: "meter-track", style: "margin:6px 0 4px" }, [
-        el("div", { class: "meter-fill", style: `width:${pct}%;background:var(--primary)` }),
-      ]),
-      h.tenant_activated
-        ? `已启用，参与路由权重 ${h.tenant_weight}`
-        : `距启用阈值 ${threshold} 条还差 ${Math.max(0, threshold - h.tenant.responses)} 条，未达前仅公共底座参与路由`,
-    ], null),
-    pipe("路由画像", "v" + (p.version || 1), [
-      sum.last_rebuild_ts ? `上次更新 ${UI.fmtTs(sum.last_rebuild_ts)} · ` : "",
-      `新增 ${sum.since_rebuild} 条反馈待入画像`,
-    ], null),
-  ]));
-
-  // ---------- 二、信号源与闸门 ----------
-  const judgeStatus = el("span", { class: "muted" });
-  let judgeBtn = null;
-  async function pollJudge() {
-    const { task } = await UI.api("/v1/labels/judge/status");
-    if (task.status === "idle") { judgeStatus.textContent = ""; if (judgeBtn) judgeBtn.disabled = false; return; }
-    judgeStatus.textContent = task.status === "running" ? `评审中 ${task.done}/${task.total}` : `已完成，产出 ${task.labeled} 条`;
-    if (task.status === "running" && activeTab === "flow") { if (judgeBtn) judgeBtn.disabled = true; setTimeout(pollJudge, 800); }
-    else if (judgeBtn) judgeBtn.disabled = false;
-  }
-  const srcRows = el("div", {});
-  sum.sources.forEach(m => {
-    const extra = [];
-    if (m.source === "llm_judge") {
-      judgeBtn = el("button", { class: "btn small", ...(m.enabled ? {} : { disabled: "" }), onclick: async () => {
-        judgeBtn.disabled = true;
-        try {
-          const { task } = await UI.api("/v1/labels/judge/run", { method: "POST" });
-          UI.toast(task.total ? `已启动：${task.total} 条待评审` : "没有待补标的请求");
-          pollJudge();
-        } catch (e) { judgeBtn.disabled = false; UI.toast(e.data?.error || e.message, true); }
-      } }, ["运行 AI 评审"]);
-      extra.push(judgeBtn, judgeStatus);
-    }
-    srcRows.appendChild(el("div", { class: "src-row" }, [
-      el("div", { class: "src-main" }, [
-        el("div", { class: "src-t" }, [m.name,
-          el("span", { class: "chip gray num", title: "该来源标签的置信度，低置信在画像计算中自动降权" }, [`置信 ${m.confidence}`])]),
-        el("div", { class: "muted" }, [m.desc]),
-      ]),
-      el("span", { class: "src-n num", title: "近 30 天入库标签数" }, [`${m.count_30d} 条`]),
-      ...extra,
-      UI.toggle({ checked: m.enabled, onChange: async (v) => {
-        try {
-          await UI.api("/api/labels/sources", { method: "POST", body: { source: m.source, enabled: v } });
-          UI.toast(v ? `已开启「${m.name}」回流` : `已关闭「${m.name}」回流，新信号不再入库`);
-          if (m.source === "llm_judge" && judgeBtn) judgeBtn.disabled = !v;
-          return true;
-        } catch (e) { UI.toast(e.message, true); return false; }
-      } }),
-    ]));
-  });
-  // 线上信号源：低频高级配置，折叠收纳（在场景数据集之后追加）
-  const srcCard = el("details", { class: "card", style: "margin-bottom:12px;padding-top:10px;padding-bottom:10px" }, [
-    el("summary", {}, [el("span", { style: "font-weight:600" }, ["线上信号源"]),
-      UI.help("线上反馈按来源分级入库：置信度越高对画像影响越大。关闭某来源后，新信号不再进入回流数据集；已入库数据不受影响"),
-      el("span", { class: "muted", style: "margin-left:8px" }, ["高级设置 · 四路信号闸门"])]),
-    el("div", { style: "margin-top:6px" }, [srcRows]),
-  ]);
-
-
-  // ---------- 四、场景数据集（冷启动导入 + 自动收集待并入 + 评测回填） ----------
-  const sc = await UI.api("/v1/bank/scenes");
+  const box = content();
+  box.innerHTML = "";
+  const SCENE_NAMES2 = { ...DOMAIN_NAMES };
+  (sc.custom_scenes || []).forEach(c => { SCENE_NAMES2[c.key] = c.name; });
   const judgeModel = sc.judge_model;
   const judgeName = sc.judge_name || sc.judge_model;
-  const SCENE_NAMES = { ...DOMAIN_NAMES };
-  (sc.custom_scenes || []).forEach(c => { SCENE_NAMES[c.key] = c.name; });
-  const stagedTotal = sc.scenes.reduce((s2, r) => s2 + (r.staged || 0), 0);
 
-  // 添加自定义场景
   function addSceneDialog() {
     const nameIn = el("input", { type: "text", placeholder: "例如：清关咨询（不超过 12 字）", maxlength: "12" });
-    const descIn = el("input", { type: "text", placeholder: "一句话说明场景范围，供分类与 Judge 评审理解" });
+    const descIn = el("input", { type: "text", placeholder: "一句话说明这个场景管什么，例如：进出口清关、关税、单证问题" });
     const err = el("div", { class: "field-error" });
     const mask2 = UI.modal("添加业务场景", el("div", {}, [
       el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["场景名"]), nameIn]),
-      el("label", { class: "field" }, [el("span", { class: "label-text" }, ["场景描述"]), descIn]),
-      el("div", { class: "muted", style: "margin-bottom:8px" }, ["自动收集按内置分类识别；自定义场景通过导入冷启动数据积累题目。"]),
+      el("label", { class: "field" }, [el("span", { class: "label-text" }, ["场景说明"]), descIn]),
       err,
       el("div", { style: "display:flex;justify-content:flex-end;gap:8px;margin-top:12px" }, [
         el("button", { class: "btn", onclick: () => mask2.remove() }, ["取消"]),
         el("button", { class: "btn primary", onclick: async () => {
           try {
             await UI.api("/api/scenes", { method: "POST", body: { name: nameIn.value.trim(), desc: descIn.value.trim() } });
-            UI.toast("场景已添加"); mask2.remove(); renderFlow();
+            UI.toast("场景已添加，去「导入数据集」给它补充题目"); mask2.remove(); renderFlow();
           } catch (e) { err.textContent = e.data?.error || e.message; }
         } }, ["添加"]),
       ]),
@@ -740,17 +651,17 @@ async function renderFlow() {
   if (sc.scenes.length) {
     const tbody = el("tbody", {});
     sc.scenes.forEach(r => {
+      const isCustom = String(r.domain).startsWith("custom-");
       const cntCell = el("td", { class: "num" }, [`${r.total} 题`]);
       const tsCell = el("td", { class: "muted num" }, [r.last_ts ? UI.fmtTs(r.last_ts) : "-"]);
-      const isCustom = String(r.domain).startsWith("custom-");
-      const row = el("tr", { style: "cursor:pointer", title: "点击展开，可直接输入题目追加到该场景" }, [
+      const row = el("tr", { style: "cursor:pointer", title: "点击展开，可直接输入题目加进这个场景" }, [
         el("td", { style: "font-weight:600" }, [
           el("span", { style: "display:inline-flex;align-items:center;gap:6px" }, [
-            SCENE_NAMES[r.domain] || r.domain,
+            SCENE_NAMES2[r.domain] || r.domain,
             isCustom ? (() => {
               const d = UI.iconBtn("trash", "删除该自定义场景（有题目时不可删）", async (e) => {
                 e?.stopPropagation?.();
-                const ok = await UI.confirm("删除场景", `删除自定义场景「${SCENE_NAMES[r.domain] || r.domain}」？`, { okText: "删除", danger: true });
+                const ok = await UI.confirm("删除场景", `删除自定义场景「${SCENE_NAMES2[r.domain] || r.domain}」？`, { okText: "删除", danger: true });
                 if (!ok) return;
                 try { await UI.api("/api/scenes/delete", { method: "POST", body: { key: r.domain } }); UI.toast("场景已删除"); renderFlow(); }
                 catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
@@ -763,11 +674,10 @@ async function renderFlow() {
         cntCell, tsCell,
         el("td", { class: "num" }, [r.rounds ? `${r.rounds} 轮` : "-"]),
       ]);
-      // 行内快速追加：单击行原位展开填写框（回车分隔多条），保存后原位更新计数，不打断浏览位置
       let expand = null;
       row.onclick = () => {
         if (expand) { expand.remove(); expand = null; return; }
-        const ta2 = el("textarea", { rows: 3, placeholder: "一行一条题目，回车分隔；保存后进入该场景数据集（自动去重）" });
+        const ta2 = el("textarea", { rows: 3, placeholder: "一行一道题目，回车分隔；保存后进入这个场景的数据集（重复的会自动跳过）" });
         const saveBtn = el("button", { class: "btn small primary", onclick: async (e) => {
           e.stopPropagation();
           const items = ta2.value.split("\n").map(t => t.trim()).filter(Boolean)
@@ -775,7 +685,7 @@ async function renderFlow() {
           if (!items.length) { UI.toast("先输入题目", true); return; }
           await UI.withBusy(e.currentTarget, async () => {
             const res = await UI.api("/v1/bank/import", { method: "POST", body: { items } });
-            UI.toast(`已保存 ${res.imported} 条` + (res.skipped ? `，去重跳过 ${res.skipped} 条` : ""));
+            UI.toast(`已保存 ${res.imported} 道题` + (res.skipped ? `，重复跳过 ${res.skipped} 道` : ""));
             r.total += res.imported;
             cntCell.textContent = `${r.total} 题`;
             tsCell.textContent = UI.fmtTs(Date.now() / 1000);
@@ -783,9 +693,7 @@ async function renderFlow() {
           }, "保存中……");
         } }, ["保存到该场景"]);
         expand = el("tr", { class: "scene-expand" }, [
-          el("td", { colspan: "4" }, [el("div", { style: "display:flex;gap:8px;align-items:flex-end;padding:4px 0" }, [
-            ta2, saveBtn,
-          ])]),
+          el("td", { colspan: "4" }, [el("div", { style: "display:flex;gap:8px;align-items:flex-end;padding:4px 0" }, [ta2, saveBtn])]),
         ]);
         expand.onclick = (e) => e.stopPropagation();
         row.after(expand);
@@ -794,60 +702,55 @@ async function renderFlow() {
       tbody.appendChild(row);
     });
     sceneRows.appendChild(el("table", { class: "data" }, [
-      el("thead", {}, [el("tr", {}, ["业务场景", "数据集题目数量", "最后保存时间", "轮次"].map(h => el("th", {}, [h])))]),
+      el("thead", {}, [el("tr", {}, ["业务场景", "数据集题目数量", "最后保存时间", "打分轮次"].map(h => el("th", {}, [h])))]),
       tbody,
     ]));
-  } else sceneRows.appendChild(el("div", { class: "muted" }, ["还没有数据集，点「导入数据集」建立冷启动数据"]));
+  } else sceneRows.appendChild(el("div", { class: "empty-state" }, [
+    el("div", { class: "empty-title" }, ["还没有场景数据集"]),
+    el("div", {}, ["点「导入数据集」，把每个业务场景的题目导进来"]),
+  ]));
 
-  const pendingLine = el("span", { class: "muted num" }, [`待评测 ${sum.pending_eval} 题`]);
-  const openJudge = async () => {
-    const { judge } = await UI.api("/api/settings/judge-model");
-    judgeDialog(judge, () => renderFlow());
-  };
-  const judgeRow = judgeModel
-    ? el("span", { style: "display:inline-flex;align-items:center;gap:6px" }, [
-        el("span", { class: "chip blue", title: "评测回填由该模型择优打分" }, [`Judge：${judgeName}`]),
-        el("button", { class: "btn small ghost", onclick: openJudge }, ["更换"]),
-      ])
-    : el("span", { style: "display:inline-flex;align-items:center;gap:6px" }, [
-        el("span", { class: "chip red" }, ["未配置 Judge 模型"]),
-        el("button", { class: "btn small", onclick: () => judgeDialog(null, () => renderFlow()) }, ["配置"]),
-      ]);
+  const pendingLine = el("span", { class: "muted num" }, [`还有 ${sum.pending_eval} 道题没打过分`]);
   const evalBtn = el("button", { class: "btn small primary", ...(sum.pending_eval && judgeModel ? {} : { disabled: "" }),
-    title: judgeModel ? "各在线模型逐题作答，由 Judge 模型择优打分入库" : "先配置 Judge 模型",
+    title: judgeModel ? "让每个在线模型把这些题各答一遍，由 Judge 模型打分记录成绩" : "先在「路由策略」页配置 Judge 模型",
     onclick: async (e) => {
       await UI.withBusy(e.currentTarget, async () => {
         try {
           const r = await UI.api("/v1/bank/eval-pending", { method: "POST" });
-          UI.toast(`已评测 ${r.queries} 题，产出 ${r.responses} 条评测标签`);
+          UI.toast(`已完成 ${r.queries} 道题的作答与打分，产出 ${r.responses} 条成绩`);
           renderFlow();
         } catch (err) { UI.toast(err.data?.error || err.message, true); }
-      }, "做题中……");
-    } }, ["运行评测回填"]);
+      }, "打分中……");
+    } }, ["开始打分"]);
+  const judgeRow = judgeModel
+    ? el("span", { class: "muted", style: "display:inline-flex;align-items:center;gap:6px" }, [
+        `打分裁判：${judgeName}`,
+        el("a", { class: "btn small ghost", href: "./router.html#dispatch" }, ["更换"]),
+      ])
+    : el("span", { style: "display:inline-flex;align-items:center;gap:8px" }, [
+        el("span", { class: "chip red" }, ["还没配置 Judge 模型"]),
+        el("a", { class: "btn small", href: "./router.html#dispatch" }, ["去配置"]),
+      ]);
+
   box.appendChild(el("div", { class: "card" }, [
     el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:4px" }, [
       el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["场景数据集"]),
-      UI.help("每类业务场景一个数据集。冷启动靠导入（JSONL / CSV / 纯文本）；上线后对话命中业务场景的 query 自动去重进入待并入区，人工审核后并入；待评测题目由各在线模型作答、Judge 模型择优打分，得分并入画像"),
+      UI.help("每个业务场景一套考题。导入题目后点「开始打分」：每个在线模型把题各答一遍、Judge 模型判分——路由策略就按这些成绩决定每个场景用哪个模型"),
       el("div", { style: "flex:1" }),
       el("button", { class: "btn small ghost", onclick: addSceneDialog }, [UI.icon("plus", 14), "添加场景"]),
-      el("button", { class: "btn small", onclick: () => { location.hash = "#import"; } }, ["导入数据集"]),
-      el("button", { class: "btn small", onclick: () => { location.hash = "#review"; } }, [stagedTotal ? `回流数据集校验（${stagedTotal}）` : "回流数据集校验"]),
+      el("button", { class: "btn small primary", onclick: () => { location.hash = "#import"; } }, ["导入数据集"]),
     ]),
-    el("div", { class: "muted", style: "margin-bottom:12px" }, ["自动收集先进回流校验，确认后才进数据集"]),
+    el("div", { class: "muted", style: "margin-bottom:12px" }, ["题目 = 该场景下用户真实会问的问题；题目越多、打分轮次越多，场景的路由去向越准"]),
     sceneRows,
     el("div", { style: "display:flex;align-items:center;gap:16px;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;flex-wrap:wrap" }, [
       judgeRow,
       el("span", { style: "flex:1" }),
       el("span", { style: "display:inline-flex;align-items:center;gap:10px" }, [pendingLine, evalBtn]),
-      el("span", { style: "display:inline-flex;align-items:center;gap:10px" }, [rebuildStatus, rebuildBtn]),
     ]),
   ]));
-  box.appendChild(srcCard);
-  pollJudge();
-  pollRebuild();
 }
 
-// ---------- 导入数据集页：选场景 → 粘贴数据 → 异步校验入库 ----------
+// ---------- 导入数据集页 ----------
 function parseImportText(text, fallbackDomain) {
   return text.split("\n").map(line => {
     line = line.trim();
@@ -875,12 +778,12 @@ function parseImportText(text, fallbackDomain) {
 
 async function renderImport() {
   const sc = await UI.api("/v1/bank/scenes");
-  const SCENE_NAMES = { ...DOMAIN_NAMES };
-  (sc.custom_scenes || []).forEach(c => { SCENE_NAMES[c.key] = c.name; });
+  const SCENE_NAMES2 = { ...DOMAIN_NAMES };
+  (sc.custom_scenes || []).forEach(c => { SCENE_NAMES2[c.key] = c.name; });
   const box = content();
   box.innerHTML = "";
   let dom = "general";
-  const ta = el("textarea", { rows: 10, placeholder: "在此粘贴数据，一行一条；或点右上方示例按钮查看格式" });
+  const ta = el("textarea", { rows: 10, placeholder: "在此粘贴数据，一行一条；或点右上方按钮填入示例 / 下载模板" });
   const countLab = el("span", { class: "muted num" }, ["已识别 0 条"]);
   ta.oninput = UI.debounce(() => { countLab.textContent = `已识别 ${parseImportText(ta.value, dom).length} 条`; }, 200);
   const progBox = el("div", { style: "margin-top:12px" });
@@ -897,11 +800,12 @@ async function renderImport() {
         : el("div", {}, [
             el("div", { class: "mini-metrics", style: "grid-template-columns:repeat(3,1fr)" }, [
               el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["入库"]), el("div", { class: "mm-value num" }, [String(task.imported)])]),
-              el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["去重跳过"]), el("div", { class: "mm-value num" }, [String(task.skipped)])]),
+              el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["重复跳过"]), el("div", { class: "mm-value num" }, [String(task.skipped)])]),
               el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["格式或场景无效"]), el("div", { class: "mm-value num" + (task.invalid ? " warn" : "") }, [String(task.invalid)])]),
             ]),
+            task.error ? el("div", { class: "field-error", style: "margin-top:8px" }, ["导入中断：" + task.error]) : null,
             el("div", { style: "margin-top:10px" }, [
-              el("button", { class: "btn primary", onclick: () => { location.hash = "#flow"; } }, ["返回数据回流"]),
+              el("button", { class: "btn primary", onclick: () => { location.hash = "#flow"; } }, ["返回场景数据集"]),
             ]),
           ]),
     );
@@ -916,29 +820,39 @@ async function renderImport() {
     extra ? el("div", { style: "flex:1" }) : null, extra || null,
   ]);
   const exBtn = (label, text) => el("button", { class: "btn small ghost", onclick: () => {
-    ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/, "") + "\n" : "") + text;
-    ta.oninput();
-    ta.focus();
+    ta.value = text; ta.oninput(); ta.focus();
   } }, [label]);
+  const TPL_JSONL = ['{"query":"压港滞期费怎么申诉","scene":"port","ideal":"按合同滞期条款先与船代对账，再提交申诉单。"}',
+    '{"query":"旺季舱位怎么保障","scene":"capacity"}',
+    '{"query":"铁矿石近期价格怎么看","scene":"price","labels":{"harbor-13b":1,"swift-4b":0}}'].join("\n");
+  const TPL_CSV = "query,scene\n压港滞期费怎么申诉,port\n旺季舱位怎么保障,capacity\n铁矿石近期价格怎么看,price";
+  const dlBtn = (label, text, fname, mime) => el("button", { class: "btn small ghost", onclick: () => {
+    const blob = new Blob(["\ufeff" + text], { type: mime });
+    const a2 = document.createElement("a");
+    a2.href = URL.createObjectURL(blob); a2.download = fname; a2.click();
+    URL.revokeObjectURL(a2.href);
+    UI.toast("模板已下载，照模板填好后粘贴进来即可");
+  } }, [UI.icon("download", 13), label]);
   box.appendChild(el("div", { style: "display:flex;align-items:center;gap:12px;margin-bottom:12px" }, [
-    el("button", { class: "btn small", onclick: () => { location.hash = "#flow"; } }, ["返回数据回流"]),
-    el("span", { class: "muted" }, ["把冷启动 / 标注数据批量导入场景数据集；提交后逐条异步校验（格式 / 场景 / 去重）"]),
+    el("button", { class: "btn small", onclick: () => { location.hash = "#flow"; } }, ["返回场景数据集"]),
+    el("span", { class: "muted" }, ["把每个业务场景的题目批量导入；提交后逐条检查格式、场景与重复"]),
   ]));
   box.appendChild(el("div", { class: "card", style: "max-width:860px" }, [
     secHead(1, "选择归入场景"),
     el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:20px" }, [
-      UI.fancySelect({ value: "general", options: Object.entries(SCENE_NAMES).filter(([k]) => k !== "untagged"),
+      UI.fancySelect({ value: "general", options: Object.entries(SCENE_NAMES2).filter(([k]) => k !== "untagged"),
         onChange: (v) => { dom = v; ta.oninput(); } }),
-      el("span", { class: "muted" }, ["JSONL / CSV 行内写了场景则以行内为准"]),
+      el("span", { class: "muted" }, ["数据里写了场景的以数据为准"]),
     ]),
-    secHead(2, "粘贴数据", el("span", { style: "display:inline-flex;gap:6px" }, [
-      exBtn("JSONL 示例", '{"query":"压港滞期费怎么申诉","scene":"port","ideal":"按合同滞期条款先与船代对账……","labels":{"harbor-13b":1}}'),
-      exBtn("CSV 示例", "旺季舱位怎么保障,capacity"),
-      exBtn("纯文本示例", "铁矿石压港怎么办"),
+    secHead(2, "粘贴数据", el("span", { style: "display:inline-flex;gap:6px;flex-wrap:wrap" }, [
+      exBtn("填入 JSONL 示例", TPL_JSONL),
+      exBtn("填入 CSV 示例", TPL_CSV),
+      dlBtn("下载 JSONL 模板", TPL_JSONL, "场景数据集模板.jsonl", "application/jsonl"),
+      dlBtn("下载 CSV 模板", TPL_CSV, "场景数据集模板.csv", "text/csv"),
     ])),
     ta,
     el("div", { style: "display:flex;align-items:center;gap:10px;margin:6px 0 20px" }, [countLab]),
-    secHead(3, "校验与入库"),
+    secHead(3, "检查并入库"),
     el("div", { style: "display:flex;align-items:center;gap:10px" }, [
       el("button", { class: "btn primary", onclick: async (e) => {
         const items = parseImportText(ta.value, dom);
@@ -950,117 +864,77 @@ async function renderImport() {
           drawProgress(task); poll();
         } catch (err) { UI.toast(err.data?.error || err.message, true); }
       } }, ["开始导入"]),
-      el("span", { class: "muted" }, ["逐条校验后入库，重复 query 自动跳过"]),
+      el("span", { class: "muted" }, ["重复题目会自动跳过，不会导入两份"]),
     ]),
     progBox,
   ]));
   poll().catch(() => {});
 }
 
-// ---------- 回流数据集校验页
-// ---------- 回流数据集校验页：已整合去重的自动收集数据，批量 / 单条确认、移除、切换标签 ----------
-let reviewScene = ""; // 校验页场景筛选（跨刷新保持）
-async function renderReview() {
-  const [sc, { staged: stagedAll }] = await Promise.all([UI.api("/v1/bank/scenes"), UI.api("/v1/bank/staged")]);
-  const SCENE_NAMES = { ...DOMAIN_NAMES };
-  (sc.custom_scenes || []).forEach(c => { SCENE_NAMES[c.key] = c.name; });
-  const sceneOpts = Object.entries(SCENE_NAMES).filter(([k]) => k !== "untagged");
-  // 场景筛选：只列出回流区里实际出现的场景，带计数
-  const sceneCount = {};
-  stagedAll.forEach(r => { sceneCount[r.domain] = (sceneCount[r.domain] || 0) + 1; });
-  if (reviewScene && !sceneCount[reviewScene]) reviewScene = "";
-  const staged = reviewScene ? stagedAll.filter(r => r.domain === reviewScene) : stagedAll;
+async function renderDispatch() {
   const box = content();
   box.innerHTML = "";
-  const head = el("div", { style: "display:flex;align-items:center;gap:12px;margin-bottom:12px" }, [
-    el("button", { class: "btn small", onclick: () => { location.hash = "#flow"; } }, ["返回数据回流"]),
-    el("span", { class: "muted" }, [reviewScene
-      ? `「${SCENE_NAMES[reviewScene] || reviewScene}」${staged.length} 条（共 ${stagedAll.length} 条）`
-      : `已整合去重 ${stagedAll.length} 条，确认后进入数据集参与评测`]),
-    el("div", { style: "flex:1" }),
-    UI.fancySelect({
-      value: reviewScene,
-      options: [["", "全部场景"], ...Object.keys(sceneCount).map(k => [k, `${SCENE_NAMES[k] || k}（${sceneCount[k]}）`])],
-      display: (v, name) => "场景：" + (v ? (SCENE_NAMES[v] || v) : "全部"),
-      onChange: (v) => { reviewScene = v; renderReview(); },
-    }),
+  const [{ judge }, { models }, { policies: allPolicies }] = await Promise.all([
+    UI.api("/api/settings/judge-model").catch(() => ({ judge: null })),
+    UI.api("/v1/models").catch(() => ({ models: [] })),
+    UI.api("/v1/policies"),
   ]);
-  if (!staged.length) {
-    box.appendChild(el("div", { class: "card" }, [head,
-      el("div", { class: "empty-state" }, [
-        el("div", { class: "empty-title" }, [reviewScene ? "该场景下没有待校验数据" : "回流区是空的"]),
-        el("div", {}, [reviewScene ? "换个场景，或切回全部场景查看" : "对话命中业务场景的 query 会自动收集到这里"]),
-      ])]));
+  const actives = (models || []).filter(m => m.status === "active");
+  const policies = (allPolicies || []).filter(p2 => !p2.ab_group);
+  if (!selectedPolicyId || !policies.find(p2 => p2.policy_id === selectedPolicyId)) {
+    const g = policies.find(p2 => p2.scope === "global");
+    selectedPolicyId = g ? g.policy_id : (policies[0] && policies[0].policy_id);
+  }
+
+  // Judge 评审模型：打分裁判（评测与画像的前置条件，放最上方醒目位置）
+  box.appendChild(el("div", { class: "card", style: "margin-bottom:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;border-left:3px solid " + (judge ? "var(--primary)" : "var(--danger)") }, [
+    el("div", { style: "min-width:220px" }, [
+      el("div", { style: "font-weight:600;font-size:var(--font-title)" }, ["Judge 评审模型（打分裁判）"]),
+      el("div", { class: "muted" }, ["给各模型的答题打分，产出「各场景路由去向」的成绩依据"]),
+    ]),
+    judge ? el("span", { style: "display:inline-flex;align-items:center;gap:8px" }, [
+      el("span", { class: "chip blue" }, [judge.display_name || judge.model_id]),
+      el("span", { class: "chip green" }, ["已就绪"]),
+    ]) : el("span", { class: "chip red" }, ["未配置：不能打分与更新去向"]),
+    el("div", { style: "flex:1" }),
+    judge
+      ? el("span", { style: "display:inline-flex;gap:8px" }, [
+          el("button", { class: "btn small", onclick: () => judgeDialog(judge, () => renderDispatch()) }, ["更换"]),
+          el("button", { class: "btn small", onclick: async () => {
+            const ok = await UI.confirm("移除 Judge 模型", "移除后不能打分与更新场景去向，直到重新配置。", { okText: "移除", danger: true });
+            if (!ok) return;
+            try { await UI.api("/api/settings/judge-model", { method: "POST", body: { model_id: "" } }); UI.toast("已移除"); renderDispatch(); }
+            catch (e) { UI.toast(e.data?.error || e.message, true); }
+          } }, ["移除"]),
+        ])
+      : el("button", { class: "btn primary", onclick: () => judgeDialog(null, () => renderDispatch()) }, ["配置 Judge 模型"]),
+  ]));
+
+  // 无模型空态：先引导接入
+  if (!actives.length) {
+    box.appendChild(el("div", { class: "card empty-state" }, [
+      el("div", { class: "empty-title" }, ["还没有可用的模型"]),
+      el("div", {}, ["路由策略负责在多个模型之间做选择——先接入至少一个模型"]),
+      el("a", { class: "btn primary", style: "margin-top:12px", href: "./router.html#models" }, ["接入模型"]),
+    ]));
     return;
   }
-  const checks = new Map();
-  const countLab = el("span", { class: "muted num" }, []);
-  const syncCount = () => {
-    const n = [...checks.values()].filter(cb => cb.checked).length;
-    countLab.textContent = `已选 ${n} / ${staged.length}`;
-    allCb.checked = n === staged.length;
-  };
-  const allCb = el("input", { type: "checkbox", "aria-label": "全选" });
-  allCb.onchange = () => { checks.forEach(cb => cb.checked = allCb.checked); syncCount(); };
-  const act = async (path, ids, doneText) => {
-    if (!ids.length) { UI.toast("先勾选条目", true); return; }
-    try {
-      const r = await UI.api(path, { method: "POST", body: { query_ids: ids } });
-      UI.toast(doneText(r));
-      renderReview();
-    } catch (e) { UI.toast(e.data?.error || e.message, true); }
-  };
-  const picked = () => [...checks.entries()].filter(([, cb]) => cb.checked).map(([id]) => id);
-  const tbody = el("tbody", {});
-  staged.forEach(r => {
-    const cb = el("input", { type: "checkbox", checked: "" });
-    cb.onchange = syncCount;
-    checks.set(r.query_id, cb);
-    tbody.appendChild(el("tr", {}, [
-      el("td", { style: "width:32px" }, [cb]),
-      el("td", { style: "min-width:280px" }, [r.query]),
-      el("td", {}, [UI.fancySelect({ value: r.domain, options: sceneOpts, onChange: async (v) => {
-        try { await UI.api("/v1/bank/staged/relabel", { method: "POST", body: { query_id: r.query_id, domain: v } }); UI.toast("已切换场景标签"); }
-        catch (e) { UI.toast(e.data?.error || e.message, true); }
-      } })]),
-      el("td", { class: "muted num", style: "white-space:nowrap" }, [UI.fmtTs(r.ts)]),
-      el("td", {}, [el("div", { style: "display:flex;gap:6px" }, [
-        el("button", { class: "btn small", onclick: () => act("/v1/bank/staged/commit", [r.query_id], x => `已确认 ${x.committed} 条`) }, ["确认"]),
-        el("button", { class: "btn small", onclick: () => act("/v1/bank/staged/discard", [r.query_id], x => `已移除 ${x.discarded} 条`) }, ["移除"]),
-      ])]),
-    ]));
-  });
-  box.appendChild(el("div", { class: "card" }, [
-    head,
-    el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:10px" }, [
-      el("label", { style: "display:flex;align-items:center;gap:6px;cursor:pointer" }, [allCb, "全选"]),
-      countLab,
-      el("div", { style: "flex:1" }),
-      el("button", { class: "btn small danger", onclick: () => act("/v1/bank/staged/discard", picked(), r => `已移除 ${r.discarded} 条`) }, ["批量移除"]),
-      el("button", { class: "btn small primary", onclick: () => act("/v1/bank/staged/commit", picked(), r => `已确认 ${r.committed} 条，进入待评测`) }, ["批量确认"]),
-    ]),
-    el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
-      el("thead", {}, [el("tr", {}, ["", "query", "场景标签", "收集时间", "操作"].map(h => el("th", {}, [h])))]),
-      tbody,
-    ])]),
-  ]));
-  syncCount();
-}
 
-async function renderDispatch() {
-  const box0 = content();
-  box0.innerHTML = "";
-  const profBox = el("div", {});
-  box0.appendChild(profBox);
-  await renderProfile(profBox); // 上：画像（α + 簇×模型矩阵），独立容器
-  const box = content();
-  box.appendChild(el("div", { style: "display:flex;align-items:center;gap:6px;margin:6px 0 10px" }, [
-    el("span", { class: "section-title", style: "margin:0" }, ["路由规则"]),
-    UI.help("超参版本化下发，即时生效；点「参数配置」在右侧抽屉修改"),
+  box.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin:6px 0 10px" }, [
+    el("span", { class: "section-title", style: "margin:0" }, ["路由策略"]),
+    UI.help("一条策略 = 一套「怎么选模型」的规则。点卡片看它的各场景去向；复制引用代码就能在你的产品里使用这条策略"),
+    el("div", { style: "flex:1" }),
+    el("button", { class: "btn primary", onclick: () => newPolicyDialog(actives) }, [UI.icon("plus", 14), "新增路由策略"]),
   ]));
-  await renderPolicies(box); // 下：策略列表
+  const listBox = el("div", {});
+  box.appendChild(listBox);
+  renderPolicies(listBox, policies, actives);
+
+  const dirBox = el("div", { style: "margin-top:6px" });
+  box.appendChild(dirBox);
+  if (selectedPolicyId) await renderDirections(dirBox, selectedPolicyId);
 }
-const RENDER = { models: renderModels, dispatch: renderDispatch, flow: renderFlow, import: renderImport, review: renderReview };
+const RENDER = { models: renderModels, dispatch: renderDispatch, flow: renderFlow, import: renderImport, review: renderFlow };
 // 走查深链：?register=1 直接打开添加模型；?policy=1 打开第一条策略的参数抽屉
 setTimeout(async () => {
   const q = new URLSearchParams(location.search);

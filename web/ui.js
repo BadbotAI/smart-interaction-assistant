@@ -141,7 +141,7 @@ window.UI = (function () {
   const CT_NAMES = {
     "select.single": "文本选择（单选）", "select.multi": "文本选择（多选）", "select.card": "卡片选择", "scale.likert": "评分",
     "matrix.compare+select": "对比选择", "form.structured": "表单收集", "input.followup": "备注填写",
-    "slider.range": "数值选择", "picker.datetime": "日期选择", "picker.timerange": "时间段选择", "picker.location": "地址卡片", "rank.priority": "优先级排序", "upload.file": "文件上传", "upload.image": "图片上传", "suggest.followup": "追问引导", "commerce.order": "商品下单", "entry.link": "入口跳转", "track.map": "物流轨迹", "feedback.binary": "赞踩反馈", "feedback.preference": "多回答择优",
+    "slider.range": "数值选择", "picker.datetime": "日期选择", "picker.timerange": "时间段选择", "picker.location": "地址卡片", "rank.priority": "优先级排序", "upload.file": "文件上传", "upload.image": "图片上传", "suggest.followup": "追问引导", "commerce.order": "商品下单", "entry.link": "入口跳转", "guide.steps": "步骤说明书", "track.map": "物流轨迹", "feedback.binary": "赞踩反馈", "feedback.preference": "多回答择优",
     "control.confirm": "操作确认", "control.interrupt": "中断", "control.retry": "重试", "text.emphasis": "重点文本",
     "metric.card": "指标卡", "table": "表格", "chart.line": "折线图", "chart.area": "面积图", "chart.bar": "柱状图", "chart.pie": "占比图",
     "matrix.compare": "对比矩阵", "timeline": "时间线", "citation.card": "引用卡", "list.ordered": "有序列表", "steps": "步骤条",
@@ -165,10 +165,13 @@ window.UI = (function () {
     ] },
     { title: "模型路由", items: [
       ["router:dispatch", "路由策略", "/web/router.html#dispatch", "route"],
-      ["router:flow", "数据回流", "/web/router.html#flow", "refresh"],
+      ["router:flow", "场景数据集", "/web/router.html#flow", "refresh"],
       ["playground:model", "模型路由测试", "/web/playground.html#model", "play"],
       ["dashboard:routing", "模型路由数据", "/web/dashboard.html#routing", "activity"],
       ["router:models", "模型接入", "/web/router.html#models", "cpu"],
+    ] },
+    { title: "对外接入", items: [
+      ["apikeys", "API 接入管理", "/web/apikeys.html", "link"],
     ] },
   ];
   function nav(active) {
@@ -176,11 +179,7 @@ window.UI = (function () {
       (() => {
         const a = el("a", { class: "logo", href: "/web/index.html", title: "回到首页" });
         const mark = el("span", { class: "logo-mark", "aria-hidden": "true" });
-        mark.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none">'
-          + '<path d="M4 6a3.5 3.5 0 0 1 3.5-3.5h9A3.5 3.5 0 0 1 20 6v6.5a3.5 3.5 0 0 1-3.5 3.5H10l-4.2 3.7c-.7.6-1.8.1-1.8-.8z" fill="var(--primary)"/>'
-          + '<rect x="7.5" y="6.6" width="9" height="2.1" rx="1.05" fill="#fff" opacity="0.95"/>'
-          + '<rect x="7.5" y="10.3" width="5.5" height="2.1" rx="1.05" fill="#fff" opacity="0.65"/>'
-          + '</svg>';
+        mark.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="10.5" y="3" width="10.5" height="8" rx="3" fill="none" stroke="#fff" stroke-width="1.7" opacity="0.75"/><path d="M3 12a4 4 0 0 1 4-4h6.5a4 4 0 0 1 4 4v2.5a4 4 0 0 1-4 4H9.8l-3.4 2.9c-.6.5-1.4.1-1.4-.7v-2.6A4 4 0 0 1 3 14.5z" fill="#fff"/><circle cx="7.6" cy="13.2" r="1.15" fill="var(--primary)"/><circle cx="10.75" cy="13.2" r="1.15" fill="var(--primary)"/><circle cx="13.9" cy="13.2" r="1.15" fill="var(--primary)"/></svg>';
         a.append(mark, el("span", {}, ["智能交互平台"]));
         return a;
       })(),

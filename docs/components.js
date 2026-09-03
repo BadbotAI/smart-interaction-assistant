@@ -91,7 +91,7 @@ window.Components = (function () {
   const CT_LABEL = {
     "select.single": "文本选择", "select.multi": "文本选择", "select.card": "卡片选择", "scale.likert": "评分",
     "matrix.compare+select": "对比选择", "form.structured": "信息登记", "input.followup": "备注填写", "slider.range": "数值选择",
-    "picker.datetime": "日期选择", "picker.timerange": "时间段选择", "picker.location": "地址卡片", "rank.priority": "优先级排序", "upload.file": "文件上传", "upload.image": "图片上传", "suggest.followup": "追问引导", "commerce.order": "商品下单", "entry.link": "入口跳转", "track.map": "物流轨迹",
+    "picker.datetime": "日期选择", "picker.timerange": "时间段选择", "picker.location": "地址卡片", "rank.priority": "优先级排序", "upload.file": "文件上传", "upload.image": "图片上传", "suggest.followup": "追问引导", "commerce.order": "商品下单", "entry.link": "入口跳转", "guide.steps": "步骤说明书", "track.map": "物流轨迹",
     "control.confirm": "操作确认",
   };
 
@@ -825,6 +825,51 @@ window.Components = (function () {
     ]);
   }
 
+  // 步骤说明书：分步阅读引导（标题 + 正文 + 底部步骤圆点 + 上一步/下一步），读完记提交
+  function rGuideSteps(env, ctx) {
+    const p = env.params;
+    const steps = (p.steps || []).filter(st => st && (st.title || st.body));
+    if (!steps.length) return compCard([compTitle(p.prompt), emptyState(env)]);
+    let idx = 0;
+    const viewed = new Set([0]);
+    const box = el("div", { class: "gs-body" });
+    const dots = el("div", { class: "gs-dots" });
+    const backB = el("button", { class: "btn small", type: "button" }, ["上一步"]);
+    const nextB = el("button", { class: "btn small primary", type: "button" }, ["下一步"]);
+    function finish() {
+      env._submitted = true;
+      const root = box.closest(".comp");
+      if (root) root.querySelectorAll("button").forEach(n => n.disabled = true);
+      nextB.textContent = "已读完";
+      ctx.onCollectSubmit({ user_selection: "已读完", steps_total: steps.length,
+        steps_viewed: viewed.size, completed: true,
+        time_to_submit_ms: Date.now() - (env._renderTs || Date.now()) }, env);
+    }
+    function draw() {
+      const st = steps[idx];
+      box.innerHTML = "";
+      box.appendChild(el("div", { class: "gs-title" }, [st.title || `第 ${idx + 1} 步`]));
+      if (st.body) box.appendChild(el("div", { class: "gs-text" }, [st.body]));
+      dots.innerHTML = "";
+      steps.forEach((_, i) => dots.appendChild(el("button", { type: "button",
+        class: "gs-dot" + (i === idx ? " on" : ""), "aria-label": `第 ${i + 1} 步`,
+        onclick: () => { if (env._submitted) return; idx = i; viewed.add(i); draw(); } }, [String(i + 1)])));
+      backB.disabled = idx === 0 || !!env._submitted;
+      nextB.textContent = idx === steps.length - 1 ? "完成" : "下一步";
+    }
+    backB.onclick = () => { if (idx > 0) { idx--; draw(); } };
+    nextB.onclick = () => {
+      if (idx < steps.length - 1) { idx++; viewed.add(idx); draw(); }
+      else finish();
+    };
+    draw();
+    return compCard([
+      compTitle(p.prompt),
+      box,
+      el("div", { class: "gs-foot" }, [dots, el("span", { style: "flex:1" }), backB, nextB]),
+    ], "comp-bare");
+  }
+
   // 入口跳转器（已合并追问引导）：不配链接 = 追问发给 AI，配链接 = 直达页面；可回显「多少人点开」
   function rEntryLink(env, ctx) {
     const p = env.params;
@@ -1317,6 +1362,7 @@ window.Components = (function () {
     "suggest.followup": rSuggestFollowup,
     "commerce.order": rCommerce,
     "entry.link": rEntryLink,
+    "guide.steps": rGuideSteps,
     "track.map": rTrackMap,
     "control.confirm": rConfirm,
     "control.retry": rRetry,
