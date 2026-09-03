@@ -191,6 +191,9 @@ window.TestChat = (function () {
         } else {
           reason.remove();
           bubble.appendChild(el("div", { class: "field-error" }, ["请求失败：" + err.message]));
+          bubble.appendChild(el("div", { style: "margin-top:6px" }, [
+            el("button", { class: "btn small", onclick: (e2) => { e2.target.closest(".tc-b")?.remove(); send(text, cardContext, o); } }, ["重试"]),
+          ]));
         }
       }
       ctrl = null; busy = false; renderSendBtn(); modelSel.disabled = false;
@@ -241,7 +244,11 @@ window.TestChat = (function () {
           } }, ["跳过，直接回答"]),
           opts.editableCards && env.card_ref?.card_id
             ? el("a", { class: "btn small ghost", href: "./cards.html?edit=" + env.card_ref.card_id,
-                title: "对触发效果或组件内容不满意？直接改这条配置" }, [UI.icon("edit", 13), "编辑这条配置"])
+                title: "对触发效果或组件内容不满意？直接改这条配置",
+                onclick: (e) => {
+                  // 离开会丢当前测试对话，轻确认
+                  if (!confirm("去编辑这条配置？当前测试对话不会保留。")) e.preventDefault();
+                } }, [UI.icon("edit", 13), "编辑这条配置"])
             : null,
         ]));
       }

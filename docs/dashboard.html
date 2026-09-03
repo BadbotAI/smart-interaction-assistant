@@ -555,50 +555,6 @@ async function renderRouting() {
 
 // 明细下钻（标书 F-5-05：单次返回不超过 1000 条，图表与明细同源）
 // 走查 D3：筛选条件（含调用模式、时间窗）全部下发到服务端，与图表/CSV 同一查询口径；支持翻页
-async function showTraceDrill() {
-  const PAGE = 100;
-  let offset = 0;
-  const PATH_NAMES = { fastlane: "快车道", routed: "单模型路由", aggregated: "聚合", degraded: "降级",
-    manual: "手动指定", await_user: "等待用户" };
-  const tbody = el("tbody", {});
-  const info = el("div", { class: "muted", style: "margin-bottom:8px" });
-  const moreBtn = el("button", { class: "btn small", style: "margin-top:8px", onclick: () => loadPage() }, ["加载更多"]);
-  async function loadPage() {
-    const q = new URLSearchParams({ limit: PAGE, offset, days: days() });
-    if (routeFilters.mode) q.set("mode", routeFilters.mode);
-    if (routeFilters.model) q.set("final_model", routeFilters.model);
-    if (routeFilters.status) q.set("status", routeFilters.status);
-    await UI.withBusy(moreBtn, async () => {
-      const { traces } = await UI.api("/api/traces?" + q);
-      traces.forEach(t => tbody.appendChild(el("tr", { class: "clickable", title: "点击进入链路追踪",
-        onclick: () => location.href = "./trace.html?trace_id=" + t.trace_id }, [
-        el("td", { class: "muted" }, [UI.fmtTs(t.ts)]),
-        el("td", { style: "max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: t.query_text }, [t.query_text || "-"]),
-        el("td", {}, [PATH_NAMES[t.switch_result] || t.switch_result || "-"]),
-        el("td", {}, [t.final_model || "-"]),
-        el("td", {}, [t.status === "ok" || !t.status ? el("span", { class: "chip green" }, ["成功"]) : el("span", { class: "chip red" }, ["失败"])]),
-        el("td", { class: "num" }, [UI.fmtCost(t.total_cost)]),
-        el("td", { class: "num" }, [UI.fmtMs(t.total_latency_ms)]),
-      ])));
-      offset += traces.length;
-      info.textContent = `已加载 ${offset} 条 · 点击行查看链路`;
-      moreBtn.style.display = traces.length < PAGE ? "none" : "";
-      if (!offset) tbody.appendChild(el("tr", {}, [el("td", { colspan: "7", class: "muted", style: "text-align:center;padding:20px" }, ["当前筛选条件下没有请求"])]));
-    }, "加载中……");
-  }
-  const body = el("div", {}, [
-    info,
-    el("div", { style: "overflow-x:auto" }, [
-      el("table", { class: "data" }, [
-        el("thead", {}, [el("tr", {}, ["时间", "问题（脱敏）", "路径", "模型", "状态", "成本", "耗时"].map(h => el("th", {}, [h])))]),
-        tbody,
-      ]),
-    ]),
-    moreBtn,
-  ]);
-  UI.modal("请求明细", body, null, { wide: true });
-  loadPage();
-}
 
 const RENDER = { survey: renderSurvey, routing: renderRouting };
 window.addEventListener("hashchange", () => showSection(location.hash.replace("#", "")));

@@ -361,54 +361,6 @@ function editModelDrawer(m) {
   ]), foot);
 }
 
-function profileDataDialog(m) {
-  if (document.querySelector(".modal-mask")) return;
-  const urlIn = el("input", { type: "url", placeholder: "https://provider.com/pricing（官方定价 / 模型文档页）" });
-  const pin = el("input", { type: "number", step: "0.05", min: "0", value: Number(m.price_input) || "", placeholder: "例如 0.4" });
-  const pout = el("input", { type: "number", step: "0.05", min: "0", value: Number(m.price_output) || "", placeholder: "例如 0.8" });
-  const ctx = el("input", { type: "number", step: "1", min: "0", value: (m.capabilities?.context_window || 0) / 1024 || "", placeholder: "例如 128" });
-  const err = el("div", { class: "field-error" });
-  const aiBtn = el("button", { class: "btn ai", type: "button", onclick: async (e) => {
-    if (!/^https:\/\/\S+$/.test(urlIn.value.trim())) { err.textContent = "请先填写 https:// 开头的定价页链接"; return; }
-    err.textContent = "";
-    await UI.withBusy(e.currentTarget, async () => {
-      await new Promise(r => setTimeout(r, 900)); // 演示：模拟 AI 抓取定价页
-      let h = 0; const u = urlIn.value.trim();
-      for (let i = 0; i < u.length; i++) h = (h * 31 + u.charCodeAt(i)) >>> 0;
-      pin.value = (0.2 + (h % 8) * 0.1).toFixed(1);
-      pout.value = (Number(pin.value) * 2).toFixed(1);
-      ctx.value = [32, 64, 128, 256][h % 4];
-      UI.toast("AI 已从页面抓取单价与上下文长度，请核对后保存");
-    }, "AI 获取中……");
-  } }, [UI.icon("wand", 14), "AI 自动获取"]);
-  const mask2 = UI.modal(`导入画像数据 · ${m.display_name}`, el("div", {}, [
-    el("div", { class: "muted", style: "margin-bottom:10px" }, ["提供官方定价页链接，AI 自动获取输入 / 输出单价与上下文长度（演示模拟）；也可手动填写。"]),
-    el("label", { class: "field" }, [el("span", { class: "label-text" }, ["定价页链接"]),
-      el("div", { style: "display:flex;gap:8px" }, [urlIn, aiBtn])]),
-    el("div", { class: "grid cols-3", style: "display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 12px" }, [
-      el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["输入单价（¥/M）"]), pin]),
-      el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["输出单价（¥/M）"]), pout]),
-      el("label", { class: "field" }, [el("span", { class: "label-text" }, ["上下文（k）"]), ctx]),
-    ]),
-    err,
-    el("div", { style: "display:flex;justify-content:flex-end;gap:8px;margin-top:12px" }, [
-      el("button", { class: "btn", onclick: () => mask2.remove() }, ["取消"]),
-      el("button", { class: "btn primary", onclick: async (e) => {
-        if (!(Number(pin.value) >= 0) || !(Number(pout.value) >= 0)) { err.textContent = "单价需为非负数字"; return; }
-        await UI.withBusy(e.currentTarget, async () => {
-          try {
-            await UI.api(`/v1/models/${m.model_id}/profile-data`, { method: "POST", body: {
-              price_input: Number(pin.value) || 0, price_output: Number(pout.value) || 0,
-              context_window: Math.round((Number(ctx.value) || 0) * 1024) } });
-            UI.toast("画像数据已保存");
-            mask2.remove(); renderModels();
-          } catch (e2) { err.textContent = e2.data?.error || e2.message; }
-        }, "保存中……");
-      } }, ["保存"]),
-    ]),
-  ]));
-}
-
 // ================= 策略 =================
 
 const SCENE_NAMES = { casual: "闲聊", analysis: "决策分析", logistics: "物流", procurement: "采购", general: "通用" };
@@ -816,6 +768,17 @@ async function renderFlow() {
       el("span", { style: "display:inline-flex;align-items:center;gap:10px" }, [pendingLine, evalBtn]),
     ]),
   ]));
+
+  box.appendChild(el("details", { class: "card explain", style: "margin-top:12px" }, [
+    el("summary", {}, [el("span", { style: "font-weight:600" }, ["打分是怎么回事？"]),
+      el("span", { class: "muted", style: "margin-left:8px" }, ["展开看 30 秒说明"])]),
+    el("div", { class: "explain-body" }, [
+      el("p", {}, ["把数据集想成一场考试：每个业务场景一套考题（就是用户真实会问的问题）。"]),
+      el("p", {}, ["点「开始打分」后，每个在线模型把没做过的题各答一遍，Judge 裁判逐题判分，成绩记入档案。"]),
+      el("p", {}, ["路由策略页的「各场景路由去向」就按这些成绩来定：哪个场景谁分高，问题就交给谁。"]),
+      el("p", {}, ["所以想让某个场景路由更准，就给它多导几道真实问题，再打一轮分。"]),
+    ]),
+  ]));
 }
 
 // ---------- 导入数据集页 ----------
@@ -1003,6 +966,18 @@ async function renderDispatch() {
   const dirBox = el("div", { style: "margin-top:6px" });
   box.appendChild(dirBox);
   if (selectedPolicyId) await renderDirections(dirBox, selectedPolicyId);
+
+  // 概念说明：可展开的「路由是怎么工作的」
+  box.appendChild(el("details", { class: "card explain", style: "margin-top:12px" }, [
+    el("summary", {}, [el("span", { style: "font-weight:600" }, ["路由是怎么工作的？"]),
+      el("span", { class: "muted", style: "margin-left:8px" }, ["展开看 30 秒说明"])]),
+    el("div", { class: "explain-body" }, [
+      el("p", {}, ["1. 用户提问进来，平台先判断它属于哪类业务场景（比如「价格行情」）。"]),
+      el("p", {}, ["2. 按当前策略的规则，在候选模型里挑「各场景路由去向」表中这个场景成绩最好的模型来回答；两个模型成绩接近时，让它们都答一遍再合写（聚合）。"]),
+      el("p", {}, ["3. 成绩从哪来：场景数据集里的题目，由每个模型作答、Judge 裁判打分。题目越多，去向判断越准。"]),
+      el("p", {}, ["4. 你的产品怎么用：复制策略卡上的「引用代码」，带着接入 Key 调用对话接口即可，换策略只需换 Key。"]),
+    ]),
+  ]));
 }
 const RENDER = { models: renderModels, dispatch: renderDispatch, flow: renderFlow, import: renderImport, review: renderFlow };
 // 走查深链：?register=1 直接打开添加模型；?policy=1 打开第一条策略的参数抽屉

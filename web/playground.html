@@ -32,6 +32,8 @@ const MODES = {
     help: "验证路由怎么选模型：左下切换调度策略 / 多模型回答 / 指定模型，每次回答展示完整过程——检索相似题、各模型历史命中率打分、并发作答、单模型胜出或聚合，以及这一次花了多少钱。" },
 };
 function mode() { return MODES[location.hash.replace("#", "")] ? location.hash.replace("#", "") : "comp"; }
+// 默认模式：无 hash 直接进入时落到智能交互测试，保证 tab 与导航高亮一致
+if (!MODES[location.hash.replace("#", "")]) history.replaceState(null, "", location.pathname + location.search + "#comp");
 
 async function buildSuggestions(m) {
   if (m === "comp") {
