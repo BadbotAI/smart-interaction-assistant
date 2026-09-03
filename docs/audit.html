@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>操作日志 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css">
-<link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./router.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./playground.html">
+<link rel="stylesheet" href="./shared.css?v=24bd5ff2">
+<link rel="prefetch" href="./apikeys.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./chat.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./router.html"><link rel="prefetch" href="./trace.html">
 </head>
 <body>
 <div class="page">
@@ -21,10 +21,10 @@
   </div>
 </div>
 
-<script src="./mock_data.js"></script>
-<script src="./mock_api.js"></script>
-<script src="./tokens.js"></script>
-<script src="./ui.js"></script>
+<script src="./mock_data.js?v=7e277d7d"></script>
+<script src="./mock_api.js?v=3f7ad7c8"></script>
+<script src="./tokens.js?v=323789e0"></script>
+<script src="./ui.js?v=3514b768"></script>
 <script>
 UI.nav("audit");
 const { el } = UI;
@@ -100,5 +100,6 @@ async function load() {
 }
 load().catch(e => UI.toast("加载失败：" + e.message, true));
 </script>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(function(){});</script>
 </body>
 </html>

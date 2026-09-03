@@ -54,8 +54,8 @@
 </div>
 
 <script src="./sia.js" data-key="sk-route-demo"></script>
-<script src="./mock_data.js"></script>
-<script src="./mock_api.js"></script>
+<script src="./mock_data.js?v=7e277d7d"></script>
+<script src="./mock_api.js?v=3f7ad7c8"></script>
 <script>
 (async () => {
   // 演示页：取一张已上线配置做示例（真实客户场景由平台下发 cardId）
@@ -76,5 +76,6 @@
   if (params.get("auto")) sia("show", cardId, { mount: "#slot" });
 })();
 </script>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(function(){});</script>
 </body>
 </html>

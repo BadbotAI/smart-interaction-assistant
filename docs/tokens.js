@@ -49,7 +49,7 @@ window.Brand = (function () {
   }
 
   async function load(file) {
-    const res = await fetch("/brand/" + file);
+    const res = await fetch("./brand/" + file);
     apply(await res.json());
     localStorage.setItem("brand_file", file);
   }
