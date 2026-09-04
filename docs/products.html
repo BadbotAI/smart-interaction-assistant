@@ -159,7 +159,7 @@ function draw() {
         el("button", { class: "btn small iconic", title: "复制 MCP 接入配置", "aria-label": "复制 MCP 接入配置",
           onclick: () => { navigator.clipboard.writeText(mcpSnippet(p)); UI.toast("已复制 MCP 接入配置，贴进你的 MCP 客户端即可"); } }, [UI.icon("copy", 15)]),
         el("button", { class: "btn small", onclick: () => configProduct(p) }, ["产品配置"]),
-        (() => { const more = el("button", { class: "btn small iconic", title: "更多", "aria-label": "更多操作",
+        (() => { const more = el("button", { class: "btn iconic round", title: "更多", "aria-label": "更多操作",
           onclick: () => { UI.menu(more, [
             { label: "删除", danger: true, onClick: async () => {
               const ok = await UI.confirm("删除产品", `删除「${p.name}」后，它的 MCP 接入点立即失效。`, { okText: "删除", danger: true });
