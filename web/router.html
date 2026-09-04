@@ -550,41 +550,18 @@ function shortPolicyId(pid) {
 }
 
 let profilePollTimer = null;
-let profileAlpha = Number(localStorage.getItem("profile_alpha") || 0.7);
 
-async function renderDirections(container, policyId, alphaVal, policyName) {
-  container.innerHTML = "";
-  const useAlpha = alphaVal ?? profileAlpha;
-  const p = await UI.api(`/api/profile?alpha=${useAlpha}${policyId ? "&policy_id=" + policyId : ""}`);
+// 各场景效果表（某条策略视角）：策略画像卡展开时加载
+async function buildDirectionsTable(policyId, alphaVal) {
+  const p = await UI.api(`/api/profile?alpha=${alphaVal ?? 0.7}${policyId ? "&policy_id=" + policyId : ""}`);
   const clusters = p.clusters || [];
-  const rebuildStatus = el("span", { class: "muted" });
-  const rebuildBtn = el("button", { class: "btn small", onclick: async () => {
-    const ok = await UI.confirm("重新生成", "先给场景数据集里还没打分的题完成作答与打分，再按该策略的偏好重新生成各场景去向；期间线上不受影响。", { okText: "重新生成" });
-    if (!ok) return;
-    rebuildBtn.disabled = true;
-    try {
-      // 有没打分的题先补打分（需已配置路由决策模型），再重建去向
-      try {
-        const r0 = await UI.api("/v1/bank/eval-pending", { method: "POST" });
-        if (r0 && r0.queries) UI.toast(`已补 ${r0.queries} 道题的打分`);
-      } catch (e0) { /* 无待评题或未配裁判时静默跳过，rebuild 仍执行 */ }
-      await UI.api("/api/profile/rebuild", { method: "POST" }); pollRebuild();
-    }
-    catch (e) { rebuildBtn.disabled = false; UI.toast("启动失败：" + e.message, true); }
-  } }, ["重新生成"]);
-  async function pollRebuild() {
-    const { task } = await UI.api("/api/profile/rebuild/status");
-    if (!task || task.status === "idle") { rebuildStatus.textContent = ""; rebuildBtn.disabled = false; return; }
-    if (task.status === "running") {
-      rebuildBtn.disabled = true;
-      rebuildStatus.textContent = `生成中 ${task.done}/${task.total}`;
-      clearTimeout(profilePollTimer);
-      if (activeTab === "flow") profilePollTimer = setTimeout(pollRebuild, 700);
-    } else { rebuildStatus.textContent = ""; rebuildBtn.disabled = false; }
-  }
+  if (!clusters.length) return el("div", { class: "empty-state" }, [
+    el("div", { class: "empty-title" }, ["还没有打分数据"]),
+    el("div", {}, ["先导入题目，再点「生成画像」完成做题与打分"]),
+  ]);
   const mids = clusters.length ? Object.keys(clusters[0].scores || {}) : [];
   const nameOf = m => (p.models || {})[m] || m;
-  const table = el("table", { class: "data" }, [
+  return el("table", { class: "data" }, [
     el("thead", {}, [el("tr", {}, [
       el("th", {}, ["业务场景"]), el("th", {}, ["题目数"]),
       ...mids.map(m => el("th", {}, [nameOf(m)])),
@@ -606,18 +583,90 @@ async function renderDirections(container, policyId, alphaVal, policyName) {
         : (c.best ? el("span", { class: "chip blue" }, [nameOf(c.best)]) : el("span", { class: "muted" }, ["待打分"]))]),
     ]))),
   ]);
-  container.appendChild(el("div", { class: "directions-panel" }, [
-    el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap" }, [
-      el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["模型画像"]),
-      el("span", { class: "muted" }, [`各场景路由去向 · 按「${policyName || "全局均衡"}」的成本-效果权重（${Number(useAlpha).toFixed(2)}）计算`]),
-      el("div", { style: "flex:1" }), rebuildStatus, rebuildBtn,
-    ]),
-    el("div", { class: "directions-table", style: "overflow-x:auto" }, [clusters.length ? table : el("div", { class: "empty-state" }, [
-      el("div", { class: "empty-title" }, ["还没有打分数据"]),
-      el("div", {}, ["先导入题目，再点「重新生成」完成作答与打分"]),
-    ])]),
+}
+
+// 模型画像：每条策略一张状态卡（未生成 → 生成中(做题打分) → 已生成），展开看各场景效果
+async function renderProfileCards(container, policies, judgeReady) {
+  container.innerHTML = "";
+  const { generated, task } = await UI.api("/api/profile/gen-status").catch(() => ({ generated: {}, task: { status: "idle" } }));
+  const running = task && task.status === "running";
+  container.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;margin:16px 0 8px" }, [
+    el("span", { class: "section-title", style: "margin:0" }, ["模型画像"]),
+    el("span", { class: "muted" }, ["每条策略按自己的候选模型与成本-效果权重做题打分，生成各场景的路由效果"]),
   ]));
-  pollRebuild();
+  policies.forEach(p => {
+    const pid = p.policy_id;
+    const alpha = p.params?.alpha ?? 0.7;
+    if (pid === "policy-global-fallback") {
+      container.appendChild(el("div", { class: "card pp-card" }, [
+        el("div", { class: "pp-head", style: "cursor:default" }, [
+          el("span", { class: "pp-name" }, [p.name]),
+          el("span", { class: "chip gray" }, ["不做路由"]),
+          el("span", { class: "muted" }, ["直连兜底模型回答，无需画像"]),
+        ]),
+      ]));
+      return;
+    }
+    const genTs = generated[pid];
+    const isGen = running && task.policy_id === pid;
+    const stChip = isGen ? el("span", { class: "chip blue" }, ["生成中"])
+      : genTs ? el("span", { class: "chip green" }, ["已生成"])
+      : el("span", { class: "chip gray" }, ["未生成"]);
+    const meta = el("span", { class: "muted" }, [isGen
+      ? `做题打分中 ${task.done}/${task.total}`
+      : genTs ? `${UI.fmtTs(genTs)} 生成 · 成本-效果权重 ${alpha}`
+      : "还没做题打分，生成后可看各场景效果"]);
+    const prog = isGen ? el("div", { class: "pp-prog" }, [el("div", { class: "pp-prog-fill", style: `width:${Math.round(task.done / task.total * 100)}%` })]) : null;
+    const chev = el("span", { class: "pp-chev" }, [UI.icon("chevron", 14)]);
+    const body = el("div", { class: "pp-body", hidden: true });
+    let loaded = false;
+    const genBtn = el("button", {
+      class: "btn small" + (genTs || isGen ? "" : " primary"),
+      ...(judgeReady && !running ? {} : { disabled: "", title: !judgeReady ? "先在上方配置路由决策模型" : "已有画像生成任务进行中" }),
+      onclick: async (e) => {
+        e.stopPropagation();
+        try {
+          try { await UI.api("/v1/bank/eval-pending", { method: "POST" }); } catch (e0) { /* 无待评题时静默 */ }
+          await UI.api("/api/profile/rebuild", { method: "POST", body: { policy_id: pid } });
+          renderProfileCards(container, policies, judgeReady);
+          pollProfile(container, policies, judgeReady);
+        } catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
+      } }, [isGen ? "生成中…" : genTs ? "重新生成" : "生成画像"]);
+    const head = el("div", { class: "pp-head", onclick: async () => {
+      body.hidden = !body.hidden;
+      chev.classList.toggle("open", !body.hidden);
+      if (!body.hidden && !loaded) {
+        loaded = true;
+        UI.loading(body);
+        try { body.innerHTML = ""; body.appendChild(el("div", { style: "overflow-x:auto" }, [await buildDirectionsTable(pid, alpha)])); }
+        catch (e2) { body.innerHTML = ""; body.appendChild(el("div", { class: "field-error" }, ["加载失败：" + e2.message])); loaded = false; }
+      }
+    } }, [
+      chev,
+      el("span", { class: "pp-name" }, [p.name]),
+      p.scope === "global" ? el("span", { class: "chip blue" }, ["默认"]) : null,
+      stChip, meta, prog,
+      el("div", { style: "flex:1" }),
+      genBtn,
+    ]);
+    container.appendChild(el("div", { class: "card pp-card" + (judgeReady ? "" : " grayed") }, [head, body]));
+  });
+  if (running) pollProfile(container, policies, judgeReady);
+}
+
+function pollProfile(container, policies, judgeReady) {
+  clearTimeout(profilePollTimer);
+  profilePollTimer = setTimeout(async () => {
+    if (activeTab !== "flow") return;
+    const { task } = await UI.api("/api/profile/rebuild/status").catch(() => ({ task: { status: "idle" } }));
+    if (task && task.status === "running") {
+      // 局部更新进行中卡片的进度
+      renderProfileCards(container, policies, judgeReady);
+    } else {
+      UI.toast("画像已生成");
+      renderProfileCards(container, policies, judgeReady);
+    }
+  }, 800);
 }
 
 // ================= 场景数据集 =================
@@ -731,11 +780,13 @@ async function renderFlow() {
     ]),
   ]));
 
-  // 模型画像：各场景路由去向（数据、打分、成绩在同一页闭环），按全局均衡的权重计算
-  const dirBox = el("div", { style: "margin-top:12px" });
+  // 模型画像：每条策略一张状态卡，做题打分生成后展开看各场景效果
+  const dirBox = el("div", {});
   box.appendChild(dirBox);
-  const gp = (fp || []).find(p2 => p2.policy_id === "policy-global-balanced") || (fp || [])[0];
-  renderDirections(dirBox, gp && gp.policy_id, gp?.params?.alpha ?? 0.7, gp && gp.name).catch(() => {});
+  const profPolicies = (fp || []).filter(p2 => !p2.ab_group);
+  const pOrder2 = p2 => p2.policy_id === "policy-global-balanced" ? 0 : p2.policy_id === "policy-global-fallback" ? 1 : p2.scope === "global" ? 2 : 3;
+  profPolicies.sort((x, y) => pOrder2(x) - pOrder2(y));
+  renderProfileCards(dirBox, profPolicies, !!judgeModel).catch(() => {});
 }
 
 // ---------- 场景详情页：逐条管理该场景的数据集 ----------

@@ -1137,3 +1137,13 @@ details.explain .explain-body p { margin: 0 0 8px; font-size: var(--font-base); 
 .tagbox:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
 .tagbox .tagbox-in { flex: 1; min-width: 90px; border: none; outline: none; background: none; padding: 4px 2px;
   font-size: var(--font-base); color: var(--text-primary); box-shadow: none; }
+
+.pp-card { margin-bottom: 8px; padding: 12px 16px; }
+.pp-head { display: flex; align-items: center; gap: 10px; cursor: pointer; flex-wrap: wrap; }
+.pp-name { font-weight: 700; font-size: var(--font-base); width: 150px; flex: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-chev { color: var(--text-muted); display: inline-flex; transition: transform var(--dur-fast, .15s); }
+.pp-chev.open { transform: rotate(180deg); }
+.pp-prog { width: 140px; height: 5px; border-radius: 999px; background: var(--bg-sunken); overflow: hidden; }
+.pp-prog-fill { height: 100%; border-radius: 999px; background: var(--primary); transition: width .4s; }
+.pp-body { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }

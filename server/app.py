@@ -1898,14 +1898,22 @@ def routing_profile(tenant_id: str = None, alpha: float = Query(0.7, ge=0.0, le=
 
 
 @app.post("/api/profile/rebuild")  # running 态重复触发直接拒绝（见函数体守门）
-async def profile_rebuild():
-    """重建路由画像（离线管道：向量化 → 聚类 → 回填评测 → 画像矩阵）。演示环境为模拟进度。"""
+async def profile_rebuild(request: Request = None):
+    """重建路由画像（离线管道：向量化 → 聚类 → 回填评测 → 画像矩阵）。演示环境为模拟进度。
+    可带 policy_id：该策略做题打分生成画像，完成后记录策略级生成时间供状态卡展示。"""
     if _profile_task["status"] == "running":
         return {"task": _profile_task}
+    pid = None
+    if request is not None:
+        try:
+            body = await request.json()
+            pid = (body or {}).get("policy_id")
+        except Exception:
+            pid = None
     conn = db.get_conn()
     n_domains = conn.execute("SELECT COUNT(DISTINCT domain_tags) AS c FROM bank_queries").fetchone()["c"]
     n_models = conn.execute("SELECT COUNT(*) AS c FROM models WHERE status='active'").fetchone()["c"]
-    _profile_task.update({"status": "running", "done": 0, "total": max(1, n_domains * n_models)})
+    _profile_task.update({"status": "running", "done": 0, "total": max(1, n_domains * n_models), "policy_id": pid})
     asyncio.create_task(_run_profile_rebuild())
     return {"task": _profile_task}
 
@@ -1921,7 +1929,18 @@ async def _run_profile_rebuild():
         await asyncio.sleep(0.06)
     _profile_task["status"] = "completed"
     _profile_task["version"] += 1
-    db.audit("demo-admin", "profile_rebuild", {"version": _profile_task["version"]})
+    pid = _profile_task.get("policy_id")
+    if pid:
+        gen = db.dj(_get_setting("policy_profile_gen"), {}) or {}
+        gen[pid] = db.now_ts()
+        _set_setting("policy_profile_gen", db.j(gen))
+    db.audit("demo-admin", "profile_rebuild", {"version": _profile_task["version"], "policy_id": pid})
+
+
+@app.get("/api/profile/gen-status")
+def profile_gen_status():
+    """各策略的画像生成状态：{policy_id: 生成时间戳}。"""
+    return {"generated": db.dj(_get_setting("policy_profile_gen"), {}) or {}, "task": _profile_task}
 
 
 # ============ 明细导出（标书 F-5-05：CSV 导出与查询结果一致） ============

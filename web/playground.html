@@ -74,9 +74,9 @@ async function boot() {
 }
 const _ns = document.getElementById("newSess");
 _ns.append(UI.icon("refresh", 14), "新对话");
-_ns.onclick = () => boot();
-window.addEventListener("hashchange", () => boot());
-boot();
+_ns.onclick = () => boot().catch(e => UI.toast("加载失败：" + e.message, true));
+window.addEventListener("hashchange", () => boot().catch(e => UI.toast("加载失败：" + e.message, true)));
+boot().catch(e => UI.toast("加载失败：" + e.message, true));
 </script>
 </body>
 </html>
