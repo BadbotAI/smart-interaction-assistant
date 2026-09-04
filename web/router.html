@@ -373,8 +373,12 @@ function policyForm(init, actives, policyId, apiKey) {
     options: actives.map(m => [m.model_id, m.display_name]),
     onChange: (vals) => { st.whitelist = new Set(vals); },
   });
-  const fbSel = UI.fancySelect({ value: st.fallback || "", width: "100%",
-    options: [["", "跟随平台默认兜底"], ...actives.map(m => [m.model_id, m.display_name])],
+  if (!st.fallback) {
+    const dm = actives.find(m => m.is_default) || actives[0];
+    st.fallback = dm ? dm.model_id : "";
+  }
+  const fbSel = UI.fancySelect({ value: st.fallback, width: "100%",
+    options: actives.map(m => [m.model_id, m.display_name]),
     onChange: (v) => st.fallback = v });
   const slider = (key, min, max, step, leftLb, rightLb) => {
     const val = el("span", { class: "num", style: "font-weight:600;min-width:34px;text-align:right" }, [Number(st[key]).toFixed(2)]);
@@ -435,7 +439,7 @@ async function newPolicyDialog(actives) {
             const body = { name: form.st.name.trim(), alpha: form.st.alpha,
               allow_aggregation: form.st.allow_agg,
               model_whitelist: form.st.whitelist.size === actives.length ? [] : [...form.st.whitelist],
-              fallback_model: form.st.fallback || undefined };
+              fallback_model: form.st.fallback };
             const r = await UI.api("/v1/policies", { method: "POST", body });
             mask2.remove(); renderDispatch();
             const keyField = el("input", { type: "text", readonly: "", value: r.api_key,
@@ -469,8 +473,7 @@ async function editPolicy(p, actives) {
         try {
           const r = await UI.api(`/v1/policies/${p.policy_id}`, { method: "PUT", body: {
             name: form.st.name.trim(),
-            params: { alpha: form.st.alpha,
-              ...(form.st.fallback ? { fallback_model: form.st.fallback } : {}) },
+            params: { alpha: form.st.alpha, fallback_model: form.st.fallback },
             allow_aggregation: form.st.allow_agg,
             model_whitelist: form.st.whitelist.size === actives.length ? [] : [...form.st.whitelist],
           } });
@@ -523,7 +526,11 @@ async function renderPolicies(container, policies, actives, judgeReady = true) {
           [el("span", { class: "num" }, ["API Key = sk-route-••••" + (p.api_key || "").slice(-4)]), UI.icon("copy", 12)]),
       ]),
       el("div", { class: "muted", style: "margin-top:8px" }, [
-        `候选模型 ${wlN} 个 · 成本-效果权重 ${prm.alpha ?? 0.7} · ${p.allow_aggregation ? "允许聚合" : "单模型"} · 兜底 ${prm.fallback_model || "平台默认"}`,
+        (() => {
+          const nameOfM = (id) => { const m = actives.find(x => x.model_id === id); return m ? m.display_name : id; };
+          const fb = prm.fallback_model || (actives.find(m => m.is_default) || {}).model_id;
+          return `候选模型 ${wlN} 个 · 成本-效果权重 ${prm.alpha ?? 0.7} · ${p.allow_aggregation ? "允许聚合" : "单模型"} · 兜底 ${fb ? nameOfM(fb) : "-"}`;
+        })(),
       ]),
     ]);
     container.appendChild(card);
