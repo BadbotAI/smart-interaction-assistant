@@ -1279,3 +1279,6 @@ details.explain .explain-body p { margin: 0 0 8px; font-size: var(--font-base); 
   border: 1px solid var(--border); background: var(--bg-sunken); color: var(--text-secondary);
   font-size: var(--font-caption); cursor: pointer; }
 .key-chip:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-weak); }
+/* 表格设计规范：表头居中、行高与内边距统一 */
+table.data thead th { text-align: center; font-weight: 600; color: var(--text-secondary); }
+table.data td { vertical-align: middle; }

@@ -41,7 +41,11 @@ window.TestChat = (function () {
       .then(([{ policies }, { models }]) => {
         const actives = (models || []).filter(m => m.status === "active");
         pickGroups = [
-          { label: "调度策略", items: (policies || []).filter(p => p.enabled && !p.ab_group).map(p => ({ kind: "policy", value: p.policy_id, label: p.name || p.policy_id })) },
+          { label: "调度策略", items: (policies || []).filter(p => p.enabled && !p.ab_group).map(p => {
+            const hex = String(p.policy_id).replace(/[^0-9a-f]/gi, "").slice(0, 8) || "0";
+            const sid = String(parseInt(hex, 16) % 1000000).padStart(6, "0");
+            return { kind: "policy", value: p.policy_id, label: (p.name || p.policy_id) + " · ID:" + sid };
+          }) },
           { label: "多模型", items: [{ kind: "multi", value: null, label: "多模型回答 + 择优" }] },
           { label: "指定模型", items: actives.map(m => ({ kind: "model", value: m.model_id, label: m.display_name })) },
         ];
@@ -95,7 +99,7 @@ window.TestChat = (function () {
       if (pickState.kind !== "policy" || !policies2.find(it => it.value === pickState.value)) {
         const f = policies2[0]; setPick("policy", f.value, f.label);
       }
-      modeBar.appendChild(UI.fancySelect({ value: pickState.value, width: "220px",
+      modeBar.appendChild(UI.fancySelect({ value: pickState.value, width: "300px",
         display: (v, name) => "路由策略：" + name,
         options: policies2.map(it => [it.value, it.label]),
         onChange: (v) => { const hit = policies2.find(x => x.value === v); setPick("policy", v, hit ? hit.label : v); } }));
@@ -119,6 +123,7 @@ window.TestChat = (function () {
     const scrollBottom = () => { bodyBox.scrollTop = bodyBox.scrollHeight; };
     setTimeout(() => input.focus(), 150);
     if (opts.prefill) input.value = opts.prefill;
+    if (opts.prefill && opts.autosend) setTimeout(() => { const t = input.value.trim(); if (t) { input.value = ""; send(t); } }, 600);
 
     // 事件上报（与线上同一 Schema；channel=test → 不进回显 / 看板 / 标签）
     function sendEvent(eventType, envelope, payload, extras = {}) {

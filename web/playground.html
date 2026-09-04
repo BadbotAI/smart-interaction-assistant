@@ -61,9 +61,10 @@ async function boot() {
   document.getElementById("pgTitle").textContent = m.title;
   document.title = m.title + (k === "model" ? " · 模型路由平台" : " · 智能交互平台");
   const prefill = new URLSearchParams(location.search).get("q") || "";
+  const autosend = !!new URLSearchParams(location.search).get("send");
   const suggestions = await buildSuggestions(k);
   TestChat.open({
-    mountEl: "#chatHost", prefill, suggestions,
+    mountEl: "#chatHost", prefill, autosend, suggestions,
     guideTitle: k === "comp" ? "试试这些会触发组件的问法" : "换一种策略，问同一个问题，对比路由决策",
     hint: k === "comp"
       ? "点击任意问法发送；命中触发条件时 AI 会插入对应的交互组件，可直接操作提交、也可从组件进入编辑"

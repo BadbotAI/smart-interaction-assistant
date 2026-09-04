@@ -82,7 +82,82 @@
     return { ok: true, demo: true };
   }
 
-  function sseRoute() {
+  function makeEnvelope(card, source) {
+    const cfg = (card.field_bindings || {}).config || {};
+    return { schema_version: "1.0.0", render_id: "mk-" + Math.random().toString(36).slice(2, 8),
+      component_type: card.component_type, semantic_category: "collect", trigger_source: source || "model_tool_call",
+      card_ref: { card_id: card.card_id, version: card.version },
+      params: { prompt: (card.text_templates || {}).prompt || card.name,
+        reply_text: (card.text_templates || {}).reply || "",
+        submit_label: (card.text_templates || {}).submit || "提交",
+        options: cfg.options || [], option_meta: cfg.option_meta || {}, option_actions: cfg.option_actions || {},
+        display: cfg.display || "", recommended_default: cfg.recommended_default || null,
+        fields: cfg.fields || [], likert: cfg.likert || null, slider: cfg.slider || null,
+        dimensions: cfg.dimensions || [], values: cfg.values || null, placeholder: cfg.placeholder || "",
+        echo_results: false } };
+  }
+
+  function matchCard(text) {
+    const cards = ((D["/api/cards"] || {}).cards || []).filter(c =>
+      (c.status === "published" || (c.status === "draft" && c.version >= 1)) &&
+      ["collect", "control"].includes(c.semantic_category));
+    let best = null;
+    for (const c of cards) {
+      for (const t of [c.trigger_description || "", ...(c.trigger_examples || [])]) {
+        if (!t) continue;
+        if (t === text || (t.length >= 5 && (text.includes(t) || t.includes(text)))) { best = c; break; }
+      }
+      if (best) break;
+    }
+    return best;
+  }
+
+  function sseStream(steps, gap) {
+    const enc = new TextEncoder();
+    const stream = new ReadableStream({
+      start(c) {
+        let i = 0;
+        const t = setInterval(() => {
+          if (i >= steps.length) { clearInterval(t); c.close(); return; }
+          c.enqueue(enc.encode("data:" + JSON.stringify(steps[i++]) + "\n\n"));
+        }, gap || 420);
+      },
+    });
+    return new Response(stream, { status: 200 });
+  }
+
+  function sseRoute(body) {
+    const text = (body && body.text) || "";
+    // 组件跟进：用户在组件上提交后的续轮
+    if (body && body.card_context) {
+      return sseStream([
+        { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
+          content: "收到，已按你的选择继续跟进：" + ((body.card_context || {}).summary || "") + "（静态演示：正式环境由模型接管后续对话）",
+          decision_summary: { mode: "auto", switch_result: "fastlane", final_model: "swift-4b", candidates: ["swift-4b"],
+            total_cost: 0.0002, total_latency_ms: 380,
+            policy: { policy_id: "policy-global-balanced", name: "全局均衡", latency_tier: "balanced", K: 3 } },
+          usage: { cost: 0.0002, tokens: 180 } },
+      ], 300);
+    }
+    // 智能交互：命中触发条件 -> 返回组件信封
+    if (!(body && body.skip_card_match)) {
+      const hit = matchCard(text);
+      if (hit) {
+        return sseStream([
+          { step: "match", text: `触发条件命中：「${hit.name}」` },
+          { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
+            content: "", ask_card: makeEnvelope(hit),
+            decision_summary: { mode: "auto", switch_result: "await_user", final_model: null, candidates: [],
+              total_cost: 0, total_latency_ms: 120,
+              policy: { policy_id: "policy-global-balanced", name: "全局均衡", latency_tier: "balanced", K: 3 } },
+            usage: { cost: 0, tokens: 0 } },
+        ], 350);
+      }
+    }
+    return sseRouteDemo();
+  }
+
+  function sseRouteDemo() {
     const steps = [
       { step: "support", text: "检索相似历史问题：命中 42 条支撑样本" },
       { step: "coarse", text: "计算各模型在该场景的历史命中率",
@@ -136,7 +211,7 @@
     const pn = u.split("?")[0];
     let body = null;
     if (opts.body) { try { body = JSON.parse(opts.body); } catch (e) {} }
-    if (pn === "/v1/route") return Promise.resolve(sseRoute());
+    if (pn === "/v1/route") return Promise.resolve(sseRoute(body));
     if (method === "GET") return Promise.resolve(json(getMock(pn, u)));
     return Promise.resolve(json(postMock(pn, body)));
   };
