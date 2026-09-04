@@ -273,9 +273,11 @@ function renderProductCover(products, brands, unboundCount) {
   const opts = [...products.map(p => [p.product_id, p.name]), ["__unbound", `未绑定产品（${unboundCount}）`]];
   const isUnbound = curProduct === "__unbound";
   const p = products.find(x => x.product_id === curProduct);
-  const switchSel = UI.fancySelect({ value: curProduct, width: "200px", display: (v, name) => "产品：" + name,
-    options: opts, onChange: (v) => { curProduct = v; sessionStorage.setItem("wb_product", v); statusTab = ""; loadCards(); } });
-  switchSel.classList.add("cover-switch");
+  const pickProduct = (v) => { curProduct = v; sessionStorage.setItem("wb_product", v); statusTab = ""; loadCards(); };
+  const switchBtn = el("button", { class: "btn iconic round", title: "换一换：切换产品", "aria-label": "切换产品",
+    onclick: (e) => { e.stopPropagation(); UI.menu(switchBtn, opts.map(([v, name]) => ({
+      label: (v === curProduct ? "· " : "") + name, onClick: () => { if (v !== curProduct) pickProduct(v); } }))); } },
+    [UI.icon("refresh", 14)]);
   if (isUnbound || !p) {
     box.appendChild(el("div", { class: "prod-cover unbound" }, [
       el("div", { class: "pc-main" }, [
@@ -283,7 +285,7 @@ function renderProductCover(products, brands, unboundCount) {
         el("div", { class: "pc-meta" }, ["这些组件还没归入任何产品；在「产品接入」里绑定后即可通过 MCP 对外使用"]),
       ]),
       el("div", { style: "flex:1" }),
-      switchSel,
+      switchBtn,
       el("a", { class: "btn small", href: "./products.html" }, ["去产品管理"]),
     ]));
     return;
@@ -299,7 +301,10 @@ function renderProductCover(products, brands, unboundCount) {
     } });
   box.appendChild(el("div", { class: "prod-cover" }, [
     el("div", { class: "pc-main" }, [
-      el("div", { class: "pc-name" }, [p.name]),
+      el("div", { style: "display:flex;align-items:center;gap:8px" }, [
+        el("div", { class: "pc-name" }, [p.name]),
+        switchBtn,
+      ]),
       el("div", { class: "pc-meta" }, [
         el("span", { style: "margin-right:8px" }, ["MCP Key"]),
         el("button", { class: "key-chip", title: "点击复制完整 Key",
@@ -309,7 +314,6 @@ function renderProductCover(products, brands, unboundCount) {
     ]),
     el("div", { style: "flex:1" }),
     el("label", { class: "pc-field" }, [el("span", { class: "muted" }, ["品牌风格"]), brandSel]),
-    switchSel,
     el("button", { class: "btn small", onclick: () => mcpDrawer(p) }, [UI.icon("link", 13), "MCP 配置"]),
   ]));
 }
