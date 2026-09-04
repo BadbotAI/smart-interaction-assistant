@@ -32,7 +32,7 @@
 UI.nav("products");
 const { el } = UI;
 
-let brands = [], liveCards = [], products = [];
+let brands = [], liveCards = [], allCards = [], products = [];
 
 function brandName(file) {
   const b = brands.find(x => x.file === file);
@@ -155,9 +155,6 @@ function draw() {
     box.appendChild(el("div", { class: "card policy-card", style: "margin-bottom:10px" }, [
       el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
         el("span", { style: "font-weight:700;font-size:var(--font-title);width:200px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: p.name }, [p.name]),
-        el("span", { class: "cr-id num", title: "MCP 接入 Key（点击复制）",
-          onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制 MCP 接入 Key"); } },
-          [p.mcp_key.slice(0, 12) + "…"]),
         el("div", { style: "flex:1" }),
         el("button", { class: "btn small iconic", title: "复制 MCP 接入配置", "aria-label": "复制 MCP 接入配置",
           onclick: () => { navigator.clipboard.writeText(mcpSnippet(p)); UI.toast("已复制 MCP 接入配置，贴进你的 MCP 客户端即可"); } }, [UI.icon("copy", 15)]),
@@ -172,11 +169,23 @@ function draw() {
             } },
           ]); } }, [UI.icon("more", 15)]); return more; })(),
       ]),
-      el("div", { style: "margin-top:10px" }, [
+      el("div", { style: "display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap" }, [
         el("button", { class: "key-chip", title: "产品 ID（点击复制）",
           onclick: () => { navigator.clipboard.writeText(p.product_id); UI.toast("已复制产品 ID"); } },
           [el("span", { class: "num" }, [p.product_id]), UI.icon("copy", 12)]),
+        el("button", { class: "key-chip", title: "MCP 接入 Key（点击复制完整 Key）",
+          onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制 MCP 接入 Key"); } },
+          [el("span", { class: "num" }, ["MCP Key = sk-mcp-••••" + p.mcp_key.slice(-4)]), UI.icon("copy", 12)]),
       ]),
+      (() => {
+        const bound = p.card_ids || [];
+        const online = bound.filter(cid => (allCards.find(x => x.card_id === cid) || {}).status === "published").length;
+        return el("div", { class: "muted", style: "margin-top:8px" }, [
+          `品牌风格 ${brandName(p.brand_file)} · 绑定组件 ${bound.length} 个` +
+          (bound.length ? `（${online} 个在线）` : "") + " · MCP UI 对接" +
+          (bound.length ? "" : " · 点「产品配置」绑定组件"),
+        ]);
+      })(),
     ]));
   });
 }
@@ -188,7 +197,8 @@ async function load() {
     UI.api("/api/products").catch(() => ({ products: [] })),
   ]);
   brands = b.brands || [];
-  liveCards = (c.cards || []).filter(x => x.status === "published" || (x.status === "draft" && x.version >= 1));
+  allCards = c.cards || [];
+  liveCards = allCards.filter(x => x.status === "published" || (x.status === "draft" && x.version >= 1));
   products = pr.products || [];
   draw();
 }
