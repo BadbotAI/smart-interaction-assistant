@@ -168,13 +168,11 @@ function draw() {
             } },
           ]); } }, [UI.icon("more", 15)]); return more; })(),
       ]),
-      el("div", { class: "muted", style: "margin-top:8px" },
-        [`品牌风格 ${brandName(p.brand_file)} · MCP UI 对接 · 绑定组件 ${p.card_ids.length} 个`]),
-      el("div", { style: "display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" },
-        p.card_ids.length
-          ? p.card_ids.map(cid => { const c = liveCards.find(x => x.card_id === cid);
-              return c ? el("span", { class: "chip gray" }, [c.name]) : null; }).filter(Boolean)
-          : [el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["还没绑定组件 · 点「产品配置」添加"])]),
+      el("div", { style: "margin-top:10px" }, [
+        el("button", { class: "key-chip", title: "产品 ID（点击复制）",
+          onclick: () => { navigator.clipboard.writeText(p.product_id); UI.toast("已复制产品 ID"); } },
+          [el("span", { class: "num" }, [p.product_id]), UI.icon("copy", 12)]),
+      ]),
     ]));
   });
 }
