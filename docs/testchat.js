@@ -257,7 +257,82 @@ window.TestChat = (function () {
             send("继续执行刚才的操作", { summary: "用户已确认执行该高风险操作" });
         },
       };
+      // 展示顺序：思考过程(已折叠) -> 路由决策(收起可展开) -> 回复 -> 底部路径标签小字
+      let ansTag = null, candDetails = null;
+      if (evt.decision_summary && opts.keepReasoning) {
+        const d = evt.decision_summary;
+        const pol = d.policy || {};
+        const rows = [];
+        if (d.mode === "manual") {
+          rows.push(["策略", "手动指定模型（不走智能路由）"]);
+        } else if (d.switch_result === "fallback") {
+          rows.push(["策略", `${pol.name || "-"} · 直连默认兜底模型`]);
+          rows.push(["推导", "按该策略约定跳过场景打分，任何问题都交给兜底模型"]);
+        } else {
+          rows.push(["策略", `${pol.name || pol.policy_id || "-"} · 成本-效果权重 ${pol.alpha ?? "-"} · ` +
+            (pol.allow_aggregation ? "允许聚合" : "仅单模型") +
+            (pol.K ? ` · 候选 ${pol.K} 个` : "") + (d.is_explore ? "（本次命中探索流量）" : "")]);
+          rows.push(["推导", {
+            fastlane: "按各模型在该场景的历史成绩打分，最高分显著领先（或策略仅单模型），直接单模型作答",
+            routed: "候选并发作答后结合回答质量与消耗细排，单模型胜出",
+            aggregated: "打分后两名成绩接近，按策略允许聚合：多路回答交给聚合器融合重写",
+            degraded: "候选模型异常，按稳态规则降级处理",
+          }[d.switch_result] || "按策略参数推导路由去向"]);
+        }
+        const modelName = (id) => {
+          const hit = (pickGroups.find(g => g.label === "指定模型") || { items: [] }).items.find(x => x.value === id);
+          return hit ? hit.label : (id || "-");
+        };
+        const finalName = d.final_model || "-";
+        rows.push(["模型", el("span", {}, [
+          ...(d.candidates || [finalName]).map((m, i) => el("span", {}, [
+            i ? "、" : "", m === finalName && !d.aggregator ? el("strong", {}, [modelName(m)]) : modelName(m)])),
+          d.aggregator ? el("span", {}, ["，由 ", el("strong", {}, [modelName(d.aggregator)]), " 聚合定稿"]) : null,
+        ])]);
+        const calls = d.model_calls || [];
+        if (calls.length) {
+          rows.push(["成本", el("span", { class: "num" }, [
+            calls.map(c2 => `${c2.model_id} ${(c2.tokens_in || 0) + (c2.tokens_out || 0) + (c2.tokens_thinking || 0)}tk ${UI.fmtCost(c2.cost)}`).join(" + "),
+            ` = ${UI.fmtCost(d.total_cost)} · ${UI.fmtMs(d.total_latency_ms)}`,
+          ])]);
+        } else {
+          rows.push(["成本", `${UI.fmtCost(d.total_cost)} · ${UI.fmtMs(d.total_latency_ms)}`]);
+        }
+        bubble.appendChild(el("details", { class: "route-cot" }, [
+          el("summary", { class: "rc-title" }, ["路由决策"]),
+          ...rows.map(([k, v]) => el("div", { class: "rc-row" }, [
+            el("span", { class: "rc-k" }, [k]), el("span", { class: "rc-v" }, [v]),
+          ])),
+        ]));
+        // 底部标签：同首页卡片式（蓝 chip + 小字）
+        const tagText = {
+          aggregated: `聚合定稿 · 由 ${modelName(d.aggregator || finalName)} 融合重写`,
+          fastlane: `单模型直答 · ${modelName(finalName)}`,
+          routed: `单模型路由 · ${modelName(finalName)}`,
+          fallback: `兜底直连 · ${modelName(finalName)}`,
+          manual: `手动指定 · ${modelName(finalName)}`,
+          degraded: "已降级处理",
+        }[d.switch_result] || d.switch_result;
+        ansTag = el("div", { class: "ans-tags" }, [
+          el("span", { class: "chip ai" }, [tagText]),
+          el("span", { class: "muted", style: "font-size:var(--font-caption)" },
+            [`${(d.candidates || []).length || 1} 路候选 · ${UI.fmtCost(d.total_cost)} · ${UI.fmtMs(d.total_latency_ms)}`]),
+        ]);
+        if (d.switch_result === "aggregated") {
+          const pref = (evt.components || []).find(c2 => c2.component_type === "feedback.preference");
+          const cands = pref?.params?.candidates || [];
+          if (cands.length) candDetails = el("details", { style: "margin-top:4px" }, [
+            el("summary", { class: "muted", style: "cursor:pointer;font-size:var(--font-small)" }, [`查看 ${cands.length} 份候选回答`]),
+            ...cands.map(c2 => el("div", { class: "agg-cand" }, [
+              el("div", { class: "muted num" }, [c2.model_id || c2.alias]),
+              el("div", {}, [c2.content]),
+            ])),
+          ]);
+        }
+      }
       if (evt.content) bubble.appendChild(el("div", {}, [evt.content]));
+      if (ansTag) bubble.appendChild(ansTag);
+      if (candDetails) bubble.appendChild(candDetails);
       if (evt.ask_card) {
         const env = evt.ask_card;
         env._ctx = ctx;
@@ -281,73 +356,6 @@ window.TestChat = (function () {
       }
       // 呈现型组件照常渲染（评价型在测试抽屉里省略）
       (evt.components || []).filter(c => c.semantic_category === "present").forEach(c => { c._ctx = ctx; bubble.appendChild(Components.render(c, ctx)); });
-      if (evt.decision_summary && opts.keepReasoning) {
-        const d = evt.decision_summary;
-        const pathName = { fastlane: "单模型直答", routed: "单模型路由", aggregated: "多模型聚合",
-          degraded: "降级", manual: "手动指定", fallback: "兜底直连" }[d.switch_result] || d.switch_result;
-        if (opts.keepReasoning) {
-          // 模型测试：三段式路由决策展示（策略 → 模型 → 成本）
-          const pol = d.policy || {};
-          const rows = [];
-          if (d.mode === "manual") {
-            rows.push(["策略", "手动指定模型（不走智能路由）"]);
-          } else if (d.switch_result === "fallback") {
-            rows.push(["策略", `${pol.name || "-"} · 不做路由，直连默认兜底模型`]);
-            rows.push(["推导", "按该策略约定跳过场景打分，任何问题都交给兜底模型，路由决策模型缺失时依然可用"]);
-          } else {
-            rows.push(["策略", `${pol.name || pol.policy_id || "-"} · 成本-效果权重 ${pol.alpha ?? "-"} · ` +
-              (pol.allow_aggregation ? "允许聚合" : "仅单模型") +
-              (pol.K ? ` · 候选 ${pol.K} 个` : "") + (d.is_explore ? "（本次命中探索流量）" : "")]);
-            const derive = {
-              fastlane: "按各模型在该场景的历史成绩打分，最高分显著领先（或策略仅单模型），直接单模型作答",
-              routed: "候选并发作答后结合回答质量与消耗细排，单模型胜出",
-              aggregated: "打分后两名成绩接近，按策略允许聚合：多路回答交给聚合器融合重写",
-              degraded: "候选模型异常，按稳态规则降级处理",
-            }[d.switch_result] || "按策略参数推导路由去向";
-            rows.push(["推导", derive]);
-          }
-          const finalName = d.final_model || "-";
-          rows.push(["模型", el("span", {}, [
-            `${pathName}：`,
-            ...(d.candidates || [finalName]).map((m, i) => el("span", {}, [
-              i ? "、" : "", m === finalName && !d.aggregator ? el("strong", {}, [m]) : m])),
-            d.aggregator ? el("span", {}, ["，由 ", el("strong", {}, [d.aggregator]), " 聚合定稿"]) : null,
-          ])]);
-          const calls = d.model_calls || [];
-          if (calls.length) {
-            rows.push(["成本", el("span", { class: "num" }, [
-              calls.map(c2 => `${c2.model_id} ${(c2.tokens_in || 0) + (c2.tokens_out || 0) + (c2.tokens_thinking || 0)}tk ${UI.fmtCost(c2.cost)}`).join(" + "),
-              ` = ${UI.fmtCost(d.total_cost)} · ${UI.fmtMs(d.total_latency_ms)}`,
-            ])]);
-          } else {
-            rows.push(["成本", `${UI.fmtCost(d.total_cost)} · ${UI.fmtMs(d.total_latency_ms)}`]);
-          }
-          bubble.appendChild(el("div", { class: "route-cot" }, [
-            el("div", { class: "rc-title" }, ["路由决策"]),
-            ...rows.map(([k, v]) => el("div", { class: "rc-row" }, [
-              el("span", { class: "rc-k" }, [k]), el("span", { class: "rc-v" }, [v]),
-            ])),
-          ]));
-          // 聚合路径：标识 + 候选回答查看
-          if (d.switch_result === "aggregated") {
-            const pref = (evt.components || []).find(c2 => c2.component_type === "feedback.preference");
-            const cands = pref?.params?.candidates || [];
-            bubble.appendChild(el("div", { class: "agg-badge" }, [
-              el("span", { class: "chip blue" }, [`综合了 ${(d.candidates || []).length || cands.length} 个模型的回答`]),
-              cands.length ? (() => {
-                const det = el("details", {}, [
-                  el("summary", { class: "muted", style: "cursor:pointer;font-size:var(--font-small)" }, [`查看 ${cands.length} 份候选回答`]),
-                  ...cands.map(c2 => el("div", { class: "agg-cand" }, [
-                    el("div", { class: "muted num" }, [c2.model_id || c2.alias]),
-                    el("div", {}, [c2.content]),
-                  ])),
-                ]);
-                return det;
-              })() : null,
-            ]));
-          }
-        }
-      }
       scrollBottom();
     }
 

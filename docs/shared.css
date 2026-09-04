@@ -1200,3 +1200,10 @@ table.data td.w-main { white-space: normal; }
 .rad-row { display: flex; align-items: center; gap: 10px; }
 .rad-row input[type=range] { flex: 1; }
 .rad-row .rad-lab { flex: none; min-width: 44px; text-align: right; font-weight: 600; font-size: var(--font-small); }
+
+details.route-cot > summary.rc-title { cursor: pointer; list-style: none; }
+details.route-cot > summary.rc-title::before { content: ""; display: inline-block; width: 0; height: 0;
+  border-left: 5px solid currentColor; border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  margin-right: 6px; transition: transform var(--dur-fast, .15s); vertical-align: 1px; }
+details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
+.ans-tags { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }

@@ -6,7 +6,13 @@
 
   const genLocal = {};
   let judgeLocal = null; // null=跟随快照; {removed:true} 或 {judge:{...}}
+  const deadCards = new Set(); // 静态站会话内删除/下线的配置
   function getMock(pn, full) {
+    if (pn === "/api/cards" && deadCards.size) {
+      const base = JSON.parse(JSON.stringify(D[pn] || { cards: [] }));
+      base.cards = (base.cards || []).filter(c => !deadCards.has(c.card_id));
+      return base;
+    }
     if (pn === "/api/settings/judge-model") {
       if (judgeLocal) return { judge: judgeLocal.removed ? null : judgeLocal.judge };
       return D[pn] !== undefined ? D[pn] : { judge: null };
@@ -95,6 +101,7 @@
     }
     if (/^\/api\/products\/[^/]+\/delete$/.test(pn)) return { ok: true };
     if (pn === "/api/scenes/delete") return { ok: true, deleted: 0 };
+    if (/^\/api\/cards\/[^/]+\/delete$/.test(pn)) { deadCards.add(pn.split("/")[3]); return { ok: true }; }
     if (pn === "/v1/policies") return { policy_id: "policy-demo-" + Math.random().toString(36).slice(2, 8), api_key: "sk-route-demo0000" };
     if (/^\/v1\/policies\/[^/]+\/duplicate$/.test(pn)) return { policy_id: "policy-demo-" + Math.random().toString(36).slice(2, 8), name: "策略 副本" };
     return { ok: true, demo: true };

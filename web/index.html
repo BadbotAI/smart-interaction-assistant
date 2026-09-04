@@ -12,7 +12,7 @@
   .home h1 { font-size: 32px; font-weight: 800; letter-spacing: 2px; margin: 0 0 12px; color: var(--text-primary); }
   .home .slogan { font-size: 15px; color: var(--text-secondary); letter-spacing: 6px; margin: 0 0 36px; }
   /* ---- 大轮播展示卡 ---- */
-  .stage { position: relative; height: 356px; background: var(--bg-elevated); border: 1px solid var(--border);
+  .stage { position: relative; height: 368px; background: var(--bg-elevated); border: 1px solid var(--border);
     border-radius: var(--radius-card); overflow: hidden; text-align: left; box-shadow: var(--shadow-card); }
   .stage * { box-sizing: border-box; }
   .cs { position: absolute; inset: 0; display: none; }
@@ -51,10 +51,10 @@
   .cs .buy { display: inline-block; margin-top: 2px; font-size: 11.5px; background: var(--primary); color: #fff; border-radius: 999px; padding: 4px 13px; opacity: 0; }
   .cs.active .buy { animation: csIn .3s ease-out 2s forwards; }
   /* 卡内底栏：case 标题与描述 */
-  .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 13px 20px; background: var(--bg-surface);
-    border-top: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); opacity: 0; }
+  .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 56px 12px; background: var(--bg-surface);
+    border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-secondary); opacity: 0; text-align: center; }
   .cs.active .cap { animation: csIn .4s ease-out .2s forwards; }
-  .cap b { color: var(--text-primary); margin-right: 8px; }
+  .cap b { display: block; color: var(--text-primary); font-size: 13.5px; margin-bottom: 2px; }
   .dots { position: absolute; right: 18px; bottom: 16px; display: flex; gap: 6px; z-index: 2; }
   .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--border-strong, #C7D3DC); cursor: pointer; border: 0; padding: 0; transition: width .2s; }
   .dot.on { background: var(--primary); width: 18px; }
