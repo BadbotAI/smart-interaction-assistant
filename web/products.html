@@ -15,10 +15,10 @@
     <button class="btn primary" id="newBtn"></button>
   </div>
   <div class="tab-bar" style="margin-bottom:14px">
-    <button type="button" class="tab active">产品</button>
-    <a class="tab" href="/web/design.html" style="text-decoration:none">组件风格</a>
+    <button type="button" class="tab active">产品管理</button>
+    <a class="tab" href="/web/design.html" style="text-decoration:none">品牌风格管理</a>
   </div>
-  <div class="muted" style="margin-bottom:14px">一个产品 = 一个品牌风格 + 多个组件 + 一个 MCP 接入点；风格在「组件风格」标签页里新建与编辑</div>
+  <div class="muted" style="margin-bottom:14px">一个产品 = 一个品牌风格 + 多个组件 + 一个 MCP 接入点；风格在「品牌风格管理」标签页里新建与编辑</div>
   <div id="listBox"></div>
 </div>
 
@@ -68,7 +68,7 @@ function productForm(init, opts = {}) {
   const node = el("div", { class: "policy-form" }, [
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["产品名称"]), nameIn, nameErr]),
     el("label", { class: "field" }, [el("span", { class: "label-text" }, ["品牌风格",
-      UI.help("该产品里所有组件渲染时使用的风格；在「组件风格」标签页新建与编辑")]), brandSel]),
+      UI.help("该产品里所有组件渲染时使用的风格；在「品牌风格管理」标签页新建与编辑")]), brandSel]),
     opts.withCards === false ? null : el("div", { class: "field" }, [
       el("span", { class: "label-text" }, ["绑定组件", UI.help("这个产品可以触发哪些交互组件；点 × 移除，下拉添加")]),
       wlWrap,
