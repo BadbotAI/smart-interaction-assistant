@@ -53,7 +53,7 @@ async function renderModels() {
     paused: ["已停用", "gray"], retired: ["已退役", "red"] };
   const table = el("table", { class: "data" }, [
     el("thead", {}, [el("tr", {}, ["供应商", "名称", "模型型号", "单价 ¥/M（入 / 出）", "思考模式", "启用情况", "操作"]
-      .map(h => el("th", { class: h === "名称" ? "w-main" : "" }, [h])))]),
+      .map(h => el("th", { class: h === "模型型号" ? "w-main" : "" }, [h])))]),
     el("tbody", {}, models.filter(m => (m.bank_coverage || 0) >= 1)
       .sort((a2, b2) => String(a2.provider).localeCompare(String(b2.provider)) || String(a2.display_name).localeCompare(String(b2.display_name)))
       .map((m, i, arr) => renderModelRow(m, i === 0 || arr[i - 1].provider !== m.provider))),
@@ -397,12 +397,14 @@ function policyForm(init, actives, policyId, apiKey) {
         [el("span", { class: "num" }, ["sk-route-••••" + apiKey.slice(-4)]), UI.icon("copy", 12)]) : null,
     ]) : null,
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["策略名称"]), nameIn, nameErr]),
+    el("div", { class: "form-sec" }, ["模型范围"]),
     el("div", { class: "field" }, [
       el("span", { class: "label-text" }, ["候选模型", UI.help("这个策略允许在哪些模型里做选择；点击框内可搜索添加，点标签 × 移除")]),
       wlWrap,
     ]),
     el("label", { class: "field" }, [el("span", { class: "label-text" }, ["兜底模型",
       UI.help("候选模型全部失败时用它保底回答")]), fbSel]),
+    el("div", { class: "form-sec" }, ["路由行为"]),
     el("label", { class: "field" }, [
       el("span", { class: "label-text" }, ["成本-效果权重",
         UI.help("决定「各场景路由去向」的打分权重：拉向更高质量偏向答得准的模型，拉向更省钱偏向便宜的模型")]),
@@ -416,16 +418,6 @@ function policyForm(init, actives, policyId, apiKey) {
     ]),
   ]);
   return { node, st, nameIn, nameErr };
-}
-
-function policyRefSnippet(p) {
-  return [
-    `// 在你的产品里引用「${p.name}」这条路由策略：请求带上它的接入 Key 即可`,
-    `fetch("https://your-domain/v1/route", {`,
-    `  method: "POST", headers: { "Content-Type": "application/json" },`,
-    `  body: JSON.stringify({ api_key: "${p.api_key}", text: "用户消息", session_id: "sess-1", user_id: "u-1" })`,
-    `});`,
-  ].join("\n");
 }
 
 
@@ -502,22 +494,14 @@ async function renderPolicies(container, policies, actives, judgeReady = true) {
     const card = el("div", { class: "card policy-card" + (grayed ? " grayed" : ""),
       title: grayed ? "未配置路由决策模型，该策略暂不可用" : "",
       style: "margin-bottom:10px" }, [
-      el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
-        el("span", { style: "font-weight:700;font-size:var(--font-title);width:200px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: p.name || "" }, [p.name || "未命名策略"]),
-        el("span", { class: "cr-id num", title: "策略 ID（点击复制完整 ID）：" + p.policy_id,
-          onclick: (e) => { e.stopPropagation(); navigator.clipboard.writeText(p.policy_id); UI.toast("已复制策略 ID"); } },
-          ["ID:" + shortPolicyId(p.policy_id)]),
-        el("button", { class: "key-chip", title: "一条策略一个 API：点击复制完整 Key",
-          onclick: (e) => { e.stopPropagation(); navigator.clipboard.writeText(p.api_key); UI.toast("已复制 API Key"); } },
-          [el("span", { class: "num" }, ["sk-route-••••" + (p.api_key || "").slice(-4)]), UI.icon("copy", 12)]),
+      el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap" }, [
+        el("span", { style: "font-weight:700;font-size:var(--font-title)" }, [p.name || "未命名策略"]),
         isDefault ? el("span", { class: "chip blue", title: p.policy_id === "policy-global-fallback"
           ? "内置策略：不做路由，直接用默认兜底模型回答；未配置路由决策模型时仍可用" : "对话没有指定策略时，走这条默认策略" }, ["默认"]) : null,
         p.enabled ? null : el("span", { class: "chip red" }, ["已停用"]),
         el("div", { style: "flex:1" }),
-        el("button", { class: "btn small iconic", title: "复制引用代码", "aria-label": "复制引用代码",
-          onclick: (e) => { e.stopPropagation(); navigator.clipboard.writeText(policyRefSnippet(p)); UI.toast("已复制引用代码，贴进你的产品即可"); } }, [UI.icon("copy", 15)]),
-        el("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); editPolicy(p, actives); } }, ["参数配置"]),
-        (() => { const more = el("button", { class: "btn small iconic", title: "更多", "aria-label": "更多操作",
+        el("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); editPolicy(p, actives); } }, [UI.icon("sliders", 14), "参数配置"]),
+        (() => { const more = el("button", { class: "btn iconic round", title: "更多", "aria-label": "更多操作",
           onclick: (e) => { e.stopPropagation(); UI.menu(more, [
           { label: "复制", onClick: async () => {
             try { const r = await UI.api(`/v1/policies/${p.policy_id}/duplicate`, { method: "POST" }); UI.toast(`已复制为「${r.name}」`); renderDispatch(); }
@@ -530,6 +514,14 @@ async function renderPolicies(container, policies, actives, judgeReady = true) {
             catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
           } } : null,
         ]); } }, [UI.icon("more", 15)]); return more; })(),
+      ]),
+      el("div", { style: "display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap" }, [
+        el("span", { class: "cr-id num", title: "策略 ID（点击复制完整 ID）：" + p.policy_id,
+          onclick: (e) => { e.stopPropagation(); navigator.clipboard.writeText(p.policy_id); UI.toast("已复制策略 ID"); } },
+          ["ID:" + shortPolicyId(p.policy_id)]),
+        el("button", { class: "key-chip", title: "一条策略一个 API：点击复制完整 Key",
+          onclick: (e) => { e.stopPropagation(); navigator.clipboard.writeText(p.api_key); UI.toast("已复制 API Key"); } },
+          [el("span", { class: "num" }, ["API Key = sk-route-••••" + (p.api_key || "").slice(-4)]), UI.icon("copy", 12)]),
       ]),
       el("div", { class: "muted", style: "margin-top:8px" }, [
         p.policy_id === "policy-global-fallback"
@@ -590,8 +582,8 @@ async function renderProfileCards(container, policies, judgeReady) {
   const task = gs.task || { status: "idle" };
   const running = task.status === "running";
   container.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;margin:16px 0 8px" }, [
-    el("span", { class: "section-title", style: "margin:0" }, ["模型画像"]),
-    el("span", { class: "muted" }, ["每条策略按自己的候选模型与成本-效果权重做题打分，生成各场景的路由效果"]),
+    el("span", { class: "section-title", style: "margin:0" }, ["路由效果"]),
+    el("span", { class: "muted" }, ["每条策略按自己的候选模型与成本-效果权重做题打分，得到各场景由谁来回答"]),
   ]));
   policies.forEach(p => {
     const pid = p.policy_id;
@@ -603,15 +595,29 @@ async function renderProfileCards(container, policies, judgeReady) {
         fbBody.hidden = !fbBody.hidden;
         fbBtn.classList.toggle("active", !fbBody.hidden);
         if (!fbBody.hidden && !fbBody.childNodes.length) {
-          const { models } = await UI.api("/v1/models").catch(() => ({ models: [] }));
+          UI.loading(fbBody);
+          const [{ models }, prof] = await Promise.all([
+            UI.api("/v1/models").catch(() => ({ models: [] })),
+            UI.api("/api/profile?alpha=" + alpha).catch(() => ({ clusters: [] })),
+          ]);
           const dm = (models || []).find(m => m.is_default);
           const name = dm ? dm.display_name : "默认兜底模型";
+          const mid = dm ? dm.model_id : null;
+          fbBody.innerHTML = "";
           fbBody.appendChild(el("div", { class: "muted", style: "margin-bottom:8px" },
-            [`该策略不做场景路由：任何问题都由默认兜底模型「${name}」直接回答，不依赖打分成绩，路由决策模型移除时依然可用。`]));
+            [`该策略不做场景路由：任何问题都由默认兜底模型「${name}」直接回答。下表是它在各场景的得分，供对比参考。`]));
           fbBody.appendChild(el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
-            el("thead", {}, [el("tr", {}, [el("th", {}, ["业务场景"]), el("th", { class: "w-main" }, ["路由去向"])])]),
-            el("tbody", {}, [el("tr", {}, [el("td", {}, ["全部场景"]),
-              el("td", { class: "w-main" }, [el("span", { class: "chip blue" }, [name + " 直连"])])])]),
+            el("thead", {}, [el("tr", {}, [el("th", {}, ["业务场景"]), el("th", {}, ["题目数"]), el("th", {}, [name + " 得分"]), el("th", { class: "w-main" }, ["路由去向"])])]),
+            el("tbody", {}, (prof.clusters || []).map(c => {
+              const sc2 = mid ? (c.scores || {})[mid] : null;
+              const v = sc2 && sc2.combined != null ? sc2.combined.toFixed(2) : "-";
+              return el("tr", {}, [
+                el("td", {}, [DOMAIN_NAMES[c.domain] || c.domain]),
+                el("td", { class: "num" }, [String(c.queries)]),
+                el("td", { class: "num" }, [v]),
+                el("td", { class: "w-main" }, [el("span", { class: "chip blue" }, [name + " 直连"])]),
+              ]);
+            })),
           ])]));
         }
       };
@@ -619,7 +625,7 @@ async function renderProfileCards(container, policies, judgeReady) {
         el("div", { class: "pp-head", onclick: toggleFb }, [
           el("span", { class: "pp-name" }, [p.name]),
           el("span", { class: "chip gray" }, ["不做路由"]),
-          el("span", { class: "muted" }, ["直连兜底模型回答，不依赖画像"]),
+          el("span", { class: "muted" }, ["直连兜底模型回答，不依赖打分"]),
           el("div", { style: "flex:1" }),
           fbBtn,
         ]),
@@ -635,13 +641,13 @@ async function renderProfileCards(container, policies, judgeReady) {
     const meta = el("span", { class: "muted" }, [isGen
       ? `做题打分中 ${task.done}/${task.total}`
       : genTs ? `${UI.fmtTs(genTs)} 生成 · 成本-效果权重 ${alpha}`
-      : "还没做题打分，生成后可看各场景效果"]);
+      : "还没做题打分，生成后可看各场景由谁来答"]);
     const prog = isGen ? el("div", { class: "pp-prog" }, [el("div", { class: "pp-prog-fill", style: `width:${Math.round(task.done / task.total * 100)}%` })]) : null;
     const body = el("div", { class: "pp-body", hidden: true });
     let loaded = false;
     const genBtn = el("button", {
       class: "btn small" + (genTs || isGen ? "" : " primary"),
-      ...(judgeReady && !running ? {} : { disabled: "", title: !judgeReady ? "先在上方配置路由决策模型" : "已有画像生成任务进行中" }),
+      ...(judgeReady && !running ? {} : { disabled: "", title: !judgeReady ? "先在上方配置路由决策模型" : "已有生成任务进行中" }),
       onclick: async (e) => {
         e.stopPropagation();
         try {
@@ -650,7 +656,7 @@ async function renderProfileCards(container, policies, judgeReady) {
           renderProfileCards(container, policies, judgeReady);
           pollProfile(container, policies, judgeReady);
         } catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
-      } }, [isGen ? "生成中…" : genTs ? "重新生成" : "生成画像"]);
+      } }, [isGen ? "生成中…" : genTs ? "重新生成" : "生成效果"]);
     const viewBtn = el("button", { class: "btn small ghost", onclick: (e) => { e.stopPropagation(); toggleBody(); } }, ["查看效果", UI.icon("chevron", 13)]);
     const toggleBody = async () => {
       body.hidden = !body.hidden;
@@ -684,7 +690,7 @@ function pollProfile(container, policies, judgeReady) {
       // 局部更新进行中卡片的进度
       renderProfileCards(container, policies, judgeReady);
     } else {
-      UI.toast("画像已生成");
+      UI.toast("路由效果已生成");
       renderProfileCards(container, policies, judgeReady);
     }
   }, 800);
@@ -757,7 +763,7 @@ async function renderFlow() {
   ]));
 
   const pendingLine = sum.pending_eval
-    ? el("span", { class: "muted num" }, [`还有 ${sum.pending_eval} 道题没打过分 · 点「模型画像」的「重新生成」完成打分`])
+    ? el("span", { class: "muted num" }, [`还有 ${sum.pending_eval} 道题没打过分 · 点「路由效果」的「重新生成」完成打分`])
     : el("span", { class: "muted" }, ["所有题目都已打分"]);
 
   // 路由决策模型：评估各模型答题表现，决定各场景的路由去向（原打分裁判，随画像一起放在数据所在页）
@@ -768,7 +774,7 @@ async function renderFlow() {
         ? `路由决策模型：${judgeName}`
         : "还没配置路由决策模型"]),
       el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [judgeModel
-        ? "评估各模型的答题表现，是「模型画像」的成绩来源"
+        ? "评估各模型的答题表现，是「路由效果」的成绩来源"
         : "没有决策模型就没有成绩：除「默认兜底」外，其余路由策略都无法生效"]),
     ]),
     el("div", { style: "flex:1" }),
@@ -805,7 +811,7 @@ async function renderFlow() {
   const dirBox = el("div", {});
   box.appendChild(dirBox);
   const profPolicies = (fp || []).filter(p2 => !p2.ab_group);
-  const pOrder2 = p2 => p2.policy_id === "policy-global-balanced" ? 0 : p2.policy_id === "policy-global-fallback" ? 1 : p2.scope === "global" ? 2 : 3;
+  const pOrder2 = p2 => p2.policy_id === "policy-global-balanced" ? 0 : p2.policy_id === "policy-global-fallback" ? 9 : p2.scope === "global" ? 2 : 3;
   profPolicies.sort((x, y) => pOrder2(x) - pOrder2(y));
   renderProfileCards(dirBox, profPolicies, !!judgeModel).catch(() => {});
 }
@@ -1066,10 +1072,11 @@ async function renderDispatch() {
   }
 
   const rulesBlock = el("div", { class: "card explain-body", hidden: true, style: "margin-bottom:10px" }, [
-    el("p", {}, ["1. 用户提问进来，平台先判断它属于哪类业务场景（比如「价格行情」）。"]),
-    el("p", {}, ["2. 按当前策略的规则，在候选模型里挑「模型画像」里这个场景成绩最好的模型来回答；两个模型成绩接近时，让它们都答一遍再合写（聚合）。"]),
-    el("p", {}, ["3. 成绩从哪来：场景数据集里的题目，由每个模型作答、路由决策模型打分。题目越多，去向判断越准。"]),
-    el("p", {}, ["4. 你的产品怎么用：一条策略就是一个 API——复制策略卡上的「引用代码」，带着它的 API Key 调用对话接口即可；换策略只需换 Key，调用统计在「模型路由数据」查看。"]),
+    el("p", {}, ["1. 场景识别：请求进入后，先对用户问题做业务场景归类（价格行情、港口作业等）。"]),
+    el("p", {}, ["2. 策略求解：在该策略的候选模型范围内，按各模型在该场景的历史成绩与「成本-效果权重」计算综合得分。"]),
+    el("p", {}, ["3. 路由执行：最高分显著领先或策略仅单模型时直接作答；两名接近且策略允许聚合时并发作答、由聚合器融合定稿；调用异常时自动切换默认兜底模型，回答不中断。"]),
+    el("p", {}, ["4. 成绩来源：场景数据集的题目由各模型作答、路由决策模型评分，生成「路由效果」；题目越充分，路由越准。"]),
+    el("p", {}, ["5. 产品接入：一条策略对应一个 API Key，请求携带 Key 调用对话接口即按该策略路由；调用量与成本见「模型路由数据」。"]),
   ]);
   const rulesBtn = el("button", { class: "btn small ghost", onclick: () => {
     rulesBlock.hidden = !rulesBlock.hidden;
@@ -1080,7 +1087,6 @@ async function renderDispatch() {
     el("span", { class: "muted" }, ["一条策略 = 一个 API，用 Key 区分"]),
     el("div", { style: "flex:1" }),
     el("button", { class: "btn primary", onclick: () => newPolicyDialog(actives) }, [UI.icon("plus", 14), "新增路由策略"]),
-    el("a", { class: "btn small ghost", href: "#flow" }, ["查看模型画像"]),
   ]));
   box.appendChild(rulesBlock);
   const listBox = el("div", {});

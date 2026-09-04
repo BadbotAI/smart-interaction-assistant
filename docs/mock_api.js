@@ -172,10 +172,47 @@
         ], 350);
       }
     }
-    return sseRouteDemo();
+    return sseRouteDemo(body);
   }
 
-  function sseRouteDemo() {
+  function sseRouteDemo(body) {
+    const pid = body && body.policy_id;
+    const pol = (((D["/v1/policies"] || {}).policies) || []).find(p => p.policy_id === pid);
+    const polMeta = pol ? { policy_id: pol.policy_id, name: pol.name, latency_tier: pol.latency_tier,
+      allow_aggregation: pol.allow_aggregation, K: (pol.params || {}).K || 3, alpha: (pol.params || {}).alpha ?? 0.7 } 
+      : { policy_id: "policy-global-balanced", name: "全局均衡", latency_tier: "balanced", allow_aggregation: 1, K: 3, alpha: 0.7 };
+    if (pid === "policy-global-fallback") {
+      return sseStream([
+        { step: "fallback", text: "默认兜底档：直接调用兜底模型 衡岳 Atlas-72B" },
+        { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
+          content: "这批货物当前在宁波舟山港中转，预计后天完成清关。（静态演示：回答为预置数据）",
+          decision_summary: { mode: "auto", switch_result: "fallback", final_model: "atlas-72b", candidates: ["atlas-72b"],
+            total_cost: 0.0004, total_latency_ms: 620,
+            model_calls: [{ model_id: "atlas-72b", tokens_in: 120, tokens_out: 210, tokens_thinking: 0, cost: 0.0004, latency_ms: 620 }],
+            policy: polMeta },
+          usage: { cost: 0.0004, tokens: 330 } },
+      ], 400);
+    }
+    if (pol && !pol.allow_aggregation) {
+      return sseStream([
+        { step: "support", text: "检索相似历史问题：命中 42 条支撑样本" },
+        { step: "coarse", text: "计算各模型在该场景的历史命中率",
+          scores: { "swift-4b": 0.71, "harbor-13b": 0.62, "atlas-72b": 0.58, "sage-r1": 0.44 },
+          candidates: ["swift-4b"] },
+        { step: "fastlane", text: "策略仅单模型：最高分 迅答 Swift-4B 直接作答" },
+        { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
+          content: "近八周价格整体上行，重点关注供给端节奏。（静态演示：回答与打分为预置数据）",
+          decision_summary: { mode: "auto", switch_result: "fastlane", final_model: "swift-4b", candidates: ["swift-4b"],
+            total_cost: 0.0002, total_latency_ms: 410,
+            model_calls: [{ model_id: "swift-4b", tokens_in: 120, tokens_out: 190, tokens_thinking: 0, cost: 0.0002, latency_ms: 410 }],
+            policy: polMeta },
+          usage: { cost: 0.0002, tokens: 310 } },
+      ], 400);
+    }
+    return sseRouteDemoAgg(polMeta);
+  }
+
+  function sseRouteDemoAgg(polMeta) {
     const steps = [
       { step: "support", text: "检索相似历史问题：命中 42 条支撑样本" },
       { step: "coarse", text: "计算各模型在该场景的历史命中率",
@@ -197,7 +234,7 @@
             { model_id: "sage-r1", tokens_in: 120, tokens_out: 260, tokens_thinking: 80, cost: 0.0041, latency_ms: 980 },
             { model_id: "nova-x", tokens_in: 120, tokens_out: 210, tokens_thinking: 0, cost: 0.0035, latency_ms: 860 },
             { model_id: "atlas-72b", tokens_in: 120, tokens_out: 150, tokens_thinking: 0, cost: 0.0007, latency_ms: 640 }],
-          policy: { policy_id: "policy-global-balanced", name: "全局均衡", latency_tier: "balanced", explore_ratio: 0.05, K: 3 } },
+          policy: polMeta },
         usage: { cost: 0.0083, tokens: 1060 }, route_context: { policy_id: "policy-global-balanced" } },
     ];
     const enc = new TextEncoder();

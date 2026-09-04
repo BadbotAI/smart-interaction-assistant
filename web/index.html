@@ -12,12 +12,12 @@
   .home h1 { font-size: 32px; font-weight: 800; letter-spacing: 2px; margin: 0 0 12px; color: var(--text-primary); }
   .home .slogan { font-size: 15px; color: var(--text-secondary); letter-spacing: 6px; margin: 0 0 36px; }
   /* ---- 大轮播展示卡 ---- */
-  .stage { position: relative; height: 330px; background: var(--bg-elevated); border: 1px solid var(--border);
+  .stage { position: relative; height: 356px; background: var(--bg-elevated); border: 1px solid var(--border);
     border-radius: var(--radius-card); overflow: hidden; text-align: left; box-shadow: var(--shadow-card); }
   .stage * { box-sizing: border-box; }
   .cs { position: absolute; inset: 0; display: none; }
   .cs.active { display: block; }
-  .cs .inner { position: relative; max-width: 620px; height: 258px; margin: 0 auto; }
+  .cs .inner { position: relative; max-width: 620px; height: 284px; margin: 0 auto; }
   .bub { position: absolute; font-size: 12.5px; line-height: 1.5; padding: 8px 13px; border-radius: 12px; opacity: 0; }
   .cs .bu { right: 0; top: 18px; background: var(--panel-deep); color: #fff; border-bottom-right-radius: 4px; }
   .cs .ba { left: 0; top: 58px; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-secondary); border-bottom-left-radius: 4px; }
@@ -31,7 +31,7 @@
   .cs .opt { border: 1px solid var(--border); border-radius: 9px; padding: 7px 11px; font-size: 12.5px; margin-bottom: 6px; background: var(--bg-elevated); color: var(--text-primary); }
   .cs.active .opt.picked { animation: csPick .3s ease-out 2s forwards; }
   @keyframes csPick { to { border-color: var(--primary); background: var(--primary-weak); } }
-  .cs .ok { position: absolute; left: 330px; top: 150px; font-size: 12px; color: var(--success, #17A673); opacity: 0; }
+  .cs .ok { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12px; color: var(--success, #17A673); opacity: 0; }
   .cs.active .ok { animation: csIn .35s ease-out 2.8s forwards; }
   .cs .stars { display: flex; gap: 8px; padding: 2px 0 4px; }
   .cs .st { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border); display: flex; align-items: center;
@@ -80,8 +80,8 @@
           <span class="bub bu">我的货三天没更新了</span>
           <span class="bub ba">很抱歉带来不便，请选择处理方式：</span>
           <div class="card2"><div class="ttl">卡片选择</div>
-            <div class="opt">加急催办</div><div class="opt picked">申请赔付</div></div>
-          <div class="ok">提交成功 · 已为你登记赔付申请</div>
+            <div class="opt">加急催办</div><div class="opt picked">申请赔付</div>
+            <div class="ok">提交成功 · 已为你登记赔付申请</div></div>
         </div>
         <div class="cap"><b>卡片选择</b>用户点选即提交，AI 按选项继续跟进服务</div>
       </div>
@@ -90,8 +90,8 @@
           <span class="bub bu">问题解决了，谢谢</span>
           <span class="bub ba">不客气，这次服务满意吗？</span>
           <div class="card2"><div class="ttl">评分</div>
-            <div class="stars"><span class="st">1</span><span class="st">2</span><span class="st">3</span><span class="st on">4</span><span class="st">5</span></div></div>
-          <div class="ok">提交成功 · 感谢你的评价</div>
+            <div class="stars"><span class="st">1</span><span class="st">2</span><span class="st">3</span><span class="st on">4</span><span class="st">5</span></div>
+            <div class="ok">提交成功 · 感谢你的评价</div></div>
         </div>
         <div class="cap"><b>评分</b>满意度在对话里顺手完成，回流成服务质量数据</div>
       </div>
@@ -101,8 +101,8 @@
           <span class="bub ba">请补充信息，我来为你登记：</span>
           <div class="card2"><div class="ttl">表单收集</div>
             <div class="frow"><div class="flab">订单号</div><div class="fin f1"><i></i></div></div>
-            <div class="frow"><div class="flab">联系电话</div><div class="fin f2"><i></i></div></div></div>
-          <div class="ok">提交成功 · 退货已登记</div>
+            <div class="frow"><div class="flab">联系电话</div><div class="fin f2"><i></i></div></div>
+            <div class="ok">提交成功 · 退货已登记</div></div>
         </div>
         <div class="cap"><b>表单收集</b>结构化信息一次收齐，不再来回追问</div>
       </div>
@@ -112,8 +112,8 @@
           <span class="bub ba">推荐以下增值服务，可直接下单：</span>
           <div class="card2"><div class="ttl">商品下单</div>
             <div class="prow"><span class="pimg"></span><span class="pnm">木箱加固</span><span class="pprice">¥120</span></div>
-            <span class="buy">去下单</span></div>
-          <div class="ok">下单成功 · 服务已加入本票货物</div>
+            <span class="buy">去下单</span>
+            <div class="ok">下单成功 · 服务已加入本票货物</div></div>
         </div>
         <div class="cap"><b>商品下单</b>对话里直接完成交易，服务即点即购</div>
       </div>
@@ -122,8 +122,8 @@
           <span class="bub bu">这批货送到哪个仓</span>
           <span class="bub ba">请确认收货地点：</span>
           <div class="card2"><div class="ttl">地址卡片</div>
-            <div class="opt picked">宁波舟山港</div><div class="opt">上海仓</div></div>
-          <div class="ok">提交成功 · 收货地点已确认</div>
+            <div class="opt picked">宁波舟山港</div><div class="opt">上海仓</div>
+            <div class="ok">提交成功 · 收货地点已确认</div></div>
         </div>
         <div class="cap"><b>地址卡片</b>常用地点一键确认，避免手输出错</div>
       </div>

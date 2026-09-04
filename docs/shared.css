@@ -1039,11 +1039,12 @@ tr:hover .scene-del { opacity: 1; }
 .tc-guide .tg-sub { font-size: var(--font-small); color: var(--text-muted); margin-bottom: 18px; line-height: 1.7; }
 .tc-guide .tg-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; }
 @media (max-width: 720px) { .tc-guide .tg-chips { grid-template-columns: 1fr; } }
-.tc-guide .tg-chip { border: 1px solid var(--border); background: var(--bg-elevated); border-radius: 12px;
-  padding: 10px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 3px; transition: border-color var(--dur-fast); }
-.tc-guide .tg-chip:hover { border-color: var(--primary-border); }
-.tc-guide .tg-q { font-size: var(--font-base); color: var(--text-primary); }
-.tc-guide .tg-l { font-size: var(--font-caption); color: var(--text-muted); }
+.tc-guide .tg-chip { border: 1px solid transparent; background: var(--primary-weak); border-radius: 14px;
+  border-bottom-right-radius: 4px; padding: 11px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 3px;
+  transition: border-color var(--dur-fast), transform var(--dur-fast), box-shadow var(--dur-fast); text-align: left; }
+.tc-guide .tg-chip:hover { border-color: var(--primary-border); transform: translateY(-1px); box-shadow: var(--shadow-card); }
+.tc-guide .tg-q { font-size: var(--font-base); font-weight: 600; color: var(--text-primary); }
+.tc-guide .tg-l { font-size: var(--font-caption); color: var(--text-secondary); }
 
 .rs-bars { margin: 4px 0 6px 18px; display: flex; flex-direction: column; gap: 3px; }
 .rs-row { display: flex; align-items: center; gap: 8px; }
@@ -1178,3 +1179,10 @@ table.data td.w-main { white-space: normal; }
 
 .pp-head .btn.ghost.active .ico { transform: rotate(180deg); }
 .pp-head .btn.ghost .ico { transition: transform var(--dur-fast, .15s); }
+
+.btn.iconic.round { width: 32px; height: 32px; border-radius: 999px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; }
+
+.form-sec { font-size: var(--font-caption); font-weight: 700; letter-spacing: 1.5px; color: var(--text-muted);
+  margin: 22px 0 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+.form-sec:first-of-type { margin-top: 4px; border-top: none; padding-top: 0; }

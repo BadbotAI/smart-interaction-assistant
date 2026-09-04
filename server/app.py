@@ -234,6 +234,8 @@ async def _handle_turn(body: dict, emit):
                 "allow_aggregation": policy.get("allow_aggregation"),
                 "K": (db.dj(policy.get("params"), {}) if isinstance(policy.get("params"), str)
                       else (policy.get("params") or {})).get("K"),
+                "alpha": (db.dj(policy.get("params"), {}) if isinstance(policy.get("params"), str)
+                          else (policy.get("params") or {})).get("alpha", 0.7),
             },
         },
         "usage": {"cost": decision["total_cost"],

@@ -104,6 +104,8 @@ def build_site(outdir, pages, platform):
         for a in ASSETS:
             s = s.replace(f'<script src="./{a}"></script>', f'<script src="./{a}?v={ver[a]}"></script>')
         s = s.replace("</body>", sw_reg + "</body>", 1)
+        # 侧栏布局类预置：避免 JS 注入侧栏前整页满宽渲染的跳变中间态
+        s = s.replace("<body>", '<body class="has-side">', 1)
         open(os.path.join(outdir, f), "w", encoding="utf-8").write(s)
 
     if platform == "router":

@@ -229,6 +229,13 @@ window.TestChat = (function () {
     function renderFinal(bubble, reason, evt, originText) {
       const steps = reason.querySelectorAll(".reason-step").length;
       if (!steps) reason.remove();
+      else {
+        // 过程数据是临时态：回答落定后折叠收纳，可展开回看
+        const summary = el("details", {}, [el("summary", { class: "muted", style: "cursor:pointer" },
+          [(opts.keepReasoning ? "路由推导过程" : "思考过程") + `（${steps} 步）`])]);
+        [...reason.childNodes].forEach(n => { if (n.classList && (n.classList.contains("reason-step") || n.classList.contains("rs-bars"))) summary.appendChild(n); });
+        reason.replaceWith(el("div", { class: "reason-panel" }, [summary]));
+      }
       const ctx = {
         traceId: evt.trace_id, turnId: evt.turn_id, sessionId: SESSION, userId: USER,
         routeContext: evt.route_context || {},
@@ -276,20 +283,28 @@ window.TestChat = (function () {
       (evt.components || []).filter(c => c.semantic_category === "present").forEach(c => { c._ctx = ctx; bubble.appendChild(Components.render(c, ctx)); });
       if (evt.decision_summary && opts.keepReasoning) {
         const d = evt.decision_summary;
-        const pathName = { fastlane: "快车道", routed: "单模型路由", aggregated: "多模型聚合",
-          degraded: "降级", manual: "手动指定" }[d.switch_result] || d.switch_result;
+        const pathName = { fastlane: "单模型直答", routed: "单模型路由", aggregated: "多模型聚合",
+          degraded: "降级", manual: "手动指定", fallback: "兜底直连" }[d.switch_result] || d.switch_result;
         if (opts.keepReasoning) {
           // 模型测试：三段式路由决策展示（策略 → 模型 → 成本）
-          const tierName = { fast: "极速", balanced: "均衡", quality: "质量" };
           const pol = d.policy || {};
           const rows = [];
           if (d.mode === "manual") {
             rows.push(["策略", "手动指定模型（不走智能路由）"]);
+          } else if (d.switch_result === "fallback") {
+            rows.push(["策略", `${pol.name || "-"} · 不做路由，直连默认兜底模型`]);
+            rows.push(["推导", "按该策略约定跳过场景打分，任何问题都交给兜底模型，路由决策模型缺失时依然可用"]);
           } else {
-            rows.push(["策略", `${pol.name || pol.policy_id || "-"} · ${tierName[pol.latency_tier] || pol.latency_tier || "-"}档` +
-              (pol.K ? ` · 候选 ${pol.K} 个` : "") +
-              (pol.explore_ratio ? ` · 探索 ${Math.round(pol.explore_ratio * 100)}%` : "") +
-              (d.is_explore ? "（本次命中探索流量）" : "")]);
+            rows.push(["策略", `${pol.name || pol.policy_id || "-"} · 成本-效果权重 ${pol.alpha ?? "-"} · ` +
+              (pol.allow_aggregation ? "允许聚合" : "仅单模型") +
+              (pol.K ? ` · 候选 ${pol.K} 个` : "") + (d.is_explore ? "（本次命中探索流量）" : "")]);
+            const derive = {
+              fastlane: "按各模型在该场景的历史成绩打分，最高分显著领先（或策略仅单模型），直接单模型作答",
+              routed: "候选并发作答后结合回答质量与消耗细排，单模型胜出",
+              aggregated: "打分后两名成绩接近，按策略允许聚合：多路回答交给聚合器融合重写",
+              degraded: "候选模型异常，按稳态规则降级处理",
+            }[d.switch_result] || "按策略参数推导路由去向";
+            rows.push(["推导", derive]);
           }
           const finalName = d.final_model || "-";
           rows.push(["模型", el("span", {}, [
