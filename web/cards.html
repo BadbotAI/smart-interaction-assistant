@@ -64,6 +64,7 @@
     <span class="muted" id="listCount"></span>
   </div>
   <div class="card" style="padding:0">
+    <div id="prodCover"></div>
     <div style="display:flex;gap:16px;padding:4px 16px 0;border-bottom:1px solid var(--border);align-items:center">
       <div id="statusTabs"></div>
     </div>
@@ -207,7 +208,7 @@ function shortId(cardId) {
 // 植入代码（GA 式接入）：snippet + 三种触发方式
 function embedSnippet(cardId) {
   return [
-    `<!-- 第一步：把 SDK 贴进你的产品（data-key 用「产品接入」里该产品的接入 Key） -->`,
+    `<!-- 第一步：把 SDK 贴进你的产品（data-key 用「产品管理」里该产品的接入 Key） -->`,
     `<script async src="https://cdn.your-domain.com/sia.js" data-key="你的接入Key"><\/script>`,
     ``,
     `<!-- 触发方式一：对话触发（默认）——对话走 /v1/route，命中触发条件自动返回本组件，无需额外代码 -->`,
@@ -234,6 +235,90 @@ function embedDialog(c) {
   ]));
 }
 
+let curProduct = sessionStorage.getItem("wb_product") || null;
+
+function mcpSnippetFor(p) {
+  return [
+    `// MCP UI 接入「${p.name}」：把本产品的接入点加进你的 MCP 客户端配置`,
+    `{`,
+    `  "mcpServers": {`,
+    `    "sia-${p.product_id}": {`,
+    `      "url": "https://your-domain/v1/mcp",`,
+    `      "headers": { "Authorization": "Bearer ${p.mcp_key}" }`,
+    `    }`,
+    `  }`,
+    `}`,
+  ].join("\n");
+}
+
+function mcpDrawer(p) {
+  const code = mcpSnippetFor(p);
+  UI.drawer("MCP 配置", el("div", {}, [
+    el("div", { class: "muted", style: "margin-bottom:12px" },
+      [`「${p.name}」通过 MCP UI 对接：客户端连上接入点后，产品绑定的 ${p.card_ids.length} 个组件即可在对话中渲染，并自动应用产品的品牌风格。`]),
+    el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [
+      el("span", { class: "label-text", style: "margin:0" }, ["接入配置"]),
+      el("div", { style: "flex:1" }),
+      el("button", { class: "btn small primary", onclick: () => { navigator.clipboard.writeText(code); UI.toast("已复制 MCP 接入配置"); } }, [UI.icon("copy", 13), "复制"]),
+    ]),
+    el("pre", { class: "code", style: "max-height:280px;overflow:auto" }, [code]),
+    el("div", { class: "muted", style: "margin-top:12px;line-height:1.8" }, [
+      "1. 把上面的配置贴进你产品的 MCP 客户端（如桌面助手 / Agent 框架）。", el("br"),
+      "2. 连接成功后，客户端会拿到该产品的组件清单与触发条件。", el("br"),
+      "3. 对话命中触发条件时组件直接渲染在你的产品里，交互数据自动回流看板。",
+    ]),
+  ]));
+}
+
+function renderProductCover(products, brands, unboundCount) {
+  const box = document.getElementById("prodCover");
+  box.innerHTML = "";
+  if (!products.length) { box.hidden = true; return; }
+  box.hidden = false;
+  const opts = [...products.map(p => [p.product_id, p.name]), ["__unbound", `未绑定产品（${unboundCount}）`]];
+  const isUnbound = curProduct === "__unbound";
+  const p = products.find(x => x.product_id === curProduct);
+  const switchSel = UI.fancySelect({ value: curProduct, width: "200px", display: (v, name) => "产品：" + name,
+    options: opts, onChange: (v) => { curProduct = v; sessionStorage.setItem("wb_product", v); statusTab = ""; loadCards(); } });
+  switchSel.classList.add("cover-switch");
+  if (isUnbound || !p) {
+    box.appendChild(el("div", { class: "prod-cover unbound" }, [
+      el("div", { class: "pc-main" }, [
+        el("div", { class: "pc-name" }, ["未绑定产品"]),
+        el("div", { class: "pc-meta" }, ["这些组件还没归入任何产品；在「产品接入」里绑定后即可通过 MCP 对外使用"]),
+      ]),
+      el("div", { style: "flex:1" }),
+      switchSel,
+      el("a", { class: "btn small", href: "/web/products.html" }, ["去产品管理"]),
+    ]));
+    return;
+  }
+  const brandSel = UI.fancySelect({ value: p.brand_file, width: "195px",
+    options: brands.map(b => [b.file, b.brand_name || b.file]),
+    onChange: async (v) => {
+      try {
+        await UI.api(`/api/products/${p.product_id}`, { method: "PUT", body: { brand_file: v } });
+        UI.toast(`「${p.name}」已切换风格`);
+        loadCards();
+      } catch (e) { UI.toast(e.data?.error || e.message, true); loadCards(); }
+    } });
+  box.appendChild(el("div", { class: "prod-cover" }, [
+    el("div", { class: "pc-main" }, [
+      el("div", { class: "pc-name" }, [p.name]),
+      el("div", { class: "pc-meta" }, [
+        `绑定组件 ${p.card_ids.length} 个 · MCP UI 对接`,
+        el("span", { class: "cr-id num", style: "margin-left:8px;cursor:pointer", title: "MCP 接入 Key（点击复制）",
+          onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制 MCP 接入 Key"); } },
+          [p.mcp_key.slice(0, 12) + "…"]),
+      ]),
+    ]),
+    el("div", { style: "flex:1" }),
+    el("label", { class: "pc-field" }, [el("span", { class: "muted" }, ["品牌风格"]), brandSel]),
+    switchSel,
+    el("button", { class: "btn small", onclick: () => mcpDrawer(p) }, [UI.icon("link", 13), "MCP 配置"]),
+  ]));
+}
+
 let _loadSeq = 0;
 async function loadCards() {
   const seq = ++_loadSeq;
@@ -248,11 +333,21 @@ async function loadCards() {
   ]);
   if (seq !== _loadSeq) return; // 已有更新的请求在途，丢弃过期响应
   const products = prodRes.products || [];
-  const brandName = f => { const b = (brandRes.brands || []).find(x => x.file === f); return b ? (b.brand_name || b.file) : "默认风格"; };
-  const counts = { "": all.length };
-  ["published", "offline", "draft"].forEach(k => counts[k] = all.filter(c => effStatus(c) === k).length);
+  const brands = brandRes.brands || [];
+  // 产品封面：当前产品决定下方列表范围；「未绑定产品」是一个虚拟分组
+  if (curProduct === null) curProduct = products.length ? products[0].product_id : "__unbound";
+  if (curProduct !== "__unbound" && !products.find(p => p.product_id === curProduct)) {
+    curProduct = products.length ? products[0].product_id : "__unbound";
+  }
+  const bound = new Set(products.flatMap(p => p.card_ids || []));
+  const scoped = !products.length ? all
+    : curProduct === "__unbound" ? all.filter(c => !bound.has(c.card_id))
+    : all.filter(c => ((products.find(p => p.product_id === curProduct) || {}).card_ids || []).includes(c.card_id));
+  renderProductCover(products, brands, all.filter(c => !bound.has(c.card_id)).length);
+  const counts = { "": scoped.length };
+  ["published", "offline", "draft"].forEach(k => counts[k] = scoped.filter(c => effStatus(c) === k).length);
   renderStatusTabs(counts);
-  const cards = statusTab ? all.filter(c => effStatus(c) === statusTab) : all;
+  const cards = statusTab ? scoped.filter(c => effStatus(c) === statusTab) : scoped;
   const list = document.getElementById("cardList");
   list.innerHTML = "";
   // 搜索 / 筛选反馈：显示命中条数，让检索结果可感知
@@ -279,28 +374,7 @@ async function loadCards() {
     }
     return;
   }
-  // 按产品分组：产品一组一段（组件可被多个产品绑定，会在各自组里出现）；未绑定的归「未绑定产品」
-  const grouped = new Set();
-  products.forEach(p => {
-    const mine = cards.filter(c => (p.card_ids || []).includes(c.card_id));
-    if (!mine.length) return;
-    mine.forEach(c => grouped.add(c.card_id));
-    list.appendChild(el("div", { class: "prod-group-head" }, [
-      el("span", { class: "pg-name" }, [p.name]),
-      el("span", { class: "muted" }, [`${mine.length} 条配置 · 风格 ${brandName(p.brand_file)}`]),
-      el("div", { style: "flex:1" }),
-      el("a", { class: "btn small ghost", href: "/web/products.html" }, ["产品配置"]),
-    ]));
-    mine.forEach(c => list.appendChild(buildCardRow(c)));
-  });
-  const rest = cards.filter(c => !grouped.has(c.card_id));
-  if (rest.length) {
-    if (products.length) list.appendChild(el("div", { class: "prod-group-head" }, [
-      el("span", { class: "pg-name muted-name" }, ["未绑定产品"]),
-      el("span", { class: "muted" }, [`${rest.length} 条配置 · 在「产品接入」里把组件绑定到产品`]),
-    ]));
-    rest.forEach(c => list.appendChild(buildCardRow(c)));
-  }
+  cards.forEach(c => list.appendChild(buildCardRow(c)));
 }
 
 // 单行构建：局部刷新用（状态开关切换后只替换该行，不重建整个列表）

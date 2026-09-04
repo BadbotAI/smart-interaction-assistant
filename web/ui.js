@@ -210,12 +210,11 @@ window.UI = (function () {
     ia: {
       name: "智能交互平台", home: "/web/index.html",
       groups: [
-        { title: "", items: [["home", "首页", "/web/index.html", "home"]] },
         { title: "智能交互", items: [
           ["cards", "组件工作台", "/web/cards.html", "board"],
           ["library", "组件库", "/web/library.html", "grid"],
+          ["products", "产品管理", "/web/products.html", "link"],
           ["design", "组件风格", "/web/design.html", "palette2"],
-          ["products", "产品接入", "/web/products.html", "link"],
           ["playground:comp", "智能交互测试", "/web/playground.html#comp", "chat"],
           ["dashboard:survey", "交互数据", "/web/dashboard.html#survey", "chart"],
         ] },

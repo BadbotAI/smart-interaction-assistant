@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件风格 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=d5efc99c">
+<link rel="stylesheet" href="./shared.css?v=5a37feb8">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
@@ -41,9 +41,10 @@
     <div class="card" style="align-self:start">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <span style="font-weight:600;flex:none;white-space:nowrap">风格库</span>
-        <span class="muted">点击卡片预览组件效果；风格在「产品接入」里配给具体产品生效</span>
+        <span class="muted">点击卡片预览组件效果；风格在「产品管理」里配给具体产品生效</span>
       </div>
       <div id="brandGrid" class="brand-list"></div>
+      <div id="styleEditor" hidden></div>
     </div>
 
     <div class="card" style="align-self:start">
@@ -62,7 +63,7 @@
 <script src="./mock_data.js?v=3a63fde5"></script>
 <script src="./mock_api.js?v=fa600068"></script>
 <script src="./tokens.js?v=323789e0"></script>
-<script src="./ui.js?v=883453c4"></script>
+<script src="./ui.js?v=0ccf4a9c"></script>
 <script src="./components.js?v=2e39e148"></script>
 <script>
 UI.nav("design");
@@ -166,67 +167,171 @@ function mountDemoControls() {
 
 // ---------- 导入 / 编辑品牌风格：弹窗建卡片（名称 + 风格代码），创建后出现在列表，可编辑 / 删除 ----------
 function brandDialog(existing, onClose) {
-  if (document.querySelector(".modal-mask")) { onClose && onClose(); return; }
+  const grid = document.getElementById("brandGrid");
+  const host = document.getElementById("styleEditor");
+  const COLORS = [
+    ["Sky 蓝", "#1DA1F2", "#E9F1FB"], ["靛蓝", "#4F5BD5", "#EBEDFB"], ["翡翠绿", "#17A673", "#E4F5EF"],
+    ["珊瑚橙", "#FF6B4A", "#FFEDE8"], ["琥珀金", "#D97706", "#FBF0DE"], ["石墨黑", "#334155", "#E8ECF1"],
+  ];
+  const RADII = [["直角", 4, 4], ["微圆", 10, 8], ["标准", 16, 12], ["圆润", 22, 16]];
+  const BGS = [["纯白", "#FFFFFF", "#F7F8F8"], ["浅灰", "#F5F7FA", "#EDF1F5"], ["米白", "#FBF8F3", "#F3EEE6"]];
+  const INKS = [["深灰", "#0F1B26"], ["纯黑", "#111111"]];
+  const SIZES = [["标准", "13px"], ["偏大", "14px"]];
+  const q0 = new URLSearchParams(location.search);
+  const opts = { color: Number(q0.get("c")) || 0, radius: q0.get("r") != null ? Number(q0.get("r")) : 2, bg: 0, ink: 0, size: 0 };
+  let mode = "options";
+  let baseTokens = null;
+  let codeApplied = null;
+
+  function buildTokens() {
+    const t = JSON.parse(JSON.stringify(baseTokens));
+    const [, primary, weak] = COLORS[opts.color];
+    const [, rc, rk] = RADII[opts.radius];
+    const [, page, surface] = BGS[opts.bg];
+    t.color = { ...t.color, primary, primary_weak: weak, bg_page: page, bg_surface: surface, text_primary: INKS[opts.ink][1] };
+    t.radius = { ...(t.radius || {}), card: rc + "px", control: rk + "px", chip: "999px" };
+    t.font = { ...(t.font || {}), size_base: SIZES[opts.size][1] };
+    t.chart = { ...(t.chart || {}), categorical: [primary, ...((t.chart || {}).categorical || []).slice(1)] };
+    t._options = { ...opts };
+    return t;
+  }
+  const applyPreview = () => { try { Brand.apply(buildTokens()); renderDemos(); } catch (e) {} };
+
   const nameIn = el("input", { type: "text", maxlength: "20", value: existing?.brand_name || "", placeholder: "例如：远洋港航品牌风格" });
-  const codeTa = el("textarea", { id: "dlgTokenTa", spellcheck: "false", rows: 14,
-    style: "font-family:var(--font-mono);font-size:var(--font-small);line-height:1.6" });
+  const nameErr = el("div", { class: "field-error" });
+  nameIn.oninput = () => nameErr.textContent = "";
   const err = el("div", { class: "field-error" });
+  const codeTa = el("textarea", { spellcheck: "false", rows: 12,
+    style: "font-family:var(--font-mono);font-size:var(--font-small);line-height:1.6;width:100%" });
   function parseCode() {
     err.textContent = "";
     let tokens;
-    try { tokens = JSON.parse(codeTa.value); } catch (e) { err.textContent = "风格代码不是合法 JSON，可点「填入示例」查看格式。（" + e.message + "）"; return null; }
+    try { tokens = JSON.parse(codeTa.value); } catch (e) { err.textContent = "风格代码不是合法 JSON。（" + e.message + "）"; return null; }
     const color = tokens.color || {};
     const missing = ["primary", "bg_page", "bg_surface", "text_primary"].filter(k => !color[k]);
     if (missing.length) { err.textContent = "color 缺少必需项：" + missing.join(", "); return null; }
     return tokens;
   }
-  (async () => {
-    if (existing) {
-      try { codeTa.value = JSON.stringify(await (await fetch("./brand/" + existing.file)).json(), null, 2); } catch (e) {}
-    }
-  })();
-  const mask2 = UI.modal(existing ? `编辑「${existing.brand_name}」` : "导入品牌风格", el("div", {}, [
-    el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["风格名称"]), nameIn]),
-    el("label", { class: "field" }, [
-      el("span", { class: "label-text", style: "display:flex;align-items:center;gap:8px" }, [
-        el("span", { class: "req" }, ["风格代码（design token JSON）"]),
-        el("span", { style: "flex:1" }),
-        el("button", { class: "btn small ghost", type: "button", onclick: async () => {
-          try {
-            const tokens = await (await fetch("./brand/brand-tokens.default.json")).json();
-            tokens.brand_id = "my-brand"; tokens.brand_name = nameIn.value.trim() || "我的品牌风格";
-            codeTa.value = JSON.stringify(tokens, null, 2); err.textContent = "";
-          } catch (e) { UI.toast("示例加载失败", true); }
-        } }, ["填入示例"])]),
-      codeTa,
+
+  // 选项面板
+  const swRow = el("div", { class: "sw-row" }, COLORS.map(([nm, c], i) =>
+    el("button", { type: "button", class: "sw" + (opts.color === i ? " on" : ""), title: nm, style: `background:${c}`,
+      onclick: (e) => { opts.color = i; swRow.querySelectorAll(".sw").forEach((n, j) => n.classList.toggle("on", j === i)); applyPreview(); } })));
+  const segRow = (items, key, labelOf) => {
+    const box = el("div", { class: "segmented" });
+    items.forEach((it, i) => box.appendChild(el("button", { type: "button", class: "seg" + (opts[key] === i ? " active" : ""),
+      onclick: () => { opts[key] = i; box.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === i)); applyPreview(); } },
+      [labelOf ? labelOf(it) : it[0]])));
+    return box;
+  };
+  const optPanel = el("div", {}, [
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["主要配色"]), swRow]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["圆角"]), segRow(RADII, "radius")]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["组件底色"]), segRow(BGS, "bg")]),
+    el("div", { class: "grid cols-2" }, [
+      el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字色"]), segRow(INKS, "ink")]),
+      el("div", { class: "field" }, [el("span", { class: "label-text" }, ["字号"]), segRow(SIZES, "size")]),
     ]),
-    err,
-    el("div", { style: "display:flex;justify-content:flex-end;gap:8px;margin-top:12px" }, [
-      el("button", { class: "btn", onclick: () => { mask2.remove(); onClose && onClose(); } }, ["取消"]),
+    el("div", { class: "muted", style: "font-size:var(--font-caption)" }, ["调整任一选项，右侧组件预览即时更新"]),
+  ]);
+  // 代码面板
+  const codePanel = el("div", { hidden: true }, [
+    el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px" }, [
+      el("span", { class: "label-text", style: "margin:0" }, ["风格代码（design token JSON）"]),
+      el("div", { style: "flex:1" }),
+      el("button", { class: "btn small ghost", type: "button", onclick: () => {
+        const t = JSON.parse(JSON.stringify(baseTokens));
+        t.brand_id = "my-brand"; t.brand_name = nameIn.value.trim() || "我的品牌风格";
+        delete t._options;
+        codeTa.value = JSON.stringify(t, null, 2); err.textContent = "";
+      } }, ["填入示例"]),
+      el("button", { class: "btn small primary", type: "button", onclick: () => {
+        const t = parseCode();
+        if (!t) return;
+        codeApplied = t;
+        Brand.apply(t); renderDemos();
+        UI.toast("已应用到右侧预览");
+      } }, ["应用"]),
+    ]),
+    codeTa,
+    el("div", { class: "muted", style: "font-size:var(--font-caption);margin-top:4px" }, ["点「应用」把代码效果打到右侧预览器"]),
+  ]);
+  const modeTabs = el("div", { class: "segmented", style: "margin-bottom:14px" },
+    [["options", "选项配置"], ["code", "代码导入"]].map(([k, nm]) =>
+      el("button", { type: "button", class: "seg" + (mode === k ? " active" : ""), onclick: (e) => {
+        mode = k;
+        modeTabs.querySelectorAll(".seg").forEach(n => n.classList.remove("active"));
+        e.currentTarget.classList.add("active");
+        optPanel.hidden = k !== "options"; codePanel.hidden = k !== "code";
+        if (k === "options") applyPreview();
+      } }, [nm])));
+
+  function close() {
+    host.hidden = true; host.innerHTML = "";
+    grid.style.display = "";
+    Brand.load(previewFile).then(() => renderDemos()).catch(() => {});
+    onClose && onClose();
+  }
+  host.innerHTML = "";
+  host.appendChild(el("div", { class: "style-ed" }, [
+    el("div", { style: "font-weight:700;margin-bottom:12px" }, [existing ? `编辑「${existing.brand_name}」` : "新建组件风格"]),
+    el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["风格名称"]), nameIn, nameErr]),
+    modeTabs, optPanel, codePanel, err,
+    el("div", { style: "display:flex;justify-content:flex-end;gap:10px;margin-top:14px;border-top:1px solid var(--border);padding-top:12px" }, [
+      el("button", { class: "btn", onclick: close }, ["取消"]),
       el("button", { class: "btn primary", onclick: async (e) => {
         const name = nameIn.value.trim();
-        if (!name) { err.textContent = "请填写风格名称"; return; }
-        const tokens = parseCode();
-        if (!tokens) return;
+        if (!name) { nameErr.textContent = "请填写风格名称"; nameIn.focus(); return; }
+        let tokens;
+        if (mode === "options") tokens = buildTokens();
+        else { tokens = parseCode(); if (!tokens) return; }
+        tokens.brand_name = name;
         let bid = existing ? existing.brand_id : ((tokens.brand_id || "").trim() || "brand-" + Math.random().toString(36).slice(2, 6));
-        // 新建永不覆盖已有卡：ID 冲突（比如粘贴了现有风格的代码）自动派生新 ID，始终新增一张卡片
         if (!existing && brands.find(b => b.brand_id === bid)) bid = bid + "-" + Math.random().toString(36).slice(2, 5);
         await UI.withBusy(e.currentTarget, async () => {
           try {
-            const r = await UI.api("/api/brands", { method: "POST", body: { brand_id: bid, brand_name: name, tokens } });
+            await UI.api("/api/brands", { method: "POST", body: { brand_id: bid, brand_name: name, tokens } });
             brands = (await UI.api("/api/brands")).brands;
-            // 编辑的是生效中的风格：立即重载应用
-            if (existing && existing.file === previewFile) { await Brand.load(existing.file); }
-            mask2.remove(); onClose && onClose();
+            const saved = brands.find(b => b.brand_id === bid);
+            if (saved) previewFile = saved.file;
+            host.hidden = true; host.innerHTML = ""; grid.style.display = "";
             renderBrands(); renderDemos();
-            UI.toast(existing ? "风格已更新" : "已创建风格卡片，点击卡片预览，「应用并保存」后生效");
+            UI.toast(existing ? "风格已更新" : "风格已创建，在「产品管理」里配给产品即可生效");
+            onClose && onClose();
           } catch (e2) { err.textContent = e2.data?.error || e2.message; }
         }, "保存中……");
-      } }, [existing ? "保存修改" : "创建风格"]),
+      } }, [existing ? "保存修改" : "保存风格"]),
     ]),
   ]));
-  const _cb = mask2.querySelector(".close-btn");
-  if (_cb) { const _o = _cb.onclick; _cb.onclick = () => { _o && _o(); onClose && onClose(); }; }
+  grid.style.display = "none"; host.hidden = false;
+
+  // 初始化：取默认 token 作底；编辑时回填（有 _options 走选项模式，否则代码模式）
+  (async () => {
+    try { baseTokens = await (await fetch("./brand/brand-tokens.default.json")).json(); }
+    catch (e) { baseTokens = { color: {}, chart: {} }; }
+    if (existing) {
+      try {
+        const t = await (await fetch("./brand/" + existing.file)).json();
+        if (t._options) {
+          Object.assign(opts, t._options);
+          swRow.querySelectorAll(".sw").forEach((n, j) => n.classList.toggle("on", j === opts.color));
+          [[RADII, "radius"], [BGS, "bg"], [INKS, "ink"], [SIZES, "size"]].forEach(() => {});
+          // 重建选项行的激活态
+          optPanel.querySelectorAll(".segmented").forEach((seg, idx) => {
+            const key = ["radius", "bg", "ink", "size"][idx];
+            seg.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === opts[key]));
+          });
+          applyPreview();
+        } else {
+          mode = "code";
+          modeTabs.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === 1));
+          optPanel.hidden = true; codePanel.hidden = false;
+          codeTa.value = JSON.stringify(t, null, 2);
+          Brand.apply(t); renderDemos();
+        }
+      } catch (e) {}
+    } else applyPreview();
+  })();
 }
 
 // ---------- 风格预设 ----------
@@ -247,7 +352,7 @@ function renderBrands() {
     const delBtn = (b.brand_id !== "default")
       ? el("span", { class: "sel-ico del-ico" }, [UI.iconBtn("trash", "删除此风格", async (e) => {
           e?.stopPropagation?.();
-          const ok = await UI.confirm("删除风格", `删除「${b.brand_name || b.file}」？不可恢复。${isActive ? "该风格正在生效中，删除后自动回退到默认风格。" : ""}`, { okText: "删除", danger: true });
+          const ok = await UI.confirm("删除风格", `删除「${b.brand_name || b.file}」？使用它的产品将回退到默认风格，不可恢复。`, { okText: "删除", danger: true });
           if (!ok) return;
           try {
             await UI.api("/api/brands/delete", { method: "POST", body: { file: b.file } });
@@ -272,18 +377,10 @@ function renderBrands() {
   });
   // 新增入口：列表末尾一张虚线卡，点击弹出导入编辑（保存后成为正式卡片）
   const addCard = el("div", { class: "brand-card add-card", role: "button", tabindex: "0" }, [
-    el("div", { class: "bname" }, [UI.icon("plus", 14), "新增品牌风格"]),
-    el("div", { class: "bsub" }, ["粘贴风格代码，生成新的风格卡片"]),
+    el("div", { class: "bname" }, [UI.icon("plus", 14), "新增组件风格"]),
+    el("div", { class: "bsub" }, ["选项配置，或粘贴风格代码导入"]),
   ]);
-  const openAdd = () => {
-    const draft = el("div", { class: "brand-card draft-card" }, [
-      el("div", { class: "bname" }, ["新风格", el("span", { class: "chip yellow" }, ["配置中"])]),
-      el("div", { class: "bsub" }, ["正在弹窗中填写名称与风格代码……"]),
-    ]);
-    grid.insertBefore(draft, addCard);
-    draft.scrollIntoView({ block: "nearest" });
-    brandDialog(null, () => draft.remove());
-  };
+  const openAdd = () => brandDialog(null);
   addCard.onclick = openAdd;
   addCard.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAdd(); } };
   grid.appendChild(addCard);
@@ -307,6 +404,8 @@ async function previewBrand(b) {
   renderBrands();
   mountDemoControls();
   renderDemos();
+  // 走查深链：?new=1 直接打开风格编辑器
+  if (new URLSearchParams(location.search).get("new")) brandDialog(null);
 })();
 </script>
 <script>if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(function(){});</script>

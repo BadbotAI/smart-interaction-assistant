@@ -1147,3 +1147,20 @@ details.explain .explain-body p { margin: 0 0 8px; font-size: var(--font-base); 
 .pp-prog { width: 140px; height: 5px; border-radius: 999px; background: var(--bg-sunken); overflow: hidden; }
 .pp-prog-fill { height: 100%; border-radius: 999px; background: var(--primary); transition: width .4s; }
 .pp-body { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+
+.prod-cover { display: flex; align-items: center; gap: 14px; padding: 18px 20px; flex-wrap: wrap;
+  background: linear-gradient(135deg, var(--primary-weak), var(--bg-elevated) 65%);
+  border-bottom: 1px solid var(--border); border-radius: var(--radius-card) var(--radius-card) 0 0; }
+.prod-cover.unbound { background: linear-gradient(135deg, var(--bg-sunken), var(--bg-elevated) 65%); }
+.prod-cover .pc-name { font-size: 19px; font-weight: 800; letter-spacing: 0.5px; }
+.prod-cover .pc-meta { margin-top: 4px; color: var(--text-secondary); font-size: var(--font-small); display: flex; align-items: center; flex-wrap: wrap; }
+.prod-cover .pc-field { display: inline-flex; align-items: center; gap: 8px; }
+.prod-cover .fsel { background: var(--bg-elevated); }
+.prod-cover .fsel-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.sw-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.sw { width: 34px; height: 34px; border-radius: 10px; border: 2px solid transparent; cursor: pointer; padding: 0;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.06); }
+.sw.on { border-color: var(--text-primary); box-shadow: 0 0 0 2px var(--bg-elevated), inset 0 0 0 1px rgba(0,0,0,.06); }
+.style-ed .label-text { display: block; margin-bottom: 6px; }
+.style-ed .field { margin-bottom: 16px; }

@@ -5,58 +5,88 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=d5efc99c">
+<link rel="stylesheet" href="./shared.css?v=5a37feb8">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
-  .home { max-width: 920px; margin: 0 auto; padding-top: 9vh; text-align: center; }
+  .home { max-width: 1080px; margin: 0 auto; padding-top: 7vh; text-align: center; }
   .home .mark { display: inline-flex; margin-bottom: 16px; }
   .home h1 { font-size: 32px; font-weight: 800; letter-spacing: 2px; margin: 0 0 12px; color: var(--text-primary); }
-  .home .slogan { font-size: 15px; color: var(--text-secondary); letter-spacing: 6px; margin: 0 0 44px; }
-  .home-gates { display: grid; grid-template-columns: minmax(0, 640px); justify-content: center; gap: 20px; text-align: left; }
+  .home .slogan { font-size: 15px; color: var(--text-secondary); letter-spacing: 6px; margin: 0 0 40px; }
+  .home-gates { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 22px; text-align: left; align-items: stretch; }
   @media (max-width: 980px) { .home-gates { grid-template-columns: 1fr; } }
+  .gt { font-size: var(--font-caption); font-weight: 700; letter-spacing: 2px; color: var(--text-muted); margin: 0 0 8px 2px; }
   .hg { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden;
-    display: flex; flex-direction: column; cursor: pointer; transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast); }
+    display: flex; flex-direction: column; height: 100%;
+    transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast); }
   .hg:hover { border-color: var(--primary-border); box-shadow: var(--shadow-popover); transform: translateY(-2px); }
-  .hg .body { padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .hg .body { padding: 18px 22px 20px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
   .hg h2 { margin: 0; font-size: 17px; font-weight: 700; }
-  .hg p { margin: 0 0 8px; font-size: var(--font-base); color: var(--text-secondary); line-height: 1.7; }
-  .hg .cta { margin-top: auto; }
-  /* ---- 预览器画布 ---- */
-  .pv { height: 268px; background: var(--bg-surface); border-bottom: 1px solid var(--border); position: relative; overflow: hidden; padding: 18px; }
+  .hg p { margin: 0 0 6px; font-size: var(--font-base); color: var(--text-secondary); line-height: 1.7; }
+  .hg .cta { margin-top: auto; display: flex; gap: 10px; }
+  /* ---- 预览画布 ---- */
+  .pv { height: 250px; background: var(--bg-surface); border-bottom: 1px solid var(--border); position: relative; overflow: hidden; padding: 16px; }
   .pv * { box-sizing: border-box; }
-  .pv .bub { position: absolute; font-size: 12px; line-height: 1.5; padding: 7px 12px; border-radius: 12px; opacity: 0; }
-  .pv .bu { right: 18px; top: 14px; background: var(--panel-deep); color: #fff; border-bottom-right-radius: 4px; animation: pvIn 9s infinite; }
-  .pv .ba { left: 18px; top: 52px; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-secondary); border-bottom-left-radius: 4px; animation: pvIn 9s infinite; animation-delay: 0.7s; }
-  @keyframes pvIn { 0% { opacity: 0; transform: translateY(8px); } 5%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; } }
-  /* 组件卡与选项 */
-  .pv .comp { position: absolute; left: 18px; top: 92px; width: 250px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 10px; opacity: 0; animation: pvIn 9s infinite; animation-delay: 1.4s; }
-  .pv .opt { border: 1px solid var(--border); border-radius: 9px; padding: 6px 10px; font-size: 12px; color: var(--text-primary); margin-bottom: 6px; background: var(--bg-elevated); }
-  .pv .opt.picked { animation: pvPick 9s infinite; }
-  @keyframes pvPick { 0%, 22% { border-color: var(--border); background: var(--bg-elevated); } 27%, 88% { border-color: var(--primary); background: var(--primary-weak); } 94%, 100% { border-color: var(--border); background: var(--bg-elevated); } }
-  .pv .echo { margin-top: 2px; opacity: 0; animation: pvIn 9s infinite; animation-delay: 3.2s; }
-  .pv .echo .et { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+  .bub { position: absolute; font-size: 12px; line-height: 1.5; padding: 7px 12px; border-radius: 12px; opacity: 0; }
+  /* ---- 组件 case 轮播（左卡） ---- */
+  .cs { position: absolute; inset: 0; padding: 16px; display: none; }
+  .cs.active { display: block; }
+  .cs .bub { position: absolute; }
+  .cs .bu { right: 16px; top: 12px; background: var(--panel-deep); color: #fff; border-bottom-right-radius: 4px; }
+  .cs .ba { left: 16px; top: 48px; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-secondary); border-bottom-left-radius: 4px; }
+  .cs.active .bu { animation: csIn .4s ease-out forwards; }
+  .cs.active .ba { animation: csIn .4s ease-out .5s forwards; }
+  @keyframes csIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .cs .card2 { position: absolute; left: 16px; top: 86px; width: 246px; background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px; opacity: 0; }
+  .cs.active .card2 { animation: csIn .4s ease-out 1s forwards; }
+  .cs .ttl { font-size: 12px; font-weight: 700; margin-bottom: 7px; color: var(--text-primary); }
+  .cs .opt { border: 1px solid var(--border); border-radius: 9px; padding: 6px 10px; font-size: 12px; margin-bottom: 6px; background: var(--bg-elevated); color: var(--text-primary); }
+  .cs.active .opt.picked { animation: csPick .3s ease-out 2s forwards; }
+  @keyframes csPick { to { border-color: var(--primary); background: var(--primary-weak); } }
+  .cs .ok { position: absolute; left: 16px; top: 214px; font-size: 11px; color: var(--success, #17A673); opacity: 0; }
+  .cs.active .ok { animation: csIn .35s ease-out 2.8s forwards; }
+  /* 评分 */
+  .cs .stars { display: flex; gap: 8px; padding: 2px 0 4px; }
+  .cs .st { width: 26px; height: 26px; border-radius: 8px; border: 1px solid var(--border); display: flex; align-items: center;
+    justify-content: center; font-size: 12px; color: var(--text-secondary); }
+  .cs.active .st.on { animation: csPick .3s ease-out 2s forwards; }
+  /* 表单 */
+  .cs .frow { margin-bottom: 7px; }
+  .cs .flab { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
+  .cs .fin { height: 26px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elevated); position: relative; overflow: hidden; }
+  .cs .fin i { position: absolute; left: 8px; top: 6px; height: 13px; width: 0; border-radius: 4px; background: var(--bg-sunken); }
+  .cs.active .fin.f1 i { animation: csFill .5s ease-out 1.7s forwards; }
+  .cs.active .fin.f2 i { animation: csFill .5s ease-out 2.2s forwards; }
+  @keyframes csFill { to { width: 64%; } }
+  /* 商品 */
+  .cs .prow { display: flex; gap: 8px; align-items: center; border: 1px solid var(--border); border-radius: 9px; padding: 7px; margin-bottom: 6px; }
+  .cs .pimg { width: 34px; height: 34px; border-radius: 8px; background: var(--primary-weak); flex: none; }
+  .cs .pnm { font-size: 12px; color: var(--text-primary); }
+  .cs .pprice { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--text-primary); }
+  .cs .buy { display: inline-block; margin-top: 2px; font-size: 11px; background: var(--primary); color: #fff; border-radius: 999px; padding: 4px 12px; opacity: 0; }
+  .cs.active .buy { animation: csIn .3s ease-out 2s forwards; }
+  /* 轮播圆点 */
+  .dots { position: absolute; right: 14px; bottom: 10px; display: flex; gap: 6px; }
+  .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--border-strong, #C7D3DC); cursor: pointer; border: 0; padding: 0; }
+  .dot.on { background: var(--primary); width: 18px; transition: width .2s; }
+  /* ---- 右卡：回显与数据 ---- */
+  .pv .bu2 { right: 16px; top: 12px; background: var(--panel-deep); color: #fff; border-bottom-right-radius: 4px; animation: pvIn 8s infinite; }
+  .pv .echo-card { position: absolute; left: 16px; top: 50px; width: 250px; background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px; opacity: 0; animation: pvIn 8s infinite; animation-delay: .6s; }
+  @keyframes pvIn { 0% { opacity: 0; transform: translateY(8px); } 8%, 88% { opacity: 1; transform: none; } 95%, 100% { opacity: 0; } }
+  .pv .et { font-size: 11px; color: var(--text-muted); margin-bottom: 5px; }
   .pv .ebar { height: 8px; border-radius: 999px; background: var(--bg-sunken); margin-bottom: 5px; overflow: hidden; position: relative; }
-  .pv .ebar i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--primary); width: 0; animation: pvGrow 9s infinite; }
+  .pv .ebar i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--primary); width: 0; animation: pvGrow 8s infinite; }
   .pv .ebar.e2 i { background: var(--primary-border); animation-name: pvGrow2; }
-  @keyframes pvGrow { 0%, 36% { width: 0; } 46%, 88% { width: 71%; } 94%, 100% { width: 0; } }
-  @keyframes pvGrow2 { 0%, 38% { width: 0; } 48%, 88% { width: 29%; } 94%, 100% { width: 0; } }
+  @keyframes pvGrow { 0%, 14% { width: 0; } 26%, 88% { width: 71%; } 95%, 100% { width: 0; } }
+  @keyframes pvGrow2 { 0%, 16% { width: 0; } 28%, 88% { width: 29%; } 95%, 100% { width: 0; } }
   .pv .elab { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); }
-  /* 路由动画 */
-  .pv .rfan { position: absolute; left: 0; top: 42px; width: 100%; height: 40px; overflow: visible; }
-  .pv .rfan { opacity: 0; animation: pvFade 9s infinite; }
-  .pv .rfan path { fill: none; stroke: var(--primary-border); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
-  @keyframes pvFade { 0%, 6% { opacity: 0; } 14%, 88% { opacity: 1; } 94%, 100% { opacity: 0; } }
-  .pv .rq { position: absolute; left: 0; right: 0; margin: 0 auto; width: max-content; top: 14px; background: var(--panel-deep); color: #fff; font-size: 12px; padding: 6px 14px; border-radius: 999px; opacity: 0; animation: pvIn 9s infinite; }
-  .pv .rm { position: absolute; top: 82px; width: 108px; text-align: center; font-size: 12px; font-weight: 600; color: var(--text-primary); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 7px 6px 8px; opacity: 0; animation: pvIn 9s infinite; }
-  .pv .rm .sc { height: 5px; border-radius: 999px; background: var(--bg-sunken); margin-top: 6px; overflow: hidden; position: relative; }
-  .pv .rm .sc i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--primary); width: 0; }
-  .pv .rm.win { animation: pvWin 9s infinite; }
-  @keyframes pvWin { 0%, 30% { border-color: var(--border); box-shadow: none; opacity: 0; } 18% { opacity: 1; } 36%, 88% { opacity: 1; border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-weak); } 94%, 100% { opacity: 0; } }
-  .pv .rm .sc i { animation: pvSc 9s infinite; }
-  @keyframes pvSc { 0%, 22% { width: 0; } 32%, 88% { width: var(--w); } 94%, 100% { width: 0; } }
-  .pv .ragg { position: absolute; left: 0; right: 0; margin: 0 auto; width: max-content; top: 158px; font-size: 11px; color: var(--primary); background: var(--primary-weak); border-radius: 999px; padding: 4px 12px; opacity: 0; animation: pvIn 9s infinite; animation-delay: 3.6s; }
-  .pv .rans { position: absolute; left: 18px; right: 18px; top: 190px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; border-bottom-left-radius: 4px; padding: 8px 12px; font-size: 12px; color: var(--text-secondary); opacity: 0; animation: pvIn 9s infinite; animation-delay: 4.2s; }
-  .pv .rans .rc { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+  .pv .kpis { position: absolute; left: 16px; top: 158px; width: 250px; display: flex; gap: 8px; opacity: 0; animation: pvIn 8s infinite; animation-delay: 1.6s; }
+  .pv .kpi { flex: 1; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+  .pv .kl { font-size: 10px; color: var(--text-muted); }
+  .pv .kv { font-size: 15px; font-weight: 800; color: var(--text-primary); margin-top: 2px; }
+  .cross-link { display: inline-block; margin-top: 22px; color: var(--text-muted); text-decoration: none; font-size: var(--font-small); }
+  .cross-link:hover { color: var(--primary); }
 </style>
 </head>
 <body>
@@ -66,25 +96,84 @@
     <h1>智能交互平台</h1>
     <p class="slogan">让每次交互反哺智能</p>
     <div class="home-gates">
-      <div class="hg" onclick="location.href='./cards.html'">
-        <div class="pv" aria-hidden="true">
-          <span class="bub bu">我的货三天没更新了</span>
-          <span class="bub ba">很抱歉带来不便，请选择处理方式：</span>
-          <div class="comp">
-            <div class="opt">加急催办</div>
-            <div class="opt picked">申请赔付</div>
-            <div class="echo">
+      <div>
+        <div class="gt">搭建 · 智能交互组件</div>
+        <div class="hg">
+          <div class="pv" aria-hidden="true">
+            <div class="cs">
+              <span class="bub bu">我的货三天没更新了</span>
+              <span class="bub ba">很抱歉带来不便，请选择处理方式：</span>
+              <div class="card2"><div class="ttl">卡片选择</div>
+                <div class="opt">加急催办</div><div class="opt picked">申请赔付</div></div>
+              <div class="ok">提交成功 · 已为你登记赔付申请</div>
+            </div>
+            <div class="cs">
+              <span class="bub bu">问题解决了，谢谢</span>
+              <span class="bub ba">不客气，这次服务满意吗？</span>
+              <div class="card2"><div class="ttl">评分</div>
+                <div class="stars"><span class="st">1</span><span class="st">2</span><span class="st">3</span><span class="st on">4</span><span class="st">5</span></div></div>
+              <div class="ok">提交成功 · 感谢你的评价</div>
+            </div>
+            <div class="cs">
+              <span class="bub bu">我要退货</span>
+              <span class="bub ba">请补充信息，我来为你登记：</span>
+              <div class="card2"><div class="ttl">表单收集</div>
+                <div class="frow"><div class="flab">订单号</div><div class="fin f1"><i></i></div></div>
+                <div class="frow"><div class="flab">联系电话</div><div class="fin f2"><i></i></div></div></div>
+              <div class="ok">提交成功 · 退货已登记</div>
+            </div>
+            <div class="cs">
+              <span class="bub bu">这批设备怕震帮我加固</span>
+              <span class="bub ba">推荐以下增值服务，可直接下单：</span>
+              <div class="card2"><div class="ttl">商品下单</div>
+                <div class="prow"><span class="pimg"></span><span class="pnm">木箱加固</span><span class="pprice">¥120</span></div>
+                <span class="buy">去下单</span></div>
+              <div class="ok">下单成功 · 服务已加入本票货物</div>
+            </div>
+            <div class="cs">
+              <span class="bub bu">这批货送到哪个仓</span>
+              <span class="bub ba">请确认收货地点：</span>
+              <div class="card2"><div class="ttl">地址卡片</div>
+                <div class="opt picked">宁波舟山港</div><div class="opt">上海仓</div></div>
+              <div class="ok">提交成功 · 收货地点已确认</div>
+            </div>
+            <div class="dots"><button class="dot on" aria-label="case 1"></button><button class="dot" aria-label="case 2"></button><button class="dot" aria-label="case 3"></button><button class="dot" aria-label="case 4"></button><button class="dot" aria-label="case 5"></button></div>
+          </div>
+          <div class="body">
+            <h2>富交互组件</h2>
+            <p>15 种交互组件配置进 AI 对话：选择、评分、表单、下单、地址……对话从自由回复变成结构化引导</p>
+            <div class="cta">
+              <a class="btn primary" href="./cards.html">进入组件工作台</a>
+              <a class="btn" href="./library.html">逛组件库</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="gt">验证 · 测试与数据</div>
+        <div class="hg">
+          <div class="pv" aria-hidden="true">
+            <span class="bub bu2">大家都选了什么？</span>
+            <div class="echo-card">
               <div class="et">提交成功 · 71% 的用户和你选了一样</div>
               <div class="ebar"><i></i></div>
               <div class="ebar e2"><i></i></div>
               <div class="elab"><span>申请赔付 71%</span><span>加急催办 29%</span></div>
             </div>
+            <div class="kpis">
+              <div class="kpi"><div class="kl">组件触发</div><div class="kv">49</div></div>
+              <div class="kpi"><div class="kl">提交率</div><div class="kv">30.6%</div></div>
+              <div class="kpi"><div class="kl">回显</div><div class="kv">4/12</div></div>
+            </div>
           </div>
-        </div>
-        <div class="body">
-          <h2>富交互</h2>
-          <p>把交互组件配置进 AI 对话，收集群体决策</p>
-          <div class="cta"><a class="btn primary" href="./cards.html" onclick="event.stopPropagation()">进入智能交互</a></div>
+          <div class="body">
+            <h2>群体回显与看板</h2>
+            <p>像用户一样测试触发效果；每次选择回流成群体分布与转化数据，效果好不好一眼可见</p>
+            <div class="cta">
+              <a class="btn primary" href="./playground.html#comp">智能交互测试</a>
+              <a class="btn" href="./dashboard.html#survey">看交互数据</a>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -96,8 +185,24 @@
 <script src="./mock_data.js?v=3a63fde5"></script>
 <script src="./mock_api.js?v=fa600068"></script>
 <script src="./tokens.js?v=323789e0"></script>
-<script src="./ui.js?v=883453c4"></script>
-<script>UI.nav("home");</script>
+<script src="./ui.js?v=0ccf4a9c"></script>
+<script>UI.nav("home");
+// 组件 case 轮播：每个 case 播完停一拍再切下一个；圆点可点跳
+const CASES = 5;
+let cur = 0, timer = null;
+function show(i) {
+  cur = i;
+  document.querySelectorAll(".cs").forEach((n, idx) => {
+    n.classList.remove("active");
+    if (idx === i) { void n.offsetWidth; n.classList.add("active"); }
+  });
+  document.querySelectorAll(".dot").forEach((d, idx) => d.classList.toggle("on", idx === i));
+  clearTimeout(timer);
+  timer = setTimeout(() => show((cur + 1) % CASES), 6200);
+}
+document.querySelectorAll(".dot").forEach((d, idx) => d.onclick = (e) => { e.stopPropagation(); show(idx); });
+show(0);
+</script>
 <script>if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(function(){});</script>
 </body>
 </html>
