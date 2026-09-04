@@ -301,10 +301,10 @@ function renderProductCover(products, brands, unboundCount) {
     el("div", { class: "pc-main" }, [
       el("div", { class: "pc-name" }, [p.name]),
       el("div", { class: "pc-meta" }, [
-        `绑定组件 ${p.card_ids.length} 个 · MCP UI 对接`,
-        el("span", { class: "cr-id num", style: "margin-left:8px;cursor:pointer", title: "MCP 接入 Key（点击复制）",
+        el("span", { style: "margin-right:8px" }, ["MCP Key"]),
+        el("button", { class: "key-chip", title: "点击复制完整 Key",
           onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制 MCP 接入 Key"); } },
-          [p.mcp_key.slice(0, 12) + "…"]),
+          [el("span", { class: "num" }, ["sk-mcp-••••" + p.mcp_key.slice(-4)]), UI.icon("copy", 12)]),
       ]),
     ]),
     el("div", { style: "flex:1" }),
