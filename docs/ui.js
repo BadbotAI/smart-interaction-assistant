@@ -213,8 +213,7 @@ window.UI = (function () {
         { title: "智能交互", items: [
           ["cards", "组件工作台", "./cards.html", "board"],
           ["library", "组件库", "./library.html", "grid"],
-          ["products", "产品管理", "./products.html", "link"],
-          ["design", "组件风格", "./design.html", "palette2"],
+          ["products", "产品及风格管理", "./products.html", "link"],
           ["playground:comp", "智能交互测试", "./playground.html#comp", "chat"],
           ["dashboard:survey", "交互数据", "./dashboard.html#survey", "chart"],
         ] },

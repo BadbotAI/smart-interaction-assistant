@@ -4,17 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
-<title>产品管理 · 智能交互平台</title>
+<title>产品及风格管理 · 智能交互平台</title>
 <link rel="stylesheet" href="/web/shared.css">
 </head>
 <body>
 <div class="page">
   <div class="page-head" style="display:flex;align-items:center;gap:12px">
-    <div class="page-title">产品管理</div>
+    <div class="page-title">产品及风格管理</div>
     <div style="flex:1"></div>
     <button class="btn primary" id="newBtn"></button>
   </div>
-  <div class="muted" style="margin-bottom:14px">一个产品 = 一个品牌风格 + 多个组件 + 一个 MCP 接入点；组件在产品里通过 MCP UI 渲染；组件绑定在「产品配置」或组件工作台完成</div>
+  <div class="tab-bar" style="margin-bottom:14px">
+    <button type="button" class="tab active">产品</button>
+    <a class="tab" href="/web/design.html" style="text-decoration:none">组件风格</a>
+  </div>
+  <div class="muted" style="margin-bottom:14px">一个产品 = 一个品牌风格 + 多个组件 + 一个 MCP 接入点；风格在「组件风格」标签页里新建与编辑</div>
   <div id="listBox"></div>
 </div>
 
@@ -64,7 +68,7 @@ function productForm(init, opts = {}) {
   const node = el("div", { class: "policy-form" }, [
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["产品名称"]), nameIn, nameErr]),
     el("label", { class: "field" }, [el("span", { class: "label-text" }, ["品牌风格",
-      UI.help("该产品里所有组件渲染时使用的风格；风格在「组件风格」页管理")]), brandSel]),
+      UI.help("该产品里所有组件渲染时使用的风格；在「组件风格」标签页新建与编辑")]), brandSel]),
     opts.withCards === false ? null : el("div", { class: "field" }, [
       el("span", { class: "label-text" }, ["绑定组件", UI.help("这个产品可以触发哪些交互组件；点 × 移除，下拉添加")]),
       wlWrap,

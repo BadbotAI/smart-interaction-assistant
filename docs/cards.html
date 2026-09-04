@@ -79,7 +79,7 @@
 <script src="./mock_data.js?v=8c60eae1"></script>
 <script src="./mock_api.js?v=035e1e8c"></script>
 <script src="./tokens.js?v=7400e899"></script>
-<script src="./ui.js?v=0ccf4a9c"></script>
+<script src="./ui.js?v=33285b39"></script>
 <script src="./components.js?v=2e39e148"></script>
 <script src="./testchat.js?v=b7837b93"></script>
 <script>
@@ -203,7 +203,7 @@ function shortId(cardId) {
 // 植入代码（GA 式接入）：snippet + 三种触发方式
 function embedSnippet(cardId) {
   return [
-    `<!-- 第一步：把 SDK 贴进你的产品（data-key 用「产品管理」里该产品的接入 Key） -->`,
+    `<!-- 第一步：把 SDK 贴进你的产品（data-key 用「产品及风格管理」里该产品的接入 Key） -->`,
     `<script async src="https://cdn.your-domain.com/sia.js" data-key="你的接入Key"><\/script>`,
     ``,
     `<!-- 触发方式一：对话触发（默认）——对话走 /v1/route，命中触发条件自动返回本组件，无需额外代码 -->`,
@@ -286,7 +286,7 @@ function renderProductCover(products, brands, unboundCount) {
       ]),
       el("div", { style: "flex:1" }),
       switchBtn,
-      el("a", { class: "btn small", href: "./products.html" }, ["去产品管理"]),
+      el("a", { class: "btn small", href: "./products.html" }, ["管理产品"]),
     ]));
     return;
   }
