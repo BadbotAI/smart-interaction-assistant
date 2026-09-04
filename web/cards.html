@@ -241,8 +241,14 @@ async function loadCards() {
   const q = document.getElementById("searchInput").value.trim();
   const params = new URLSearchParams();
   if (q) params.set("q", q);
-  const { cards: all } = await UI.api("/api/cards?" + params);
+  const [{ cards: all }, prodRes, brandRes] = await Promise.all([
+    UI.api("/api/cards?" + params),
+    UI.api("/api/products").catch(() => ({ products: [] })),
+    UI.api("/api/brands").catch(() => ({ brands: [] })),
+  ]);
   if (seq !== _loadSeq) return; // 已有更新的请求在途，丢弃过期响应
+  const products = prodRes.products || [];
+  const brandName = f => { const b = (brandRes.brands || []).find(x => x.file === f); return b ? (b.brand_name || b.file) : "默认风格"; };
   const counts = { "": all.length };
   ["published", "offline", "draft"].forEach(k => counts[k] = all.filter(c => effStatus(c) === k).length);
   renderStatusTabs(counts);
@@ -273,7 +279,28 @@ async function loadCards() {
     }
     return;
   }
-  cards.forEach(c => list.appendChild(buildCardRow(c)));
+  // 按产品分组：产品一组一段（组件可被多个产品绑定，会在各自组里出现）；未绑定的归「未绑定产品」
+  const grouped = new Set();
+  products.forEach(p => {
+    const mine = cards.filter(c => (p.card_ids || []).includes(c.card_id));
+    if (!mine.length) return;
+    mine.forEach(c => grouped.add(c.card_id));
+    list.appendChild(el("div", { class: "prod-group-head" }, [
+      el("span", { class: "pg-name" }, [p.name]),
+      el("span", { class: "muted" }, [`${mine.length} 条配置 · 风格 ${brandName(p.brand_file)}`]),
+      el("div", { style: "flex:1" }),
+      el("a", { class: "btn small ghost", href: "/web/products.html" }, ["产品配置"]),
+    ]));
+    mine.forEach(c => list.appendChild(buildCardRow(c)));
+  });
+  const rest = cards.filter(c => !grouped.has(c.card_id));
+  if (rest.length) {
+    if (products.length) list.appendChild(el("div", { class: "prod-group-head" }, [
+      el("span", { class: "pg-name muted-name" }, ["未绑定产品"]),
+      el("span", { class: "muted" }, [`${rest.length} 条配置 · 在「产品接入」里把组件绑定到产品`]),
+    ]));
+    rest.forEach(c => list.appendChild(buildCardRow(c)));
+  }
 }
 
 // 单行构建：局部刷新用（状态开关切换后只替换该行，不重建整个列表）

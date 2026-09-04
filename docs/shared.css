@@ -1123,3 +1123,8 @@ details.explain .explain-body p { margin: 0 0 8px; font-size: var(--font-base); 
 .mini-metrics.duo { grid-template-columns: repeat(2, 1fr); margin: 0; }
 .mini-metric .mm-sub { font-size: var(--font-caption); color: var(--text-muted); margin-top: 2px; }
 .mini-metric .mm-label .help { margin-left: 2px; }
+
+.prod-group-head { display: flex; align-items: center; gap: 10px; padding: 14px 4px 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.prod-group-head:first-child { padding-top: 4px; }
+.prod-group-head .pg-name { font-weight: 700; font-size: var(--font-base); }
+.prod-group-head .pg-name.muted-name { color: var(--text-secondary); }
