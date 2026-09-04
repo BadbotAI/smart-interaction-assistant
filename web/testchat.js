@@ -99,8 +99,8 @@ window.TestChat = (function () {
       if (pickState.kind !== "policy" || !policies2.find(it => it.value === pickState.value)) {
         const f = policies2[0]; setPick("policy", f.value, f.label);
       }
-      modeBar.appendChild(UI.fancySelect({ value: pickState.value, width: "300px",
-        display: (v, name) => "路由策略：" + name,
+      modeBar.appendChild(el("span", { class: "muted", style: "flex:none;font-size:var(--font-small)" }, ["路由策略"]));
+      modeBar.appendChild(UI.fancySelect({ value: pickState.value, width: "210px",
         options: policies2.map(it => [it.value, it.label]),
         onChange: (v) => { const hit = policies2.find(x => x.value === v); setPick("policy", v, hit ? hit.label : v); } }));
       modeBar.appendChild(el("div", { style: "flex:1" }));
