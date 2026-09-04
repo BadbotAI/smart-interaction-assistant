@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=2f50f144">
+<link rel="stylesheet" href="./shared.css?v=7ea7ee1c">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -274,8 +274,9 @@ function renderProductCover(products, brands, unboundCount) {
   const isUnbound = curProduct === "__unbound";
   const p = products.find(x => x.product_id === curProduct);
   const pickProduct = (v) => { curProduct = v; sessionStorage.setItem("wb_product", v); statusTab = ""; loadCards(); };
-  const switchBtn = el("button", { class: "btn iconic round", title: "换一换：切换产品", "aria-label": "切换产品",
-    onclick: (e) => { e.stopPropagation(); UI.menu(switchBtn, opts.map(([v, name]) => ({
+  let nameAnchor = null;
+  const switchBtn = el("button", { class: "pc-switch", title: "换一换：切换产品", "aria-label": "切换产品",
+    onclick: (e) => { e.stopPropagation(); UI.menu(nameAnchor || switchBtn, opts.map(([v, name]) => ({
       label: (v === curProduct ? "· " : "") + name, onClick: () => { if (v !== curProduct) pickProduct(v); } }))); } },
     [UI.icon("refresh", 14)]);
   if (isUnbound || !p) {
@@ -301,15 +302,13 @@ function renderProductCover(products, brands, unboundCount) {
     } });
   box.appendChild(el("div", { class: "prod-cover" }, [
     el("div", { class: "pc-main" }, [
-      el("div", { style: "display:flex;align-items:center;gap:8px" }, [
-        el("div", { class: "pc-name" }, [p.name]),
-        switchBtn,
-      ]),
+      (() => { nameAnchor = el("div", { class: "pc-name" }, [p.name]);
+        return el("div", { style: "display:flex;align-items:center;gap:8px" }, [nameAnchor, switchBtn]); })(),
       el("div", { class: "pc-meta" }, [
-        el("span", { style: "margin-right:8px" }, ["MCP Key"]),
-        el("button", { class: "key-chip", title: "点击复制完整 Key",
-          onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制 MCP 接入 Key"); } },
-          [el("span", { class: "num" }, ["sk-mcp-••••" + p.mcp_key.slice(-4)]), UI.icon("copy", 12)]),
+        el("span", { style: "margin-right:8px" }, ["产品 ID"]),
+        el("button", { class: "key-chip", title: "点击复制产品 ID",
+          onclick: () => { navigator.clipboard.writeText(p.product_id); UI.toast("已复制产品 ID"); } },
+          [el("span", { class: "num" }, [p.product_id]), UI.icon("copy", 12)]),
       ]),
     ]),
     el("div", { style: "flex:1" }),

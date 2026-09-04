@@ -270,8 +270,9 @@ function renderProductCover(products, brands, unboundCount) {
   const isUnbound = curProduct === "__unbound";
   const p = products.find(x => x.product_id === curProduct);
   const pickProduct = (v) => { curProduct = v; sessionStorage.setItem("wb_product", v); statusTab = ""; loadCards(); };
-  const switchBtn = el("button", { class: "btn iconic round", title: "换一换：切换产品", "aria-label": "切换产品",
-    onclick: (e) => { e.stopPropagation(); UI.menu(switchBtn, opts.map(([v, name]) => ({
+  let nameAnchor = null;
+  const switchBtn = el("button", { class: "pc-switch", title: "换一换：切换产品", "aria-label": "切换产品",
+    onclick: (e) => { e.stopPropagation(); UI.menu(nameAnchor || switchBtn, opts.map(([v, name]) => ({
       label: (v === curProduct ? "· " : "") + name, onClick: () => { if (v !== curProduct) pickProduct(v); } }))); } },
     [UI.icon("refresh", 14)]);
   if (isUnbound || !p) {
@@ -297,15 +298,13 @@ function renderProductCover(products, brands, unboundCount) {
     } });
   box.appendChild(el("div", { class: "prod-cover" }, [
     el("div", { class: "pc-main" }, [
-      el("div", { style: "display:flex;align-items:center;gap:8px" }, [
-        el("div", { class: "pc-name" }, [p.name]),
-        switchBtn,
-      ]),
+      (() => { nameAnchor = el("div", { class: "pc-name" }, [p.name]);
+        return el("div", { style: "display:flex;align-items:center;gap:8px" }, [nameAnchor, switchBtn]); })(),
       el("div", { class: "pc-meta" }, [
-        el("span", { style: "margin-right:8px" }, ["MCP Key"]),
-        el("button", { class: "key-chip", title: "点击复制完整 Key",
-          onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制 MCP 接入 Key"); } },
-          [el("span", { class: "num" }, ["sk-mcp-••••" + p.mcp_key.slice(-4)]), UI.icon("copy", 12)]),
+        el("span", { style: "margin-right:8px" }, ["产品 ID"]),
+        el("button", { class: "key-chip", title: "点击复制产品 ID",
+          onclick: () => { navigator.clipboard.writeText(p.product_id); UI.toast("已复制产品 ID"); } },
+          [el("span", { class: "num" }, [p.product_id]), UI.icon("copy", 12)]),
       ]),
     ]),
     el("div", { style: "flex:1" }),

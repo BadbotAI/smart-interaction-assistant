@@ -1319,3 +1319,7 @@ details.route-cot > summary.rc-title::before { content: ""; display: inline-bloc
   margin-right: 6px; transition: transform var(--dur-fast, .15s); vertical-align: 1px; }
 details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .ans-tags { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+/* 封面产品切换：无底色 icon，悬停变主色 */
+.pc-switch { border: none; background: none; padding: 4px; cursor: pointer; color: var(--text-muted);
+  display: inline-flex; align-items: center; border-radius: 8px; }
+.pc-switch:hover { color: var(--primary); background: var(--primary-weak); }
