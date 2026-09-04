@@ -741,8 +741,9 @@ async def create_product(request: Request):
     if not name or len(name) > 15:
         return JSONResponse({"error": "产品名称必填，1-15 字"}, status_code=422)
     brand_file = (body.get("brand_file") or "").strip() or "brand-tokens.default.json"
-    card_ids = [c for c in (body.get("card_ids") or []) if isinstance(c, str)]
     conn = db.get_conn()
+    valid = {r["card_id"] for r in conn.execute("SELECT card_id FROM cards").fetchall()}
+    card_ids = [c for c in (body.get("card_ids") or []) if isinstance(c, str) and c in valid]
     if conn.execute("SELECT 1 FROM products WHERE name=?", (name,)).fetchone():
         return JSONResponse({"error": "已有同名产品"}, status_code=409)
     pid = "prod-" + db.new_id()[:8]
@@ -765,7 +766,11 @@ async def update_product(product_id: str, request: Request):
         return JSONResponse({"error": "产品名称必填，1-15 字"}, status_code=422)
     brand_file = (body.get("brand_file") or row["brand_file"]).strip()
     card_ids = body.get("card_ids")
-    card_ids = db.j([c for c in card_ids if isinstance(c, str)]) if isinstance(card_ids, list) else row["card_ids"]
+    if isinstance(card_ids, list):
+        valid = {r["card_id"] for r in conn.execute("SELECT card_id FROM cards").fetchall()}
+        card_ids = db.j([c for c in card_ids if isinstance(c, str) and c in valid])
+    else:
+        card_ids = row["card_ids"]
     conn.execute("UPDATE products SET name=?, brand_file=?, card_ids=? WHERE product_id=?",
                  (name, brand_file, card_ids, product_id))
     conn.commit()

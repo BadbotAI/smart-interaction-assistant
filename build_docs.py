@@ -78,7 +78,7 @@ def build_site(outdir, pages, platform):
     build_id = hashlib.md5((platform + "".join(sorted(ver.values()))).encode()).hexdigest()[:8]
 
     prefetch = "".join(f'<link rel="prefetch" href="./{p}">' for p in sorted(pages))
-    plat_tag = f'<script>window.SIA_PLATFORM="{platform}";</script>\n' if platform == "router" else ""
+    plat_tag = f'<script>window.SIA_PLATFORM="{platform}";</script>\n'
     mock = (plat_tag
             + f'<script src="./mock_data.js?v={ver["mock_data.js"]}"></script>\n'
             + f'<script src="./mock_api.js?v={ver["mock_api.js"]}"></script>\n')
