@@ -512,7 +512,7 @@ async function renderRouting() {
 
 const RENDER = { survey: renderSurvey, routing: renderRouting };
 window.addEventListener("hashchange", () => showSection(location.hash.replace("#", "")));
-showSection(location.hash.replace("#", "") || "survey", true);
+showSection(location.hash.replace("#", "") || (window.SIA_PLATFORM === "router" ? "routing" : "survey"), true);
 </script>
 </body>
 </html>

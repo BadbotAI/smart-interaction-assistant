@@ -87,7 +87,7 @@ window.TestChat = (function () {
     // 页面模式的两级选择：左 tab 选策略（右侧显示自动路由）或「固定模型」（右侧出模型下拉）
     const modeBar = el("div", { class: "tc-modebar" });
     function drawModeBar() {
-      if (!opts.mountEl) return;
+      if (!opts.mountEl || !opts.keepReasoning) return; // 智能交互测试不暴露模型路由选择
       modeBar.innerHTML = "";
       // 组合选择器：左边选模式、右边选具体策略 / 模型，拼成一个圆角长条
       const policies2 = (pickGroups.find(g => g.label === "调度策略") || { items: [] }).items;
@@ -171,10 +171,13 @@ window.TestChat = (function () {
       const originText = isReal ? text : lastQuestion;
 
       const bubble = botBubble();
-      const reason = el("div", { class: "reason-panel" }, [el("div", { class: "muted", style: "margin-bottom:4px" }, ["思考过程"])]);
+      // 智能交互测试：路由过程属于模型路由平台，不展示步骤，只给轻量思考指示
+      const reason = el("div", { class: "reason-panel" }, [el("div", { class: "muted", style: "margin-bottom:4px" },
+        [opts.keepReasoning ? "思考过程" : "正在思考……"])]);
       bubble.appendChild(reason);
       scrollBottom();
       const addStep = (t, evt2) => {
+        if (!opts.keepReasoning) return;
         const node = el("div", { class: "reason-step" }, [el("span", { class: "dot" }, ["·"]), el("span", {}, [t])]);
         reason.appendChild(node);
         // 粗排打分：展示各候选模型的历史命中率（论文 Step 2 的过程数据）
@@ -236,12 +239,6 @@ window.TestChat = (function () {
     function renderFinal(bubble, reason, evt, originText) {
       const steps = reason.querySelectorAll(".reason-step").length;
       if (!steps) reason.remove();
-      else if (!opts.keepReasoning) {
-        // 组件测试：回答后折叠；模型测试（keepReasoning）：常驻展开
-        const summary = el("details", {}, [el("summary", { class: "muted", style: "cursor:pointer" }, [`思考过程（${steps} 步）`])]);
-        [...reason.querySelectorAll(".reason-step")].forEach(s => summary.appendChild(s));
-        reason.replaceWith(el("div", { class: "reason-panel" }, [summary]));
-      }
       const ctx = {
         traceId: evt.trace_id, turnId: evt.turn_id, sessionId: SESSION, userId: USER,
         routeContext: evt.route_context || {},
@@ -287,7 +284,7 @@ window.TestChat = (function () {
       }
       // 呈现型组件照常渲染（评价型在测试抽屉里省略）
       (evt.components || []).filter(c => c.semantic_category === "present").forEach(c => { c._ctx = ctx; bubble.appendChild(Components.render(c, ctx)); });
-      if (evt.decision_summary) {
+      if (evt.decision_summary && opts.keepReasoning) {
         const d = evt.decision_summary;
         const pathName = { fastlane: "快车道", routed: "单模型路由", aggregated: "多模型聚合",
           degraded: "降级", manual: "手动指定" }[d.switch_result] || d.switch_result;
@@ -344,11 +341,6 @@ window.TestChat = (function () {
               })() : null,
             ]));
           }
-        } else {
-          bubble.appendChild(el("div", { class: "muted", style: "margin-top:6px;font-size:var(--font-small)" }, [
-            el("strong", { style: "color:var(--text-secondary)" }, [d.final_model || "-"]),
-            ` · ${pathName} · ${UI.fmtMs(d.total_latency_ms)} · ${UI.fmtCost(d.total_cost)}` + (d.is_explore ? " · 探索流量" : ""),
-          ]));
         }
       }
       scrollBottom();

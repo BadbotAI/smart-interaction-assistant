@@ -17,8 +17,8 @@ ROUTER_URL = "https://badbotai.github.io/smart-model-router/"
 ASSETS = ["tokens.js", "ui.js", "components.js", "testchat.js", "sia.js", "shared.css"]
 MOCKS = ["mock_data.js", "mock_api.js"]
 IA_PAGES = ["index.html", "cards.html", "library.html", "design.html", "products.html",
-            "playground.html", "dashboard.html", "audit.html", "trace.html", "chat.html", "embed-demo.html"]
-ROUTER_PAGES = ["router.html", "playground.html", "dashboard.html", "audit.html", "trace.html"]
+            "playground.html", "dashboard.html", "audit.html", "embed-demo.html"]
+ROUTER_PAGES = ["home-router.html", "router.html", "playground.html", "dashboard.html", "audit.html", "trace.html"]
 
 
 def snapshot():
@@ -91,6 +91,9 @@ def build_site(outdir, pages, platform):
             # 智能交互站内所有指向模型路由页的链接改到独立站点
             s = s.replace("'./router.html#", "'" + ROUTER_URL + "router.html#")
             s = s.replace('"./router.html#', '"' + ROUTER_URL + 'router.html#')
+        else:
+            # 路由站上指回智能交互站的链接
+            s = s.replace('"./index.html"', '"https://badbotai.github.io/smart-interaction-assistant/"')
         s = s.replace('<link rel="stylesheet" href="./shared.css">',
                       f'<link rel="stylesheet" href="./shared.css?v={ver["shared.css"]}">\n' + prefetch, 1)
         if '<script src="./tokens.js"></script>' in s:
@@ -104,10 +107,9 @@ def build_site(outdir, pages, platform):
         open(os.path.join(outdir, f), "w", encoding="utf-8").write(s)
 
     if platform == "router":
+        # 路由站首页 = home-router 门户（同内容双路径，index 直达）
         open(os.path.join(outdir, "index.html"), "w", encoding="utf-8").write(
-            '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
-            '<meta http-equiv="refresh" content="0;url=./router.html#dispatch">'
-            '<title>模型路由平台</title></head><body></body></html>\n')
+            open(os.path.join(outdir, "home-router.html"), encoding="utf-8").read())
 
     sw = """// 构建号变了旧缓存整体作废；哈希资源 cache-first（等于不可变），HTML network-first 保证更新可达
 const BUILD = "%s";
@@ -133,7 +135,7 @@ self.addEventListener("fetch", (e) => {
 
 def build():
     # 清掉 docs/ 里已退役的页面
-    for stale in ["apikeys.html", "router.html"]:
+    for stale in ["apikeys.html", "router.html", "chat.html", "trace.html"]:
         p = os.path.join(DOCS, stale)
         if os.path.exists(p):
             os.remove(p)

@@ -370,35 +370,16 @@ function policyForm(init, actives, policyId, apiKey) {
     whitelist: new Set(init.whitelist || []), fallback: init.fallback || "" };
   if (st.whitelist.size === 0) actives.forEach(m => st.whitelist.add(m.model_id));
   const nameIn = el("input", { type: "text", maxlength: "15", value: st.name, placeholder: "例如：夜间省钱档（1-15 字）" });
-  nameIn.oninput = () => st.name = nameIn.value;
-  // 候选模型：已选出标签（可删），下拉添加
-  const tagsBox = el("div", { class: "tagsel-tags" });
-  let addSel;
-  const drawTags = () => {
-    tagsBox.innerHTML = "";
-    actives.filter(m => st.whitelist.has(m.model_id)).forEach(m => {
-      tagsBox.appendChild(el("span", { class: "tagsel-tag" }, [m.display_name,
-        el("button", { type: "button", title: "移除", onclick: () => {
-          if (st.whitelist.size <= 1) { UI.toast("至少保留一个候选模型", true); return; }
-          st.whitelist.delete(m.model_id); drawTags();
-        } }, ["×"])]));
-    });
-    const rest = actives.filter(m => !st.whitelist.has(m.model_id));
-    const old = addSel;
-    addSel = el("select", { style: "width:200px", ...(rest.length ? {} : { disabled: "" }) }, [
-      el("option", { value: "" }, [rest.length ? "添加候选模型…" : "已全部选入"]),
-      ...rest.map(m => el("option", { value: m.model_id }, [m.display_name])),
-    ]);
-    addSel.onchange = () => { if (addSel.value) { st.whitelist.add(addSel.value); drawTags(); } };
-    if (old) old.replaceWith(addSel); else wlWrap.appendChild(addSel);
-  };
-  const wlWrap = el("div", {}, [tagsBox]);
-  drawTags();
-  const fbSel = el("select", {}, [
-    el("option", { value: "" }, ["跟随平台默认兜底"]),
-    ...actives.map(m => el("option", { value: m.model_id, ...(st.fallback === m.model_id ? { selected: "" } : {}) }, [m.display_name])),
-  ]);
-  fbSel.onchange = () => st.fallback = fbSel.value;
+  const nameErr = el("div", { class: "field-error" });
+  nameIn.oninput = () => { st.name = nameIn.value; nameErr.textContent = ""; };
+  const wlWrap = UI.tagSelect({
+    selected: [...st.whitelist], minKeep: 1, placeholder: "点击选择候选模型，可输入搜索",
+    options: actives.map(m => [m.model_id, m.display_name]),
+    onChange: (vals) => { st.whitelist = new Set(vals); },
+  });
+  const fbSel = UI.fancySelect({ value: st.fallback || "", width: "100%",
+    options: [["", "跟随平台默认兜底"], ...actives.map(m => [m.model_id, m.display_name])],
+    onChange: (v) => st.fallback = v });
   const slider = (key, min, max, step, leftLb, rightLb) => {
     const val = el("span", { class: "num", style: "font-weight:600;min-width:34px;text-align:right" }, [Number(st[key]).toFixed(2)]);
     const inp = el("input", { type: "range", min: String(min), max: String(max), step: String(step), value: st[key], style: "flex:1" });
@@ -418,9 +399,9 @@ function policyForm(init, actives, policyId, apiKey) {
       apiKey ? el("span", { class: "cr-id num", title: "一条策略一个 API：点击复制完整 Key", style: "cursor:pointer",
         onclick: () => { navigator.clipboard.writeText(apiKey); UI.toast("已复制 API Key"); } }, [apiKey.slice(0, 13) + "…"]) : null,
     ]) : null,
-    el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["策略名称"]), nameIn]),
+    el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["策略名称"]), nameIn, nameErr]),
     el("div", { class: "field" }, [
-      el("span", { class: "label-text" }, ["候选模型", UI.help("这个策略允许在哪些模型里做选择；点 × 移除，下拉添加")]),
+      el("span", { class: "label-text" }, ["候选模型", UI.help("这个策略允许在哪些模型里做选择；点击框内可搜索添加，点标签 × 移除")]),
       wlWrap,
     ]),
     el("label", { class: "field" }, [el("span", { class: "label-text" }, ["兜底模型",
@@ -437,7 +418,7 @@ function policyForm(init, actives, policyId, apiKey) {
         onChange: (v) => { st.allow_agg = v; return true; } }),
     ]),
   ]);
-  return { node, st, nameIn };
+  return { node, st, nameIn, nameErr };
 }
 
 function policyRefSnippet(p) {
@@ -459,7 +440,7 @@ async function newPolicyDialog(actives) {
     el("div", { style: "display:flex;justify-content:flex-end;gap:8px;margin-top:12px" }, [
       el("button", { class: "btn", onclick: () => mask2.remove() }, ["取消"]),
       el("button", { class: "btn primary", onclick: async (e) => {
-        if (!form.st.name.trim()) { err.textContent = "请填写策略名称（1-15 字）"; return; }
+        if (!form.st.name.trim()) { form.nameErr.textContent = "请填写策略名称（1-15 字）"; form.nameIn.focus(); return; }
         await UI.withBusy(e.currentTarget, async () => {
           try {
             const body = { name: form.st.name.trim(), alpha: form.st.alpha,
@@ -477,7 +458,7 @@ async function newPolicyDialog(actives) {
               el("div", { style: "display:flex;justify-content:flex-end;margin-top:14px" }, [
                 el("button", { class: "btn primary", onclick: () => km.remove() }, ["完成"])]),
             ]));
-          } catch (e2) { err.textContent = e2.data?.error || e2.message; }
+          } catch (e2) { form.nameErr.textContent = e2.data?.error || e2.message; }
         }, "创建中……");
       } }, ["创建策略"]),
     ]),
@@ -494,7 +475,7 @@ async function editPolicy(p, actives) {
     err, el("div", { style: "flex:1" }),
     el("button", { class: "btn", onclick: () => mask2.querySelector(".close-btn")?.click() }, ["取消"]),
     el("button", { class: "btn primary", onclick: async (e) => {
-      if (!form.st.name.trim()) { err.textContent = "策略名称必填"; return; }
+      if (!form.st.name.trim()) { form.nameErr.textContent = "策略名称必填"; form.nameIn.focus(); return; }
       await UI.withBusy(e.currentTarget, async () => {
         try {
           const r = await UI.api(`/v1/policies/${p.policy_id}`, { method: "PUT", body: {
@@ -737,7 +718,7 @@ async function renderFlow() {
 
   box.appendChild(el("div", { class: "card" }, [
     el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:4px" }, [
-      el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["场景数据集"]),
+      el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["各场景题库"]),
       el("div", { style: "flex:1" }),
       el("button", { class: "btn small ghost", onclick: addSceneDialog }, [UI.icon("plus", 14), "添加场景"]),
       el("button", { class: "btn small primary", onclick: () => { location.hash = "#import"; } }, ["导入数据集"]),
@@ -1023,7 +1004,7 @@ async function renderDispatch() {
     rulesBtn.classList.toggle("active", !rulesBlock.hidden);
   } }, ["模型路由规则", UI.icon("chevron", 13)]);
   box.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin:6px 0 10px" }, [
-    el("span", { class: "section-title", style: "margin:0" }, ["路由策略"]),
+    el("span", { class: "muted" }, ["一条策略 = 一个 API，用 Key 区分"]),
     el("div", { style: "flex:1" }),
     el("button", { class: "btn primary", onclick: () => newPolicyDialog(actives) }, [UI.icon("plus", 14), "新增路由策略"]),
     el("a", { class: "btn small ghost", href: "#flow" }, ["查看模型画像"]),

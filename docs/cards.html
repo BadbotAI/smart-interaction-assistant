@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=ff8a4811">
-<link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./chat.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html"><link rel="prefetch" href="./trace.html">
+<link rel="stylesheet" href="./shared.css?v=2b612dd9">
+<link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
   .card-row .cr-line1 { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -87,9 +87,9 @@
 <script src="./mock_data.js?v=3a63fde5"></script>
 <script src="./mock_api.js?v=fa600068"></script>
 <script src="./tokens.js?v=323789e0"></script>
-<script src="./ui.js?v=f737bd16"></script>
+<script src="./ui.js?v=883453c4"></script>
 <script src="./components.js?v=2e39e148"></script>
-<script src="./testchat.js?v=1d10440b"></script>
+<script src="./testchat.js?v=14a5afef"></script>
 <script>
 UI.nav("cards");
 const { el } = UI;
@@ -211,7 +211,7 @@ function shortId(cardId) {
 // 植入代码（GA 式接入）：snippet + 三种触发方式
 function embedSnippet(cardId) {
   return [
-    `<!-- 第一步：把 SDK 贴进你的产品（Key 在「路由策略」页复制） -->`,
+    `<!-- 第一步：把 SDK 贴进你的产品（data-key 用「产品接入」里该产品的接入 Key） -->`,
     `<script async src="https://cdn.your-domain.com/sia.js" data-key="你的接入Key"><\/script>`,
     ``,
     `<!-- 触发方式一：对话触发（默认）——对话走 /v1/route，命中触发条件自动返回本组件，无需额外代码 -->`,

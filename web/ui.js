@@ -137,6 +137,59 @@ window.UI = (function () {
     return btn;
   }
 
+  // 标签多选下拉：框内出可删标签，点击/输入过滤下拉选项（候选模型、产品绑定组件等共用）
+  function tagSelect({ selected = [], options = [], placeholder = "点击选择…", minKeep = 0, onChange }) {
+    const sel = new Set(selected);
+    const input = el("input", { class: "tagbox-in", type: "text", placeholder });
+    const box = el("div", { class: "tagbox", tabindex: "-1" });
+    let pop = null;
+    const emit = () => onChange && onChange([...sel]);
+    const closePop = () => { if (pop) { pop.remove(); pop = null; } };
+    const labelOf = v => { const hit = options.find(o => o[0] === v); return hit ? hit[1] : v; };
+    function draw() {
+      box.innerHTML = "";
+      [...sel].forEach(v => box.appendChild(el("span", { class: "tagsel-tag" }, [labelOf(v),
+        el("button", { type: "button", title: "移除", onclick: (e) => {
+          e.stopPropagation();
+          if (sel.size <= minKeep) { toast(`至少保留 ${minKeep} 项`, true); return; }
+          sel.delete(v); draw(); emit(); openPop();
+        } }, ["×"])])));
+      input.placeholder = sel.size ? "" : placeholder;
+      box.appendChild(input);
+    }
+    function openPop() {
+      closePop();
+      const kw = input.value.trim().toLowerCase();
+      const rest = options.filter(([v, l]) => !sel.has(v) && (!kw || String(l).toLowerCase().includes(kw) || String(v).toLowerCase().includes(kw)));
+      pop = el("div", { class: "menu-pop fsel-pop", role: "listbox" }, rest.length
+        ? rest.map(([v, l]) => el("button", { class: "menu-item", role: "option", type: "button",
+            onmousedown: (e) => e.preventDefault(),
+            onclick: () => { sel.add(v); input.value = ""; draw(); emit(); input.focus(); openPop(); },
+          }, [l]))
+        : [el("div", { class: "menu-item", style: "color:var(--text-muted);cursor:default" }, [kw ? "没有匹配项" : "已全部选入"])]);
+      document.body.appendChild(pop);
+      const r = box.getBoundingClientRect();
+      pop.style.minWidth = r.width + "px";
+      pop.style.top = (r.bottom + window.scrollY + 4) + "px";
+      pop.style.left = Math.max(12, Math.min(r.left + window.scrollX, window.innerWidth - pop.offsetWidth - 12)) + "px";
+    }
+    box.onclick = () => { input.focus(); openPop(); };
+    input.oninput = () => openPop();
+    input.onkeydown = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const first = pop && pop.querySelector(".menu-item[role=option]");
+        if (first) first.click();
+      } else if (e.key === "Backspace" && !input.value && sel.size > minKeep) {
+        sel.delete([...sel].pop()); draw(); emit(); openPop();
+      } else if (e.key === "Escape") closePop();
+    };
+    input.onblur = () => setTimeout(() => { if (pop && !pop.contains(document.activeElement)) closePop(); }, 150);
+    draw();
+    box.getSelected = () => [...sel];
+    return box;
+  }
+
   // 组件类型中文名（走查 G3）：运营人员不该面对 select.single 这类内部 ID
   const CT_NAMES = {
     "select.single": "文本选择（单选）", "select.multi": "文本选择（多选）", "select.card": "卡片选择", "scale.likert": "评分",
@@ -169,8 +222,9 @@ window.UI = (function () {
       ],
     },
     router: {
-      name: "模型路由平台", home: "/web/router.html#dispatch",
+      name: "模型路由平台", home: "/web/home-router.html",
       groups: [
+        { title: "", items: [["home", "首页", "/web/home-router.html", "home"]] },
         { title: "模型路由", items: [
           ["router:dispatch", "路由策略", "/web/router.html#dispatch", "route2"],
           ["router:flow", "场景数据集", "/web/router.html#flow", "database"],
@@ -586,7 +640,7 @@ window.UI = (function () {
   }
 
 
-  return { api, el, toast, modal, drawer, confirm: confirmDialog, withBusy, loading, menu, fancySelect, ctName, ctChip, debounce,
+  return { api, el, toast, modal, drawer, confirm: confirmDialog, withBusy, loading, menu, fancySelect, tagSelect, ctName, ctChip, debounce,
     icon, iconBtn, shortId, idChip, keyField, chatMock, tagInput, toggle, help,
     nav, fmtCost, fmtMs, fmtTs, fmtPct, lineChart, barChart, stackedBars };
 })();
