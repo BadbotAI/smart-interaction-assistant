@@ -5,7 +5,18 @@
   const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
 
   const genLocal = {};
+  let judgeLocal = null; // null=跟随快照; {removed:true} 或 {judge:{...}}
   function getMock(pn, full) {
+    if (pn === "/api/settings/judge-model") {
+      if (judgeLocal) return { judge: judgeLocal.removed ? null : judgeLocal.judge };
+      return D[pn] !== undefined ? D[pn] : { judge: null };
+    }
+    if (pn === "/v1/bank/scenes" && judgeLocal) {
+      const base = JSON.parse(JSON.stringify(D[pn] || { scenes: [], custom_scenes: [] }));
+      base.judge_model = judgeLocal.removed ? null : judgeLocal.judge.model_id;
+      base.judge_name = judgeLocal.removed ? null : (judgeLocal.judge.display_name || judgeLocal.judge.model_id);
+      return base;
+    }
     if (pn === "/api/profile/gen-status") {
       const base = D["/api/profile/gen-status"] || { generated: {}, task: { status: "idle" } };
       return { generated: { ...base.generated, ...genLocal }, task: { status: "idle" } };
@@ -69,6 +80,13 @@
     if (pn === "/v1/bank/staged/discard") return { discarded: (body && body.query_ids || []).length };
     if (pn === "/api/profile/rebuild") { if (body && body.policy_id) genLocal[body.policy_id] = Date.now() / 1000; return { task: { status: "completed", done: 1, total: 1 } }; }
     if (pn === "/v1/bank/question/delete" || pn === "/v1/bank/question/relabel") return { ok: true };
+    if (pn === "/api/settings/judge-model") {
+      const mid = (body && body.model_id || "").trim();
+      if (!mid) { judgeLocal = { removed: true }; return { ok: true, judge: null }; }
+      if (!(body && body.display_name)) return { error: "请填写显示名" };
+      judgeLocal = { judge: { model_id: mid, display_name: body.display_name } };
+      return { ok: true, judge: judgeLocal.judge };
+    }
     if (pn === "/api/products") {
       const name = (body && body.name || "").trim();
       if (!name || name.length > 15) return { error: "产品名称必填，1-15 字" };

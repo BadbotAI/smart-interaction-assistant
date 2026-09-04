@@ -466,7 +466,7 @@ async function renderRouting() {
   const latCard = el("div", { class: "card", style: "margin-bottom:12px" }, [
     el("div", { style: "font-weight:600;margin-bottom:8px" }, ["延迟（按路径）"]),
     el("table", { class: "data" }, [
-      el("thead", {}, [el("tr", {}, ["路径", "请求数", "P50", "P95", "验收线"].map(h => el("th", {}, [h])))]),
+      el("thead", {}, [el("tr", {}, ["路径", "请求数", "P50", "P95", "验收线"].map(h => el("th", { class: h === "验收线" ? "w-main" : "" }, [h])))]),
       el("tbody", {}, Object.entries(d.latency_by_path).map(([path, v]) => {
         const name = { fastlane: "快车道", routed: "单模型路由", aggregated: "聚合路径", degraded: "降级", manual: "手动指定", await_user: "等待用户（触发组件）" }[path] || path;
         const target = path === "fastlane" ? 2000 : path === "aggregated" ? 25000 : null;
@@ -494,7 +494,7 @@ async function renderRouting() {
       horizontal: true, unit: " tok" });
     if (ins.model_quality.length) {
       b6.appendChild(el("table", { class: "data" }, [
-        el("thead", {}, [el("tr", {}, ["模型", "择优胜率", "点踩率", "标签量"].map(h => el("th", {}, [h])))]),
+        el("thead", {}, [el("tr", {}, ["模型", "择优胜率", "点踩率", "标签量"].map(h => el("th", { class: h === "模型" ? "w-main" : "" }, [h])))]),
         el("tbody", {}, ins.model_quality.map(m => el("tr", {}, [
           el("td", {}, [m.model_id]),
           el("td", {}, [m.preference_win_rate == null ? "-" : UI.fmtPct(m.preference_win_rate)]),

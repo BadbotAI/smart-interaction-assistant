@@ -81,12 +81,12 @@ async function load() {
     return;
   }
   box.appendChild(el("table", { class: "data" }, [
-    el("thead", {}, [el("tr", {}, ["时间", "操作人", "动作", "对象与详情"].map(h => el("th", {}, [h])))]),
+    el("thead", {}, [el("tr", {}, ["时间", "操作人", "动作", "对象与详情"].map(h => el("th", { class: h === "对象与详情" ? "w-main" : "" }, [h])))]),
     el("tbody", {}, audit.slice(0, shown).map(r => el("tr", {}, [
       el("td", { class: "num", style: "white-space:nowrap" }, [UI.fmtTs(r.ts)]),
       el("td", {}, [r.actor || "-"]),
       el("td", {}, [ACTION_NAMES[r.action] || r.action]),
-      el("td", { class: "muted num", style: "max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: fmtDetail(r.detail) }, [fmtDetail(r.detail)]),
+      el("td", { class: "muted num w-main", style: "max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: fmtDetail(r.detail) }, [fmtDetail(r.detail)]),
     ]))),
   ]));
   if (audit.length > shown) {

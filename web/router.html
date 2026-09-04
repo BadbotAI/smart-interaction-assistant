@@ -53,7 +53,7 @@ async function renderModels() {
     paused: ["已停用", "gray"], retired: ["已退役", "red"] };
   const table = el("table", { class: "data" }, [
     el("thead", {}, [el("tr", {}, ["供应商", "名称", "模型型号", "单价 ¥/M（入 / 出）", "思考模式", "启用情况", "操作"]
-      .map(h => el("th", {}, [h])))]),
+      .map(h => el("th", { class: h === "名称" ? "w-main" : "" }, [h])))]),
     el("tbody", {}, models.filter(m => (m.bank_coverage || 0) >= 1)
       .sort((a2, b2) => String(a2.provider).localeCompare(String(b2.provider)) || String(a2.display_name).localeCompare(String(b2.display_name)))
       .map((m, i, arr) => renderModelRow(m, i === 0 || arr[i - 1].provider !== m.provider))),
@@ -562,7 +562,7 @@ async function buildDirectionsTable(policyId, alphaVal) {
     el("thead", {}, [el("tr", {}, [
       el("th", {}, ["业务场景"]), el("th", {}, ["题目数"]),
       ...mids.map(m => el("th", {}, [nameOf(m)])),
-      el("th", {}, ["路由去向"]),
+      el("th", { class: "w-main" }, ["路由去向"]),
     ])]),
     el("tbody", {}, clusters.map(c => el("tr", {}, [
       el("td", {}, [el("a", { href: "#scene", style: "font-weight:600;color:var(--text-primary);text-decoration:none;border-bottom:1px dashed var(--border-strong)",
@@ -575,7 +575,7 @@ async function buildDirectionsTable(policyId, alphaVal) {
         return el("td", { class: "num", style: isBest && !c.agg_with ? "background:var(--primary-weak);font-weight:600;border-radius:4px" : "",
           title: v == null ? "还没打过分" : `效果 ${sc2.perf} · 省钱 ${sc2.eff} · 综合 ${v.toFixed(2)}` }, [v == null ? "-" : v.toFixed(2)]);
       }),
-      el("td", {}, [c.agg_with
+      el("td", { class: "w-main" }, [c.agg_with
         ? el("span", { class: "chip ai", title: "两个模型得分接近：都答一遍再合写成更好的答案" }, [`聚合：${nameOf(c.best)} + ${nameOf(c.agg_with)}`])
         : (c.best ? el("span", { class: "chip blue" }, [nameOf(c.best)]) : el("span", { class: "muted" }, ["待打分"]))]),
     ]))),
@@ -597,12 +597,33 @@ async function renderProfileCards(container, policies, judgeReady) {
     const pid = p.policy_id;
     const alpha = p.params?.alpha ?? 0.7;
     if (pid === "policy-global-fallback") {
+      const fbBody = el("div", { class: "pp-body", hidden: true });
+      const fbBtn = el("button", { class: "btn small ghost", onclick: (e) => { e.stopPropagation(); toggleFb(); } }, ["查看效果", UI.icon("chevron", 13)]);
+      const toggleFb = async () => {
+        fbBody.hidden = !fbBody.hidden;
+        fbBtn.classList.toggle("active", !fbBody.hidden);
+        if (!fbBody.hidden && !fbBody.childNodes.length) {
+          const { models } = await UI.api("/v1/models").catch(() => ({ models: [] }));
+          const dm = (models || []).find(m => m.is_default);
+          const name = dm ? dm.display_name : "默认兜底模型";
+          fbBody.appendChild(el("div", { class: "muted", style: "margin-bottom:8px" },
+            [`该策略不做场景路由：任何问题都由默认兜底模型「${name}」直接回答，不依赖打分成绩，路由决策模型移除时依然可用。`]));
+          fbBody.appendChild(el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
+            el("thead", {}, [el("tr", {}, [el("th", {}, ["业务场景"]), el("th", { class: "w-main" }, ["路由去向"])])]),
+            el("tbody", {}, [el("tr", {}, [el("td", {}, ["全部场景"]),
+              el("td", { class: "w-main" }, [el("span", { class: "chip blue" }, [name + " 直连"])])])]),
+          ])]));
+        }
+      };
       container.appendChild(el("div", { class: "card pp-card" }, [
-        el("div", { class: "pp-head", style: "cursor:default" }, [
+        el("div", { class: "pp-head", onclick: toggleFb }, [
           el("span", { class: "pp-name" }, [p.name]),
           el("span", { class: "chip gray" }, ["不做路由"]),
-          el("span", { class: "muted" }, ["直连兜底模型回答，无需画像"]),
+          el("span", { class: "muted" }, ["直连兜底模型回答，不依赖画像"]),
+          el("div", { style: "flex:1" }),
+          fbBtn,
         ]),
+        fbBody,
       ]));
       return;
     }
@@ -616,7 +637,6 @@ async function renderProfileCards(container, policies, judgeReady) {
       : genTs ? `${UI.fmtTs(genTs)} 生成 · 成本-效果权重 ${alpha}`
       : "还没做题打分，生成后可看各场景效果"]);
     const prog = isGen ? el("div", { class: "pp-prog" }, [el("div", { class: "pp-prog-fill", style: `width:${Math.round(task.done / task.total * 100)}%` })]) : null;
-    const chev = el("span", { class: "pp-chev" }, [UI.icon("chevron", 14)]);
     const body = el("div", { class: "pp-body", hidden: true });
     let loaded = false;
     const genBtn = el("button", {
@@ -631,21 +651,23 @@ async function renderProfileCards(container, policies, judgeReady) {
           pollProfile(container, policies, judgeReady);
         } catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
       } }, [isGen ? "生成中…" : genTs ? "重新生成" : "生成画像"]);
-    const head = el("div", { class: "pp-head", onclick: async () => {
+    const viewBtn = el("button", { class: "btn small ghost", onclick: (e) => { e.stopPropagation(); toggleBody(); } }, ["查看效果", UI.icon("chevron", 13)]);
+    const toggleBody = async () => {
       body.hidden = !body.hidden;
-      chev.classList.toggle("open", !body.hidden);
+      viewBtn.classList.toggle("active", !body.hidden);
       if (!body.hidden && !loaded) {
         loaded = true;
         UI.loading(body);
         try { body.innerHTML = ""; body.appendChild(el("div", { style: "overflow-x:auto" }, [await buildDirectionsTable(pid, alpha)])); }
         catch (e2) { body.innerHTML = ""; body.appendChild(el("div", { class: "field-error" }, ["加载失败：" + e2.message])); loaded = false; }
       }
-    } }, [
-      chev,
+    };
+    const head = el("div", { class: "pp-head", onclick: toggleBody }, [
       el("span", { class: "pp-name" }, [p.name]),
       p.scope === "global" ? el("span", { class: "chip blue" }, ["默认"]) : null,
       stChip, meta, prog,
       el("div", { style: "flex:1" }),
+      viewBtn,
       genBtn,
     ]);
     container.appendChild(el("div", { class: "card pp-card" + (judgeReady ? "" : " grayed") }, [head, body]));
@@ -708,7 +730,7 @@ async function renderFlow() {
     const tbody = el("tbody", {});
     sc.scenes.forEach(r => {
       const row = el("tr", {}, [
-        el("td", { style: "font-weight:600" }, [SCENE_NAMES2[r.domain] || r.domain]),
+        el("td", { class: "w-main", style: "font-weight:600" }, [SCENE_NAMES2[r.domain] || r.domain]),
         el("td", { class: "num" }, [`${r.total} 题`]),
         el("td", { class: "muted num" }, [r.last_ts ? UI.fmtTs(r.last_ts) : "-"]),
         el("td", {}, [el("span", { style: "display:inline-flex;gap:6px" }, [
@@ -726,7 +748,7 @@ async function renderFlow() {
       tbody.appendChild(row);
     });
     sceneRows.appendChild(el("table", { class: "data" }, [
-      el("thead", {}, [el("tr", {}, ["业务场景", "数据集题目数量", "最后保存时间", "操作"].map(h => el("th", {}, [h])))]),
+      el("thead", {}, [el("tr", {}, ["业务场景", "数据集题目数量", "最后保存时间", "操作"].map(h => el("th", { class: h === "业务场景" ? "w-main" : "" }, [h])))]),
       tbody,
     ]));
   } else sceneRows.appendChild(el("div", { class: "empty-state" }, [
@@ -835,7 +857,7 @@ async function renderScene() {
   const tbody = el("tbody", {});
   questions.forEach(q => {
     const row = el("tr", {}, [
-      el("td", { style: "max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: q.query + (q.ideal ? `\n参考答案：${q.ideal}` : "") }, [q.query]),
+      el("td", { class: "w-main", style: "max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: q.query + (q.ideal ? `\n参考答案：${q.ideal}` : "") }, [q.query]),
       el("td", {}, [UI.fancySelect({ value: key, width: "150px", options: sceneOpts,
         onChange: async (v) => {
           if (v === key) return;
@@ -876,7 +898,7 @@ async function renderScene() {
   box.appendChild(el("div", { class: "card", style: "padding:0" }, [
     questions.length
       ? el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
-          el("thead", {}, [el("tr", {}, ["题目", "场景标签", "来源", "打分状态", "操作"].map(h => el("th", {}, [h])))]),
+          el("thead", {}, [el("tr", {}, ["题目", "场景标签", "来源", "打分状态", "操作"].map(h => el("th", { class: h === "题目" ? "w-main" : "" }, [h])))]),
           tbody,
         ])])
       : el("div", { class: "empty-state" }, [

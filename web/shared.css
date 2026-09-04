@@ -1279,6 +1279,12 @@ details.explain .explain-body p { margin: 0 0 8px; font-size: var(--font-base); 
   border: 1px solid var(--border); background: var(--bg-sunken); color: var(--text-secondary);
   font-size: var(--font-caption); cursor: pointer; }
 .key-chip:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-weak); }
-/* 表格设计规范：表头居中、行高与内边距统一 */
-table.data thead th { text-align: center; font-weight: 600; color: var(--text-secondary); }
+/* 表格设计规范：表头与内容同为左对齐；列宽收缩至内容、主列（.w-main）吃掉剩余空间 */
+table.data thead th { text-align: left; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
 table.data td { vertical-align: middle; }
+table.data th.w-main, table.data td.w-main { width: 99%; }
+table.data td { white-space: nowrap; }
+table.data td.w-main { white-space: normal; }
+/* 查看效果按钮：展开态箭头翻转 */
+.pp-head .btn.ghost.active .ico { transform: rotate(180deg); }
+.pp-head .btn.ghost .ico { transition: transform var(--dur-fast, .15s); }
