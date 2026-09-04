@@ -53,7 +53,7 @@ async function renderModels() {
     paused: ["已停用", "gray"], retired: ["已退役", "red"] };
   const table = el("table", { class: "data" }, [
     el("thead", {}, [el("tr", {}, ["供应商", "名称", "模型型号", "单价 ¥/M（入 / 出）", "思考模式", "启用情况", "操作"]
-      .map(h => el("th", { class: h === "模型型号" ? "w-main" : "" }, [h])))]),
+      .map(h => el("th", { class: (h === "名称" || h === "模型型号") ? "w-main" : "" }, [h])))]),
     el("tbody", {}, models.filter(m => (m.bank_coverage || 0) >= 1)
       .sort((a2, b2) => String(a2.provider).localeCompare(String(b2.provider)) || String(a2.display_name).localeCompare(String(b2.display_name)))
       .map((m, i, arr) => renderModelRow(m, i === 0 || arr[i - 1].provider !== m.provider))),
@@ -488,7 +488,7 @@ async function editPolicy(p, actives) {
 async function renderPolicies(container, policies, actives, judgeReady = true) {
   policies.forEach(p => {
     const isDefault = p.scope === "global";
-    const grayed = !judgeReady && !isDefault;
+    const grayed = !judgeReady;
     const prm = p.params || {};
     const wlN = (p.model_whitelist || []).length || actives.length;
     const card = el("div", { class: "card policy-card" + (grayed ? " grayed" : ""),
@@ -496,8 +496,7 @@ async function renderPolicies(container, policies, actives, judgeReady = true) {
       style: "margin-bottom:10px" }, [
       el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap" }, [
         el("span", { style: "font-weight:700;font-size:var(--font-title)" }, [p.name || "未命名策略"]),
-        isDefault ? el("span", { class: "chip blue", title: p.policy_id === "policy-global-fallback"
-          ? "内置策略：不做路由，直接用默认兜底模型回答；未配置路由决策模型时仍可用" : "对话没有指定策略时，走这条默认策略" }, ["默认"]) : null,
+        isDefault ? el("span", { class: "chip blue", title: "对话没有指定策略时，走这条默认策略" }, ["默认"]) : null,
         p.enabled ? null : el("span", { class: "chip red" }, ["已停用"]),
         el("div", { style: "flex:1" }),
         el("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); editPolicy(p, actives); } }, [UI.icon("sliders", 14), "参数配置"]),
@@ -524,9 +523,7 @@ async function renderPolicies(container, policies, actives, judgeReady = true) {
           [el("span", { class: "num" }, ["API Key = sk-route-••••" + (p.api_key || "").slice(-4)]), UI.icon("copy", 12)]),
       ]),
       el("div", { class: "muted", style: "margin-top:8px" }, [
-        p.policy_id === "policy-global-fallback"
-          ? "不做路由：所有请求直接用默认兜底模型回答，随时可用"
-          : `候选模型 ${wlN} 个 · 成本-效果权重 ${prm.alpha ?? 0.7} · ${p.allow_aggregation ? "允许聚合" : "单模型"} · 兜底 ${prm.fallback_model || "平台默认"}`,
+        `候选模型 ${wlN} 个 · 成本-效果权重 ${prm.alpha ?? 0.7} · ${p.allow_aggregation ? "允许聚合" : "单模型"} · 兜底 ${prm.fallback_model || "平台默认"}`,
       ]),
     ]);
     container.appendChild(card);
@@ -588,51 +585,6 @@ async function renderProfileCards(container, policies, judgeReady) {
   policies.forEach(p => {
     const pid = p.policy_id;
     const alpha = p.params?.alpha ?? 0.7;
-    if (pid === "policy-global-fallback") {
-      const fbBody = el("div", { class: "pp-body", hidden: true });
-      const fbBtn = el("button", { class: "btn small ghost", onclick: (e) => { e.stopPropagation(); toggleFb(); } }, ["查看效果", UI.icon("chevron", 13)]);
-      const toggleFb = async () => {
-        fbBody.hidden = !fbBody.hidden;
-        fbBtn.classList.toggle("active", !fbBody.hidden);
-        if (!fbBody.hidden && !fbBody.childNodes.length) {
-          UI.loading(fbBody);
-          const [{ models }, prof] = await Promise.all([
-            UI.api("/v1/models").catch(() => ({ models: [] })),
-            UI.api("/api/profile?alpha=" + alpha).catch(() => ({ clusters: [] })),
-          ]);
-          const dm = (models || []).find(m => m.is_default);
-          const name = dm ? dm.display_name : "默认兜底模型";
-          const mid = dm ? dm.model_id : null;
-          fbBody.innerHTML = "";
-          fbBody.appendChild(el("div", { class: "muted", style: "margin-bottom:8px" },
-            [`该策略不做场景路由：任何问题都由默认兜底模型「${name}」直接回答。下表是它在各场景的得分，供对比参考。`]));
-          fbBody.appendChild(el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
-            el("thead", {}, [el("tr", {}, [el("th", {}, ["业务场景"]), el("th", {}, ["题目数"]), el("th", {}, [name + " 得分"]), el("th", { class: "w-main" }, ["路由去向"])])]),
-            el("tbody", {}, (prof.clusters || []).map(c => {
-              const sc2 = mid ? (c.scores || {})[mid] : null;
-              const v = sc2 && sc2.combined != null ? sc2.combined.toFixed(2) : "-";
-              return el("tr", {}, [
-                el("td", {}, [DOMAIN_NAMES[c.domain] || c.domain]),
-                el("td", { class: "num" }, [String(c.queries)]),
-                el("td", { class: "num" }, [v]),
-                el("td", { class: "w-main" }, [el("span", { class: "chip blue" }, [name + " 直连"])]),
-              ]);
-            })),
-          ])]));
-        }
-      };
-      container.appendChild(el("div", { class: "card pp-card" }, [
-        el("div", { class: "pp-head", onclick: toggleFb }, [
-          el("span", { class: "pp-name" }, [p.name]),
-          el("span", { class: "chip gray" }, ["不做路由"]),
-          el("span", { class: "muted" }, ["直连兜底模型回答，不依赖打分"]),
-          el("div", { style: "flex:1" }),
-          fbBtn,
-        ]),
-        fbBody,
-      ]));
-      return;
-    }
     const genTs = generated[pid];
     const isGen = running && task.policy_id === pid;
     const stChip = isGen ? el("span", { class: "chip blue" }, ["生成中"])
@@ -775,7 +727,7 @@ async function renderFlow() {
         : "还没配置路由决策模型"]),
       el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [judgeModel
         ? "评估各模型的答题表现，是「路由效果」的成绩来源"
-        : "没有决策模型就没有成绩：除「默认兜底」外，其余路由策略都无法生效"]),
+        : "没有决策模型就没有成绩：路由策略无法生效，线上请求将临时降级为默认兜底模型直连"]),
     ]),
     el("div", { style: "flex:1" }),
     judgeModel
@@ -783,7 +735,7 @@ async function renderFlow() {
           el("button", { class: "btn small", onclick: () => judgeDialog({ model_id: judgeModel, display_name: judgeName }, () => renderFlow()) }, ["更换"]),
           el("button", { class: "btn small", onclick: async () => {
             const ok = await UI.confirm("移除路由决策模型",
-              "移除后无法打分：除「默认兜底」（走兜底模型直连）外，其余路由策略都将不可用（变灰），直到重新配置。", { okText: "仍要移除", danger: true });
+              "移除后无法打分：路由策略都将不可用（变灰），线上请求临时降级为默认兜底模型直连，直到重新配置。", { okText: "仍要移除", danger: true });
             if (!ok) return;
             try { await UI.api("/api/settings/judge-model", { method: "POST", body: { model_id: "" } }); UI.toast("已移除，其余策略已停用"); renderFlow(); }
             catch (e) { UI.toast(e.data?.error || e.message, true); }
@@ -811,7 +763,7 @@ async function renderFlow() {
   const dirBox = el("div", {});
   box.appendChild(dirBox);
   const profPolicies = (fp || []).filter(p2 => !p2.ab_group);
-  const pOrder2 = p2 => p2.policy_id === "policy-global-balanced" ? 0 : p2.policy_id === "policy-global-fallback" ? 9 : p2.scope === "global" ? 2 : 3;
+  const pOrder2 = p2 => p2.policy_id === "policy-global-balanced" ? 0 : p2.scope === "global" ? 1 : 2;
   profPolicies.sort((x, y) => pOrder2(x) - pOrder2(y));
   renderProfileCards(dirBox, profPolicies, !!judgeModel).catch(() => {});
 }
@@ -1044,7 +996,7 @@ async function renderDispatch() {
   ]);
   const actives = (models || []).filter(m => m.status === "active");
   const policies = (allPolicies || []).filter(p2 => !p2.ab_group);
-  const pOrder = p2 => p2.policy_id === "policy-global-balanced" ? 0 : p2.policy_id === "policy-global-fallback" ? 1 : p2.scope === "global" ? 2 : 3;
+  const pOrder = p2 => p2.policy_id === "policy-global-balanced" ? 0 : p2.scope === "global" ? 1 : 2;
   policies.sort((x, y) => pOrder(x) - pOrder(y));
 
   // 决策模型缺失时的警示条（配置入口在「场景数据集」页）
@@ -1054,7 +1006,7 @@ async function renderDispatch() {
       el("div", { style: "min-width:0" }, [
         el("div", { style: "font-weight:600" }, ["还没配置路由决策模型"]),
         el("div", { class: "muted", style: "font-size:var(--font-caption)" },
-          ["没有决策模型就没有成绩：除「默认兜底」外，其余路由策略都无法生效"]),
+          ["没有决策模型就没有成绩：路由策略无法生效，线上请求将临时降级为默认兜底模型直连"]),
       ]),
       el("div", { style: "flex:1" }),
       el("a", { class: "btn primary", href: "#flow" }, ["去场景数据集配置"]),

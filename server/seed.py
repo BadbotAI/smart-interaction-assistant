@@ -69,7 +69,6 @@ def seed_policies():
     paper = dict(K=3, N_base=50, beta=0.5, gamma=0.95, eps=0.5, sigma=0.3, delta=0.2, t=0.8, max_agg_tokens=13000)
     rows = [
         ("policy-global-balanced", "全局均衡", "global", None, None, paper, "balanced", 1, 0.05, [], {}, 1, None, 50),
-        ("policy-global-fallback", "默认兜底", "global", None, None, {**paper, "K": 1}, "fast", 0, 0.0, [], {}, 1, None, 50),
         ("policy-scene-fast", "省钱优先", "custom", TENANT, None, {**paper, "K": 1, "alpha": 0.25}, "fast", 0, 0.02, [], {}, 1, None, 50),
         ("policy-scene-quality", "质量优先", "custom", TENANT, None, {**paper, "t": 0.7, "alpha": 0.9}, "quality", 1, 0.08, [], {}, 1, None, 50),
     ]

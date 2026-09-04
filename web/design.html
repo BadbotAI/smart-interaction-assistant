@@ -165,19 +165,52 @@ function mountDemoControls() {
 function brandDialog(existing, onClose) {
   const grid = document.getElementById("brandGrid");
   const host = document.getElementById("styleEditor");
-  const COLORS = [
-    ["Sky 蓝", "#1DA1F2", "#E9F1FB"], ["靛蓝", "#4F5BD5", "#EBEDFB"], ["翡翠绿", "#17A673", "#E4F5EF"],
-    ["珊瑚橙", "#FF6B4A", "#FFEDE8"], ["琥珀金", "#D97706", "#FBF0DE"], ["石墨黑", "#334155", "#E8ECF1"],
+  // 成套色盘：主色 / 浅主色(浅色模式) / 深主色底(深色模式) / 成功 / 警告 / 危险
+  const PALETTES = [
+    ["晴空蓝", "#1DA1F2", "#E9F1FB", "#12293D", "#17A673", "#B97A17", "#E5484D"],
+    ["靛夜紫", "#4F5BD5", "#EBEDFB", "#1B2040", "#17A673", "#B97A17", "#E5484D"],
+    ["翡翠绿", "#0FA968", "#E4F5EF", "#0D2B20", "#0FA968", "#B97A17", "#E5484D"],
+    ["珊瑚橙", "#FF6B4A", "#FFEDE8", "#3A1810", "#17A673", "#B97A17", "#E5484D"],
+    ["琥珀金", "#D97706", "#FBF0DE", "#33210A", "#17A673", "#D97706", "#E5484D"],
+    ["石墨黑", "#334155", "#E8ECF1", "#0E1420", "#17A673", "#B97A17", "#E5484D"],
   ];
-  const RADII = [["直角", 4, 4], ["微圆", 10, 8], ["标准", 16, 12], ["圆润", 22, 16]];
-  const BGS = [["纯白", "#FFFFFF", "#F7F8F8"], ["浅灰", "#F5F7FA", "#EDF1F5"], ["米白", "#FBF8F3", "#F3EEE6"]];
-  const INKS = [["深灰", "#0F1B26"], ["纯黑", "#111111"]];
-  const SIZES = [["标准", "13px"], ["偏大", "14px"]];
+  const MODES2 = [["light", "浅色"], ["dark", "深色"]];
+  const RADII = [["直角", 2, 2], ["轻微", 8, 6], ["标准", 16, 12], ["圆润", 22, 16], ["全圆", 28, 22]];
+  const FONTS = [
+    ["现代黑体", '-apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif'],
+    ["典雅宋体", '"Songti SC", "STSong", "SimSun", serif'],
+    ["圆润友好", '"Yuanti SC", "PingFang SC", "Microsoft YaHei", sans-serif'],
+    ["极客等宽", '"SF Mono", "JetBrains Mono", Consolas, monospace'],
+  ];
+  const WEIGHTS = [["常规", "400"], ["中等", "500"], ["半粗", "600"]];
+  const SIZES = [["12px", "12px"], ["13px", "13px"], ["14px", "14px"], ["15px", "15px"]];
   const q0 = new URLSearchParams(location.search);
-  const opts = { color: Number(q0.get("c")) || 0, radius: q0.get("r") != null ? Number(q0.get("r")) : 2, bg: 0, ink: 0, size: 0 };
+  const opts = { palette: Number(q0.get("c")) || 0, mode: q0.get("m") === "dark" ? 1 : 0,
+    radius: q0.get("r") != null ? Number(q0.get("r")) : 2, font: 0, weight: 0, size: 1 };
   let mode = "options";
   let baseTokens = null;
   let codeApplied = null;
+
+  function buildTokens() {
+    const t = JSON.parse(JSON.stringify(baseTokens));
+    const [, primary, weakL, weakD, ok, warn, danger] = PALETTES[opts.palette];
+    const dark = opts.mode === 1;
+    const [, rc, rk] = RADII[opts.radius];
+    t.color = { ...t.color,
+      primary, primary_weak: dark ? weakD : weakL,
+      success: ok, warning: warn, danger,
+      bg_page: dark ? "#0F1620" : "#FFFFFF",
+      bg_surface: dark ? "#19222E" : "#F7F8F8",
+      text_primary: dark ? "#F2F6FA" : "#0F1B26",
+      text_secondary: dark ? "#A9B8C7" : "#43596B",
+      text_muted: dark ? "#71828F" : "#71828F",
+      border: dark ? "#2B3948" : "#E1EAF1" };
+    t.radius = { ...(t.radius || {}), card: rc + "px", control: rk + "px", chip: "999px" };
+    t.font = { ...(t.font || {}), family: FONTS[opts.font][1], weight_base: WEIGHTS[opts.weight][1], size_base: SIZES[opts.size][1] };
+    t.chart = { ...(t.chart || {}), categorical: [primary, ...((t.chart || {}).categorical || []).slice(1)] };
+    t._options = { ...opts };
+    return t;
+  }
 
   function buildTokens() {
     const t = JSON.parse(JSON.stringify(baseTokens));
@@ -210,25 +243,44 @@ function brandDialog(existing, onClose) {
   }
 
   // 选项面板
-  const swRow = el("div", { class: "sw-row" }, COLORS.map(([nm, c], i) =>
-    el("button", { type: "button", class: "sw" + (opts.color === i ? " on" : ""), title: nm, style: `background:${c}`,
-      onclick: (e) => { opts.color = i; swRow.querySelectorAll(".sw").forEach((n, j) => n.classList.toggle("on", j === i)); applyPreview(); } })));
-  const segRow = (items, key, labelOf) => {
+  const palGrid = el("div", { class: "pal-grid" }, PALETTES.map(([nm, p, wl, wd, ok, warn, dg], i) =>
+    el("button", { type: "button", class: "pal-card" + (opts.palette === i ? " on" : ""), title: nm,
+      onclick: () => { opts.palette = i; palGrid.querySelectorAll(".pal-card").forEach((n, j) => n.classList.toggle("on", j === i)); applyPreview(); } }, [
+      el("div", { class: "pal-name" }, [nm]),
+      el("div", { class: "pal-row" }, [p, wl, ok, warn, dg, wd].map(c => el("i", { style: `background:${c}` }))),
+    ])));
+  const modeSeg = el("div", { class: "segmented" }, MODES2.map(([k, nm], i) =>
+    el("button", { type: "button", class: "seg" + (opts.mode === i ? " active" : ""),
+      onclick: (e) => { opts.mode = i; modeSeg.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === i)); applyPreview(); } }, [nm])));
+  const radLab = el("span", { class: "rad-lab" }, [RADII[opts.radius][0]]);
+  const radIn = el("input", { type: "range", min: "0", max: String(RADII.length - 1), step: "1", value: String(opts.radius) });
+  const radFill = () => radIn.style.setProperty("--fill", (Number(radIn.value) / (RADII.length - 1) * 100) + "%");
+  radFill();
+  radIn.oninput = () => { opts.radius = Number(radIn.value); radLab.textContent = RADII[opts.radius][0]; radFill(); applyPreview(); };
+  const segRow = (items, key) => {
     const box = el("div", { class: "segmented" });
     items.forEach((it, i) => box.appendChild(el("button", { type: "button", class: "seg" + (opts[key] === i ? " active" : ""),
       onclick: () => { opts[key] = i; box.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === i)); applyPreview(); } },
-      [labelOf ? labelOf(it) : it[0]])));
+      [it[0]])));
     return box;
   };
   const optPanel = el("div", {}, [
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["主要配色"]), swRow]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["圆角"]), segRow(RADII, "radius")]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["组件底色"]), segRow(BGS, "bg")]),
-    el("div", { class: "grid cols-2" }, [
-      el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字色"]), segRow(INKS, "ink")]),
-      el("div", { class: "field" }, [el("span", { class: "label-text" }, ["字号"]), segRow(SIZES, "size")]),
+    el("div", { class: "field" }, [
+      el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:6px" }, [
+        el("span", { class: "label-text", style: "margin:0" }, ["配色方案"]),
+        el("div", { style: "flex:1" }),
+        modeSeg,
+      ]),
+      palGrid,
     ]),
-    el("div", { class: "muted", style: "font-size:var(--font-caption)" }, ["调整任一选项，右侧组件预览即时更新"]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["圆角"]),
+      el("div", { class: "rad-row" }, [radIn, radLab])]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["字体"]), segRow(FONTS, "font")]),
+    el("div", { class: "grid cols-2" }, [
+      el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字重"]), segRow(WEIGHTS, "weight")]),
+      el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字号"]), segRow(SIZES, "size")]),
+    ]),
+    el("div", { class: "muted", style: "font-size:var(--font-caption)" }, ["调整任一选项，右侧组件预览即时更新；选一套配色即整套应用主色 / 语义色 / 明暗底色"]),
   ]);
   // 代码面板
   const codePanel = el("div", { hidden: true }, [
@@ -308,14 +360,18 @@ function brandDialog(existing, onClose) {
     if (existing) {
       try {
         const t = await (await fetch("/brand/" + existing.file)).json();
-        if (t._options) {
+        if (t._options && t._options.palette !== undefined) {
           Object.assign(opts, t._options);
-          swRow.querySelectorAll(".sw").forEach((n, j) => n.classList.toggle("on", j === opts.color));
-          [[RADII, "radius"], [BGS, "bg"], [INKS, "ink"], [SIZES, "size"]].forEach(() => {});
-          // 重建选项行的激活态
-          optPanel.querySelectorAll(".segmented").forEach((seg, idx) => {
-            const key = ["radius", "bg", "ink", "size"][idx];
-            seg.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === opts[key]));
+          palGrid.querySelectorAll(".pal-card").forEach((n, j) => n.classList.toggle("on", j === opts.palette));
+          modeSeg.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === opts.mode));
+          radIn.value = String(opts.radius); radLab.textContent = RADII[opts.radius][0]; radFill();
+          const segs = optPanel.querySelectorAll(".grid .segmented, .field > .segmented");
+          // 字体 / 字重 / 字号 激活态重建
+          optPanel.querySelectorAll(".field").forEach(f => {
+            const lab = f.querySelector(".label-text");
+            if (!lab) return;
+            const key = { "字体": "font", "正文字重": "weight", "正文字号": "size" }[lab.textContent];
+            if (key) f.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === opts[key]));
           });
           applyPreview();
         } else {
@@ -326,7 +382,7 @@ function brandDialog(existing, onClose) {
           Brand.apply(t); renderDemos();
         }
       } catch (e) {}
-    } else applyPreview();
+    } else { applyPreview(); setTimeout(applyPreview, 900); }
   })();
 }
 

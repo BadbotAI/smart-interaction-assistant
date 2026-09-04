@@ -18,6 +18,7 @@ window.Brand = (function () {
     "radius.control": "--radius-control",
     "radius.chip": "--radius-chip",
     "font.family": "--font-family",
+    "font.weight_base": "--font-weight-base",
     "font.size_base": "--font-base",
     "font.size_small": "--font-small",
     "font.size_title": "--font-title",

@@ -246,18 +246,6 @@ async def run_route(req: dict, recorder, emit):
         return await _finalize(req, recorder, emit, ans, "manual", [ans], {}, {},
                                [target["model_id"]], target["model_id"], False, t_start, [])
 
-    # 默认兜底档：不做路由，直接用默认兜底模型回答（不依赖打分成绩，Judge 缺失时依然可用）
-    if policy.get("policy_id") == "policy-global-fallback":
-        target = default_model or models[0]
-        await emit({"step": "fallback", "text": f"默认兜底档：直接调用兜底模型 {target['display_name']}"})
-        ans = await _call_with_timeout(target, query, domain, recorder, emit)
-        if ans["status"] != "ok":
-            return await _finalize(req, recorder, emit, None, "failed", [ans], {}, {},
-                                   [target["model_id"]], target["model_id"], False, t_start, [],
-                                   error="fallback_model_failed")
-        return await _finalize(req, recorder, emit, ans, "fallback", [ans], {}, {},
-                               [target["model_id"]], target["model_id"], False, t_start, [])
-
     # Step 1: embedding + support set
     t0 = time.time()
     q_emb = embeddings.embed(query)

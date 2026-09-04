@@ -1297,3 +1297,18 @@ table.data td.w-main { white-space: normal; }
 .form-sec { font-size: var(--font-caption); font-weight: 700; letter-spacing: 1.5px; color: var(--text-muted);
   margin: 22px 0 10px; padding-top: 14px; border-top: 1px solid var(--border); }
 .form-sec:first-of-type { margin-top: 4px; border-top: none; padding-top: 0; }
+
+/* 组件作用域基础字重（风格 token 可调） */
+.brand-scope { font-weight: var(--font-weight-base, 400); }
+/* 风格编辑器：成套色盘卡 */
+.pal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pal-card { border: 2px solid var(--border); border-radius: 12px; padding: 8px 10px; cursor: pointer; background: var(--bg-elevated); text-align: left; }
+.pal-card:hover { border-color: var(--primary-border); }
+.pal-card.on { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
+.pal-card .pal-name { font-size: var(--font-caption); font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+.pal-card .pal-row { display: flex; gap: 4px; }
+.pal-card .pal-row i { flex: 1; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.05); }
+/* 圆角刻度滑块行 */
+.rad-row { display: flex; align-items: center; gap: 10px; }
+.rad-row input[type=range] { flex: 1; }
+.rad-row .rad-lab { flex: none; min-width: 44px; text-align: right; font-weight: 600; font-size: var(--font-small); }

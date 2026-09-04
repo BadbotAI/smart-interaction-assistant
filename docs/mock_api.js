@@ -181,18 +181,6 @@
     const polMeta = pol ? { policy_id: pol.policy_id, name: pol.name, latency_tier: pol.latency_tier,
       allow_aggregation: pol.allow_aggregation, K: (pol.params || {}).K || 3, alpha: (pol.params || {}).alpha ?? 0.7 } 
       : { policy_id: "policy-global-balanced", name: "全局均衡", latency_tier: "balanced", allow_aggregation: 1, K: 3, alpha: 0.7 };
-    if (pid === "policy-global-fallback") {
-      return sseStream([
-        { step: "fallback", text: "默认兜底档：直接调用兜底模型 衡岳 Atlas-72B" },
-        { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
-          content: "这批货物当前在宁波舟山港中转，预计后天完成清关。（静态演示：回答为预置数据）",
-          decision_summary: { mode: "auto", switch_result: "fallback", final_model: "atlas-72b", candidates: ["atlas-72b"],
-            total_cost: 0.0004, total_latency_ms: 620,
-            model_calls: [{ model_id: "atlas-72b", tokens_in: 120, tokens_out: 210, tokens_thinking: 0, cost: 0.0004, latency_ms: 620 }],
-            policy: polMeta },
-          usage: { cost: 0.0004, tokens: 330 } },
-      ], 400);
-    }
     if (pol && !pol.allow_aggregation) {
       return sseStream([
         { step: "support", text: "检索相似历史问题：命中 42 条支撑样本" },
