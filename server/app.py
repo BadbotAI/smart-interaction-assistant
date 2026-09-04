@@ -1294,6 +1294,10 @@ async def delete_policy(policy_id: str):
         return JSONResponse({"error": "默认策略不能删除"}, status_code=409)
     conn.execute("DELETE FROM policies WHERE policy_id=?", (policy_id,))
     conn.commit()
+    gen = db.dj(_get_setting("policy_profile_gen"), {}) or {}
+    if policy_id in gen:
+        gen.pop(policy_id, None)
+        _set_setting("policy_profile_gen", db.j(gen))
     db.audit("demo-admin", "policy_delete", {"policy_id": policy_id, "name": row["name"]})
     return {"ok": True}
 

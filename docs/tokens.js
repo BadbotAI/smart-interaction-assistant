@@ -62,6 +62,7 @@ window.Brand = (function () {
       const r = await fetch("/api/brands/active");
       file = (await r.json()).file || file;
     } catch (e) { /* 服务端不可达时用本地记录 */ }
+    if (window._editingStyle) return; // 风格编辑器预览中，勿覆盖
     try { await load(file); } catch (e) { await load("brand-tokens.default.json"); }
   }
 

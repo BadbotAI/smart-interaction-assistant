@@ -41,13 +41,17 @@
   </div>
 
   <div class="style-split">
-    <div class="card" style="align-self:start">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <span style="font-weight:600;flex:none;white-space:nowrap">风格库</span>
-        <span class="muted">点击卡片预览组件效果；在「产品管理」标签页里配给具体产品生效</span>
+    <div style="align-self:start;display:flex;flex-direction:column;gap:14px">
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-weight:600;flex:none;white-space:nowrap">风格库</span>
+        </div>
+        <div id="brandGrid" class="brand-list"></div>
+        <div class="muted" id="libCollapsed" hidden style="font-size:var(--font-caption)">编辑组件风格中，风格库已收起</div>
       </div>
-      <div id="brandGrid" class="brand-list"></div>
-      <div id="styleEditor" hidden></div>
+      <div class="card" id="editorCard" hidden>
+        <div id="styleEditor"></div>
+      </div>
     </div>
 
     <div class="card" style="align-self:start">
@@ -66,6 +70,8 @@
 <script src="/web/ui.js"></script>
 <script src="/web/components.js"></script>
 <script>
+// 深链直开编辑器时，先行标记以免生效风格覆盖预览
+if (new URLSearchParams(location.search).get("new")) window._editingStyle = true;
 UI.nav("products");
 const { el } = UI;
 document.getElementById("demoHelp").appendChild(UI.help("与线上同一套渲染器；风格预览后此处实时更新，提交不产生数据"));
@@ -247,45 +253,74 @@ function brandDialog(existing, onClose) {
   }
 
   // 选项面板
-  const palGrid = el("div", { class: "pal-grid" }, PALETTES.map(([nm, p, wl, wd, ok, warn, dg], i) =>
-    el("button", { type: "button", class: "pal-card" + (opts.palette === i ? " on" : ""), title: nm,
-      onclick: () => { opts.palette = i; palGrid.querySelectorAll(".pal-card").forEach((n, j) => n.classList.toggle("on", j === i)); applyPreview(); } }, [
-      el("div", { class: "pal-name" }, [nm]),
-      el("div", { class: "pal-row" }, [p, wl, ok, warn, dg, wd].map(c => el("i", { style: `background:${c}` }))),
-    ])));
-  const modeSeg = el("div", { class: "segmented" }, MODES2.map(([k, nm], i) =>
-    el("button", { type: "button", class: "seg" + (opts.mode === i ? " active" : ""),
-      onclick: (e) => { opts.mode = i; modeSeg.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === i)); applyPreview(); } }, [nm])));
+  const palGrid = el("div", { class: "pal-grid" });
+  function drawPals() {
+    const dark = opts.mode === 1;
+    palGrid.innerHTML = "";
+    PALETTES.forEach(([nm, p, wl, wd, ok, warn, dg], i) => {
+      palGrid.appendChild(el("button", { type: "button",
+        class: "pal-card" + (opts.palette === i ? " on" : "") + (dark ? " dark" : ""), title: nm,
+        onclick: () => { opts.palette = i; drawPals(); applyPreview(); } }, [
+        el("div", { class: "pal-name" }, [nm]),
+        el("div", { class: "pal-row" }, [p, dark ? wd : wl, ok, warn, dg, dark ? "#0F1620" : "#F1F5F9"].map(c => el("i", { style: `background:${c}` }))),
+      ]));
+    });
+  }
+  drawPals();
+  const modeToggle = UI.toggle({ checked: opts.mode === 1, label: opts.mode === 1 ? "深色" : "浅色",
+    onChange: (v) => { opts.mode = v ? 1 : 0;
+      const lab = modeToggle.parentElement && modeToggle.parentElement.querySelector(".tgl-label");
+      drawPals(); applyPreview();
+      return true; } });
+  const modeWrap = el("div", { style: "display:flex;align-items:center;gap:6px" }, [modeToggle]);
+  // 圆角刻度滑块（刻度点无文案）
   const radLab = el("span", { class: "rad-lab" }, [RADII[opts.radius][0]]);
   const radIn = el("input", { type: "range", min: "0", max: String(RADII.length - 1), step: "1", value: String(opts.radius) });
   const radFill = () => radIn.style.setProperty("--fill", (Number(radIn.value) / (RADII.length - 1) * 100) + "%");
   radFill();
   radIn.oninput = () => { opts.radius = Number(radIn.value); radLab.textContent = RADII[opts.radius][0]; radFill(); applyPreview(); };
-  const segRow = (items, key) => {
-    const box = el("div", { class: "segmented" });
-    items.forEach((it, i) => box.appendChild(el("button", { type: "button", class: "seg" + (opts[key] === i ? " active" : ""),
-      onclick: () => { opts[key] = i; box.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === i)); applyPreview(); } },
-      [it[0]])));
-    return box;
-  };
+  const radTicks = el("div", { class: "rad-ticks" }, RADII.map(() => el("span", {})));
+  // 字重 / 字号：预览卡片
+  const wBox = el("div", { class: "fs-cards" });
+  const sBox = el("div", { class: "fs-cards" });
+  function drawFsCards() {
+    wBox.innerHTML = ""; sBox.innerHTML = "";
+    WEIGHTS.forEach(([nm, w], i) => wBox.appendChild(el("button", { type: "button",
+      class: "fs-card" + (opts.weight === i ? " on" : ""),
+      onclick: () => { opts.weight = i; drawFsCards(); applyPreview(); } }, [
+      el("span", { class: "fs-demo", style: `font-weight:${w}` }, ["永A"]),
+      el("span", { class: "fs-name" }, [nm]),
+    ])));
+    SIZES.forEach(([nm, sz], i) => sBox.appendChild(el("button", { type: "button",
+      class: "fs-card" + (opts.size === i ? " on" : ""),
+      onclick: () => { opts.size = i; drawFsCards(); applyPreview(); } }, [
+      el("span", { class: "fs-demo", style: `font-size:${sz}` }, ["永A"]),
+      el("span", { class: "fs-name" }, [nm]),
+    ])));
+  }
+  drawFsCards();
   const optPanel = el("div", {}, [
     el("div", { class: "field" }, [
       el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:6px" }, [
         el("span", { class: "label-text", style: "margin:0" }, ["配色方案"]),
         el("div", { style: "flex:1" }),
-        modeSeg,
+        modeWrap,
       ]),
       palGrid,
     ]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["圆角"]),
-      el("div", { class: "rad-row" }, [radIn, radLab])]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["字体"]), segRow(FONTS, "font")]),
-    el("div", { class: "grid cols-2" }, [
-      el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字重"]), segRow(WEIGHTS, "weight")]),
-      el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字号"]), segRow(SIZES, "size")]),
-    ]),
-    el("div", { class: "muted", style: "font-size:var(--font-caption)" }, ["调整任一选项，右侧组件预览即时更新；选一套配色即整套应用主色 / 语义色 / 明暗底色"]),
+      el("div", { class: "rad-row" }, [el("div", { class: "rad-track-wrap" }, [radIn, radTicks]), radLab])]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["字体"]), segRowFonts()]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字重"]), wBox]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字号"]), sBox]),
   ]);
+  function segRowFonts() {
+    const box = el("div", { class: "segmented" });
+    FONTS.forEach((it, i) => box.appendChild(el("button", { type: "button", class: "seg" + (opts.font === i ? " active" : ""),
+      onclick: () => { opts.font = i; box.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === i)); applyPreview(); } },
+      [it[0]])));
+    return box;
+  }
   // 代码面板
   const codePanel = el("div", { hidden: true }, [
     el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px" }, [
@@ -320,7 +355,10 @@ function brandDialog(existing, onClose) {
 
   function close() {
     host.hidden = true; host.innerHTML = "";
+    document.getElementById("editorCard").hidden = true;
+    document.getElementById("libCollapsed").hidden = true;
     grid.style.display = "";
+    window._editingStyle = false;
     Brand.load(previewFile).then(() => renderDemos()).catch(() => {});
     onClose && onClose();
   }
@@ -346,7 +384,11 @@ function brandDialog(existing, onClose) {
             brands = (await UI.api("/api/brands")).brands;
             const saved = brands.find(b => b.brand_id === bid);
             if (saved) previewFile = saved.file;
-            host.hidden = true; host.innerHTML = ""; grid.style.display = "";
+            host.hidden = true; host.innerHTML = "";
+            document.getElementById("editorCard").hidden = true;
+            document.getElementById("libCollapsed").hidden = true;
+            grid.style.display = "";
+            window._editingStyle = false;
             renderBrands(); renderDemos();
             UI.toast(existing ? "风格已更新" : "风格已创建，在「产品管理」里配给产品即可生效");
             onClose && onClose();
@@ -355,7 +397,11 @@ function brandDialog(existing, onClose) {
       } }, [existing ? "保存修改" : "保存风格"]),
     ]),
   ]));
-  grid.style.display = "none"; host.hidden = false;
+  grid.style.display = "none";
+  document.getElementById("libCollapsed").hidden = false;
+  document.getElementById("editorCard").hidden = false;
+  host.hidden = false;
+  window._editingStyle = true;
 
   // 初始化：取默认 token 作底；编辑时回填（有 _options 走选项模式，否则代码模式）
   (async () => {
@@ -366,16 +412,11 @@ function brandDialog(existing, onClose) {
         const t = await (await fetch("/brand/" + existing.file)).json();
         if (t._options && t._options.palette !== undefined) {
           Object.assign(opts, t._options);
-          palGrid.querySelectorAll(".pal-card").forEach((n, j) => n.classList.toggle("on", j === opts.palette));
-          modeSeg.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === opts.mode));
+          drawPals(); drawFsCards();
           radIn.value = String(opts.radius); radLab.textContent = RADII[opts.radius][0]; radFill();
-          const segs = optPanel.querySelectorAll(".grid .segmented, .field > .segmented");
-          // 字体 / 字重 / 字号 激活态重建
           optPanel.querySelectorAll(".field").forEach(f => {
             const lab = f.querySelector(".label-text");
-            if (!lab) return;
-            const key = { "字体": "font", "正文字重": "weight", "正文字号": "size" }[lab.textContent];
-            if (key) f.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === opts[key]));
+            if (lab && lab.textContent === "字体") f.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === opts.font));
           });
           applyPreview();
         } else {

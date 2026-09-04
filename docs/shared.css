@@ -1211,3 +1211,19 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .pc-switch { border: none; background: none; padding: 4px; cursor: pointer; color: var(--text-muted);
   display: inline-flex; align-items: center; border-radius: 8px; }
 .pc-switch:hover { color: var(--primary); background: var(--primary-weak); }
+
+.pal-card.dark { background: #19222E; border-color: #2B3948; }
+.pal-card.dark .pal-name { color: #F2F6FA; }
+.pal-card.dark.on { border-color: var(--primary); }
+
+.rad-track-wrap { position: relative; flex: 1; }
+.rad-ticks { position: absolute; left: 8px; right: 8px; top: 100%; margin-top: 2px; display: flex; justify-content: space-between; pointer-events: none; }
+.rad-ticks span { width: 2px; height: 5px; border-radius: 1px; background: var(--border-strong, #C7D3DC); }
+
+.fs-cards { display: flex; gap: 8px; flex-wrap: wrap; }
+.fs-card { width: 62px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-elevated);
+  padding: 7px 4px 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; overflow: hidden; }
+.fs-card:hover { border-color: var(--primary-border); }
+.fs-card.on { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
+.fs-card .fs-demo { color: var(--text-primary); line-height: 1.2; font-size: 15px; white-space: nowrap; }
+.fs-card .fs-name { font-size: var(--font-caption); color: var(--text-muted); white-space: nowrap; }
