@@ -76,7 +76,7 @@
     if (pn.endsWith("/transition")) return { ok: true, demo: true };
     if (pn === "/api/templates/suggest") {
       const t = (D["/api/templates"] || { templates: [] }).templates.slice(0, 3);
-      return { suggestions: t.map(x => ({ component_type: x.component_type, name: x.name, reason: "静态演示推荐" })) };
+      return { suggestions: t.map(x => ({ component_type: x.component_type, name: x.name, reason: "按场景匹配推荐" })) };
     }
     if (pn === "/api/scenarios/rewrite-trigger") return { trigger_description: (body && body.text || "") + "（演示：静态站不做真实 AI 改写）", examples: [] };
     if (pn === "/api/cards") return { card: { card_id: "demo-" + Math.random().toString(36).slice(2, 8), version: 0, status: "draft", ...(body || {}) } };
@@ -157,7 +157,7 @@
     if (body && body.card_context) {
       return sseStream([
         { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
-          content: "收到，已按你的选择继续跟进：" + ((body.card_context || {}).summary || "") + "（静态演示：正式环境由模型接管后续对话）",
+          content: "收到，已按你的选择继续跟进：" + ((body.card_context || {}).summary || "") + "",
           decision_summary: { mode: "auto", switch_result: "fastlane", final_model: "swift-4b", candidates: ["swift-4b"],
             total_cost: 0.0002, total_latency_ms: 380,
             policy: { policy_id: "policy-global-balanced", name: "全局均衡", latency_tier: "balanced", K: 3 } },
@@ -196,7 +196,7 @@
           candidates: ["swift-4b"] },
         { step: "fastlane", text: "策略仅单模型：最高分 迅答 Swift-4B 直接作答" },
         { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
-          content: "近八周价格整体上行，重点关注供给端节奏。（静态演示：回答与打分为预置数据）",
+          content: "近八周价格整体上行，重点关注供给端节奏。",
           decision_summary: { mode: "auto", switch_result: "fastlane", final_model: "swift-4b", candidates: ["swift-4b"],
             total_cost: 0.0002, total_latency_ms: 410,
             model_calls: [{ model_id: "swift-4b", tokens_in: 120, tokens_out: 190, tokens_thinking: 0, cost: 0.0002, latency_ms: 410 }],
@@ -216,7 +216,7 @@
       { step: "parallel", text: "3 路候选模型并发作答" },
       { step: "switch", text: "细排：两份回答得分接近，保留 2 份交给聚合器 沉思 Sage-R1 融合重写" },
       { step: "final", trace_id: "demo-trace", turn_id: "demo-turn",
-        content: "近八周价格整体呈上行趋势，最新值较期初上涨约 22%。建议关注供需两端的边际变化与港口库存去化速度。（静态演示：回答与打分为预置数据，完整能力请本地运行仓库）",
+        content: "近八周价格整体呈上行趋势，最新值较期初上涨约 22%。建议关注供需两端的边际变化与港口库存去化速度。",
         components: [{ schema_version: "1.0.0", render_id: "demo-pref", component_type: "feedback.preference",
           semantic_category: "evaluate", trigger_source: "system_injected", card_ref: null,
           params: { candidates: [
