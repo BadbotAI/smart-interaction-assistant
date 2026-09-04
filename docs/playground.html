@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>测试 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=5a37feb8">
+<link rel="stylesheet" href="./shared.css?v=448b1443">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 </head>
 <body>
@@ -19,19 +19,19 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=3a63fde5"></script>
-<script src="./mock_api.js?v=fa600068"></script>
+<script src="./mock_data.js?v=8c90e706"></script>
+<script src="./mock_api.js?v=337491f4"></script>
 <script src="./tokens.js?v=323789e0"></script>
 <script src="./ui.js?v=0ccf4a9c"></script>
 <script src="./components.js?v=2e39e148"></script>
-<script src="./testchat.js?v=14a5afef"></script>
+<script src="./testchat.js?v=5b29001a"></script>
 <script>
 const { el } = UI;
 const MODES = {
   comp: { nav: "playground:comp", title: "智能交互测试", seg: "智能交互测试",
     help: "像用户一样提问：命中触发条件时，AI 会在回答里插入你配置的交互组件。在这里验证触发词准不准、组件长什么样、提交后续动作对不对；对效果不满意可从组件直接进编辑。测试数据不计入业务看板。" },
   model: { nav: "playground:model", title: "模型路由测试", seg: "模型路由测试",
-    help: "验证路由怎么选模型：左下切换调度策略 / 多模型回答 / 指定模型，每次回答展示完整过程——检索相似题、各模型历史命中率打分、并发作答、单模型胜出或聚合，以及这一次花了多少钱。" },
+    help: "验证路由怎么选模型：切换不同路由策略问同一个问题，每次回答展示完整过程与成本。" },
 };
 function mode() { return MODES[location.hash.replace("#", "")] ? location.hash.replace("#", "") : "comp"; }
 // 默认模式：无 hash 直接进入时落到智能交互测试，保证 tab 与导航高亮一致
@@ -71,7 +71,7 @@ async function boot() {
     guideTitle: k === "comp" ? "试试这些会触发组件的问法" : "换一种策略，问同一个问题，对比路由决策",
     hint: k === "comp"
       ? "点击任意问法发送；命中触发条件时 AI 会插入对应的交互组件，可直接操作提交、也可从组件进入编辑"
-      : "左下角可切换调度策略 / 多模型回答 / 指定模型；每次回答都会展示打分过程、最终去向与本次成本",
+      : "下方可切换不同的路由策略；每次回答都会展示打分过程、最终去向与本次成本",
     keepReasoning: k === "model",
     editableCards: k === "comp",
   });

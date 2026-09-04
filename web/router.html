@@ -9,7 +9,7 @@
 </head>
 <body>
 <div class="page">
-  <div class="page-head" style="display:flex;align-items:center;gap:6px"><div class="page-title" id="pageTitle">模型接入</div></div>
+  <div class="page-head" style="display:flex;align-items:center;gap:6px"><div class="page-title" id="pageTitle">模型接入</div><span id="headActions" style="margin-left:auto"></span></div>
 
   <div id="tabContent"></div>
 </div>
@@ -35,6 +35,7 @@ function showSection(key, first = false) {
   activeTab = key;
   clearInterval(pollTimer); clearTimeout(profilePollTimer);
   document.getElementById("pageTitle").textContent = SECTION_NAMES[key];
+  document.getElementById("headActions").innerHTML = "";
   document.title = SECTION_NAMES[key] + " · 智能交互平台";
   UI.loading(content());
   RENDER[key]().catch(e => UI.toast("加载失败：" + e.message, true));
@@ -396,8 +397,9 @@ function policyForm(init, actives, policyId, apiKey) {
       el("span", { class: "cr-id num", title: "点击复制完整 ID", style: "cursor:pointer",
         onclick: () => { navigator.clipboard.writeText(policyId); UI.toast("已复制策略 ID"); } }, ["ID:" + shortPolicyId(policyId)]),
       apiKey ? el("span", {}, ["API Key"]) : null,
-      apiKey ? el("span", { class: "cr-id num", title: "一条策略一个 API：点击复制完整 Key", style: "cursor:pointer",
-        onclick: () => { navigator.clipboard.writeText(apiKey); UI.toast("已复制 API Key"); } }, [apiKey.slice(0, 13) + "…"]) : null,
+      apiKey ? el("button", { class: "key-chip", title: "点击复制完整 Key",
+        onclick: () => { navigator.clipboard.writeText(apiKey); UI.toast("已复制 API Key"); } },
+        [el("span", { class: "num" }, ["sk-route-••••" + apiKey.slice(-4)]), UI.icon("copy", 12)]) : null,
     ]) : null,
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["策略名称"]), nameIn, nameErr]),
     el("div", { class: "field" }, [
@@ -510,9 +512,9 @@ async function renderPolicies(container, policies, actives, judgeReady = true) {
         el("span", { class: "cr-id num", title: "策略 ID（点击复制完整 ID）：" + p.policy_id,
           onclick: (e) => { e.stopPropagation(); navigator.clipboard.writeText(p.policy_id); UI.toast("已复制策略 ID"); } },
           ["ID:" + shortPolicyId(p.policy_id)]),
-        el("span", { class: "cr-id num", title: "一条策略一个 API：点击复制完整 Key",
+        el("button", { class: "key-chip", title: "一条策略一个 API：点击复制完整 Key",
           onclick: (e) => { e.stopPropagation(); navigator.clipboard.writeText(p.api_key); UI.toast("已复制 API Key"); } },
-          [(p.api_key || "").slice(0, 13) + "…"]),
+          [el("span", { class: "num" }, ["sk-route-••••" + (p.api_key || "").slice(-4)]), UI.icon("copy", 12)]),
         isDefault ? el("span", { class: "chip blue", title: p.policy_id === "policy-global-fallback"
           ? "内置策略：不做路由，直接用默认兜底模型回答；未配置路由决策模型时仍可用" : "对话没有指定策略时，走这条默认策略" }, ["默认"]) : null,
         p.enabled ? null : el("span", { class: "chip red" }, ["已停用"]),
@@ -588,8 +590,10 @@ async function buildDirectionsTable(policyId, alphaVal) {
 // 模型画像：每条策略一张状态卡（未生成 → 生成中(做题打分) → 已生成），展开看各场景效果
 async function renderProfileCards(container, policies, judgeReady) {
   container.innerHTML = "";
-  const { generated, task } = await UI.api("/api/profile/gen-status").catch(() => ({ generated: {}, task: { status: "idle" } }));
-  const running = task && task.status === "running";
+  const gs = await UI.api("/api/profile/gen-status").catch(() => ({}));
+  const generated = gs.generated || {};
+  const task = gs.task || { status: "idle" };
+  const running = task.status === "running";
   container.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;margin:16px 0 8px" }, [
     el("span", { class: "section-title", style: "margin:0" }, ["模型画像"]),
     el("span", { class: "muted" }, ["每条策略按自己的候选模型与成本-效果权重做题打分，生成各场景的路由效果"]),
@@ -1054,12 +1058,12 @@ async function renderDispatch() {
     rulesBlock.hidden = !rulesBlock.hidden;
     rulesBtn.classList.toggle("active", !rulesBlock.hidden);
   } }, ["模型路由规则", UI.icon("chevron", 13)]);
+  document.getElementById("headActions").appendChild(rulesBtn);
   box.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin:6px 0 10px" }, [
     el("span", { class: "muted" }, ["一条策略 = 一个 API，用 Key 区分"]),
     el("div", { style: "flex:1" }),
     el("button", { class: "btn primary", onclick: () => newPolicyDialog(actives) }, [UI.icon("plus", 14), "新增路由策略"]),
     el("a", { class: "btn small ghost", href: "#flow" }, ["查看模型画像"]),
-    rulesBtn,
   ]));
   box.appendChild(rulesBlock);
   const listBox = el("div", {});

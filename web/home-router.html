@@ -7,55 +7,76 @@
 <title>首页 · 模型路由平台</title>
 <link rel="stylesheet" href="/web/shared.css">
 <style>
-  .home { max-width: 920px; margin: 0 auto; padding-top: 9vh; text-align: center; }
-  .home .mark { display: inline-flex; margin-bottom: 16px; }
+  .home { max-width: 900px; margin: 0 auto; padding-top: 6vh; text-align: center; }
+  .home .mark { display: inline-flex; margin-bottom: 14px; }
   .home h1 { font-size: 32px; font-weight: 800; letter-spacing: 2px; margin: 0 0 12px; color: var(--text-primary); }
-  .home .slogan { font-size: 15px; color: var(--text-secondary); letter-spacing: 6px; margin: 0 0 44px; }
-  .home-gates { display: grid; grid-template-columns: minmax(0, 640px); justify-content: center; gap: 20px; text-align: left; }
-  @media (max-width: 980px) { .home-gates { grid-template-columns: 1fr; } }
-  .hg { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden;
-    display: flex; flex-direction: column; cursor: pointer; transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast); }
-  .hg:hover { border-color: var(--primary-border); box-shadow: var(--shadow-popover); transform: translateY(-2px); }
-  .hg .body { padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
-  .hg h2 { margin: 0; font-size: 17px; font-weight: 700; }
-  .hg p { margin: 0 0 8px; font-size: var(--font-base); color: var(--text-secondary); line-height: 1.7; }
-  .hg .cta { margin-top: auto; }
-  /* ---- 预览器画布 ---- */
-  .pv { height: 268px; background: var(--bg-surface); border-bottom: 1px solid var(--border); position: relative; overflow: hidden; padding: 18px; }
-  .pv * { box-sizing: border-box; }
-  .pv .bub { position: absolute; font-size: 12px; line-height: 1.5; padding: 7px 12px; border-radius: 12px; opacity: 0; }
-  .pv .bu { right: 18px; top: 14px; background: var(--panel-deep); color: #fff; border-bottom-right-radius: 4px; animation: pvIn 9s infinite; }
-  .pv .ba { left: 18px; top: 52px; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-secondary); border-bottom-left-radius: 4px; animation: pvIn 9s infinite; animation-delay: 0.7s; }
-  @keyframes pvIn { 0% { opacity: 0; transform: translateY(8px); } 5%, 88% { opacity: 1; transform: none; } 94%, 100% { opacity: 0; } }
-  /* 组件卡与选项 */
-  .pv .comp { position: absolute; left: 18px; top: 92px; width: 250px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 10px; opacity: 0; animation: pvIn 9s infinite; animation-delay: 1.4s; }
-  .pv .opt { border: 1px solid var(--border); border-radius: 9px; padding: 6px 10px; font-size: 12px; color: var(--text-primary); margin-bottom: 6px; background: var(--bg-elevated); }
-  .pv .opt.picked { animation: pvPick 9s infinite; }
-  @keyframes pvPick { 0%, 22% { border-color: var(--border); background: var(--bg-elevated); } 27%, 88% { border-color: var(--primary); background: var(--primary-weak); } 94%, 100% { border-color: var(--border); background: var(--bg-elevated); } }
-  .pv .echo { margin-top: 2px; opacity: 0; animation: pvIn 9s infinite; animation-delay: 3.2s; }
-  .pv .echo .et { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
-  .pv .ebar { height: 8px; border-radius: 999px; background: var(--bg-sunken); margin-bottom: 5px; overflow: hidden; position: relative; }
-  .pv .ebar i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--primary); width: 0; animation: pvGrow 9s infinite; }
-  .pv .ebar.e2 i { background: var(--primary-border); animation-name: pvGrow2; }
-  @keyframes pvGrow { 0%, 36% { width: 0; } 46%, 88% { width: 71%; } 94%, 100% { width: 0; } }
-  @keyframes pvGrow2 { 0%, 38% { width: 0; } 48%, 88% { width: 29%; } 94%, 100% { width: 0; } }
-  .pv .elab { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); }
-  /* 路由动画 */
-  .pv .rfan { position: absolute; left: 0; top: 42px; width: 100%; height: 40px; overflow: visible; }
-  .pv .rfan { opacity: 0; animation: pvFade 9s infinite; }
-  .pv .rfan path { fill: none; stroke: var(--primary-border); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
-  @keyframes pvFade { 0%, 6% { opacity: 0; } 14%, 88% { opacity: 1; } 94%, 100% { opacity: 0; } }
-  .pv .rq { position: absolute; left: 0; right: 0; margin: 0 auto; width: max-content; top: 14px; background: var(--panel-deep); color: #fff; font-size: 12px; padding: 6px 14px; border-radius: 999px; opacity: 0; animation: pvIn 9s infinite; }
-  .pv .rm { position: absolute; top: 82px; width: 108px; text-align: center; font-size: 12px; font-weight: 600; color: var(--text-primary); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 7px 6px 8px; opacity: 0; animation: pvIn 9s infinite; }
-  .pv .rm .sc { height: 5px; border-radius: 999px; background: var(--bg-sunken); margin-top: 6px; overflow: hidden; position: relative; }
-  .pv .rm .sc i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--primary); width: 0; }
-  .pv .rm.win { animation: pvWin 9s infinite; }
-  @keyframes pvWin { 0%, 30% { border-color: var(--border); box-shadow: none; opacity: 0; } 18% { opacity: 1; } 36%, 88% { opacity: 1; border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-weak); } 94%, 100% { opacity: 0; } }
-  .pv .rm .sc i { animation: pvSc 9s infinite; }
-  @keyframes pvSc { 0%, 22% { width: 0; } 32%, 88% { width: var(--w); } 94%, 100% { width: 0; } }
-  .pv .ragg { position: absolute; left: 0; right: 0; margin: 0 auto; width: max-content; top: 158px; font-size: 11px; color: var(--primary); background: var(--primary-weak); border-radius: 999px; padding: 4px 12px; opacity: 0; animation: pvIn 9s infinite; animation-delay: 3.6s; }
-  .pv .rans { position: absolute; left: 18px; right: 18px; top: 190px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; border-bottom-left-radius: 4px; padding: 8px 12px; font-size: 12px; color: var(--text-secondary); opacity: 0; animation: pvIn 9s infinite; animation-delay: 4.2s; }
-  .pv .rans .rc { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+  .home .slogan { font-size: 15px; color: var(--text-secondary); letter-spacing: 6px; margin: 0 0 36px; }
+  .stage { position: relative; height: 330px; background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: var(--radius-card); overflow: hidden; text-align: left; box-shadow: var(--shadow-card); }
+  .stage * { box-sizing: border-box; }
+  .cs { position: absolute; inset: 0; display: none; }
+  .cs.active { display: block; }
+  .cs .inner { position: relative; max-width: 640px; height: 258px; margin: 0 auto; }
+  .rq { position: absolute; left: 50%; transform: translateX(-50%); top: 14px; background: var(--panel-deep); color: #fff;
+    font-size: 12.5px; padding: 7px 15px; border-radius: 999px; opacity: 0; white-space: nowrap; }
+  .cs.active .rq { animation: csIn .4s ease-out forwards; }
+  @keyframes csIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+  @keyframes csIn2 { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .mrow { position: absolute; left: 0; right: 0; top: 66px; display: flex; justify-content: center; gap: 18px; }
+  .rm { width: 140px; text-align: center; font-size: 12.5px; font-weight: 600; color: var(--text-primary); background: var(--bg-elevated);
+    border: 1px solid var(--border); border-radius: 10px; padding: 9px 8px 10px; opacity: 0; position: relative; }
+  .cs.active .rm { animation: csIn2 .4s ease-out .6s forwards; }
+  .cs.active .rm.d2 { animation-delay: .8s; }
+  .cs.active .rm.d3 { animation-delay: 1s; }
+  .rm .sc { height: 5px; border-radius: 999px; background: var(--bg-sunken); margin-top: 7px; overflow: hidden; position: relative; }
+  .rm .sc i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--primary); width: 0; }
+  .cs.active .rm .sc i { animation: csGrow .8s ease-out 1.4s forwards; }
+  @keyframes csGrow { to { width: var(--w); } }
+  .cs.active .rm.win { animation: csIn2 .4s ease-out .6s forwards, csWin .3s ease-out 2.3s forwards; }
+  @keyframes csWin { to { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-weak); } }
+  .rm .mprice { font-size: 10.5px; color: var(--text-muted); font-weight: 400; margin-top: 3px; }
+  .rm .flag { position: absolute; top: -9px; right: -6px; font-size: 10px; background: var(--danger, #E5484D); color: #fff;
+    border-radius: 999px; padding: 2px 8px; opacity: 0; }
+  .cs.active .flag { animation: csIn2 .3s ease-out 1.6s forwards; }
+  .cs.active .rm.dead { animation: csIn2 .4s ease-out .6s forwards, csDead .3s ease-out 1.8s forwards; }
+  @keyframes csDead { to { opacity: .45; border-style: dashed; } }
+  .cs.active .rm.save { animation: csIn2 .4s ease-out .8s forwards, csWin .3s ease-out 2.2s forwards; }
+  .agg { position: absolute; left: 50%; transform: translateX(-50%); top: 156px; font-size: 11.5px; color: var(--primary);
+    background: var(--primary-weak); border-radius: 999px; padding: 4px 13px; opacity: 0; white-space: nowrap; }
+  .cs.active .agg { animation: csIn .35s ease-out 2.6s forwards; }
+  .ans { position: absolute; left: 0; right: 0; top: 190px; background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: 12px; border-bottom-left-radius: 4px; padding: 9px 13px; font-size: 12.5px; color: var(--text-secondary); opacity: 0; }
+  .cs.active .ans { animation: csIn2 .4s ease-out 3s forwards; }
+  .ans .rc { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+  /* 权重滑块动效 */
+  .wtrack { position: absolute; left: 60px; right: 60px; top: 176px; height: 6px; border-radius: 999px; background: var(--bg-sunken); }
+  .wfill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: var(--primary); width: 18%; }
+  .cs.active .wfill { animation: wMove 4.4s ease-in-out 1.2s forwards; }
+  @keyframes wMove { 0% { width: 18%; } 45%, 55% { width: 50%; } 100% { width: 84%; } }
+  .wthumb { position: absolute; top: -6px; left: 18%; width: 18px; height: 18px; border-radius: 999px; background: #fff;
+    border: 2px solid var(--primary); box-shadow: var(--shadow-card); margin-left: -9px; }
+  .cs.active .wthumb { animation: tMove 4.4s ease-in-out 1.2s forwards; }
+  @keyframes tMove { 0% { left: 18%; } 45%, 55% { left: 50%; } 100% { left: 84%; } }
+  .wlab { position: absolute; top: 198px; font-size: 11.5px; color: var(--text-muted); }
+  .wlab.l { left: 60px; } .wlab.r { right: 60px; }
+  .cs.active .rm.wa { animation: csIn2 .4s ease-out .5s forwards, wPickA 4.4s ease-in-out 1.2s forwards; }
+  .cs.active .rm.wb { animation: csIn2 .4s ease-out .7s forwards, wPickB 4.4s ease-in-out 1.2s forwards; }
+  @keyframes wPickA { 0%, 38% { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-weak); } 50%, 100% { border-color: var(--border); box-shadow: none; } }
+  @keyframes wPickB { 0%, 50% { border-color: var(--border); box-shadow: none; } 62%, 100% { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-weak); } }
+  .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 13px 20px; background: var(--bg-surface);
+    border-top: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); opacity: 0; }
+  .cs.active .cap { animation: csIn2 .4s ease-out .2s forwards; }
+  .cap b { color: var(--text-primary); margin-right: 8px; }
+  .dots { position: absolute; right: 18px; bottom: 16px; display: flex; gap: 6px; z-index: 2; }
+  .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--border-strong, #C7D3DC); cursor: pointer; border: 0; padding: 0; transition: width .2s; }
+  .dot.on { background: var(--primary); width: 18px; }
+  .go { margin-top: 26px; }
+  .go .btn { font-size: 15px; padding: 11px 34px; border-radius: 12px; }
+  .sub-links { margin-top: 14px; font-size: var(--font-small); color: var(--text-muted); }
+  .sub-links a { color: var(--text-secondary); text-decoration: none; margin: 0 10px; }
+  .sub-links a:hover { color: var(--primary); }
+  .cross-link { display: inline-block; margin-top: 26px; color: var(--text-muted); text-decoration: none; font-size: var(--font-small); }
+  .cross-link:hover { color: var(--primary); }
 </style>
 </head>
 <body>
@@ -64,34 +85,85 @@
     <span class="mark"><svg width="52" height="52" viewBox="0 0 24 24" fill="none"><rect x="10.5" y="3" width="10.5" height="8" rx="3" fill="none" stroke="var(--primary)" stroke-width="1.6" opacity="0.45"/><path d="M3 12a4 4 0 0 1 4-4h6.5a4 4 0 0 1 4 4v2.5a4 4 0 0 1-4 4H9.8l-3.4 2.9c-.6.5-1.4.1-1.4-.7v-2.6A4 4 0 0 1 3 14.5z" fill="var(--primary)"/><circle cx="7.6" cy="13.2" r="1.15" fill="#fff"/><circle cx="10.75" cy="13.2" r="1.15" fill="#fff"/><circle cx="13.9" cy="13.2" r="1.15" fill="#fff"/></svg></span>
     <h1>模型路由平台</h1>
     <p class="slogan">为每次对话选对模型</p>
-    <div class="home-gates">
-      <div class="hg" onclick="location.href='/web/router.html#dispatch'">
-        <div class="pv" aria-hidden="true">
-          <span class="rq">铁矿石价格走势怎么看？</span>
-          <svg class="rfan" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
-            <path pathLength="60" d="M50 1 C 50 16, 24 18, 24 39"/>
-            <path pathLength="60" d="M50 1 L 50 39"/>
-            <path pathLength="60" d="M50 1 C 50 16, 76 18, 76 39"/>
-          </svg>
-          <div class="rm" style="left:calc(24% - 54px);animation-delay:1.1s"><span>Qwen3-Max</span><div class="sc"><i style="--w:52%"></i></div></div>
-          <div class="rm win" style="left:calc(50% - 54px)"><span>GLM-4.7</span><div class="sc"><i style="--w:86%"></i></div></div>
-          <div class="rm" style="left:calc(76% - 54px);animation-delay:1.5s"><span>MiniMax-M2</span><div class="sc"><i style="--w:64%"></i></div></div>
-          <span class="ragg">聚合定稿 · 由 GLM-4.7 融合重写</span>
-          <div class="rans">近八周价格整体上行，建议关注供需两端边际变化…<div class="rc">3 路候选 · 成本 ¥0.0021 · 1.2s</div></div>
+    <div class="stage">
+      <div class="cs">
+        <div class="inner">
+          <span class="rq">你好，帮我查下今天的靠泊计划</span>
+          <div class="mrow">
+            <div class="rm win"><span>迅答 Swift-4B</span><div class="mprice">¥0.1 / M</div><div class="sc"><i style="--w:88%"></i></div></div>
+            <div class="rm d2"><span>衡岳 Atlas-72B</span><div class="mprice">¥0.6 / M</div><div class="sc"><i style="--w:55%"></i></div></div>
+            <div class="rm d3"><span>沉思 Sage-R1</span><div class="mprice">¥1 / M</div><div class="sc"><i style="--w:34%"></i></div></div>
+          </div>
+          <div class="ans">今天有三个泊位计划作业，预计 14:00 起密集靠泊……<div class="rc">单模型直答 · 迅答 Swift-4B · ¥0.0002 · 0.4s</div></div>
         </div>
-        <div class="body">
-          <h2>模型路由</h2>
-          <p>通过智能路由，为每次对话选择更合适的模型，优化整体效果及成本</p>
-          <div class="cta"><a class="btn primary" href="/web/router.html#models" onclick="event.stopPropagation()">进入模型路由</a></div>
-        </div>
+        <div class="cap"><b>单模型直答</b>简单问题走快车道，最合适的一个模型直接作答，省钱省时</div>
       </div>
+      <div class="cs">
+        <div class="inner">
+          <span class="rq">铁矿石价格走势怎么看？</span>
+          <div class="mrow">
+            <div class="rm"><span>迅答 Swift-4B</span><div class="mprice">¥0.1 / M</div><div class="sc"><i style="--w:42%"></i></div></div>
+            <div class="rm d2 win"><span>沉思 Sage-R1</span><div class="mprice">¥1 / M</div><div class="sc"><i style="--w:84%"></i></div></div>
+            <div class="rm d3 win"><span>曜极 Nova-X</span><div class="mprice">¥3 / M</div><div class="sc"><i style="--w:80%"></i></div></div>
+          </div>
+          <div class="agg">两名成绩接近 · 聚合定稿：由 沉思 Sage-R1 融合重写</div>
+          <div class="ans">近八周价格整体上行，建议关注供需两端边际变化……<div class="rc">聚合回答 · 2 路候选 · ¥0.0021 · 1.2s</div></div>
+        </div>
+        <div class="cap"><b>聚合回答</b>难题让多个模型都答一遍，聚合器融合成更好的一份</div>
+      </div>
+      <div class="cs">
+        <div class="inner">
+          <span class="rq">帮我总结本季度物流成本结构</span>
+          <div class="mrow">
+            <div class="rm dead"><span>曜极 Nova-X</span><div class="mprice">首选</div><span class="flag">超时</span></div>
+            <div class="rm d2 save"><span>衡岳 Atlas-72B</span><div class="mprice">默认兜底</div></div>
+          </div>
+          <div class="agg" style="animation-delay:2.2s">故障自动切换 · 兜底模型接管</div>
+          <div class="ans">本季度物流成本以运输与仓储为主，占比约七成……<div class="rc">兜底接管 · 衡岳 Atlas-72B · 用户无感切换</div></div>
+        </div>
+        <div class="cap"><b>故障兜底</b>首选模型超时或出错时自动切默认兜底，回答不中断</div>
+      </div>
+      <div class="cs">
+        <div class="inner">
+          <div class="mrow" style="top:36px">
+            <div class="rm wa" style="width:190px"><span>迅答 Swift-4B</span><div class="mprice">便宜 · ¥0.1 / M · 成绩 0.65</div></div>
+            <div class="rm wb" style="width:190px"><span>沉思 Sage-R1</span><div class="mprice">更准 · ¥1 / M · 成绩 0.84</div></div>
+          </div>
+          <div class="wtrack"><div class="wfill"></div><div class="wthumb"></div></div>
+          <span class="wlab l">更省钱</span><span class="wlab r">更高质量</span>
+        </div>
+        <div class="cap"><b>成本-效果权重</b>拖动策略的权重，路由在省钱与高质之间自动换挡</div>
+      </div>
+      <div class="dots"><button class="dot on" aria-label="case 1"></button><button class="dot" aria-label="case 2"></button><button class="dot" aria-label="case 3"></button><button class="dot" aria-label="case 4"></button></div>
     </div>
+    <div class="go"><a class="btn primary" href="/web/router.html#dispatch">进入模型路由</a></div>
+    <div class="sub-links">
+      <a href="/web/router.html#flow">场景数据集</a>·
+      <a href="/web/playground.html#model">模型路由测试</a>·
+      <a href="/web/dashboard.html#routing">模型路由数据</a>
+    </div>
+    <br>
     <a class="cross-link" href="/web/index.html">智能交互平台 →</a>
   </div>
 </div>
 
 <script src="/web/tokens.js"></script>
 <script src="/web/ui.js"></script>
-<script>window.SIA_PLATFORM = window.SIA_PLATFORM || "router"; UI.nav("home");</script>
+<script>window.SIA_PLATFORM = window.SIA_PLATFORM || "router"; UI.nav("home");
+const CASES = 4;
+let cur = 0, timer = null;
+function show(i) {
+  cur = i;
+  document.querySelectorAll(".cs").forEach((n, idx) => {
+    n.classList.remove("active");
+    if (idx === i) { void n.offsetWidth; n.classList.add("active"); }
+  });
+  document.querySelectorAll(".dot").forEach((d, idx) => d.classList.toggle("on", idx === i));
+  clearTimeout(timer);
+  timer = setTimeout(() => show((cur + 1) % CASES), 7000);
+}
+document.querySelectorAll(".dot").forEach((d, idx) => d.onclick = () => show(idx));
+show(0);
+</script>
 </body>
 </html>

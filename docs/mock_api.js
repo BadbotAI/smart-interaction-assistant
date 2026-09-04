@@ -4,7 +4,12 @@
   const realFetch = window.fetch.bind(window);
   const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
 
+  const genLocal = {};
   function getMock(pn, full) {
+    if (pn === "/api/profile/gen-status") {
+      const base = D["/api/profile/gen-status"] || { generated: {}, task: { status: "idle" } };
+      return { generated: { ...base.generated, ...genLocal }, task: { status: "idle" } };
+    }
     if (pn === "/v1/bank/questions") {
       const sc = new URLSearchParams((full || "").split("?")[1] || "").get("scene") || "general";
       return D["bankq:" + sc] || { questions: [], scene: sc };
@@ -62,6 +67,7 @@
     if (pn === "/v1/bank/import/start") return { task: { status: "done", done: (body && body.items || []).length, total: (body && body.items || []).length, imported: (body && body.items || []).length, skipped: 0, invalid: 0 } };
     if (pn === "/v1/bank/staged/commit") return { committed: (body && body.query_ids || []).length };
     if (pn === "/v1/bank/staged/discard") return { discarded: (body && body.query_ids || []).length };
+    if (pn === "/api/profile/rebuild") { if (body && body.policy_id) genLocal[body.policy_id] = Date.now() / 1000; return { task: { status: "completed", done: 1, total: 1 } }; }
     if (pn === "/v1/bank/question/delete" || pn === "/v1/bank/question/relabel") return { ok: true };
     if (pn === "/api/products") {
       const name = (body && body.name || "").trim();

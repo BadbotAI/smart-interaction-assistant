@@ -1303,7 +1303,7 @@ async def duplicate_policy(policy_id: str):
     if not row:
         return JSONResponse({"error": "策略不存在"}, status_code=404)
     new_id2 = "policy-" + db.new_id()[:8]
-    name = (row["name"] or "策略") + " 副本"
+    name = (row["name"] or "策略") + "_副本"
     conn.execute(
         "INSERT INTO policies (policy_id, name, scope, tenant_id, scene, params, latency_tier, "
         "allow_aggregation, explore_ratio, model_whitelist, budget_cap, enabled, ab_group, ab_split, version) "
@@ -2097,12 +2097,18 @@ async def delete_brand(request: Request):
         # 删除生效中的风格：先回退到默认，再删除
         with open(ACTIVE_BRAND_FILE, "w", encoding="utf-8") as f:
             json.dump({"file": "brand-tokens.default.json"}, f)
+    if os.path.basename(fn) != fn or not fn.startswith("brand-tokens.") or not fn.endswith(".json"):
+        return JSONResponse({"error": "非法的风格文件名"}, status_code=422)
     path = os.path.join(BASE, "brand", fn)
-    if not os.path.exists(path) or not fn.startswith("brand-tokens."):
+    if not os.path.exists(path):
         return JSONResponse({"error": "风格文件不存在"}, status_code=404)
     os.remove(path)
-    db.audit("demo-admin", "brand_delete", {"file": fn})
-    return {"ok": True}
+    # 引用该风格的产品回退默认，避免悬空引用
+    conn = db.get_conn()
+    n_reset = conn.execute("UPDATE products SET brand_file='brand-tokens.default.json' WHERE brand_file=?", (fn,)).rowcount
+    conn.commit()
+    db.audit("demo-admin", "brand_delete", {"file": fn, "products_reset": n_reset})
+    return {"ok": True, "products_reset": n_reset}
 
 
 @app.get("/api/brands")

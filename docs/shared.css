@@ -1164,3 +1164,8 @@ details.explain .explain-body p { margin: 0 0 8px; font-size: var(--font-base); 
 .sw.on { border-color: var(--text-primary); box-shadow: 0 0 0 2px var(--bg-elevated), inset 0 0 0 1px rgba(0,0,0,.06); }
 .style-ed .label-text { display: block; margin-bottom: 6px; }
 .style-ed .field { margin-bottom: 16px; }
+
+.key-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg-sunken); color: var(--text-secondary);
+  font-size: var(--font-caption); cursor: pointer; }
+.key-chip:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-weak); }

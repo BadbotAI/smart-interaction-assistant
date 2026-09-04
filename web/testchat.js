@@ -89,31 +89,16 @@ window.TestChat = (function () {
     function drawModeBar() {
       if (!opts.mountEl || !opts.keepReasoning) return; // 智能交互测试不暴露模型路由选择
       modeBar.innerHTML = "";
-      // 组合选择器：左边选模式、右边选具体策略 / 模型，拼成一个圆角长条
+      // 模型路由测试：单一选择器——切换不同路由策略看效果
       const policies2 = (pickGroups.find(g => g.label === "调度策略") || { items: [] }).items;
-      const actives = (pickGroups.find(g => g.label === "指定模型") || { items: [] }).items;
-      const duo = el("span", { class: "duo-sel" });
-      duo.appendChild(UI.fancySelect({ value: pickState.kind, width: "120px",
-        options: [["policy", "调度策略"], ["multi", "多模型回答"], ["model", "固定模型"]],
-        onChange: (v) => {
-          if (v === "policy") { const f = policies2[0]; setPick("policy", f ? f.value : null, f ? f.label : ""); }
-          else if (v === "multi") setPick("multi", null, "多模型回答 + 择优");
-          else { const f = actives[0]; if (!f) { UI.toast("还没有在线模型", true); return; } setPick("model", f.value, f.label); }
-          drawModeBar();
-        } }));
-      duo.appendChild(el("span", { class: "duo-div" }));
-      if (pickState.kind === "policy") {
-        duo.appendChild(UI.fancySelect({ value: pickState.value, width: "160px",
-          options: policies2.map(it => [it.value, it.label]),
-          onChange: (v) => { const hit = policies2.find(x => x.value === v); setPick("policy", v, hit ? hit.label : v); } }));
-      } else if (pickState.kind === "model") {
-        duo.appendChild(UI.fancySelect({ value: pickState.value, width: "160px",
-          options: actives.map(it => [it.value, it.label]),
-          onChange: (v) => { const hit = actives.find(x => x.value === v); setPick("model", v, hit ? hit.label : v); } }));
-      } else {
-        duo.appendChild(el("span", { class: "duo-static", title: "所有候选模型都答一遍，你来选更好的一份" }, ["全员作答"]));
+      if (!policies2.length) return;
+      if (pickState.kind !== "policy" || !policies2.find(it => it.value === pickState.value)) {
+        const f = policies2[0]; setPick("policy", f.value, f.label);
       }
-      modeBar.appendChild(duo);
+      modeBar.appendChild(UI.fancySelect({ value: pickState.value, width: "220px",
+        display: (v, name) => "路由策略：" + name,
+        options: policies2.map(it => [it.value, it.label]),
+        onChange: (v) => { const hit = policies2.find(x => x.value === v); setPick("policy", v, hit ? hit.label : v); } }));
       modeBar.appendChild(el("div", { style: "flex:1" }));
     }
     const composer = el("div", { class: "tc-composer" }, [opts.mountEl ? null : modelSel, input, sendBtn]);
