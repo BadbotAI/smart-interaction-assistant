@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
+<title>产品接入 · 智能交互平台</title>
+<link rel="stylesheet" href="./shared.css?v=b11ce3d4">
+<link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./chat.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html"><link rel="prefetch" href="./trace.html">
+</head>
+<body>
+<div class="page">
+  <div class="page-head" style="display:flex;align-items:center;gap:12px">
+    <div class="page-title">产品接入</div>
+    <div style="flex:1"></div>
+    <button class="btn primary" id="newBtn"></button>
+  </div>
+  <div class="muted" style="margin-bottom:14px">一个产品 = 一个品牌风格 + 多个组件 + 一个 MCP 接入点；组件在产品里通过 MCP UI 渲染，也可以按组件复制嵌入代码</div>
+  <div id="listBox"></div>
+</div>
+
+<script src="./mock_data.js?v=ecf03f22"></script>
+<script src="./mock_api.js?v=fa600068"></script>
+<script src="./tokens.js?v=323789e0"></script>
+<script src="./ui.js?v=f737bd16"></script>
+<script>
+UI.nav("products");
+const { el } = UI;
+
+let brands = [], liveCards = [], products = [];
+
+function brandName(file) {
+  const b = brands.find(x => x.file === file);
+  return b ? (b.brand_name || b.file) : file;
+}
+
+function mcpSnippet(p) {
+  return [
+    `// MCP UI 接入「${p.name}」：把本产品的接入点加进你的 MCP 客户端配置`,
+    `{`,
+    `  "mcpServers": {`,
+    `    "sia-${p.product_id}": {`,
+    `      "url": "https://your-domain/v1/mcp",`,
+    `      "headers": { "Authorization": "Bearer ${p.mcp_key}" }`,
+    `    }`,
+    `  }`,
+    `}`,
+    `// 连接后即可使用该产品绑定的 ${p.card_ids.length} 个交互组件，渲染自动应用「${brandName(p.brand_file)}」`,
+  ].join("\n");
+}
+
+function embedSnippet(cardId) {
+  return [
+    `<!-- 把 SDK 贴进你的产品页面 -->`,
+    `<script async src="https://cdn.your-domain.com/sia.js" data-key="你的接入Key"><\/script>`,
+    `<!-- 规则触发：指定元素被点击时渲染本组件；也可以 sia('show', ...) 显式调用 -->`,
+    `<script>sia('on', { selector: '#help-btn', event: 'click' }, '${cardId}');<\/script>`,
+  ].join("\n");
+}
+
+// 产品表单（新建与配置共用）：名称 / 品牌风格单选 / 组件多选（标签可删）
+function productForm(init) {
+  const st = { name: init.name || "", brand_file: init.brand_file || (brands[0] && brands[0].file) || "",
+    cardIds: new Set(init.card_ids || []) };
+  const nameIn = el("input", { type: "text", maxlength: "15", value: st.name, placeholder: "例如：官网智能客服（1-15 字）" });
+  nameIn.oninput = () => st.name = nameIn.value;
+  const brandSel = el("select", {}, brands.map(b => el("option", { value: b.file,
+    ...(st.brand_file === b.file ? { selected: "" } : {}) }, [b.brand_name || b.file])));
+  brandSel.onchange = () => st.brand_file = brandSel.value;
+  const tagsBox = el("div", { class: "tagsel-tags" });
+  let addSel;
+  const drawTags = () => {
+    tagsBox.innerHTML = "";
+    liveCards.filter(c => st.cardIds.has(c.card_id)).forEach(c => {
+      tagsBox.appendChild(el("span", { class: "tagsel-tag" }, [c.name,
+        el("button", { type: "button", title: "移除", onclick: () => { st.cardIds.delete(c.card_id); drawTags(); } }, ["×"])]));
+    });
+    const rest = liveCards.filter(c => !st.cardIds.has(c.card_id));
+    const old = addSel;
+    addSel = el("select", { style: "width:220px", ...(rest.length ? {} : { disabled: "" }) }, [
+      el("option", { value: "" }, [rest.length ? "添加组件…" : (liveCards.length ? "已全部选入" : "还没有已上线组件")]),
+      ...rest.map(c => el("option", { value: c.card_id }, [c.name])),
+    ]);
+    addSel.onchange = () => { if (addSel.value) { st.cardIds.add(addSel.value); drawTags(); } };
+    if (old) old.replaceWith(addSel); else wlWrap.appendChild(addSel);
+  };
+  const wlWrap = el("div", {}, [tagsBox]);
+  drawTags();
+  const node = el("div", { class: "policy-form" }, [
+    el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["产品名称"]), nameIn]),
+    el("label", { class: "field" }, [el("span", { class: "label-text" }, ["品牌风格",
+      UI.help("该产品里所有组件渲染时使用的风格；风格在「组件风格」页管理")]), brandSel]),
+    el("div", { class: "field" }, [
+      el("span", { class: "label-text" }, ["绑定组件", UI.help("这个产品可以触发哪些交互组件；点 × 移除，下拉添加")]),
+      wlWrap,
+    ]),
+  ]);
+  return { node, st, nameIn };
+}
+
+function configProduct(p) {
+  const form = productForm(p);
+  const err = el("div", { class: "field-error" });
+  // MCP 接入信息 + 各组件嵌入代码
+  const compRows = p.card_ids.map(cid => {
+    const c = liveCards.find(x => x.card_id === cid);
+    if (!c) return null;
+    return el("div", { style: "display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)" }, [
+      el("span", {}, [c.name]),
+      el("div", { style: "flex:1" }),
+      el("button", { class: "btn small ghost", onclick: () => { navigator.clipboard.writeText(embedSnippet(cid)); UI.toast("已复制该组件的嵌入代码"); } }, ["复制嵌入代码"]),
+    ]);
+  }).filter(Boolean);
+  const access = el("div", { class: "field", style: "margin-top:4px" }, [
+    el("span", { class: "label-text" }, ["MCP 接入信息"]),
+    el("div", { class: "drawer-meta", style: "margin-bottom:8px" }, [
+      el("span", {}, ["接入 Key"]),
+      el("span", { class: "cr-id num", style: "cursor:pointer", title: "点击复制",
+        onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制 MCP 接入 Key"); } },
+        [p.mcp_key.slice(0, 12) + "…"]),
+      el("div", { style: "flex:1" }),
+      el("button", { class: "btn small", onclick: () => { navigator.clipboard.writeText(mcpSnippet(p)); UI.toast("已复制 MCP 接入配置"); } }, [UI.icon("copy", 13), "复制接入配置"]),
+    ]),
+    compRows.length ? el("div", {}, [
+      el("div", { class: "muted", style: "margin-bottom:2px" }, ["按组件单独嵌入（不走 MCP 时的补充方式）"]),
+      ...compRows,
+    ]) : null,
+  ]);
+  const foot = el("div", { style: "display:flex;gap:8px;justify-content:flex-end;align-items:center;width:100%" }, [
+    err, el("div", { style: "flex:1" }),
+    el("button", { class: "btn", onclick: () => mask.querySelector(".close-btn")?.click() }, ["取消"]),
+    el("button", { class: "btn primary", onclick: async (e) => {
+      if (!form.st.name.trim()) { err.textContent = "产品名称必填"; return; }
+      await UI.withBusy(e.currentTarget, async () => {
+        try {
+          await UI.api(`/api/products/${p.product_id}`, { method: "PUT", body: {
+            name: form.st.name.trim(), brand_file: form.st.brand_file, card_ids: [...form.st.cardIds] } });
+          UI.toast("已保存应用");
+          mask.querySelector(".close-btn")?.click();
+          load();
+        } catch (e2) { err.textContent = e2.data?.error || e2.message; }
+      }, "保存中……");
+    } }, ["保存应用"]),
+  ]);
+  const mask = UI.drawer("产品配置", el("div", {}, [form.node, access]), foot);
+}
+
+function newProductDialog() {
+  const form = productForm({});
+  const err = el("div", { class: "field-error" });
+  const mask = UI.modal("新建产品", el("div", {}, [form.node, err,
+    el("div", { style: "display:flex;justify-content:flex-end;gap:10px;margin-top:12px" }, [
+      el("button", { class: "btn", onclick: () => mask.remove() }, ["取消"]),
+      el("button", { class: "btn primary", onclick: async (e) => {
+        if (!form.st.name.trim()) { err.textContent = "请填写产品名称（1-15 字）"; return; }
+        await UI.withBusy(e.currentTarget, async () => {
+          try {
+            const r = await UI.api("/api/products", { method: "POST", body: {
+              name: form.st.name.trim(), brand_file: form.st.brand_file, card_ids: [...form.st.cardIds] } });
+            mask.remove();
+            await load();
+            const p = products.find(x => x.product_id === r.product_id);
+            if (p) configProduct(p);
+            UI.toast("产品已创建，MCP 接入信息见抽屉");
+          } catch (e2) { err.textContent = e2.data?.error || e2.message; }
+        }, "创建中……");
+      } }, ["创建产品"]),
+    ]),
+  ]), null, { persistent: true });
+  setTimeout(() => form.nameIn.focus(), 100);
+}
+
+function draw() {
+  const box = document.getElementById("listBox");
+  box.innerHTML = "";
+  if (!products.length) {
+    box.appendChild(el("div", { class: "card empty-state" }, [
+      el("div", { class: "empty-title" }, ["还没有产品"]),
+      el("div", {}, ["新建产品，把组件和品牌风格打包成一个 MCP 接入点"]),
+      el("button", { class: "btn primary", style: "margin-top:12px", onclick: newProductDialog }, ["新建产品"]),
+    ]));
+    return;
+  }
+  products.forEach(p => {
+    box.appendChild(el("div", { class: "card policy-card", style: "margin-bottom:10px" }, [
+      el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
+        el("span", { style: "font-weight:700;font-size:var(--font-title);width:200px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: p.name }, [p.name]),
+        el("span", { class: "cr-id num", title: "MCP 接入 Key（点击复制）",
+          onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制 MCP 接入 Key"); } },
+          [p.mcp_key.slice(0, 12) + "…"]),
+        el("div", { style: "flex:1" }),
+        el("button", { class: "btn small iconic", title: "复制 MCP 接入配置", "aria-label": "复制 MCP 接入配置",
+          onclick: () => { navigator.clipboard.writeText(mcpSnippet(p)); UI.toast("已复制 MCP 接入配置，贴进你的 MCP 客户端即可"); } }, [UI.icon("copy", 15)]),
+        el("button", { class: "btn small", onclick: () => configProduct(p) }, ["产品配置"]),
+        (() => { const more = el("button", { class: "btn small iconic", title: "更多", "aria-label": "更多操作",
+          onclick: () => { UI.menu(more, [
+            { label: "删除", danger: true, onClick: async () => {
+              const ok = await UI.confirm("删除产品", `删除「${p.name}」后，它的 MCP 接入点立即失效。`, { okText: "删除", danger: true });
+              if (!ok) return;
+              try { await UI.api(`/api/products/${p.product_id}/delete`, { method: "POST" }); UI.toast("已删除"); load(); }
+              catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
+            } },
+          ]); } }, [UI.icon("more", 15)]); return more; })(),
+      ]),
+      el("div", { class: "muted", style: "margin-top:8px" },
+        [`品牌风格 ${brandName(p.brand_file)} · 绑定组件 ${p.card_ids.length} 个 · MCP UI 对接`]),
+    ]));
+  });
+}
+
+async function load() {
+  const [b, c, pr] = await Promise.all([
+    UI.api("/api/brands").catch(() => ({ brands: [] })),
+    UI.api("/api/cards").catch(() => ({ cards: [] })),
+    UI.api("/api/products").catch(() => ({ products: [] })),
+  ]);
+  brands = b.brands || [];
+  liveCards = (c.cards || []).filter(x => x.status === "published" || (x.status === "draft" && x.version >= 1));
+  products = pr.products || [];
+  draw();
+}
+const nb = document.getElementById("newBtn");
+nb.append(UI.icon("plus", 14), "新建产品");
+nb.onclick = newProductDialog;
+UI.loading(document.getElementById("listBox"));
+load().catch(e => UI.toast("加载失败：" + e.message, true));
+</script>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(function(){});</script>
+</body>
+</html>

@@ -63,6 +63,13 @@
     if (pn === "/v1/bank/staged/commit") return { committed: (body && body.query_ids || []).length };
     if (pn === "/v1/bank/staged/discard") return { discarded: (body && body.query_ids || []).length };
     if (pn === "/v1/bank/question/delete" || pn === "/v1/bank/question/relabel") return { ok: true };
+    if (pn === "/api/products") {
+      const name = (body && body.name || "").trim();
+      if (!name || name.length > 15) return { error: "产品名称必填，1-15 字" };
+      const pid = "prod-demo-" + Math.random().toString(36).slice(2, 8);
+      return { product_id: pid, mcp_key: "sk-mcp-demo" + Math.random().toString(36).slice(2, 6) };
+    }
+    if (/^\/api\/products\/[^/]+\/delete$/.test(pn)) return { ok: true };
     if (pn === "/api/scenes/delete") return { ok: true, deleted: 0 };
     if (pn === "/v1/policies") return { policy_id: "policy-demo-" + Math.random().toString(36).slice(2, 8), api_key: "sk-route-demo0000" };
     if (/^\/v1\/policies\/[^/]+\/duplicate$/.test(pn)) return { policy_id: "policy-demo-" + Math.random().toString(36).slice(2, 8), name: "策略 副本" };

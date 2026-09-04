@@ -275,6 +275,9 @@ def init_db():
     conn.execute("""CREATE TABLE IF NOT EXISTS api_keys (
         key_id TEXT PRIMARY KEY, name TEXT NOT NULL, secret_hash TEXT NOT NULL,
         prefix TEXT NOT NULL, created_at REAL NOT NULL, last_used REAL)""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS products (
+        product_id TEXT PRIMARY KEY, name TEXT NOT NULL, brand_file TEXT NOT NULL,
+        card_ids TEXT NOT NULL DEFAULT '[]', created_at REAL NOT NULL)""")
     conn.commit()
 
 

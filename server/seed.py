@@ -53,14 +53,25 @@ def seed_models():
     conn.commit()
 
 
+def seed_products():
+    conn = db.get_conn()
+    if conn.execute("SELECT 1 FROM products LIMIT 1").fetchone():
+        return
+    cards = conn.execute("SELECT card_id FROM cards WHERE status='published' LIMIT 3").fetchall()
+    conn.execute("INSERT INTO products (product_id, name, brand_file, card_ids, created_at) VALUES (?,?,?,?,?)",
+                 ("prod-seed0001", "官网智能客服", "brand-tokens.harbor.json",
+                  db.j([r["card_id"] for r in cards]), db.now_ts()))
+    conn.commit()
+
+
 def seed_policies():
     conn = db.get_conn()
     paper = dict(K=3, N_base=50, beta=0.5, gamma=0.95, eps=0.5, sigma=0.3, delta=0.2, t=0.8, max_agg_tokens=13000)
     rows = [
         ("policy-global-balanced", "全局均衡", "global", None, None, paper, "balanced", 1, 0.05, [], {}, 1, None, 50),
         ("policy-global-fallback", "默认兜底", "global", None, None, {**paper, "K": 1}, "fast", 0, 0.0, [], {}, 1, None, 50),
-        ("policy-scene-fast", "极速档", "custom", TENANT, None, {**paper, "K": 1}, "fast", 0, 0.02, [], {}, 1, None, 50),
-        ("policy-scene-quality", "高质档", "custom", TENANT, None, {**paper, "t": 0.7}, "quality", 1, 0.08, [], {}, 1, None, 50),
+        ("policy-scene-fast", "省钱优先", "custom", TENANT, None, {**paper, "K": 1}, "fast", 0, 0.02, [], {}, 1, None, 50),
+        ("policy-scene-quality", "质量优先", "custom", TENANT, None, {**paper, "t": 0.7}, "quality", 1, 0.08, [], {}, 1, None, 50),
     ]
     for r in rows:
         conn.execute(
@@ -498,6 +509,7 @@ def run_all():
     db.init_db()
     seed_models()
     seed_policies()
+    seed_products()
     seed_cards()
     n_bank = seed_public_bank()
     n_hist = seed_history()

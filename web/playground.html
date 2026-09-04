@@ -14,7 +14,6 @@
     <div style="flex:1"></div>
     <button class="btn small" id="newSess"></button>
   </div>
-  <div class="tab-bar" id="modeTabs" style="margin-bottom:12px"></div>
   <div id="chatHost"></div>
 </div>
 
@@ -32,7 +31,7 @@ const MODES = {
 };
 function mode() { return MODES[location.hash.replace("#", "")] ? location.hash.replace("#", "") : "comp"; }
 // 默认模式：无 hash 直接进入时落到智能交互测试，保证 tab 与导航高亮一致
-if (!MODES[location.hash.replace("#", "")]) history.replaceState(null, "", location.pathname + location.search + "#comp");
+if (!MODES[location.hash.replace("#", "")]) history.replaceState(null, "", location.pathname + location.search + (window.SIA_PLATFORM === "router" ? "#model" : "#comp"));
 
 async function buildSuggestions(m) {
   if (m === "comp") {
@@ -54,23 +53,13 @@ async function buildSuggestions(m) {
   ];
 }
 
-function drawTabs() {
-  const cur = mode();
-  const box = document.getElementById("modeTabs");
-  box.innerHTML = "";
-  Object.entries(MODES).forEach(([k, m]) => {
-    box.appendChild(el("button", { type: "button", class: "tab" + (k === cur ? " active" : ""),
-      onclick: () => { if (k !== cur) location.hash = "#" + k; } }, [m.seg]));
-  });
-}
 
 async function boot() {
   const k = mode();
   const m = MODES[k];
   UI.nav(m.nav);
-  drawTabs();
-  document.getElementById("pgTitle").textContent = "对话测试";
-  document.title = m.title + " · 智能交互平台";
+  document.getElementById("pgTitle").textContent = m.title;
+  document.title = m.title + (k === "model" ? " · 模型路由平台" : " · 智能交互平台");
   const prefill = new URLSearchParams(location.search).get("q") || "";
   const suggestions = await buildSuggestions(k);
   TestChat.open({

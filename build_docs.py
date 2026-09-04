@@ -11,14 +11,19 @@ import urllib.request
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(ROOT, "web")
-DOCS = os.path.join(ROOT, "docs")
+DOCS = os.path.join(ROOT, "docs")                       # 智能交互平台站（本仓库 Pages）
+RSITE = os.path.expanduser("~/Desktop/smart-model-router")  # 模型路由平台站（独立仓库 Pages）
+ROUTER_URL = "https://badbotai.github.io/smart-model-router/"
 ASSETS = ["tokens.js", "ui.js", "components.js", "testchat.js", "sia.js", "shared.css"]
 MOCKS = ["mock_data.js", "mock_api.js"]
+IA_PAGES = ["index.html", "cards.html", "library.html", "design.html", "products.html",
+            "playground.html", "dashboard.html", "audit.html", "trace.html", "chat.html", "embed-demo.html"]
+ROUTER_PAGES = ["router.html", "playground.html", "dashboard.html", "audit.html", "trace.html"]
 
 
 def snapshot():
     base = "http://127.0.0.1:8787"
-    keys = ["/api/apikeys", "/api/audit?limit=100", "/api/brands", "/api/brands/active", "/api/cards",
+    keys = ["/api/apikeys", "/api/products", "/api/audit?limit=100", "/api/brands", "/api/brands/active", "/api/cards",
             "/api/dashboard/insights?days=30", "/api/dashboard/overview?days=30",
             "/api/dashboard/questions?days=30", "/api/labels/summary", "/api/profile",
             "/api/profile/rebuild/status", "/api/settings/judge-model", "/api/templates",
@@ -48,30 +53,44 @@ def strip_css_comments(s):
     return re.sub(r"\n{3,}", "\n\n", re.sub(r"/\*.*?\*/", "", s, flags=re.S))
 
 
-def build():
-    # 资源拷贝（CSS 去注释减重）
+def build_site(outdir, pages, platform):
+    os.makedirs(outdir, exist_ok=True)
+    # mock 层同源拷贝（docs/ 里的 mock_api.js 是权威版本）
+    if outdir != DOCS:
+        for f in MOCKS:
+            open(os.path.join(outdir, f), "w", encoding="utf-8").write(
+                open(os.path.join(DOCS, f), encoding="utf-8").read())
+        bsrc, bdst = os.path.join(DOCS, "brand"), os.path.join(outdir, "brand")
+        if os.path.isdir(bsrc):
+            os.makedirs(bdst, exist_ok=True)
+            for f in os.listdir(bsrc):
+                open(os.path.join(bdst, f), "wb").write(open(os.path.join(bsrc, f), "rb").read())
     for f in ASSETS:
         s = rewrite(open(os.path.join(WEB, f), encoding="utf-8").read())
         if f.endswith(".css"):
             s = strip_css_comments(s)
-        open(os.path.join(DOCS, f), "w", encoding="utf-8").write(s)
+        open(os.path.join(outdir, f), "w", encoding="utf-8").write(s)
 
-    # 内容哈希：同名文件内容变了，HTML 里的 ?v= 就变，CDN 上新 HTML 永不引用旧资源
     def h8(path):
         return hashlib.md5(open(path, "rb").read()).hexdigest()[:8]
 
-    ver = {f: h8(os.path.join(DOCS, f)) for f in ASSETS + MOCKS}
-    build_id = hashlib.md5("".join(sorted(ver.values())).encode()).hexdigest()[:8]
+    ver = {f: h8(os.path.join(outdir, f)) for f in ASSETS + MOCKS}
+    build_id = hashlib.md5((platform + "".join(sorted(ver.values()))).encode()).hexdigest()[:8]
 
-    pages = [f for f in os.listdir(WEB) if f.endswith(".html")]
     prefetch = "".join(f'<link rel="prefetch" href="./{p}">' for p in sorted(pages))
-    mock = (f'<script src="./mock_data.js?v={ver["mock_data.js"]}"></script>\n'
-            f'<script src="./mock_api.js?v={ver["mock_api.js"]}"></script>\n')
+    plat_tag = f'<script>window.SIA_PLATFORM="{platform}";</script>\n' if platform == "router" else ""
+    mock = (plat_tag
+            + f'<script src="./mock_data.js?v={ver["mock_data.js"]}"></script>\n'
+            + f'<script src="./mock_api.js?v={ver["mock_api.js"]}"></script>\n')
     sw_reg = ('<script>if("serviceWorker" in navigator)'
               'navigator.serviceWorker.register("./sw.js").catch(function(){});</script>\n')
 
     for f in pages:
         s = rewrite(open(os.path.join(WEB, f), encoding="utf-8").read())
+        if platform == "ia":
+            # 智能交互站内所有指向模型路由页的链接改到独立站点
+            s = s.replace("'./router.html#", "'" + ROUTER_URL + "router.html#")
+            s = s.replace('"./router.html#', '"' + ROUTER_URL + 'router.html#')
         s = s.replace('<link rel="stylesheet" href="./shared.css">',
                       f'<link rel="stylesheet" href="./shared.css?v={ver["shared.css"]}">\n' + prefetch, 1)
         if '<script src="./tokens.js"></script>' in s:
@@ -82,7 +101,13 @@ def build():
         for a in ASSETS:
             s = s.replace(f'<script src="./{a}"></script>', f'<script src="./{a}?v={ver[a]}"></script>')
         s = s.replace("</body>", sw_reg + "</body>", 1)
-        open(os.path.join(DOCS, f), "w", encoding="utf-8").write(s)
+        open(os.path.join(outdir, f), "w", encoding="utf-8").write(s)
+
+    if platform == "router":
+        open(os.path.join(outdir, "index.html"), "w", encoding="utf-8").write(
+            '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
+            '<meta http-equiv="refresh" content="0;url=./router.html#dispatch">'
+            '<title>模型路由平台</title></head><body></body></html>\n')
 
     sw = """// 构建号变了旧缓存整体作废；哈希资源 cache-first（等于不可变），HTML network-first 保证更新可达
 const BUILD = "%s";
@@ -102,8 +127,18 @@ self.addEventListener("fetch", (e) => {
   }
 });
 """ % build_id
-    open(os.path.join(DOCS, "sw.js"), "w", encoding="utf-8").write(sw)
-    print("build:", build_id, "| pages:", len(pages), "| versions:", ver)
+    open(os.path.join(outdir, "sw.js"), "w", encoding="utf-8").write(sw)
+    print(f"build[{platform}]:", build_id, "| pages:", len(pages), "->", outdir)
+
+
+def build():
+    # 清掉 docs/ 里已退役的页面
+    for stale in ["apikeys.html", "router.html"]:
+        p = os.path.join(DOCS, stale)
+        if os.path.exists(p):
+            os.remove(p)
+    build_site(DOCS, IA_PAGES, "ia")
+    build_site(RSITE, ROUTER_PAGES, "router")
 
 
 if __name__ == "__main__":

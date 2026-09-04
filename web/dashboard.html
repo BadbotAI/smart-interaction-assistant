@@ -87,7 +87,8 @@ function showSection(key, first = false) {
   if (!first && key === activeTab) return;
   activeTab = key;
   document.getElementById("pageTitle").textContent = SECTION_NAMES[key];
-  document.title = SECTION_NAMES[key] + " · 智能交互平台";
+  document.title = SECTION_NAMES[key] + (key === "routing" ? " · 模型路由平台" : " · 智能交互平台");
+  UI.nav("dashboard");
   placeDaysCtl(key === "survey" || key === "routing");
   UI.loading(content());
   RENDER[key]().catch(e => UI.toast("加载失败：" + e.message, true));

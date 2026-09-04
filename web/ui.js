@@ -152,38 +152,56 @@ window.UI = (function () {
   function ctChip(ct, cls = "chip gray") { return el("span", { class: cls, title: ct || "" }, [ctName(ct)]); }
 
   // 左侧导航：三大模块 + 底部账户。二级项可指向同一页面的不同 tab（#hash）
-  const NAV_GROUPS = [
-    { title: "", items: [
-      ["home", "首页", "/web/index.html", "home"],
-    ] },
-    { title: "智能交互", items: [
-      ["cards", "组件工作台", "/web/cards.html", "board"],
-      ["library", "组件库", "/web/library.html", "grid"],
-      ["design", "组件风格", "/web/design.html", "palette2"],
-      ["playground:comp", "智能交互测试", "/web/playground.html#comp", "chat"],
-      ["dashboard:survey", "交互数据", "/web/dashboard.html#survey", "chart"],
-    ] },
-    { title: "模型路由", items: [
-      ["router:dispatch", "路由策略", "/web/router.html#dispatch", "route2"],
-      ["router:flow", "场景数据集", "/web/router.html#flow", "database"],
-      ["playground:model", "模型路由测试", "/web/playground.html#model", "play"],
-      ["dashboard:routing", "模型路由数据", "/web/dashboard.html#routing", "activity"],
-      ["router:models", "模型接入", "/web/router.html#models", "cpu"],
-      ["apikeys", "API 接入管理", "/web/apikeys.html", "link"],
-    ] },
-  ];
+  // 两个平台各自独立的导航；共享页（操作日志等）按 window.SIA_PLATFORM 或高亮键推断归属
+  const PLATFORMS = {
+    ia: {
+      name: "智能交互平台", home: "/web/index.html",
+      groups: [
+        { title: "", items: [["home", "首页", "/web/index.html", "home"]] },
+        { title: "智能交互", items: [
+          ["cards", "组件工作台", "/web/cards.html", "board"],
+          ["library", "组件库", "/web/library.html", "grid"],
+          ["design", "组件风格", "/web/design.html", "palette2"],
+          ["products", "产品接入", "/web/products.html", "link"],
+          ["playground:comp", "智能交互测试", "/web/playground.html#comp", "chat"],
+          ["dashboard:survey", "交互数据", "/web/dashboard.html#survey", "chart"],
+        ] },
+      ],
+    },
+    router: {
+      name: "模型路由平台", home: "/web/router.html#dispatch",
+      groups: [
+        { title: "模型路由", items: [
+          ["router:dispatch", "路由策略", "/web/router.html#dispatch", "route2"],
+          ["router:flow", "场景数据集", "/web/router.html#flow", "database"],
+          ["playground:model", "模型路由测试", "/web/playground.html#model", "play"],
+          ["dashboard:routing", "模型路由数据", "/web/dashboard.html#routing", "activity"],
+          ["router:models", "模型接入", "/web/router.html#models", "cpu"],
+        ] },
+      ],
+    },
+  };
+  const ROUTER_KEYS = ["router", "playground:model", "dashboard:routing"];
+  function platformOf(active) {
+    if (window.SIA_PLATFORM && PLATFORMS[window.SIA_PLATFORM]) return window.SIA_PLATFORM;
+    if (ROUTER_KEYS.some(k => active === k || (active && k.startsWith(active + ":") && location.hash === "#" + k.split(":")[1]))) return "router";
+    if (active === "router") return "router";
+    return "ia";
+  }
   function nav(active) {
     document.querySelectorAll(".sidenav").forEach(n => n.remove());
+    const plat = PLATFORMS[platformOf(active)];
+    const NAV_GROUPS = plat.groups;
     const side = el("aside", { class: "sidenav" }, [
       (() => {
-        const a = el("a", { class: "logo", href: "/web/index.html", title: "回到首页" });
+        const a = el("a", { class: "logo", href: plat.home, title: "回到首页" });
         const mark = el("span", { class: "logo-mark", "aria-hidden": "true" });
         mark.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none">'
           + '<rect x="10.5" y="3" width="10.5" height="8" rx="3" fill="none" stroke="var(--primary)" stroke-width="1.7" opacity="0.45"/>'
           + '<path d="M3 12a4 4 0 0 1 4-4h6.5a4 4 0 0 1 4 4v2.5a4 4 0 0 1-4 4H9.8l-3.4 2.9c-.6.5-1.4.1-1.4-.7v-2.6A4 4 0 0 1 3 14.5z" fill="var(--primary)"/>'
           + '<circle cx="7.6" cy="13.2" r="1.15" fill="#fff"/><circle cx="10.75" cy="13.2" r="1.15" fill="#fff"/><circle cx="13.9" cy="13.2" r="1.15" fill="#fff"/>'
           + '</svg>';
-        a.append(mark, el("span", {}, ["智能交互平台"]));
+        a.append(mark, el("span", {}, [plat.name]));
         return a;
       })(),
     ]);

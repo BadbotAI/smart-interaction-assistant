@@ -6,7 +6,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件风格 · 智能交互平台</title>
 <link rel="stylesheet" href="./shared.css?v=b11ce3d4">
-<link rel="prefetch" href="./apikeys.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./chat.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./router.html"><link rel="prefetch" href="./trace.html">
+<link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./chat.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html"><link rel="prefetch" href="./trace.html">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
   .style-split { display: grid; grid-template-columns: 340px minmax(0, 620px); gap: 14px; align-items: start; }
@@ -40,15 +40,10 @@
   <div class="style-split">
     <div class="card" style="align-self:start">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <span style="font-weight:600">选择风格</span>
-        <span class="muted">点击预览，确认后保存</span>
+        <span style="font-weight:600;flex:none;white-space:nowrap">风格库</span>
+        <span class="muted">点击卡片预览组件效果；风格在「产品接入」里配给具体产品生效</span>
       </div>
       <div id="brandGrid" class="brand-list"></div>
-      <div style="display:flex;align-items:center;gap:10px;margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
-        <span class="muted" id="genNote"></span>
-        <div style="flex:1"></div>
-        <button class="btn primary" id="saveBtn">应用并保存</button>
-      </div>
     </div>
 
     <div class="card" style="align-self:start">
@@ -63,10 +58,10 @@
   </div>
 </div>
 
-<script src="./mock_data.js?v=7e277d7d"></script>
-<script src="./mock_api.js?v=3f7ad7c8"></script>
+<script src="./mock_data.js?v=ecf03f22"></script>
+<script src="./mock_api.js?v=fa600068"></script>
 <script src="./tokens.js?v=323789e0"></script>
-<script src="./ui.js?v=018d3fe1"></script>
+<script src="./ui.js?v=f737bd16"></script>
 <script src="./components.js?v=2e39e148"></script>
 <script>
 UI.nav("design");
@@ -74,10 +69,9 @@ const { el } = UI;
 document.getElementById("demoHelp").appendChild(UI.help("与线上同一套渲染器；风格预览后此处实时更新，提交不产生数据"));
 
 
-const genNote = document.getElementById("genNote");
 let brands = [];                 // /api/brands 返回的预设 + 已导入
-let pending = null;              // 待保存：{ type: "file", file } | { type: "custom" }
-let activeFile = "brand-tokens.default.json";  // 租户级生效风格（服务端）
+let products = [];               // 用于统计每个风格被哪些产品使用
+let previewFile = "brand-tokens.default.json";   // 当前预览中的风格
 
 // ---------- 组件示例（真实场景数据） ----------
 const SCENES = {
@@ -221,7 +215,7 @@ function brandDialog(existing, onClose) {
             const r = await UI.api("/api/brands", { method: "POST", body: { brand_id: bid, brand_name: name, tokens } });
             brands = (await UI.api("/api/brands")).brands;
             // 编辑的是生效中的风格：立即重载应用
-            if (existing && existing.file === activeFile) { await Brand.load(existing.file); }
+            if (existing && existing.file === previewFile) { await Brand.load(existing.file); }
             mask2.remove(); onClose && onClose();
             renderBrands(); renderDemos();
             UI.toast(existing ? "风格已更新" : "已创建风格卡片，点击卡片预览，「应用并保存」后生效");
@@ -235,15 +229,14 @@ function brandDialog(existing, onClose) {
 }
 
 // ---------- 风格预设 ----------
-function currentFile() { return activeFile; }
+
 
 function renderBrands() {
   const grid = document.getElementById("brandGrid");
   grid.innerHTML = "";
-  const activeFile = currentFile();
   brands.forEach(b => {
-    const isActive = b.file === activeFile;
-    const isSel = pending ? (pending.type === "file" && pending.file === b.file) : isActive;
+    const users = products.filter(p => p.brand_file === b.file);
+    const isSel = b.file === previewFile;
     const editBtn = (b.brand_id !== "default")
       ? el("span", { class: "sel-ico del-ico", style: "right:38px" }, [UI.iconBtn("edit", "编辑此风格", (e) => {
           e?.stopPropagation?.();
@@ -268,7 +261,8 @@ function renderBrands() {
       onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); previewBrand(b); } },
     }, [
       editBtn, delBtn,
-      el("div", { class: "bname" }, [b.brand_name || b.file, isActive ? el("span", { class: "chip green" }, ["生效中"]) : null]),
+      el("div", { class: "bname" }, [b.brand_name || b.file,
+        users.length ? el("span", { class: "chip blue", title: "使用中的产品：" + users.map(p => p.name).join("、") }, [`${users.length} 个产品使用`]) : null]),
       el("div", { class: "bsub" }, [b.brand_id === "default" ? "平台默认风格" : "已导入的品牌风格"]),
     ]);
     if (delBtn) delBtn.onclick = (e) => e.stopPropagation();
@@ -298,33 +292,17 @@ async function previewBrand(b) {
   try {
     const tokens = await (await fetch("./brand/" + b.file)).json();
     Brand.apply(tokens);
-    pending = b.file === currentFile() ? null : { type: "file", file: b.file };
-    genNote.textContent = pending ? `预览中：${b.brand_name}，尚未保存` : "";
+    previewFile = b.file;
     renderBrands(); renderDemos();
   } catch (e) { UI.toast("加载风格失败：" + e.message, true); }
 }
 
-// 应用并保存：把当前选中（预览中）的风格设为租户级生效风格
-document.getElementById("saveBtn").onclick = async (e) => {
-  if (!pending) { UI.toast("当前风格已在生效中"); return; }
-  await UI.withBusy(e.currentTarget, async () => {
-    try {
-      await UI.api("/api/brands/active", { method: "POST", body: { file: pending.file } });
-      activeFile = pending.file;
-      await Brand.load(pending.file);
-      pending = null;
-      genNote.textContent = "";
-      renderBrands(); renderDemos();
-      UI.toast("已保存，对所有渲染出的组件生效");
-    } catch (err) { UI.toast(err.data?.error || err.message, true); }
-  }, "保存中……");
-};
 
 // 初始化
 (async function init() {
   await new Promise(r => { const t = setInterval(() => { if (Brand.get()) { clearInterval(t); r(); } }, 60); setTimeout(() => { clearInterval(t); r(); }, 2500); });
   try { brands = (await UI.api("/api/brands")).brands; } catch (e) { brands = []; }
-  try { activeFile = (await UI.api("/api/brands/active")).file || activeFile; } catch (e) {}
+  try { products = (await UI.api("/api/products")).products || []; } catch (e) { products = []; }
   renderBrands();
   mountDemoControls();
   renderDemos();

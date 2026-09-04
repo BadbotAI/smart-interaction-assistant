@@ -715,6 +715,76 @@ def list_models():
 
 # ---------- 对外接入：API Key 管理（明文仅创建时返回一次，库中只存哈希） ----------
 
+def _mcp_key(product_id: str) -> str:
+    import hashlib as _h
+    return "sk-mcp-" + _h.md5(("mcp-key:" + product_id).encode()).hexdigest()[:16]
+
+
+def _product_row(r):
+    return {"product_id": r["product_id"], "name": r["name"], "brand_file": r["brand_file"],
+            "card_ids": db.dj(r["card_ids"], []), "created_at": r["created_at"],
+            "mcp_key": _mcp_key(r["product_id"])}
+
+
+@app.get("/api/products")
+def list_products():
+    conn = db.get_conn()
+    rows = conn.execute("SELECT * FROM products ORDER BY created_at").fetchall()
+    return {"products": [_product_row(r) for r in rows]}
+
+
+@app.post("/api/products")
+async def create_product(request: Request):
+    """新建产品：名称 + 品牌风格（单选） + 绑定组件（多选）。每个产品一个 MCP 接入点。"""
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    if not name or len(name) > 15:
+        return JSONResponse({"error": "产品名称必填，1-15 字"}, status_code=422)
+    brand_file = (body.get("brand_file") or "").strip() or "brand-tokens.default.json"
+    card_ids = [c for c in (body.get("card_ids") or []) if isinstance(c, str)]
+    conn = db.get_conn()
+    if conn.execute("SELECT 1 FROM products WHERE name=?", (name,)).fetchone():
+        return JSONResponse({"error": "已有同名产品"}, status_code=409)
+    pid = "prod-" + db.new_id()[:8]
+    conn.execute("INSERT INTO products (product_id, name, brand_file, card_ids, created_at) VALUES (?,?,?,?,?)",
+                 (pid, name, brand_file, db.j(card_ids), db.now_ts()))
+    conn.commit()
+    db.audit("demo-admin", "product_create", {"product_id": pid, "name": name, "cards": len(card_ids)})
+    return {"product_id": pid, "mcp_key": _mcp_key(pid)}
+
+
+@app.put("/api/products/{product_id}")
+async def update_product(product_id: str, request: Request):
+    body = await request.json()
+    conn = db.get_conn()
+    row = conn.execute("SELECT * FROM products WHERE product_id=?", (product_id,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "产品不存在"}, status_code=404)
+    name = (body.get("name") or row["name"]).strip()
+    if not name or len(name) > 15:
+        return JSONResponse({"error": "产品名称必填，1-15 字"}, status_code=422)
+    brand_file = (body.get("brand_file") or row["brand_file"]).strip()
+    card_ids = body.get("card_ids")
+    card_ids = db.j([c for c in card_ids if isinstance(c, str)]) if isinstance(card_ids, list) else row["card_ids"]
+    conn.execute("UPDATE products SET name=?, brand_file=?, card_ids=? WHERE product_id=?",
+                 (name, brand_file, card_ids, product_id))
+    conn.commit()
+    db.audit("demo-admin", "product_update", {"product_id": product_id, "name": name})
+    return {"ok": True}
+
+
+@app.post("/api/products/{product_id}/delete")
+async def delete_product(product_id: str):
+    conn = db.get_conn()
+    row = conn.execute("SELECT name FROM products WHERE product_id=?", (product_id,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "产品不存在"}, status_code=404)
+    conn.execute("DELETE FROM products WHERE product_id=?", (product_id,))
+    conn.commit()
+    db.audit("demo-admin", "product_delete", {"product_id": product_id, "name": row["name"]})
+    return {"ok": True}
+
+
 @app.get("/api/apikeys")
 def list_api_keys():
     conn = db.get_conn()
@@ -1058,7 +1128,7 @@ def bank_eval_pending():
     """评测回填（论文闭环：导题 → 各在线模型作答 → judge 模型择优打分入库）。"""
     judge = _get_setting("judge_model")
     if not judge:
-        return JSONResponse({"error": "未配置 Judge 模型：请先在「调度策略」页选择用于评审的模型"}, status_code=409)
+        return JSONResponse({"error": "未配置路由决策模型 模型：请先在「调度策略」页选择用于评审的模型"}, status_code=409)
     conn = db.get_conn()
     rows = conn.execute(
         "SELECT q.query_id, q.query_text, q.domain_tags FROM bank_queries q WHERE q.tenant_id=? "
@@ -1095,7 +1165,7 @@ async def run_judge():
     if not _source_enabled(db.get_conn(), "llm_judge"):
         return JSONResponse({"error": "AI 评审信号源已关闭，请先在反馈优化页开启"}, status_code=409)
     if not _get_setting("judge_model"):
-        return JSONResponse({"error": "未配置 Judge 模型：请先在「调度策略」页选择用于评审的模型"}, status_code=409)
+        return JSONResponse({"error": "未配置路由决策模型 模型：请先在「调度策略」页选择用于评审的模型"}, status_code=409)
     """离线批标任务：对尚无标签的历史 Trace 用 judge 模型打伪标签（confidence 0.5）。
     演示环境 judge 为模拟（与真实对错约 80% 一致）；生产替换为真实 LLM 评审调用。"""
     if _judge_task["status"] == "running":
