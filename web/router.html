@@ -359,13 +359,8 @@ function editModelDrawer(m) {
 // ================= 策略 =================
 
 const SCENE_NAMES = { casual: "闲聊", analysis: "决策分析", logistics: "物流", procurement: "采购", general: "通用" };
-const PARAM_DESCS = {
-  K: "候选模型数", N_base: "相似题集基准大小", beta: "细排保留比例",
-  gamma: "相似度阈值系数", eps: "问题相似度权重", sigma: "回答相似度权重",
-  delta: "消耗相似度权重", t: "聚合准入阈值", max_agg_tokens: "总结输入 token 上限",
-};
 
-// 策略表单（新增与编辑共用）：名称 / 候选模型（下拉+标签） / 兜底模型 / 成本-效果权重 / 画像参考权重
+// 策略表单（新增与编辑共用）：名称 / 候选模型（标签多选） / 兜底模型 / 成本-效果权重 / 聚合开关
 function policyForm(init, actives, policyId, apiKey) {
   const st = { name: init.name || "", alpha: init.alpha ?? 0.7, allow_agg: init.allow_agg !== false,
     whitelist: new Set(init.whitelist || []), fallback: init.fallback || "" };
