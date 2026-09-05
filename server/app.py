@@ -891,8 +891,26 @@ async def delete_model(model_id: str):
     if row["is_default"]:
         return JSONResponse({"error": "默认兜底模型不能删除，请先把默认切换到其他模型"}, status_code=409)
     conn.execute("DELETE FROM models WHERE model_id=?", (model_id,))
+    # 清理策略引用：候选白名单剔除该模型；策略兜底指向它时重置为平台默认兜底
+    default_row = conn.execute("SELECT model_id FROM models WHERE is_default=1").fetchone()
+    default_id = default_row["model_id"] if default_row else None
+    n_wl = n_fb = 0
+    for pr in conn.execute("SELECT policy_id, params, model_whitelist FROM policies").fetchall():
+        wl = db.dj(pr["model_whitelist"], []) or []
+        prm = db.dj(pr["params"], {}) or {}
+        changed = False
+        if model_id in wl:
+            wl = [x for x in wl if x != model_id]
+            changed = True; n_wl += 1
+        if prm.get("fallback_model") == model_id:
+            prm["fallback_model"] = default_id
+            changed = True; n_fb += 1
+        if changed:
+            conn.execute("UPDATE policies SET model_whitelist=?, params=? WHERE policy_id=?",
+                         (db.j(wl), db.j(prm), pr["policy_id"]))
     conn.commit()
-    db.audit("demo-admin", "model_delete", {"model_id": model_id, "display_name": row["display_name"]})
+    db.audit("demo-admin", "model_delete", {"model_id": model_id, "display_name": row["display_name"],
+                                            "whitelist_cleaned": n_wl, "fallback_reset": n_fb})
     return {"ok": True}
 
 

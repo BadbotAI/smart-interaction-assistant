@@ -226,6 +226,12 @@ async def run_route(req: dict, recorder, emit):
     model_ids = [m["model_id"] for m in models]
     by_id = {m["model_id"]: m for m in models}
     default_model = get_default_model(models)
+    # 策略级兜底：参数里明确指定的 fallback_model 优先（独立于候选白名单）；失效时退回平台默认兜底
+    _fb_id = params.get("fallback_model")
+    if _fb_id:
+        _fb = next((m for m in get_active_models() if m["model_id"] == _fb_id), None)
+        if _fb:
+            default_model = _fb
 
     # 手动模式：管理员/用户显式指定模型，不走路由决策；故障时切默认兜底模型
     if mode == "manual":

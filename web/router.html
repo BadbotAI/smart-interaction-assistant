@@ -742,7 +742,7 @@ async function renderFlow() {
           el("button", { class: "btn small", onclick: () => judgeDialog({ model_id: judgeModel, display_name: judgeName }, () => renderFlow()) }, ["更换"]),
           el("button", { class: "btn small", onclick: async () => {
             const ok = await UI.confirm("移除路由决策模型",
-              "移除后无法打分：路由策略都将不可用（变灰），线上请求临时降级为默认兜底模型直连，直到重新配置。", { okText: "仍要移除", danger: true });
+              "移除后无法打分：做题与路由效果生成被暂停（策略卡置灰提示），线上路由沿用最近一次成绩，直到重新配置。", { okText: "仍要移除", danger: true });
             if (!ok) return;
             try { await UI.api("/api/settings/judge-model", { method: "POST", body: { model_id: "" } }); UI.toast("已移除，其余策略已停用"); renderFlow(); }
             catch (e) { UI.toast(e.data?.error || e.message, true); }
@@ -1013,7 +1013,7 @@ async function renderDispatch() {
       el("div", { style: "min-width:0" }, [
         el("div", { style: "font-weight:600" }, ["还没配置路由决策模型"]),
         el("div", { class: "muted", style: "font-size:var(--font-caption)" },
-          ["没有决策模型就没有成绩：路由策略无法生效，线上请求将临时降级为默认兜底模型直连"]),
+          ["没有决策模型就没有成绩：做题打分与路由效果生成被暂停，线上路由沿用最近一次成绩"]),
       ]),
       el("div", { style: "flex:1" }),
       el("a", { class: "btn primary", href: "#flow" }, ["去场景数据集配置"]),
