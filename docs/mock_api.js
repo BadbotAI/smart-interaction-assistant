@@ -7,7 +7,15 @@
   const genLocal = {};
   let judgeLocal = null; // null=跟随快照; {removed:true} 或 {judge:{...}}
   const deadCards = new Set(); // 静态站会话内删除/下线的配置
+  const prodLocal = { created: [], updated: {}, deleted: new Set() }; // 会话内产品操作
   function getMock(pn, full) {
+    if (pn === "/api/products") {
+      const base = JSON.parse(JSON.stringify(D[pn] || { products: [] }));
+      base.products = (base.products || []).filter(p => !prodLocal.deleted.has(p.product_id))
+        .map(p => ({ ...p, ...(prodLocal.updated[p.product_id] || {}) }))
+        .concat(prodLocal.created);
+      return base;
+    }
     if (pn === "/api/cards" && deadCards.size) {
       const base = JSON.parse(JSON.stringify(D[pn] || { cards: [] }));
       base.cards = (base.cards || []).filter(c => !deadCards.has(c.card_id));
@@ -97,9 +105,23 @@
       const name = (body && body.name || "").trim();
       if (!name || name.length > 15) return { error: "产品名称必填，1-15 字" };
       const pid = "prod-demo-" + Math.random().toString(36).slice(2, 8);
-      return { product_id: pid, mcp_key: "sk-mcp-demo" + Math.random().toString(36).slice(2, 6) };
+      prodLocal.created.push({ product_id: pid, name, brand_file: (body && body.brand_file) || "brand-tokens.default.json",
+        card_ids: (body && body.card_ids) || [], created_at: Date.now() / 1000, mcp_key: "sk-mcp-demo" + Math.random().toString(36).slice(2, 10) });
+      return { product_id: pid, mcp_key: prodLocal.created[prodLocal.created.length - 1].mcp_key };
     }
-    if (/^\/api\/products\/[^/]+\/delete$/.test(pn)) return { ok: true };
+    if (/^\/api\/products\/[^/]+$/.test(pn)) {
+      const pid = pn.split("/")[3];
+      prodLocal.updated[pid] = { ...(prodLocal.updated[pid] || {}), ...(body || {}) };
+      const c = prodLocal.created.find(p => p.product_id === pid);
+      if (c) Object.assign(c, body || {});
+      return { ok: true };
+    }
+    if (/^\/api\/products\/[^/]+\/delete$/.test(pn)) {
+      const pid = pn.split("/")[3];
+      prodLocal.deleted.add(pid);
+      prodLocal.created = prodLocal.created.filter(p => p.product_id !== pid);
+      return { ok: true };
+    }
     if (pn === "/api/scenes/delete") return { ok: true, deleted: 0 };
     if (/^\/api\/cards\/[^/]+\/delete$/.test(pn)) { deadCards.add(pn.split("/")[3]); return { ok: true }; }
     if (pn === "/v1/policies") return { policy_id: "policy-demo-" + Math.random().toString(36).slice(2, 8), api_key: "sk-route-demo0000" };

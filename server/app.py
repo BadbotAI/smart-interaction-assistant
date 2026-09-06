@@ -766,6 +766,8 @@ async def update_product(product_id: str, request: Request):
     name = (body.get("name") or row["name"]).strip()
     if not name or len(name) > 15:
         return JSONResponse({"error": "产品名称必填，1-15 字"}, status_code=422)
+    if conn.execute("SELECT 1 FROM products WHERE name=? AND product_id!=?", (name, product_id)).fetchone():
+        return JSONResponse({"error": "已有同名产品"}, status_code=409)
     brand_file = (body.get("brand_file") or row["brand_file"]).strip()
     card_ids = body.get("card_ids")
     if isinstance(card_ids, list):
@@ -2157,6 +2159,8 @@ async def save_brand(request: Request):
     brand_name = (body.get("brand_name") or (tokens or {}).get("brand_name") or "").strip()
     if not isinstance(tokens, dict):
         return JSONResponse({"error": "tokens 必须是 JSON 对象"}, status_code=422)
+    if len(json.dumps(tokens)) > 100_000:
+        return JSONResponse({"error": "风格代码过大（上限 100KB），请只保留 design token 字段"}, status_code=422)
     if not _re.fullmatch(r"[a-z0-9][a-z0-9-]{1,23}", brand_id):
         return JSONResponse({"error": "brand_id 需为 2-24 位小写字母、数字或短横线"}, status_code=422)
     if brand_id == "default":
