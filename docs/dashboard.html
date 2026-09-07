@@ -26,10 +26,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=7e9816a5"></script>
+<script src="./mock_data.js?v=54595da1"></script>
 <script src="./mock_api.js?v=aadced14"></script>
 <script src="./tokens.js?v=360e29ec"></script>
-<script src="./ui.js?v=9ff95b89"></script>
+<script src="./ui.js?v=bfcc1b9f"></script>
 <script>
 UI.nav("dashboard");
 const { el } = UI;
@@ -444,7 +444,7 @@ async function renderRouting() {
     box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
       el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:8px" }, [
         el("span", { style: "font-weight:600" }, ["数据飞轮"]),
-        el("span", { class: "muted" }, ["AB 双答案的采纳回流；一键更新画像在「通用数据集」页"]),
+        el("span", { class: "muted" }, ["AB 双答案的采纳回流；明细与一键更新画像在「数据飞轮」页"]),
       ]),
       el("div", { class: "mini-metrics", style: "grid-template-columns:repeat(5,1fr)" }, [
         mm("累计回流偏好", fly.total, null, "终端用户在 A/B 双答案里做出的采纳，经 /v1/feedback 回传"),

@@ -22,7 +22,7 @@
 UI.nav("router");
 const { el } = UI;
 // 走查：板块入口只保留左侧导航一处，页内不再放横向 tab（按 #hash 渲染）
-const SECTION_NAMES = { models: "模型接入", dispatch: "路由策略", flow: "通用数据集", import: "导入数据集", review: "通用数据集", scene: "通用数据集" };
+const SECTION_NAMES = { models: "模型接入", dispatch: "路由策略", flow: "通用数据集", flywheel: "数据飞轮", import: "导入数据集", review: "通用数据集", scene: "通用数据集" };
 let activeTab = "models";
 // 能力维度（v5.0）：数据集按模型能力维度组织，不按业务场景——维度与模型能力强相关，冷启动打分才有区分度
 const DOMAIN_NAMES = { qa: "通用问答", coding: "代码", math: "数学推理", writing: "长文写作",
@@ -355,8 +355,6 @@ function editModelDrawer(m) {
 
 // ================= 策略 =================
 
-const SCENE_NAMES = { casual: "闲聊", analysis: "决策分析", logistics: "物流", procurement: "采购", general: "通用" };
-
 // 策略表单（新增与编辑共用）：名称 / 候选模型（标签多选） / 兜底模型 / 成本-效果权重 / 聚合开关
 function policyForm(init, actives, policyId, apiKey) {
   const st = { name: init.name || "", alpha: init.alpha ?? 0.7, allow_agg: init.allow_agg !== false,
@@ -652,11 +650,10 @@ function pollProfile(container, policies) {
 // ================= 场景数据集 =================
 
 async function renderFlow() {
-  const [sc, sum, { policies: fp }, fly] = await Promise.all([
+  const [sc, sum, { policies: fp }] = await Promise.all([
     UI.api("/v1/bank/scenes"),
     UI.api("/api/labels/summary"),
     UI.api("/v1/policies").catch(() => ({ policies: [] })),
-    UI.api("/api/flywheel").catch(() => null),
   ]);
   const box = content();
   box.innerHTML = "";
@@ -744,10 +741,7 @@ async function renderFlow() {
     ]),
   ]));
 
-  // 数据飞轮：AB 采样回收终端用户采纳 → 一键更新画像（重新聚类）→ 各策略重打分
-  if (fly) box.appendChild(buildFlywheelCard(fly));
-
-  // 路由效果：每条策略一张状态卡，做题打分生成后展开看各维度去向
+  // 路由效果：每条策略一张状态卡，做题打分生成后展开看各维度去向（画像演化入口在「数据飞轮」页）
   const dirBox = el("div", {});
   box.appendChild(dirBox);
   const profPolicies = (fp || []).filter(p2 => !p2.ab_group);
@@ -756,10 +750,13 @@ async function renderFlow() {
   renderProfileCards(dirBox, profPolicies).catch(() => {});
 }
 
-// ---------- 数据飞轮卡 ----------
+// ================= 数据飞轮（独立页）=================
 let evolvePollTimer = null;
 
-function buildFlywheelCard(fly) {
+async function renderFlywheel() {
+  const fly = await UI.api("/api/flywheel");
+  const box = content();
+  box.innerHTML = "";
   const evo = fly.evolution;
   const running = (fly.evolve_task || {}).status === "running";
   const canEvolve = fly.total >= (fly.min_required || 20);
@@ -773,33 +770,32 @@ function buildFlywheelCard(fly) {
       const save = async () => {
         try {
           const r = await UI.api("/api/settings/ab-sampling", { method: "POST", body: { rate: Number(inp.value) } });
-          UI.toast(`AB 采样率已改为 ${Math.round(r.rate * 100)}%`); renderFlow();
-        } catch (e2) { UI.toast(e2.data?.error || e2.message, true); renderFlow(); }
+          UI.toast(`AB 采样率已改为 ${Math.round(r.rate * 100)}%`); renderFlywheel();
+        } catch (e2) { UI.toast(e2.data?.error || e2.message, true); renderFlywheel(); }
       };
       inp.onblur = save;
       inp.onkeydown = (ev) => { if (ev.key === "Enter") inp.blur(); };
     } }, [`${Math.round(fly.sampling_rate * 100)}%`]);
 
   const evolveBtn = el("button", {
-    class: "btn small" + (evo || running ? "" : " primary"),
+    class: "btn" + (evo || running ? "" : " primary"),
     ...(canEvolve && !running ? {} : { disabled: "",
       title: running ? "更新任务进行中" : `回流偏好满 ${fly.min_required} 条后可更新（当前 ${fly.total} 条）` }),
     onclick: async (e) => {
       const ok = await UI.confirm("一键更新画像",
         `用 ${fly.total} 条回流偏好重新聚类，生成新的团簇与模型排序；完成后各策略的路由效果需要重新生成。`, { okText: "开始更新" });
       if (!ok) return;
-      try { await UI.api("/api/profile/evolve", { method: "POST" }); renderFlow(); pollEvolve(); }
+      try { await UI.api("/api/profile/evolve", { method: "POST" }); renderFlywheel(); pollEvolve(); }
       catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
     } }, [running ? "更新中…" : evo ? "再次更新画像" : "一键更新画像"]);
+  document.getElementById("headActions").appendChild(evolveBtn);
 
-  const kids = [
-    el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:4px" }, [
-      el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["数据飞轮"]),
-      el("div", { style: "flex:1" }),
-      evolveBtn,
-    ]),
+  // 总览卡
+  const dimChips = Object.entries(fly.dimensions || {}).sort((a, b) => b[1] - a[1])
+    .map(([k, n]) => el("span", { class: "chip gray" }, [`${DOMAIN_NAMES[k] || k} ${n}`]));
+  const overviewKids = [
     el("div", { class: "muted", style: "margin-bottom:12px" },
-      ["按采样率把一部分线上请求出成 A/B 双答案，终端用户在客户产品里选择采纳，客户端经 /v1/feedback 回传；回流够量后一键重新聚类，画像随真实数据演化"]),
+      ["按采样率把一部分线上请求出成 A/B 双答案，终端用户在客户产品里选择采纳，客户端经 /v1/feedback 回传（平台不做终端界面，只收数据）；回流够量后一键重新聚类，画像随真实数据演化，各策略再重新生成路由效果"]),
     el("div", { class: "mini-metrics", style: "grid-template-columns:repeat(4,1fr)" }, [
       el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["累计回流偏好"]), el("div", { class: "mm-value num" }, [String(fly.total)])]),
       el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["近 7 天回流"]), el("div", { class: "mm-value num" }, [String(fly.last7d)])]),
@@ -807,15 +803,20 @@ function buildFlywheelCard(fly) {
       el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["画像版本"]),
         el("div", { class: "mm-value" }, [evo ? `v${evo.version} 演化` : "v1 冷启动"])]),
     ]),
+    dimChips.length ? el("div", { style: "display:flex;align-items:center;gap:6px;margin-top:12px;flex-wrap:wrap" }, [
+      el("span", { class: "muted", style: "flex:none" }, ["回流分布"]), ...dimChips]) : null,
   ];
   if (running) {
     const t = fly.evolve_task;
-    kids.push(el("div", { style: "margin-top:12px" }, [
+    overviewKids.push(el("div", { style: "margin-top:12px" }, [
       el("div", { class: "progress-track" }, [el("div", { class: "progress-fill", style: `width:${t.total ? Math.round(t.done / t.total * 100) : 0}%` })]),
       el("div", { class: "muted num", style: "margin-top:6px" }, [`重新聚类中 ${t.done}/${t.total}……`]),
     ]));
     pollEvolve();
   }
+  box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, overviewKids));
+
+  // 演化团簇卡
   if (evo && !running) {
     const tbody = el("tbody", {}, (evo.clusters || []).map(c => el("tr", {}, [
       el("td", { style: "font-weight:600" }, [c.name || c.key]),
@@ -826,10 +827,12 @@ function buildFlywheelCard(fly) {
           title: `采纳胜率 ${Math.round((rk.win_rate || 0) * 100)}%（${rk.n} 次对比）` },
           [`${rk.name || rk.model_id} ${Math.round((rk.win_rate || 0) * 100)}%`])))]),
     ])));
-    kids.push(el("div", { style: "margin-top:14px" }, [
+    box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
       el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:8px" }, [
-        el("span", { style: "font-weight:600" }, ["演化后的团簇"]),
-        el("span", { class: "muted" }, [`${UI.fmtTs(evo.ts)} 更新 · 排序按终端用户采纳胜率`]),
+        el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["演化后的团簇"]),
+        el("span", { class: "muted" }, [`v${evo.version} · ${UI.fmtTs(evo.ts)} 更新 · 排序按终端用户采纳胜率`]),
+        el("div", { style: "flex:1" }),
+        el("a", { class: "btn small ghost", href: "#flow" }, ["去重新生成路由效果"]),
       ]),
       el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
         el("thead", {}, [el("tr", {}, ["团簇", "关键词摘要", "样本数", "模型排序（胜率）"].map(h => el("th", { class: h === "关键词摘要" ? "w-main" : "" }, [h])))]),
@@ -837,18 +840,64 @@ function buildFlywheelCard(fly) {
       ])]),
     ]));
   }
-  return el("div", { class: "card", style: "margin-top:12px" }, kids);
+
+  // 各模型采纳胜率卡
+  const wr = (fly.win_rates || []).filter(w => w.total > 0);
+  if (wr.length) {
+    const maxRate = Math.max(...wr.map(w => w.rate || 0), 0.01);
+    box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
+      el("div", { style: "font-weight:600;font-size:var(--font-title);margin-bottom:8px" }, ["各模型采纳胜率"]),
+      el("div", { class: "muted", style: "margin-bottom:10px" }, ["终端用户在 A/B 对比里更常采纳谁；样本少时胜率参考意义有限"]),
+      el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
+        el("thead", {}, [el("tr", {}, ["模型", "胜率", "采纳次数", "对比总数"].map((h, i) => el("th", { class: i === 1 ? "w-main" : "" }, [h])))]),
+        el("tbody", {}, wr.map(w => el("tr", {}, [
+          el("td", { style: "font-weight:600" }, [w.name || w.model_id]),
+          el("td", { class: "w-main" }, [el("div", { style: "display:flex;align-items:center;gap:10px" }, [
+            el("div", { class: "rs-track", style: "flex:1;max-width:320px" },
+              [el("div", { class: "rs-fill on", style: `width:${Math.round((w.rate || 0) / maxRate * 100)}%` })]),
+            el("span", { class: "num", style: "min-width:42px" }, [w.rate == null ? "-" : `${Math.round(w.rate * 100)}%`]),
+          ])]),
+          el("td", { class: "num" }, [String(w.wins)]),
+          el("td", { class: "num" }, [String(w.total)]),
+        ]))),
+      ])]),
+    ]));
+  }
+
+  // 最近回流明细卡
+  const recent = fly.recent || [];
+  box.appendChild(el("div", { class: "card" }, [
+    el("div", { style: "font-weight:600;font-size:var(--font-title);margin-bottom:8px" }, ["最近回流"]),
+    recent.length
+      ? el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
+          el("thead", {}, [el("tr", {}, ["时间", "用户问题", "维度", "采纳", "落选"].map(h => el("th", { class: h === "用户问题" ? "w-main" : "" }, [h])))]),
+          el("tbody", {}, recent.map(r => el("tr", {}, [
+            el("td", { class: "muted num", style: "white-space:nowrap" }, [UI.fmtTs(r.ts)]),
+            el("td", { class: "w-main", style: "max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: r.query }, [r.query || "-"]),
+            el("td", {}, [el("span", { class: "chip gray" }, [DOMAIN_NAMES[r.dimension] || r.dimension || "-"])]),
+            el("td", {}, [el("span", { class: "chip blue" }, [r.winner_name || r.winner])]),
+            el("td", { class: "muted" }, [(r.loser_names || r.losers || []).join("、") || "-"]),
+          ]))),
+        ])])
+      : el("div", { class: "empty-state" }, [
+          el("div", { class: "empty-title" }, ["还没有回流数据"]),
+          el("div", {}, ["终端用户在客户产品里对 A/B 双答案做出采纳后，这里会出现明细"]),
+        ]),
+  ]));
 }
 
 function pollEvolve() {
   clearTimeout(evolvePollTimer);
   evolvePollTimer = setTimeout(async () => {
-    if (activeTab !== "flow") return;
+    if (activeTab !== "flywheel") return;
     const { task } = await UI.api("/api/profile/evolve/status").catch(() => ({ task: { status: "idle" } }));
-    if (task && task.status === "running") { renderFlow(); }
+    if (task && task.status === "running") { renderFlywheel(); }
     else if (task && task.status === "completed") {
-      UI.toast(`画像已更新到 v${task.version}，各策略请重新生成路由效果`);
-      renderFlow();
+      UI.toast(`画像已更新到 v${task.version}，去「通用数据集」重新生成各策略路由效果`);
+      renderFlywheel();
+    } else if (task && task.status === "failed") {
+      UI.toast("画像更新中断：" + (task.error || "未知错误") + "，可重试", true);
+      renderFlywheel();
     }
   }, 900);
 }
@@ -1116,7 +1165,7 @@ async function renderDispatch() {
   renderPolicies(listBox, policies, actives);
 
 }
-const RENDER = { models: renderModels, dispatch: renderDispatch, flow: renderFlow, import: renderImport, review: renderFlow, scene: renderScene };
+const RENDER = { models: renderModels, dispatch: renderDispatch, flow: renderFlow, flywheel: renderFlywheel, import: renderImport, review: renderFlow, scene: renderScene };
 // 走查深链：?register=1 直接打开添加模型；?policy=1 打开第一条策略的参数抽屉
 setTimeout(async () => {
   const q = new URLSearchParams(location.search);

@@ -188,6 +188,7 @@ async def _handle_turn(body: dict, emit):
     if degrade_by_quota:
         req["policy"]["latency_tier"] = "fast"
         req["policy"]["allow_aggregation"] = 0
+        req["policy"].pop("force_agg", None)  # 配额降级优先于请求级 aggregate=on，否则预算帽可被绕过
         req["policy"]["explore_ratio"] = 0
         req["mode"] = "auto" if mode == "multi" else req["mode"]
 
@@ -215,6 +216,11 @@ async def _handle_turn(body: dict, emit):
                     {"key": "A", "model_id": final["model_id"], "content": final["content"]},
                     {"key": "B", "model_id": alt["model_id"], "content": alt["content"]},
                 ]}
+                # 落库 AB 标记：/v1/feedback 只认真实出过双答案的请求（防拿历史 trace 刷偏好污染飞轮）
+                decision["ab_test"] = {"models": [o["model_id"] for o in ab_test["options"]]}
+                _c = db.get_conn()
+                _c.execute("UPDATE route_decisions SET decision=? WHERE trace_id=?", (db.j(decision), trace_id))
+                _c.commit()
 
     # （已按产品决策停用对话 query 自动回流采集：场景数据集以导入为准）
 
@@ -1528,11 +1534,12 @@ async def submit_feedback(request: Request):
     if not drow or not trow:
         return JSONResponse({"error": "request_id 不存在"}, status_code=404)
     decision = db.dj(drow["decision"], {}) or {}
-    called = {c.get("model_id") for c in decision.get("model_calls") or []}
-    called.add(decision.get("final_model_or_aggregator"))
-    if chosen not in called:
-        return JSONResponse({"error": "chosen_model_id 不在该次请求的回答模型里"}, status_code=422)
-    losers = sorted(m for m in called if m and m != chosen)
+    ab_models = (decision.get("ab_test") or {}).get("models") or []
+    if not ab_models:
+        return JSONResponse({"error": "该请求没有出过 AB 双答案，不能回传偏好"}, status_code=422)
+    if chosen not in ab_models:
+        return JSONResponse({"error": "chosen_model_id 不在该次 AB 双答案里"}, status_code=422)
+    losers = sorted(m for m in ab_models if m != chosen)
     qtext = trow["query_text"] or ""
     dim = decision.get("dimension") or mockmodels.classify_dimension(qtext)
     conn.execute(
@@ -1572,9 +1579,16 @@ def flywheel_stats():
     except (TypeError, ValueError):
         rate = 0.2
     evo = db.dj(_get_setting("profile_evolution"), None)
+    recent = []
+    for r in conn.execute("SELECT ts, query_text, dimension, winner, losers FROM ab_feedback "
+                          "ORDER BY ts DESC LIMIT 20").fetchall():
+        losers = db.dj(r["losers"], []) or []
+        recent.append({"ts": r["ts"], "query": r["query_text"] or "", "dimension": r["dimension"],
+                       "winner": r["winner"], "winner_name": names.get(r["winner"], r["winner"]),
+                       "losers": losers, "loser_names": [names.get(l, l) for l in losers]})
     return {"total": total, "last7d": last7, "dimensions": dims, "win_rates": win_rates,
             "sampling_rate": rate, "evolution": evo, "min_required": EVOLVE_MIN_FEEDBACK,
-            "evolve_task": _evolve_task}
+            "recent": recent, "evolve_task": _evolve_task}
 
 
 _evolve_task = {"status": "idle", "done": 0, "total": 0}
@@ -1603,6 +1617,16 @@ def profile_evolve_status():
 
 
 async def _run_evolve(since_ts: float):
+    try:
+        await _run_evolve_inner(since_ts)
+    except Exception as e:
+        # 任务异常必须落终态，否则一键更新永远锁在 running（同导入任务的教训）
+        _evolve_task["status"] = "failed"
+        _evolve_task["error"] = str(e)[:200]
+        db.audit("system", "profile_evolve_failed", {"error": str(e)[:200]})
+
+
+async def _run_evolve_inner(since_ts: float):
     conn = db.get_conn()
     rows = [dict(r) for r in conn.execute("SELECT * FROM ab_feedback ORDER BY ts").fetchall()]
     for i in range(len(rows)):

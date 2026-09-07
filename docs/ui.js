@@ -226,6 +226,7 @@ window.UI = (function () {
         { title: "模型路由", items: [
           ["router:dispatch", "路由策略", "./router.html#dispatch", "route2"],
           ["router:flow", "通用数据集", "./router.html#flow", "database"],
+          ["router:flywheel", "数据飞轮", "./router.html#flywheel", "refresh"],
           ["playground:model", "模型路由测试", "./playground.html#model", "play"],
           ["dashboard:routing", "模型路由数据", "./dashboard.html#routing", "activity"],
           ["router:models", "模型接入", "./router.html#models", "cpu"],
