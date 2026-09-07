@@ -10,6 +10,8 @@
   const deadCards = new Set(); // 静态站会话内删除/下线的配置
   const prodLocal = { created: [], updated: {}, deleted: new Set() }; // 会话内产品操作
   const flyLocal = { rate: null, evolution: null, extraFb: 0, importedVersion: null, activeOverride: null }; // 数据飞轮会话内状态
+  // 模型操作会话内状态：设默认兜底 / 启停 / 思考开关 / 编辑 / 删除（否则快照回读=界面无反应）
+  const modelLocal = { defaultId: null, status: {}, thinking: {}, updated: {}, deleted: new Set() };
   function mockVersions() {
     const base = ((D["/api/dataset/versions"] || {}).versions || [{ version: 1, ts: Date.now() / 1000 - 86400,
       note: "冷启动：内置 benchmark QA 对", cold_count: 52, reflow_count: 0, active: 1 }]).map(v => ({ ...v }));
@@ -90,6 +92,19 @@
       const n = flyLocal.importedVersion && mockActiveVersion() >= flyLocal.importedVersion ? flyLocal.extraFb : (base.total || 62) + flyLocal.extraFb;
       return { pending: [], total_pending: n };
     }
+    if (pn === "/v1/models") {
+      const base = JSON.parse(JSON.stringify(D[pn] || { models: [] }));
+      base.models = (base.models || []).filter(m => !modelLocal.deleted.has(m.model_id)).map(m => {
+        const out = { ...m, ...(modelLocal.updated[m.model_id] || {}) };
+        if (modelLocal.status[m.model_id]) out.status = modelLocal.status[m.model_id];
+        if (modelLocal.defaultId) out.is_default = m.model_id === modelLocal.defaultId ? 1 : 0;
+        if (modelLocal.thinking[m.model_id] !== undefined) {
+          out.capabilities = { ...(out.capabilities || {}), thinking_enabled: modelLocal.thinking[m.model_id] };
+        }
+        return out;
+      });
+      return base;
+    }
     if (pn === "/v1/bank/questions") {
       const sc = new URLSearchParams((full || "").split("?")[1] || "").get("scene") || "general";
       return D["bankq:" + sc] || { questions: [], scene: sc };
@@ -165,6 +180,34 @@
       flyLocal.extraFb += 1;
       const base = D["/api/flywheel"] || { total: 62 };
       return { ok: true, flywheel_total: (base.total || 62) + flyLocal.extraFb };
+    }
+    {
+      const mm2 = pn.match(/^\/v1\/models\/([^/]+)\/(set-default|status|thinking|update|profile-data|delete)$/);
+      if (mm2) {
+        const mid = mm2[1], act = mm2[2];
+        if (act === "set-default") { modelLocal.defaultId = mid; return { ok: true }; }
+        if (act === "status") { modelLocal.status[mid] = (body && body.status) || "active"; return { ok: true }; }
+        if (act === "thinking") { modelLocal.thinking[mid] = !(body && body.enabled === false); return { ok: true }; }
+        if (act === "delete") { modelLocal.deleted.add(mid); return { ok: true }; }
+        if (act === "update") {
+          modelLocal.updated[mid] = { ...(modelLocal.updated[mid] || {}), ...(body && body.display_name ? { display_name: body.display_name } : {}) };
+          return { ok: true };
+        }
+        if (act === "profile-data") {
+          const u = modelLocal.updated[mid] = { ...(modelLocal.updated[mid] || {}) };
+          if (body) {
+            if (body.price_input != null) u.price_input = Number(body.price_input) || 0;
+            if (body.price_output != null) u.price_output = Number(body.price_output) || 0;
+            if (body.deploy_type) u.deploy_type = body.deploy_type;
+            if (body.gpu_count != null) u.gpu_count = Number(body.gpu_count) || 0;
+            if (u.deploy_type === "self_hosted" && !u.price_input && !u.price_output && u.gpu_count) {
+              u.price_input = Math.round(0.15 * u.gpu_count * 100) / 100;
+              u.price_output = Math.round(0.30 * u.gpu_count * 100) / 100;
+            }
+          }
+          return { ok: true };
+        }
+      }
     }
     if (pn === "/api/dataset/rollback") {
       const target = Number(body && body.version);
