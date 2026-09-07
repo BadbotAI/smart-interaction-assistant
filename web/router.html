@@ -34,7 +34,7 @@ let pollTimer = null;
 
 function showSection(key, first = false) {
   if (key === "profile" || key === "policies") key = "dispatch"; // 旧深链兼容
-  if (!RENDER[key]) key = "models";
+  if (!RENDER[key]) key = "dispatch";
   if (!first && key === activeTab) return;
   activeTab = key;
   clearInterval(pollTimer); clearTimeout(profilePollTimer); clearTimeout(evolvePollTimer);
@@ -1390,7 +1390,7 @@ setTimeout(async () => {
   }
 }, 900);
 window.addEventListener("hashchange", () => showSection(location.hash.replace("#", "")));
-showSection(location.hash.replace("#", "") || "models", true);
+showSection(location.hash.replace("#", "") || "dispatch", true);
 </script>
 </body>
 </html>
