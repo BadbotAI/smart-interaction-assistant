@@ -945,7 +945,21 @@ async function renderFlywheel() {
       try { await UI.api("/v1/bank/reflow/import", { method: "POST" }); renderFlywheel(); pollEvolve(); }
       catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
     } }, [running ? "导入中…" : "导入回流数据"]);
-  document.getElementById("headActions").appendChild(evolveBtn);
+  const fwRulesBlock = el("div", { class: "card explain-body", hidden: true, style: "margin-bottom:12px" }, [
+    el("p", {}, ["1. 出双答案：线上回答按采样率出 A/B 两份，用户挑一份。双答案复用本轮已生成的候选回答，不额外调用模型。"]),
+    el("p", {}, ["2. 偏好回流：用户选了哪份，客户端就经 /v1/feedback 回传哪份，同一请求只记一票；待导入数据也可从 GET /v1/feedback/pending 接口自取（增量参数 since）。"]),
+    el("p", {}, [`3. 导入成新版本：攒满 ${fly.min_required || 20} 条点「导入回流数据」——转成 QA 对并入数据集、生成新版本并重新聚类出团簇与胜率排序；各策略再重新生成路由效果。`]),
+    el("p", {}, ["4. 回滚：新版本效果不好，在「数据集」页把版本切回去即可；数据保留，可再切回。"]),
+  ]);
+  const fwRulesBtn = el("button", { class: "btn small ghost", onclick: () => {
+    fwRulesBlock.hidden = !fwRulesBlock.hidden;
+    fwRulesBtn.classList.toggle("active", !fwRulesBlock.hidden);
+  } }, ["数据飞轮规则", UI.icon("chevron", 13)]);
+  const ha = document.getElementById("headActions");
+  ha.appendChild(fwRulesBtn);
+  ha.appendChild(el("span", { style: "display:inline-block;width:8px" }));
+  ha.appendChild(evolveBtn);
+  box.appendChild(fwRulesBlock);
 
   // 总览卡
   const dimChips = Object.entries(fly.dimensions || {}).sort((a, b) => b[1] - a[1])
@@ -973,25 +987,6 @@ async function renderFlywheel() {
     pollEvolve();
   }
   box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, overviewKids));
-
-  // 冷启动空态叙事：画像还没演化过时，先讲清飞轮怎么转（演化后此卡消失）
-  if (!evo && !running) {
-    const step = (n, t, d2) => el("div", { style: "flex:1;min-width:200px" }, [
-      el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:4px" }, [
-        el("span", { class: "chip blue", style: "flex:none" }, [String(n)]),
-        el("span", { style: "font-weight:600" }, [t]),
-      ]),
-      el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [d2]),
-    ]);
-    box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
-      el("div", { style: "font-weight:600;margin-bottom:10px" }, ["数据集还是 v1 冷启动版，飞轮三步转起来："]),
-      el("div", { style: "display:flex;gap:18px;flex-wrap:wrap" }, [
-        step(1, "出双答案", "回答按采样率出 A/B 两份，用户挑一份"),
-        step(2, "偏好回流", "用户选了哪份，客户端就回传哪份，攒在下方明细里"),
-        step(3, "导入成新版本", "攒满 " + (fly.min_required || 20) + " 条点右上角导入，数据集升级 v2；不好可回滚"),
-      ]),
-    ]));
-  }
 
   // 演化团簇卡
   if (evo && !running) {
