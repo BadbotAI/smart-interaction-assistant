@@ -263,21 +263,33 @@ window.TestChat = (function () {
         const d = evt.decision_summary;
         const pol = d.policy || {};
         const rows = [];
+        // 三层路由：命中层级 + 能力维度（v5.0）
+        const DIM_NAMES = { qa: "通用问答", coding: "代码", math: "数学推理", writing: "长文写作",
+          multimodal: "多模态理解", chat: "日常闲聊", general: "通用" };
+        const LAYER_NAMES = { rule: "第 1 层 · 硬规则", dimension: "第 2 层 · 维度匹配", "else": "第 3 层 · else 兜底" };
         if (d.mode === "manual") {
           rows.push(["策略", "手动指定模型（不走智能路由）"]);
-        } else if (d.switch_result === "fallback") {
-          rows.push(["策略", `${pol.name || "-"} · 直连默认兜底模型`]);
-          rows.push(["推导", "按该策略约定跳过场景打分，任何问题都交给兜底模型"]);
         } else {
           rows.push(["策略", `${pol.name || pol.policy_id || "-"} · 成本-效果权重 ${pol.alpha ?? "-"} · ` +
             (pol.allow_aggregation ? "允许聚合" : "仅单模型") +
-            (pol.K ? ` · 候选 ${pol.K} 个` : "") + (d.is_explore ? "（本次命中探索流量）" : "")]);
-          rows.push(["推导", {
-            fastlane: "按各模型在该场景的历史成绩打分，最高分显著领先（或策略仅单模型），直接单模型作答",
+            (d.aggregate_override ? `（本次被请求参数 aggregate=${d.aggregate_override} 覆盖）` : "") +
+            (d.is_explore ? "（本次命中探索流量）" : "")]);
+          if (d.route_layer) {
+            rows.push(["层级", (LAYER_NAMES[d.route_layer] || d.route_layer) +
+              (d.dimension && d.route_layer !== "else" ? ` · 判定为「${DIM_NAMES[d.dimension] || d.dimension}」` : "")]);
+          }
+          rows.push(["推导", d.route_layer === "else"
+            ? "未命中任何能力维度基准题，走 else 兜底直连"
+            : d.route_layer === "rule" && d.dimension === "multimodal"
+            ? "硬规则命中多模态请求，只在支持多模态的模型中按成绩选择"
+            : {
+            fastlane: "按各模型在该维度的基准成绩打分，最高分显著领先（或策略仅单模型），直接单模型作答",
             routed: "候选并发作答后结合回答质量与消耗细排，单模型胜出",
-            aggregated: "打分后两名成绩接近，按策略允许聚合：多路回答交给聚合器融合重写",
+            aggregated: "打分后两名成绩接近，按策略允许聚合：多路回答交给聚合模型总结定稿",
+            fallback: "候选不可用，切兜底模型直连",
             degraded: "候选模型异常，按稳态规则降级处理",
           }[d.switch_result] || "按策略参数推导路由去向"]);
+          if (d.ab_sampled) rows.push(["采样", "本次命中 AB 采样：响应带 A/B 双答案，等待终端用户采纳回传（/v1/feedback）"]);
         }
         const modelName = (id) => {
           const hit = (pickGroups.find(g => g.label === "指定模型") || { items: [] }).items.find(x => x.value === id);

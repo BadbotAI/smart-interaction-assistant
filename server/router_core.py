@@ -217,7 +217,12 @@ async def run_route(req: dict, recorder, emit):
     mode = req.get("mode") or "auto"          # auto=智能路由 / manual=手动选模型 / multi=多模型回答+单模型总结
     params = {**DEFAULT_PARAMS, **db.dj(policy.get("params"), {})}
     K = int(params["K"])
+    if policy.get("force_agg"):
+        K = max(K, 2)  # 请求级 aggregate=on：至少两路候选才聚得起来
     domain = mockmodels.classify_domain(query)
+    # 三层路由（v5.0）：先判能力维度——multimodal/chat 走硬规则层，其余进维度匹配层
+    dimension = mockmodels.classify_dimension(query)
+    req["_route"] = {"layer": "dimension", "dimension": dimension}
 
     whitelist = db.dj(policy.get("model_whitelist"), []) or None
     models = get_active_models(whitelist=whitelist)
@@ -252,6 +257,31 @@ async def run_route(req: dict, recorder, emit):
         return await _finalize(req, recorder, emit, ans, "manual", [ans], {}, {},
                                [target["model_id"]], target["model_id"], False, t_start, [])
 
+    # —— 第 1 层 · 硬规则：多模态等功能性需求直接按能力分流，不进打分 ——
+    if dimension == "multimodal":
+        req["_route"]["layer"] = "rule"
+        mm = [m for m in models if (m["capabilities"] or {}).get("vision")]
+        if mm:
+            models = mm
+            model_ids = [m["model_id"] for m in models]
+            by_id = {m["model_id"]: m for m in models}
+            await emit({"step": "rule", "text": f"硬规则命中：多模态请求，仅在 {len(mm)} 个支持多模态的模型中路由"})
+        else:
+            req["_route"]["layer"] = "else"
+            await emit({"step": "rule", "text": f"硬规则命中：多模态请求，但候选中没有支持多模态的模型，切兜底 {default_model['display_name']}"})
+            recorder.span("route_score", {"layer": "else", "reason": "no_multimodal_candidate",
+                                          "fallback": default_model["model_id"]})
+            ans = await _call_with_timeout(default_model, query, domain, recorder, emit)
+            if ans["status"] != "ok":
+                return await _finalize(req, recorder, emit, None, "failed", [ans], {}, {},
+                                       [default_model["model_id"]], default_model["model_id"], False, t_start, [],
+                                       error="all_models_failed")
+            return await _finalize(req, recorder, emit, ans, "fallback", [ans], {}, {},
+                                   [default_model["model_id"]], default_model["model_id"], False, t_start, [])
+    elif dimension == "chat":
+        req["_route"]["layer"] = "rule"  # 闲聊硬规则：轻量直答（由下方快车道承接执行）
+        await emit({"step": "rule", "text": "硬规则命中：日常闲聊，轻量直答"})
+
     # Step 1: embedding + support set
     t0 = time.time()
     q_emb = embeddings.embed(query)
@@ -260,7 +290,23 @@ async def run_route(req: dict, recorder, emit):
 
     bank = load_bank(tenant_id)
     support = support_set(bank, q_emb, int(params["N_base"]), float(params["gamma"]))
-    await emit({"step": "support", "text": f"命中 {len(support)} 条相似历史问题", "count": len(support)})
+    dim_name = mockmodels.DIMENSIONS.get(dimension, dimension)
+    await emit({"step": "support",
+                "text": f"第 2 层 · 维度匹配：判定为「{dim_name}」，命中 {len(support)} 条相似基准题",
+                "count": len(support)})
+
+    # —— 第 3 层 · else 兜底：不属于任何维度（无相似基准题）时兜底模型直连 ——
+    if not support and mode != "multi":
+        req["_route"]["layer"] = "else"
+        await emit({"step": "else", "text": f"未命中任何维度基准题，走 else 兜底：{default_model['display_name']} 直连"})
+        recorder.span("route_score", {"layer": "else", "reason": "no_support", "fallback": default_model["model_id"]})
+        ans = await _call_with_timeout(default_model, query, domain, recorder, emit)
+        if ans["status"] != "ok":
+            return await _finalize(req, recorder, emit, None, "failed", [ans], {}, {},
+                                   [default_model["model_id"]], default_model["model_id"], False, t_start, [],
+                                   error="all_models_failed")
+        return await _finalize(req, recorder, emit, ans, "fallback", [ans], {}, {},
+                               [default_model["model_id"]], default_model["model_id"], False, t_start, [])
 
     # Step 2: 粗粒度分数
     w_t = tenant_bank_weight(tenant_id)
@@ -290,15 +336,13 @@ async def run_route(req: dict, recorder, emit):
 
     # 快车道判定（§3.3 落差二）。多模型模式强制并发+聚合，不走快车道
     fastlane = False
-    if mode != "multi":
+    if mode != "multi" and not policy.get("force_agg"):
         if policy.get("latency_tier") == "fast" or not policy.get("allow_aggregation"):
             fastlane = True
         elif len(ranked) >= 2 and not is_explore:
             top1, top2 = ranked[0][1], ranked[1][1]
-            if (top1 - top2 > FAST_GAP and top1 > 0.5) or top1 > FAST_ABS or domain == "chat":
+            if (top1 - top2 > FAST_GAP and top1 > 0.5) or top1 > FAST_ABS or dimension == "chat":
                 fastlane = True
-        if not support:
-            fastlane = True  # bank 为空时退化为默认单模型
 
     if fastlane:
         target = candidates[0] if candidates else model_ids[0]
@@ -345,6 +389,9 @@ async def run_route(req: dict, recorder, emit):
         kept = list(answers)
     else:
         kept = [a for a in answers if g_f.get(a["model_id"], 0) >= t_thresh * max_gf]
+        # 请求级 aggregate=on：终端用户点了聚合，细排后也至少保留两份去聚合
+        if policy.get("force_agg") and len(answers) >= 2 and len(kept) < 2:
+            kept = sorted(answers, key=lambda a: -g_f.get(a["model_id"], 0))[:2]
     pruned = [a["model_id"] for a in answers if a not in kept]
     if len(kept) > 1 and sum(a["tokens_out"] for a in kept) > int(params["max_agg_tokens"]):
         kept = sorted(kept, key=lambda a: -g_f.get(a["model_id"], 0))[:2]  # aggregatee 截断
@@ -424,6 +471,8 @@ async def _finalize(req, recorder, emit, final_ans, switch_result, all_answers, 
         "switch_result": switch_result,
         "final_model_or_aggregator": final_ans["model_id"] if final_ans else None,
         "is_explore": is_explore, "total_cost": total_cost, "total_latency_ms": total_latency,
+        "route_layer": (req.get("_route") or {}).get("layer"),
+        "dimension": (req.get("_route") or {}).get("dimension"),
     }
     conn = db.get_conn()
     conn.execute(
@@ -435,4 +484,6 @@ async def _finalize(req, recorder, emit, final_ans, switch_result, all_answers, 
     return {
         "decision": decision, "final": final_ans, "error": error,
         "aggregation_candidates": kept if switch_result == "aggregated" else None,
+        # AB 采样候选池：本轮成功返回的各模型完整回答（供数据飞轮出 A/B 双答案）
+        "answers": [a for a in all_answers if a and a.get("status") == "ok" and a.get("content")],
     }

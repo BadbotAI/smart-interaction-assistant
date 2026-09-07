@@ -24,6 +24,36 @@ DOMAIN_KEYWORDS = {
     "chat": ["你好", "谢谢", "你是谁", "介绍一下你", "聊", "在吗", "早上好"],
 }
 
+# ---------- 能力维度（v5.0 通用数据集冷启动） ----------
+# 通用数据集不按业务场景切，按模型能力维度切：维度与模型能力强相关，冷启动打分才有区分度。
+DIMENSIONS = {
+    "qa": "通用问答", "coding": "代码", "math": "数学推理", "writing": "长文写作",
+    "multimodal": "多模态理解", "chat": "日常闲聊", "general": "通用",
+}
+
+DIM_KEYWORDS = {
+    "coding": ["代码", "函数", "报错", "bug", "接口", "SQL", "脚本", "正则", "编程", "调试", "部署脚本"],
+    "math": ["计算", "多少", "概率", "求解", "方程", "推导", "证明", "百分比", "利率", "增长率"],
+    "writing": ["写一篇", "写一份", "起草", "润色", "文案", "总结报告", "公文", "演讲稿", "周报", "通知"],
+    "multimodal": ["图片", "图像", "截图", "照片", "识别图", "看图", "音频", "语音", "视频", "扫描件"],
+    "chat": ["你好", "谢谢", "你是谁", "介绍一下你", "聊", "在吗", "早上好"],
+}
+
+
+def classify_dimension(text: str) -> str:
+    """三层路由的维度判定：先给硬规则层用（multimodal/chat），再给维度匹配层用。"""
+    scores = {}
+    for dim, words in DIM_KEYWORDS.items():
+        s = sum(1 for w in words if w in text)
+        if s:
+            scores[dim] = s
+    if scores.get("multimodal"):
+        return "multimodal"  # 多模态是硬规则：命中即定，不与其他维度比票
+    if not scores:
+        return "qa" if len(text) >= 6 else "general"
+    return max(scores, key=scores.get)
+
+
 MODEL_POOL = [
     {
         "model_id": "swift-4b",
@@ -33,8 +63,9 @@ MODEL_POOL = [
         "credential_ref": "vault://cred/swift-4b",
         "price_input": 0.10, "price_output": 0.20,
         "latency_ms_base": 320,
+        "deploy_type": "api", "gpu_count": 0,
         "capabilities": {"tool_call": True, "vision": False, "streaming": True, "context_window": 32768, "thinking": False},
-        "profile": {"chat": 0.96, "price": 0.42, "sourcing": 0.45, "capacity": 0.48, "port": 0.44,
+        "profile": {"qa": 0.62, "coding": 0.35, "math": 0.30, "writing": 0.45, "multimodal": 0.0, "chat": 0.96, "price": 0.42, "sourcing": 0.45, "capacity": 0.48, "port": 0.44,
                     "compliance": 0.38, "weather": 0.62, "analytics": 0.40, "general": 0.55},
     },
     {
@@ -45,8 +76,9 @@ MODEL_POOL = [
         "credential_ref": "vault://cred/atlas-72b",
         "price_input": 0.60, "price_output": 1.20,
         "latency_ms_base": 900,
+        "deploy_type": "self_hosted", "gpu_count": 16,
         "capabilities": {"tool_call": True, "vision": True, "streaming": True, "context_window": 131072, "thinking": False},
-        "profile": {"chat": 0.88, "price": 0.78, "sourcing": 0.80, "capacity": 0.79, "port": 0.76,
+        "profile": {"qa": 0.80, "coding": 0.68, "math": 0.62, "writing": 0.75, "multimodal": 0.78, "chat": 0.88, "price": 0.78, "sourcing": 0.80, "capacity": 0.79, "port": 0.76,
                     "compliance": 0.75, "weather": 0.80, "analytics": 0.78, "general": 0.80},
     },
     {
@@ -57,8 +89,9 @@ MODEL_POOL = [
         "credential_ref": "vault://cred/sage-r1",
         "price_input": 1.00, "price_output": 2.50,
         "latency_ms_base": 2100,
+        "deploy_type": "api", "gpu_count": 0,
         "capabilities": {"tool_call": True, "vision": False, "streaming": True, "context_window": 65536, "thinking": True},
-        "profile": {"chat": 0.60, "price": 0.95, "sourcing": 0.86, "capacity": 0.82, "port": 0.72,
+        "profile": {"qa": 0.78, "coding": 0.85, "math": 0.94, "writing": 0.70, "multimodal": 0.0, "chat": 0.60, "price": 0.95, "sourcing": 0.86, "capacity": 0.82, "port": 0.72,
                     "compliance": 0.84, "weather": 0.70, "analytics": 0.95, "general": 0.82},
     },
     {
@@ -69,8 +102,9 @@ MODEL_POOL = [
         "credential_ref": "vault://cred/harbor-13b",
         "price_input": 0.30, "price_output": 0.60,
         "latency_ms_base": 620,
+        "deploy_type": "self_hosted", "gpu_count": 4,
         "capabilities": {"tool_call": True, "vision": False, "streaming": True, "context_window": 32768, "thinking": False},
-        "profile": {"chat": 0.70, "price": 0.60, "sourcing": 0.58, "capacity": 0.90, "port": 0.94,
+        "profile": {"qa": 0.66, "coding": 0.55, "math": 0.48, "writing": 0.60, "multimodal": 0.0, "chat": 0.70, "price": 0.60, "sourcing": 0.58, "capacity": 0.90, "port": 0.94,
                     "compliance": 0.55, "weather": 0.82, "analytics": 0.56, "general": 0.62},
     },
     {
@@ -81,8 +115,9 @@ MODEL_POOL = [
         "credential_ref": "vault://cred/lexi-34b",
         "price_input": 0.50, "price_output": 1.00,
         "latency_ms_base": 780,
+        "deploy_type": "api", "gpu_count": 0,
         "capabilities": {"tool_call": True, "vision": False, "streaming": True, "context_window": 131072, "thinking": False},
-        "profile": {"chat": 0.72, "price": 0.58, "sourcing": 0.83, "capacity": 0.60, "port": 0.62,
+        "profile": {"qa": 0.72, "coding": 0.50, "math": 0.52, "writing": 0.88, "multimodal": 0.0, "chat": 0.72, "price": 0.58, "sourcing": 0.83, "capacity": 0.60, "port": 0.62,
                     "compliance": 0.95, "weather": 0.58, "analytics": 0.66, "general": 0.68},
     },
     {
@@ -93,8 +128,9 @@ MODEL_POOL = [
         "credential_ref": "vault://cred/nova-x",
         "price_input": 3.00, "price_output": 9.00,
         "latency_ms_base": 1500,
+        "deploy_type": "api", "gpu_count": 0,
         "capabilities": {"tool_call": True, "vision": True, "streaming": True, "context_window": 262144, "thinking": True},
-        "profile": {"chat": 0.90, "price": 0.90, "sourcing": 0.90, "capacity": 0.88, "port": 0.87,
+        "profile": {"qa": 0.90, "coding": 0.88, "math": 0.86, "writing": 0.90, "multimodal": 0.92, "chat": 0.90, "price": 0.90, "sourcing": 0.90, "capacity": 0.88, "port": 0.87,
                     "compliance": 0.90, "weather": 0.88, "analytics": 0.90, "general": 0.90},
     },
 ]

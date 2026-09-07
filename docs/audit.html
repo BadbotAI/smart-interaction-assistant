@@ -22,10 +22,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=09b46730"></script>
-<script src="./mock_api.js?v=eb2de70a"></script>
+<script src="./mock_data.js?v=7e9816a5"></script>
+<script src="./mock_api.js?v=aadced14"></script>
 <script src="./tokens.js?v=360e29ec"></script>
-<script src="./ui.js?v=33285b39"></script>
+<script src="./ui.js?v=9ff95b89"></script>
 <script>
 UI.nav("audit");
 const { el } = UI;
@@ -39,10 +39,12 @@ const ACTION_NAMES = {
   brand_activate: "切换组件风格", brand_delete: "删除组件风格", label_review: "标签复核",
   unmask_trace: "解除脱敏",
   policy_create: "新增路由策略", policy_delete: "删除路由策略", policy_duplicate: "复制路由策略",
-  scene_add: "添加业务场景", scene_delete: "删除业务场景",
-  bank_question_delete: "删除数据集题目", bank_question_relabel: "更改题目场景",
-  bank_scene_replace: "替换场景数据集", apikey_create: "创建 API Key", apikey_delete: "删除 API Key",
-  judge_model_set: "配置 Judge 模型", model_thinking: "切换思考模式", model_rename: "编辑模型", model_delete: "删除模型",
+  scene_add: "添加能力维度", scene_delete: "删除能力维度",
+  bank_question_delete: "删除数据集题目", bank_question_relabel: "更改题目维度",
+  bank_scene_replace: "替换维度数据集", apikey_create: "创建 API Key", apikey_delete: "删除 API Key",
+  ab_sampling_set: "调整 AB 采样率", ab_feedback: "偏好回流", profile_evolve: "一键更新画像",
+  migrate_flywheel_v5: "升级通用数据集", judge_model_set: "配置 Judge 模型（已下线）",
+  model_thinking: "切换思考模式", model_rename: "编辑模型", model_delete: "删除模型",
   model_profile_data: "导入画像数据", bank_import: "导入数据集", bank_import_failed: "导入数据集失败",
   bank_eval_pending: "评测回填", bank_staged_commit: "并入回流数据", bank_staged_discard: "移除回流数据",
   brand_import: "导入组件风格", label_source_toggle: "切换信号源", card_refs_upgrade: "升级配置引用",

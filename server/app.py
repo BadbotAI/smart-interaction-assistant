@@ -170,6 +170,18 @@ async def _handle_turn(body: dict, emit):
     mode = body.get("mode") or "auto"
     req = {"query": route_text, "tenant_id": tenant_id, "policy": dict(policy),
            "mode": mode, "manual_model": body.get("manual_model")}
+    # v5.0 请求级聚合参数：客户页面把终端用户的「聚合答案」选项透传进来，按次覆盖策略默认
+    agg_req = str(body.get("aggregate") or "auto").lower()
+    if agg_req not in ("on", "off", "auto"):
+        agg_req = "auto"
+    if agg_req == "on" and mode == "auto":
+        # 终端用户点了「聚合答案」：允许并尽量兑现聚合（跳过快车道、细排至少保留两份）
+        req["policy"]["allow_aggregation"] = 1
+        req["policy"]["force_agg"] = 1
+        if req["policy"].get("latency_tier") == "fast":
+            req["policy"]["latency_tier"] = "balanced"
+    elif agg_req == "off":
+        req["policy"]["allow_aggregation"] = 0
     if mode == "multi":
         req["policy"]["allow_aggregation"] = 1
         req["policy"]["explore_ratio"] = 0
@@ -187,6 +199,22 @@ async def _handle_turn(body: dict, emit):
 
     final = result["final"]
     decision = result["decision"]
+
+    # 数据飞轮 · AB 采样：一定比例请求出 A/B 双答案，终端用户的采纳经 /v1/feedback 回流
+    ab_test = None
+    ok_answers = result.get("answers") or []
+    if mode == "auto" and len(ok_answers) >= 2 and final and final.get("content"):
+        try:
+            _rate = float(_get_setting("ab_sampling_rate") or 0.2)
+        except (TypeError, ValueError):
+            _rate = 0.2
+        if random.random() < _rate:
+            alt = next((a for a in ok_answers if a["model_id"] != final["model_id"]), None)
+            if alt:
+                ab_test = {"group_id": trace_id, "feedback_endpoint": "/v1/feedback", "options": [
+                    {"key": "A", "model_id": final["model_id"], "content": final["content"]},
+                    {"key": "B", "model_id": alt["model_id"], "content": alt["content"]},
+                ]}
 
     # （已按产品决策停用对话 query 自动回流采集：场景数据集以导入为准）
 
@@ -215,10 +243,18 @@ async def _handle_turn(body: dict, emit):
 
     await emit({
         "step": "final", "trace_id": trace_id, "turn_id": turn_id,
+        "request_id": trace_id,
         "content": final["content"], "components": components,
+        "ab_test": ab_test,
+        "applied": {"aggregate": agg_req, "aggregation_used": decision["switch_result"] == "aggregated",
+                    "policy_id": policy.get("policy_id")},
         "decision_summary": {
             "mode": decision.get("mode", "auto"),
             "switch_result": decision["switch_result"],
+            "route_layer": decision.get("route_layer"),
+            "dimension": decision.get("dimension"),
+            "ab_sampled": bool(ab_test),
+            "aggregate_override": agg_req if agg_req != "auto" else None,
             "final_model": decision["final_model_or_aggregator"],
             "candidates": decision["candidate_models"],
             "aggregator": decision.get("aggregator_model"),
@@ -935,11 +971,30 @@ async def import_model_profile_data(model_id: str, request: Request):
     caps = db.dj(row["capabilities"], {}) or {}
     if ctx > 0:
         caps["context_window"] = ctx
-    conn.execute("UPDATE models SET price_input=?, price_output=?, capabilities=? WHERE model_id=?",
-                 (pin, pout, db.j(caps), model_id))
+    # 成本双类型：自有部署按卡数做简易估算（GPU 卡·时折算），API 接入按官网单价
+    deploy_type = (body.get("deploy_type") or row["deploy_type"] or "api").strip()
+    if deploy_type not in ("api", "self_hosted"):
+        return JSONResponse({"error": "接入方式仅支持 api / self_hosted"}, status_code=422)
+    gpu_count = row["gpu_count"] or 0
+    if deploy_type == "self_hosted":
+        try:
+            gpu_count = int(body.get("gpu_count") if body.get("gpu_count") is not None else gpu_count)
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "卡数需为整数"}, status_code=422)
+        if not (1 <= gpu_count <= 512):
+            return JSONResponse({"error": "自有部署需填写卡数（1-512）"}, status_code=422)
+        if not pin and not pout:
+            # 简易估算：卡越多的模型单位吞吐成本越高（按 GPU 卡·时折算到每百万 token）
+            pin = round(0.15 * gpu_count, 2)
+            pout = round(0.30 * gpu_count, 2)
+    else:
+        gpu_count = 0
+    conn.execute("UPDATE models SET price_input=?, price_output=?, capabilities=?, deploy_type=?, gpu_count=? "
+                 "WHERE model_id=?", (pin, pout, db.j(caps), deploy_type, gpu_count, model_id))
     conn.commit()
-    db.audit("demo-admin", "model_profile_data", {"model_id": model_id, "price_input": pin, "price_output": pout, "context_window": ctx})
-    return {"ok": True}
+    db.audit("demo-admin", "model_profile_data", {"model_id": model_id, "price_input": pin, "price_output": pout,
+                                                  "context_window": ctx, "deploy_type": deploy_type, "gpu_count": gpu_count})
+    return {"ok": True, "price_input": pin, "price_output": pout}
 
 
 @app.post("/v1/models")
@@ -963,14 +1018,29 @@ async def register_model(request: Request):
     conn = db.get_conn()
     if conn.execute("SELECT 1 FROM models WHERE model_id=?", (body["model_id"],)).fetchone():
         return JSONResponse({"error": "model_id 已存在"}, status_code=409)
+    deploy_type = (body.get("deploy_type") or "api").strip()
+    if deploy_type not in ("api", "self_hosted"):
+        return JSONResponse({"error": "接入方式仅支持 api / self_hosted"}, status_code=422)
+    gpu_count = 0
+    if deploy_type == "self_hosted":
+        try:
+            gpu_count = int(body.get("gpu_count") or 0)
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "卡数需为整数"}, status_code=422)
+        if not (1 <= gpu_count <= 512):
+            return JSONResponse({"error": "自有部署需填写卡数（1-512）"}, status_code=422)
+        if not pin and not pout:
+            pin = round(0.15 * gpu_count, 2)
+            pout = round(0.30 * gpu_count, 2)
     conn.execute(
         "INSERT INTO models (model_id, display_name, provider, endpoint, credential_ref, price_input, "
-        "price_output, capabilities, status, bank_coverage, latency_ms_base, profile) VALUES (?,?,?,?,?,?,?,?,?,0,?,?)",
+        "price_output, capabilities, status, bank_coverage, latency_ms_base, profile, deploy_type, gpu_count) "
+        "VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?,?)",
         (body["model_id"], body["display_name"], body["provider"], body["endpoint"], body["credential_ref"],
-         float(body["price_input"]), float(body["price_output"]),
+         pin, pout,
          db.j(body.get("capabilities") or {"tool_call": True, "streaming": True, "context_window": 32768}),
          "registering", int(body.get("latency_ms_base", 800)),
-         db.j(body.get("profile") or {"general": 0.7})))
+         db.j(body.get("profile") or {"general": 0.7}), deploy_type, gpu_count))
     conn.commit()
     db.audit("demo-admin", "model_register", {"model_id": body["model_id"]})
     return {"ok": True, "note": "入池未完成的模型不参与线上路由。请触发 bank 回填任务。"}
@@ -1090,10 +1160,6 @@ def delete_credential(model_id: str):
     return {"ok": True, "note": "凭证已删除，模型已停用。正在进行的会话将自动切换备选模型并在 Trace 中标记。"}
 
 
-# ============ LLM-as-judge 离线批标（§3.5 标签链路之四） ============
-
-_judge_task = {"status": "idle", "done": 0, "total": 0, "labeled": 0}
-
 
 LABEL_SOURCES = [
     {"source": "explicit_preference", "name": "多回答择优", "confidence": 0.9,
@@ -1102,8 +1168,6 @@ LABEL_SOURCES = [
      "desc": "每条回答的赞 / 踩，按能力与偏好分组"},
     {"source": "implicit_behavior", "name": "隐式行为", "confidence": 0.25,
      "desc": "复制回答（弱正）、换模型重答（弱负）等行为信号，低置信自动降权"},
-    {"source": "llm_judge", "name": "AI 评审补标", "confidence": 0.5,
-     "desc": "给无标签的历史请求批量打伪标签，覆盖率不足时使用"},
 ]
 
 
@@ -1152,10 +1216,7 @@ async def toggle_label_source(request: Request):
 
 @app.post("/v1/bank/eval-pending")
 def bank_eval_pending():
-    """评测回填（论文闭环：导题 → 各在线模型作答 → judge 模型择优打分入库）。"""
-    judge = _get_setting("judge_model")
-    if not judge:
-        return JSONResponse({"error": "未配置路由决策模型 模型：请先在「调度策略」页选择用于评审的模型"}, status_code=409)
+    """评测回填：导入的客观题由各在线模型作答，对照标准答案判分入库（无需 LLM 裁判）。"""
     conn = db.get_conn()
     rows = conn.execute(
         "SELECT q.query_id, q.query_text, q.domain_tags FROM bank_queries q WHERE q.tenant_id=? "
@@ -1174,7 +1235,7 @@ def bank_eval_pending():
                 "label_value, label_confidence, label_source, label_kind, created_at, updated_at) "
                 "VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (q["query_id"], m["model_id"], db.j(embeddings.embed(content)), max(30, int(len(content) * 1.5)),
-                 1.0 if correct else 0.0, 0.7, "model_eval", "capability", db.now_ts(), db.now_ts()))
+                 1.0 if correct else 0.0, 1.0, "ground_truth", "capability", db.now_ts(), db.now_ts()))
             n_resp += 1
     conn.commit()
     # 评测轮次：本次覆盖到的每个场景 +1 轮
@@ -1183,76 +1244,8 @@ def bank_eval_pending():
         rounds[dom] = rounds.get(dom, 0) + 1
     if rows:
         _set_setting("scene_rounds", db.j(rounds))
-    db.audit("demo-admin", "bank_eval_pending", {"queries": len(rows), "responses": n_resp, "judge_model": judge})
-    return {"queries": len(rows), "responses": n_resp, "judge_model": judge}
-
-
-@app.post("/v1/labels/judge/run")
-async def run_judge():
-    if not _source_enabled(db.get_conn(), "llm_judge"):
-        return JSONResponse({"error": "AI 评审信号源已关闭，请先在反馈优化页开启"}, status_code=409)
-    if not _get_setting("judge_model"):
-        return JSONResponse({"error": "未配置路由决策模型 模型：请先在「调度策略」页选择用于评审的模型"}, status_code=409)
-    """离线批标任务：对尚无标签的历史 Trace 用 judge 模型打伪标签（confidence 0.5）。
-    演示环境 judge 为模拟（与真实对错约 80% 一致）；生产替换为真实 LLM 评审调用。"""
-    if _judge_task["status"] == "running":
-        return {"task": _judge_task}
-    conn = db.get_conn()
-    rows = conn.execute(
-        "SELECT t.* FROM traces t LEFT JOIN labels l ON t.trace_id=l.trace_id "
-        "WHERE l.label_id IS NULL AND t.final_model IS NOT NULL AND t.query_text != '' "
-        "GROUP BY t.trace_id ORDER BY t.ts DESC LIMIT 200").fetchall()
-    _judge_task.update({"status": "running", "done": 0, "total": len(rows), "labeled": 0})
-    asyncio.create_task(_run_judge([dict(r) for r in rows]))
-    return {"task": _judge_task}
-
-
-@app.get("/v1/labels/judge/status")
-def judge_status():
-    return {"task": _judge_task}
-
-
-async def _run_judge(trace_rows):
-    import hashlib as _hl
-    conn = db.get_conn()
-    models_by_id = {}
-    for r in conn.execute("SELECT model_id, profile FROM models").fetchall():
-        models_by_id[r["model_id"]] = db.dj(r["profile"], {"general": 0.7})
-    for i, t in enumerate(trace_rows):
-        mid = t["final_model"]
-        profile = models_by_id.get(mid)
-        if profile:
-            domain = mockmodels.classify_domain(t["query_text"])
-            actual = mockmodels.is_correct(mid, profile, t["query_text"], domain)
-            # judge 有自身误差：与真实对错约 80% 一致
-            agree = int(_hl.md5(("judge" + t["trace_id"]).encode()).hexdigest()[:4], 16) % 100 < 80
-            verdict = actual if agree else (not actual)
-            spec = {"model_id": mid, "value": 1.0 if verdict else 0.0,
-                    "confidence": 0.5, "kind": "capability", "source": "llm_judge"}
-            conn.execute(
-                "INSERT INTO labels (label_id, event_id, trace_id, tenant_id, model_id, label_kind, value, "
-                "confidence, source, status, reason, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                (db.new_id(), None, t["trace_id"], t["tenant_id"], mid, "capability",
-                 spec["value"], 0.5, "llm_judge", "admitted", None, db.now_ts()))
-            events._apply_to_bank(t["tenant_id"], _row_like(t), spec, bool(t["is_explore"]))
-            traces.add_span(t["trace_id"], "label_emit", {
-                "component_type": "llm_judge", "source": "llm_judge",
-                "verdict": "correct" if verdict else "incorrect"})
-            _judge_task["labeled"] += 1
-        _judge_task["done"] = i + 1
-        if i % 10 == 0:
-            await asyncio.sleep(0.05)
-    conn.commit()
-    _judge_task["status"] = "completed"
-    db.audit("system", "llm_judge_batch", {"labeled": _judge_task["labeled"], "total": _judge_task["total"]})
-
-
-def _row_like(d: dict):
-    """dict 适配 sqlite3.Row 的取值方式，供 events._apply_to_bank 复用。"""
-    class _R:
-        def __init__(self, data): self._d = data
-        def __getitem__(self, k): return self._d.get(k)
-    return _R(d)
+    db.audit("demo-admin", "bank_eval_pending", {"queries": len(rows), "responses": n_resp})
+    return {"queries": len(rows), "responses": n_resp}
 
 
 # ============ P2 策略管理 ============
@@ -1489,45 +1482,191 @@ def _set_setting(key, val):
     conn.commit()
 
 
-@app.get("/api/settings/judge-model")
-def get_judge_model():
-    info = db.dj(_get_setting("judge_model_info"), None)
-    mid = _get_setting("judge_model") or None
-    if not info and mid:
-        info = {"model_id": mid}  # 兼容旧数据：只存了 id
-    return {"judge": info if (info and info.get("model_id")) else None}
+# ============ 数据飞轮（v5.0）：AB 采样 → 偏好回流 → 一键更新画像 ============
+
+EVOLVE_MIN_FEEDBACK = 20
 
 
-@app.post("/api/settings/judge-model")
-async def set_judge_model(request: Request):
-    """Judge 模型独立接入（与业务模型池分离）：显示名 / 模型 ID / 接口地址 / 凭证引用。传空 model_id 为移除。"""
+@app.get("/api/settings/ab-sampling")
+def get_ab_sampling():
+    try:
+        rate = float(_get_setting("ab_sampling_rate") or 0.2)
+    except (TypeError, ValueError):
+        rate = 0.2
+    return {"rate": rate}
+
+
+@app.post("/api/settings/ab-sampling")
+async def set_ab_sampling(request: Request):
+    """AB 采样率：多大比例的请求出 A/B 双答案让终端用户选（数据飞轮的进料阀门）。"""
     body = await request.json()
-    mid = (body.get("model_id") or "").strip()
-    if not mid:
-        _set_setting("judge_model", "")
-        _set_setting("judge_model_info", "")
-        db.audit("demo-admin", "judge_model_set", {"model_id": "(移除)"})
-        return {"ok": True, "judge": None}
-    import re as _re3
-    if not body.get("display_name"):
-        return JSONResponse({"error": "请填写显示名"}, status_code=422)
-    if not _re3.fullmatch(r"[a-z0-9][a-z0-9-]{1,23}", mid):
-        return JSONResponse({"error": "模型 ID 需为 2-24 位小写字母、数字或短横线"}, status_code=422)
-    if not _re3.fullmatch(r"https://\S+", (body.get("endpoint") or "")):
-        return JSONResponse({"error": "接口地址必须是 https:// 开头的完整 URL"}, status_code=422)
-    if not _re3.fullmatch(r"vault://\S+", (body.get("credential_ref") or "")):
-        return JSONResponse({"error": "凭证需为 vault:// 引用（密钥不明文入库）"}, status_code=422)
-    info = {"model_id": mid, "display_name": body["display_name"].strip(),
-            "endpoint": body["endpoint"].strip(), "credential_ref": body["credential_ref"].strip()}
-    _set_setting("judge_model", mid)
-    _set_setting("judge_model_info", db.j(info))
-    db.audit("demo-admin", "judge_model_set", {"model_id": mid, "display_name": info["display_name"]})
-    return {"ok": True, "judge": info}
+    try:
+        rate = float(body.get("rate"))
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "采样率需为 0-1 之间的数字"}, status_code=422)
+    if not (0.0 <= rate <= 1.0):
+        return JSONResponse({"error": "采样率需在 0-1 之间"}, status_code=422)
+    _set_setting("ab_sampling_rate", str(rate))
+    db.audit("demo-admin", "ab_sampling_set", {"rate": rate})
+    return {"ok": True, "rate": rate}
+
+
+@app.post("/v1/feedback")
+async def submit_feedback(request: Request):
+    """偏好回流端口：客户端把终端用户在 A/B 双答案里的采纳结果回传。
+    request_id 即路由响应里返回的 request_id；chosen_model_id 为被采纳回答的模型。"""
+    body = await request.json()
+    rid = (body.get("request_id") or "").strip()
+    chosen = (body.get("chosen_model_id") or "").strip()
+    if not rid or not chosen:
+        return JSONResponse({"error": "缺少 request_id 或 chosen_model_id"}, status_code=422)
+    conn = db.get_conn()
+    if conn.execute("SELECT 1 FROM ab_feedback WHERE trace_id=?", (rid,)).fetchone():
+        return JSONResponse({"error": "该请求的偏好已回传过"}, status_code=409)
+    drow = conn.execute("SELECT decision FROM route_decisions WHERE trace_id=?", (rid,)).fetchone()
+    trow = conn.execute("SELECT query_text FROM traces WHERE trace_id=?", (rid,)).fetchone()
+    if not drow or not trow:
+        return JSONResponse({"error": "request_id 不存在"}, status_code=404)
+    decision = db.dj(drow["decision"], {}) or {}
+    called = {c.get("model_id") for c in decision.get("model_calls") or []}
+    called.add(decision.get("final_model_or_aggregator"))
+    if chosen not in called:
+        return JSONResponse({"error": "chosen_model_id 不在该次请求的回答模型里"}, status_code=422)
+    losers = sorted(m for m in called if m and m != chosen)
+    qtext = trow["query_text"] or ""
+    dim = decision.get("dimension") or mockmodels.classify_dimension(qtext)
+    conn.execute(
+        "INSERT INTO ab_feedback (fb_id, trace_id, query_text, dimension, winner, losers, source, ts) "
+        "VALUES (?,?,?,?,?,?,?,?)",
+        (db.new_id(), rid, qtext, dim, chosen, db.j(losers), "api", db.now_ts()))
+    conn.commit()
+    total = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback").fetchone()["c"]
+    db.audit("api", "ab_feedback", {"request_id": rid, "winner": chosen, "dimension": dim})
+    return {"ok": True, "flywheel_total": total}
+
+
+@app.get("/api/flywheel")
+def flywheel_stats():
+    """数据飞轮总览：回流量 / 各模型胜率 / 采样率 / 画像演化版本。"""
+    conn = db.get_conn()
+    total = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback").fetchone()["c"]
+    last7 = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE ts>?",
+                         (db.now_ts() - 7 * 86400,)).fetchone()["c"]
+    wins, losses = {}, {}
+    dims = {}
+    for r in conn.execute("SELECT dimension, winner, losers FROM ab_feedback").fetchall():
+        wins[r["winner"]] = wins.get(r["winner"], 0) + 1
+        for l in db.dj(r["losers"], []) or []:
+            losses[l] = losses.get(l, 0) + 1
+        d = r["dimension"] or "general"
+        dims[d] = dims.get(d, 0) + 1
+    names = {r["model_id"]: r["display_name"] for r in conn.execute("SELECT model_id, display_name FROM models")}
+    win_rates = []
+    for mid in set(wins) | set(losses):
+        w, l = wins.get(mid, 0), losses.get(mid, 0)
+        win_rates.append({"model_id": mid, "name": names.get(mid, mid), "wins": w,
+                          "total": w + l, "rate": round(w / (w + l), 3) if (w + l) else None})
+    win_rates.sort(key=lambda x: -(x["rate"] or 0))
+    try:
+        rate = float(_get_setting("ab_sampling_rate") or 0.2)
+    except (TypeError, ValueError):
+        rate = 0.2
+    evo = db.dj(_get_setting("profile_evolution"), None)
+    return {"total": total, "last7d": last7, "dimensions": dims, "win_rates": win_rates,
+            "sampling_rate": rate, "evolution": evo, "min_required": EVOLVE_MIN_FEEDBACK,
+            "evolve_task": _evolve_task}
+
+
+_evolve_task = {"status": "idle", "done": 0, "total": 0}
+
+
+@app.post("/api/profile/evolve")
+async def profile_evolve():
+    """一键更新画像：用回流偏好重新聚类（k-means 量级），得到团簇摘要 + 新模型排序。
+    完成后各策略的路由效果标记为待重新生成（偏好标签已并入数据集，重打分即生效）。"""
+    if _evolve_task["status"] == "running":
+        return {"task": _evolve_task}
+    conn = db.get_conn()
+    since = float(_get_setting("evolve_last_ts") or 0)
+    total = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback").fetchone()["c"]
+    if total < EVOLVE_MIN_FEEDBACK:
+        return JSONResponse({"error": f"回流偏好不足 {EVOLVE_MIN_FEEDBACK} 条（当前 {total} 条），数据太少聚类不稳定"},
+                            status_code=409)
+    _evolve_task.update({"status": "running", "done": 0, "total": max(total, 1)})
+    asyncio.create_task(_run_evolve(since))
+    return {"task": _evolve_task}
+
+
+@app.get("/api/profile/evolve/status")
+def profile_evolve_status():
+    return {"task": _evolve_task}
+
+
+async def _run_evolve(since_ts: float):
+    conn = db.get_conn()
+    rows = [dict(r) for r in conn.execute("SELECT * FROM ab_feedback ORDER BY ts").fetchall()]
+    for i in range(len(rows)):
+        _evolve_task["done"] = i + 1
+        if i % 5 == 0:
+            await asyncio.sleep(0.05)
+    # 1) 聚类：按维度归簇（演示实现；生产为 query embedding 上的 k-means）
+    clusters = {}
+    for r in rows:
+        d = r["dimension"] or "general"
+        c = clusters.setdefault(d, {"samples": [], "wins": {}, "losses": {}})
+        c["samples"].append(r["query_text"] or "")
+        c["wins"][r["winner"]] = c["wins"].get(r["winner"], 0) + 1
+        for l in db.dj(r["losers"], []) or []:
+            c["losses"][l] = c["losses"].get(l, 0) + 1
+    names = {m["model_id"]: m["display_name"] for m in conn.execute("SELECT model_id, display_name FROM models")}
+    out = []
+    for d, c in sorted(clusters.items(), key=lambda x: -len(x[1]["samples"])):
+        ranking = []
+        for mid in set(c["wins"]) | set(c["losses"]):
+            w, l = c["wins"].get(mid, 0), c["losses"].get(mid, 0)
+            ranking.append({"model_id": mid, "name": names.get(mid, mid),
+                            "win_rate": round(w / (w + l), 3) if (w + l) else 0.0, "n": w + l})
+        ranking.sort(key=lambda x: -x["win_rate"])
+        kw = mockmodels.DIM_KEYWORDS.get(d, [])[:4]
+        out.append({"key": d, "name": mockmodels.DIMENSIONS.get(d, d),
+                    "keywords": kw, "size": len(c["samples"]),
+                    "sample": (c["samples"][0] or "")[:24], "ranking": ranking[:5]})
+    prev = db.dj(_get_setting("profile_evolution"), None) or {}
+    version = int(prev.get("version") or 1) + 1
+    _set_setting("profile_evolution", db.j({"version": version, "ts": db.now_ts(), "clusters": out}))
+    # 2) 偏好并入数据集：增量回流写为 user_preference 标签（冷启动客观分 + 偏好胜率融合）
+    merged = 0
+    for r in rows:
+        if r["ts"] <= since_ts:
+            continue
+        qid = "fb-" + (r["fb_id"] or db.new_id())[:8]
+        if conn.execute("SELECT 1 FROM bank_queries WHERE query_id=?", (qid,)).fetchone():
+            continue
+        conn.execute(
+            "INSERT INTO bank_queries (query_id, tenant_id, embedding, text_ref, query_text, domain_tags, "
+            "created_at, ttl_days, source) VALUES (?,?,?,?,?,?,?,?,?)",
+            (qid, seed.TENANT, db.j(embeddings.embed(r["query_text"] or "")), f"vault://feedback/{qid}",
+             r["query_text"] or "", db.j([r["dimension"] or "general"]), r["ts"], 365, "reflow"))
+        pairs = [(r["winner"], 1.0)] + [(l, 0.0) for l in (db.dj(r["losers"], []) or [])]
+        for mid, val in pairs:
+            conn.execute(
+                "INSERT OR REPLACE INTO bank_responses (query_id, model_id, response_embedding, completion_tokens, "
+                "label_value, label_confidence, label_source, label_kind, created_at, updated_at) "
+                "VALUES (?,?,NULL,0,?,0.6,'user_preference','capability',?,?)",
+                (qid, mid, val, r["ts"], r["ts"]))
+        merged += 1
+    _set_setting("evolve_last_ts", str(db.now_ts()))
+    # 3) 各策略路由效果标记为待重新生成（更新后需重打分）
+    _set_setting("policy_profile_gen", db.j({}))
+    conn.commit()
+    _evolve_task["status"] = "completed"
+    _evolve_task["version"] = version
+    db.audit("demo-admin", "profile_evolve", {"version": version, "clusters": len(out), "merged": merged})
 
 
 @app.get("/v1/bank/scenes")
 def bank_scenes():
-    """场景数据集总览：按业务场景分组统计冷启动 / 自动收集（已并入 + 待并入）/ 导入 / 待评测。"""
+    """通用数据集总览：按能力维度分组统计冷启动 benchmark / 偏好回流 / 导入 / 待评测。"""
     conn = db.get_conn()
     rows = conn.execute(
         "SELECT q.query_id, q.tenant_id, q.domain_tags, q.source, q.created_at, "
@@ -1560,10 +1699,8 @@ def bank_scenes():
         sc["total"] = sc["cold"] + sc["reflow"] + sc["imported"]
         sc["rounds"] = rounds.get(sc["domain"], 0)
     out = sorted(scenes.values(), key=lambda x: -x["total"])
-    _ji = db.dj(_get_setting("judge_model_info"), None) or {}
-    _jm = _get_setting("judge_model") or None
     return {"scenes": out, "custom_scenes": custom,
-            "judge_model": _jm, "judge_name": _ji.get("display_name") or _jm}
+            "dimension_meta": db.dj(_get_setting("dimension_meta"), {}) or {}}
 
 
 @app.post("/api/scenes")
@@ -1630,7 +1767,7 @@ async def _run_import(items, tenant_id):
 async def _run_import_inner(items, tenant_id):
     conn = db.get_conn()
     custom = db.dj(_get_setting("custom_scenes"), []) or []
-    valid_scenes = set(mockmodels.DOMAIN_KEYWORDS.keys()) | {"general", "chat"} | {c["key"] for c in custom}
+    valid_scenes = set(mockmodels.DIMENSIONS.keys()) | {c["key"] for c in custom}
     existing = {row["query_text"].strip() for row in conn.execute(
         "SELECT query_text FROM bank_queries WHERE tenant_id=? OR tenant_id IS NULL", (tenant_id,)).fetchall()}
     for it in items:
@@ -1671,7 +1808,7 @@ async def bank_staged_relabel(request: Request):
     qid = body.get("query_id") or ""
     dom = (body.get("domain") or "").strip()
     custom = db.dj(_get_setting("custom_scenes"), []) or []
-    valid_scenes = set(mockmodels.DOMAIN_KEYWORDS.keys()) | {"general", "chat"} | {c["key"] for c in custom}
+    valid_scenes = set(mockmodels.DIMENSIONS.keys()) | {c["key"] for c in custom}
     if dom not in valid_scenes:
         return JSONResponse({"error": "未知场景"}, status_code=422)
     conn = db.get_conn()

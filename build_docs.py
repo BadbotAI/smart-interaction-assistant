@@ -26,9 +26,10 @@ def snapshot():
     keys = ["/api/apikeys", "/api/products", "/api/audit?limit=100", "/api/brands", "/api/brands/active", "/api/cards",
             "/api/dashboard/insights?days=30", "/api/dashboard/overview?days=30",
             "/api/dashboard/questions?days=30", "/api/labels/summary", "/api/profile",
-            "/api/profile/rebuild/status", "/api/profile/gen-status", "/api/settings/judge-model", "/api/templates",
+            "/api/profile/rebuild/status", "/api/profile/gen-status", "/api/templates",
+            "/api/flywheel", "/api/settings/ab-sampling",
             "/api/traces?limit=30", "/v1/bank/health", "/v1/bank/import/status", "/v1/bank/scenes",
-            "/v1/labels/judge/status", "/v1/models", "/v1/policies"]
+            "/v1/models", "/v1/policies"]
 
     def get(p):
         with urllib.request.urlopen(base + p) as r:

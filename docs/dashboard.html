@@ -26,10 +26,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=09b46730"></script>
-<script src="./mock_api.js?v=eb2de70a"></script>
+<script src="./mock_data.js?v=7e9816a5"></script>
+<script src="./mock_api.js?v=aadced14"></script>
 <script src="./tokens.js?v=360e29ec"></script>
-<script src="./ui.js?v=33285b39"></script>
+<script src="./ui.js?v=9ff95b89"></script>
 <script>
 UI.nav("dashboard");
 const { el } = UI;
@@ -383,9 +383,10 @@ function renderConversionModules(box, ins) {
 
 async function renderRouting() {
   const fq = new URLSearchParams({ days: days() });
-  const [d, ins] = await Promise.all([
+  const [d, ins, fly] = await Promise.all([
     UI.api("/api/dashboard/overview?" + fq),
     UI.api("/api/dashboard/insights?days=" + days()),
+    UI.api("/api/flywheel").catch(() => null),
   ]);
   const box = content();
   box.innerHTML = "";
@@ -434,6 +435,24 @@ async function renderRouting() {
       el("span", { class: "chip red" }, ["告警"]),
       el("span", { class: "secondary", style: "margin-left:8px" },
         ["路由正在向少数模型集中：检查探索预算或标签污染"]),
+    ]));
+  }
+
+  // 数据飞轮：终端用户 AB 采纳的回流情况（数据资产视角；更新画像入口在「通用数据集」页）
+  if (fly) {
+    const top = (fly.win_rates || []).filter(w => w.rate != null)[0];
+    box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
+      el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:8px" }, [
+        el("span", { style: "font-weight:600" }, ["数据飞轮"]),
+        el("span", { class: "muted" }, ["AB 双答案的采纳回流；一键更新画像在「通用数据集」页"]),
+      ]),
+      el("div", { class: "mini-metrics", style: "grid-template-columns:repeat(5,1fr)" }, [
+        mm("累计回流偏好", fly.total, null, "终端用户在 A/B 双答案里做出的采纳，经 /v1/feedback 回传"),
+        mm("近 7 天回流", fly.last7d),
+        mm("AB 采样率", `${Math.round((fly.sampling_rate || 0) * 100)}%`, null, "多大比例的请求出 A/B 双答案"),
+        mm("画像版本", fly.evolution ? `v${fly.evolution.version}` : "v1", fly.evolution ? "演化" : "冷启动"),
+        mm("采纳胜率 Top1", top ? top.name : "-", top ? `${Math.round(top.rate * 100)}%（${top.total} 次对比）` : "数据不足"),
+      ]),
     ]));
   }
 

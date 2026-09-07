@@ -42,11 +42,12 @@ def seed_models():
     for m in mockmodels.MODEL_POOL:
         conn.execute(
             "INSERT OR REPLACE INTO models (model_id, display_name, provider, endpoint, credential_ref, "
-            "price_input, price_output, capabilities, status, bank_coverage, latency_ms_base, profile) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "price_input, price_output, capabilities, status, bank_coverage, latency_ms_base, profile, "
+            "deploy_type, gpu_count) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (m["model_id"], m["display_name"], m["provider"], m["endpoint"], m["credential_ref"],
              m["price_input"], m["price_output"], db.j(m["capabilities"]), "active", 1.0,
-             m["latency_ms_base"], db.j(m["profile"])))
+             m["latency_ms_base"], db.j(m["profile"]),
+             m.get("deploy_type", "api"), m.get("gpu_count", 0)))
     # 默认兜底模型：路由故障时的最终切换目标（能力均衡、成本适中的通用模型）
     if not conn.execute("SELECT 1 FROM models WHERE is_default=1").fetchone():
         conn.execute("UPDATE models SET is_default=1 WHERE model_id='atlas-72b'")
@@ -302,32 +303,163 @@ def seed_cards():
     conn.commit()
 
 
+# v5.0 通用数据集：按能力维度组织的客观题（带标准答案），冷启动直接跑 benchmark 打分。
+# coding 维度标注「公开榜单引用」——分数直接引公开代码榜单，不必自己出题跑分。
+DIM_QUESTIONS = {
+    "qa": [
+        ("什么是保税仓，和普通仓库的核心区别是什么", "保税仓内货物暂缓缴纳关税，核心区别是海关监管与税务递延。"),
+        ("电子提单相比纸质提单的主要优势有哪些", "流转快、防伪造、可在线背书转让，降低单证遗失风险。"),
+        ("什么是供应链金融中的应收账款融资", "以应收账款为质押或转让标的向金融机构融资。"),
+        ("多式联运和海铁联运是什么关系", "海铁联运是多式联运的一种具体形式。"),
+        ("什么是滞期费，由谁承担", "超过约定装卸期产生的费用，通常由租船人承担。"),
+        ("汇率避险常用的三种工具是什么", "远期结售汇、外汇期权、货币互换。"),
+        ("EXW 和 FOB 贸易术语的责任划分区别", "EXW 卖方工厂交货责任最小；FOB 卖方负责装船越过船舷前的费用与风险。"),
+        ("什么是安全库存，怎么确定", "为应对需求与补货波动而保留的缓冲库存，按服务水平和需求标准差确定。"),
+        ("集装箱 TEU 是什么单位", "标准二十英尺集装箱换算单位。"),
+        ("什么是甩柜，一般什么原因导致", "订舱后货物未被装船；多因舱位超订或港口拥堵。"),
+        ("信用证付款方式的主要风险点是什么", "单证不符导致拒付；软条款风险。"),
+        ("什么是碳关税（CBAM），对出口有什么影响", "欧盟对进口高碳产品征收的碳边境调节费用，抬高高碳出口成本。"),
+    ],
+    "coding": [
+        ("写一个 SQL：按月统计订单表 orders 近半年每月的订单量", "SELECT strftime('%Y-%m', created_at) m, COUNT(*) FROM orders GROUP BY m。"),
+        ("写一个 Python 函数，去掉列表中的重复元素并保持顺序", "用 dict.fromkeys(lst) 或 seen 集合遍历。"),
+        ("这段代码报错 KeyError 怎么排查", "打印键集合，用 .get() 或 in 判断后再取值。"),
+        ("写一个正则，匹配 11 位手机号", "^1[3-9]\\d{9}$"),
+        ("写一个函数计算两个日期相差的天数", "用 datetime 相减取 .days。"),
+        ("SQL 查询每个客户金额最高的一笔订单", "窗口函数 ROW_NUMBER() OVER (PARTITION BY customer ORDER BY amount DESC) 取第 1 行。"),
+        ("如何给接口加一个简单的限流", "令牌桶或固定窗口计数器，超限返回 429。"),
+        ("写一个脚本批量重命名目录下的 csv 文件加日期前缀", "os.listdir 过滤 .csv 后 os.rename 拼接日期前缀。"),
+    ],
+    "math": [
+        ("集装箱利用率从 62% 提升到 71%，提升了多少个百分点", "9 个百分点。"),
+        ("按年利率 4.2% 计算 500 万元贷款一年的利息是多少", "21 万元。"),
+        ("一批货 1200 箱，每车装 85 箱，至少需要多少车", "15 车。"),
+        ("运费上涨 15% 后又下降 10%，相对最初变化了多少", "上涨 3.5%。"),
+        ("两个仓库分别有 340 和 260 件库存，要均衡到相等需要调拨多少件", "调拨 40 件。"),
+        ("月环比增长 5%，连续 3 个月后累计增长约多少", "约 15.8%。"),
+        ("某航线准班率 82%，一个月 50 个航次预计几次延误", "9 次。"),
+        ("汇率从 7.25 变为 7.10，10 万美元货款少收多少人民币", "1.5 万元。"),
+        ("按 3:2 的比例把 600 吨货分给两条船，各装多少", "360 吨和 240 吨。"),
+        ("一个订单毛利率 18%，售价 25 万元，成本是多少", "20.5 万元。"),
+    ],
+    "writing": [
+        ("起草一份因台风停止装卸作业的客户通知", "含停工时间、影响范围、恢复预估、联系人四要素。"),
+        ("把「货到晚了别着急我们在催」改写成正式客服话术", "致歉+原因+跟进措施+预计时间。"),
+        ("写一段仓库安全月活动的动员文案", "主题、目标、行动号召三段式。"),
+        ("起草一份供应商年度评审会议纪要模板", "含议题、结论、待办、责任人、期限字段。"),
+        ("写一封催收逾期账款的商务邮件", "语气克制：事实+账期+付款方式+后续动作。"),
+        ("把这段口语化描述整理成周报条目：这周把华东的仓都盘完了问题不大", "华东区仓库盘点完成，差异率在阈值内。"),
+        ("为新上线的运单查询功能写一段产品公告", "功能说明+入口+适用范围+反馈渠道。"),
+        ("起草一份节前发货截止时间的对外通知", "截止时间、恢复时间、应急联系人。"),
+    ],
+    "chat": [
+        ("你好", "问候并简要说明能做什么。"),
+        ("你是谁", "自我介绍：本平台的智能助手。"),
+        ("谢谢你的帮助", "礼貌回应。"),
+        ("早上好", "问候回应。"),
+        ("你能做什么", "列举可协助的事项。"),
+        ("在吗", "确认在线并询问需求。"),
+    ],
+    "multimodal": [
+        ("识别这张图片里的集装箱箱号", "读取箱体 11 位编码（4 位字母+7 位数字）。"),
+        ("这张截图里的系统报错是什么意思", "识别报错文本并解释原因。"),
+        ("从这张磅单照片里提取毛重和皮重", "OCR 提取毛重/皮重/净重字段。"),
+        ("看这张舱位图，还能装几个 40 尺柜", "按图中空位统计 40 尺柜余位。"),
+        ("识别这段语音里客户反馈的问题点", "转写并归纳客户诉求。"),
+        ("这张发票扫描件的开票金额是多少", "OCR 提取价税合计金额。"),
+        ("对比这两张仓库照片，找出堆放差异", "识别两图中货物堆放位置与数量差异。"),
+        ("从这张签收单照片判断是否有破损备注", "识别手写备注区是否标注破损。"),
+    ],
+}
+
+
 def seed_public_bank():
+    """通用数据集冷启动底座：能力维度 × 客观题（标准答案判分，无需 LLM 裁判）。"""
     conn = db.get_conn()
     if conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE tenant_id IS NULL").fetchone()["c"] > 0:
         return 0
     rng = random.Random(7)
     n = 0
-    for domain, text in gen_queries():
-        qid = f"pub-{n:04d}"
-        created = time.time() - rng.random() * 120 * 86400
-        conn.execute(
-            "INSERT INTO bank_queries (query_id, tenant_id, embedding, text_ref, query_text, domain_tags, "
-            "created_at, ttl_days, source) VALUES (?,NULL,?,?,?,?,?,?,?)",
-            (qid, db.j(embeddings.embed(text)), f"vault://public/{qid}", text, db.j([domain]),
-             created, 365, "public"))
-        for m in mockmodels.MODEL_POOL:
-            correct = mockmodels.is_correct(m["model_id"], m["profile"], text, domain)
-            content, _ = mockmodels.gen_structured(text, domain, correct)
+    for dim, items in DIM_QUESTIONS.items():
+        for text, ideal in items:
+            qid = f"pub-{n:04d}"
+            created = time.time() - rng.random() * 60 * 86400
             conn.execute(
-                "INSERT INTO bank_responses (query_id, model_id, response_embedding, completion_tokens, "
-                "label_value, label_confidence, label_source, label_kind, created_at, updated_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (qid, m["model_id"], db.j(embeddings.embed(content)), max(30, int(len(content) * 1.5)),
-                 1.0 if correct else 0.0, 1.0, "ground_truth", "capability", created, created))
-        n += 1
+                "INSERT INTO bank_queries (query_id, tenant_id, embedding, text_ref, query_text, domain_tags, "
+                "created_at, ttl_days, source, ideal) VALUES (?,NULL,?,?,?,?,?,?,?,?)",
+                (qid, db.j(embeddings.embed(text)), f"vault://public/{qid}", text, db.j([dim]),
+                 created, 365, "public", ideal))
+            src = "leaderboard" if dim == "coding" else "ground_truth"
+            for m in mockmodels.MODEL_POOL:
+                correct = mockmodels.is_correct(m["model_id"], m["profile"], text, dim)
+                content, _ = mockmodels.gen_structured(text, dim, correct)
+                conn.execute(
+                    "INSERT INTO bank_responses (query_id, model_id, response_embedding, completion_tokens, "
+                    "label_value, label_confidence, label_source, label_kind, created_at, updated_at) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (qid, m["model_id"], db.j(embeddings.embed(content)), max(30, int(len(content) * 1.5)),
+                     1.0 if correct else 0.0, 1.0, src, "capability", created, created))
+            n += 1
     conn.commit()
     return n
+
+
+# 数据飞轮种子：模拟已回流的终端用户 AB 采纳偏好（真实来源是客户端调 /v1/feedback）
+AB_QUERY_POOL = {
+    "qa": ["保税仓的货可以直接内销吗", "电子提单现在普及到什么程度了", "甩柜了怎么跟客户解释", "信用证不符点常见有哪些"],
+    "coding": ["帮我看看这段 SQL 为什么慢", "写个脚本把运单号批量查一遍", "接口偶发超时怎么加重试", "正则匹配箱号怎么写"],
+    "math": ["这批货分三车怎么配载最省", "运费涨价 12% 我们利润还剩多少", "帮我算下这单的毛利率", "两个报价折算成同币种哪个便宜"],
+    "writing": ["帮我写个延误道歉通知", "把这段话改成正式邮件", "写一份月度经营总结开头", "起草个涨价函"],
+    "multimodal": ["看下这张提单照片有没有问题", "这张截图的报错帮我看看", "识别下磅单上的净重", "这两张照片货损对比一下"],
+}
+
+
+def seed_ab_feedback(force=False):
+    conn = db.get_conn()
+    if not force and conn.execute("SELECT COUNT(*) AS c FROM ab_feedback").fetchone()["c"] > 0:
+        return 0
+    rng = random.Random(55)
+    models = [m for m in mockmodels.MODEL_POOL]
+    n = 0
+    for day in range(7, 0, -1):
+        for _ in range(rng.randint(7, 12)):
+            dim = rng.choice(list(AB_QUERY_POOL.keys()))
+            q = rng.choice(AB_QUERY_POOL[dim])
+            pool = [m for m in models if (m["profile"].get(dim, 0) > 0.05)]
+            if len(pool) < 2:
+                continue
+            a, b = rng.sample(pool, 2)
+            pa, pb = a["profile"].get(dim, 0.5), b["profile"].get(dim, 0.5)
+            winner, loser = (a, b) if rng.random() < pa / max(0.01, pa + pb) else (b, a)
+            ts = time.time() - day * 86400 + rng.random() * 86400 * 0.7
+            conn.execute(
+                "INSERT INTO ab_feedback (fb_id, trace_id, query_text, dimension, winner, losers, source, ts) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (db.new_id(), None, q, dim, winner["model_id"], db.j([loser["model_id"]]), "api", ts))
+            n += 1
+    conn.commit()
+    return n
+
+
+def migrate_flywheel_v5():
+    """v5.0 一次性迁移：场景数据集 → 通用数据集（维度客观题），下线 LLM 裁判，启用数据飞轮。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT v FROM kv_settings WHERE k='v5_flywheel'").fetchone():
+        return False
+    conn.execute("DELETE FROM bank_responses")
+    conn.execute("DELETE FROM bank_queries")
+    for k in ("scene_rounds", "custom_scenes", "policy_profile_gen", "judge_model", "judge_model_info"):
+        conn.execute("DELETE FROM kv_settings WHERE k=?", (k,))
+    for m in mockmodels.MODEL_POOL:
+        conn.execute("UPDATE models SET deploy_type=?, gpu_count=? WHERE model_id=?",
+                     (m.get("deploy_type", "api"), m.get("gpu_count", 0), m["model_id"]))
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('ab_sampling_rate', '0.2')")
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('dimension_meta', ?)",
+                 (db.j({"coding": {"source": "leaderboard", "ref": "公开代码榜单"}}),))
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('v5_flywheel', '1')")
+    conn.commit()
+    db.audit("system", "migrate_flywheel_v5", {"note": "通用数据集冷启动 + 数据飞轮启用，LLM 裁判下线"})
+    return True
 
 
 def seed_history(days=7, per_day=22):
@@ -510,10 +642,12 @@ def run_all():
     seed_policies()
     seed_products()
     seed_cards()
+    migrate_flywheel_v5()
     n_bank = seed_public_bank()
+    n_fb = seed_ab_feedback()
     n_hist = seed_history()
     migrate_questionnaire()
-    return {"bank_queries": n_bank, "history_traces": n_hist}
+    return {"bank_queries": n_bank, "ab_feedback": n_fb, "history_traces": n_hist}
 
 
 if __name__ == "__main__":

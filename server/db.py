@@ -266,6 +266,21 @@ def init_db():
         conn.execute("ALTER TABLE models ADD COLUMN is_default INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
         pass
+    # 增量迁移（v5.0）：模型成本双类型——API 接入按官网单价 / 自有部署按卡数估算
+    try:
+        conn.execute("ALTER TABLE models ADD COLUMN deploy_type TEXT DEFAULT 'api'")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute("ALTER TABLE models ADD COLUMN gpu_count INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+    # 增量迁移（v5.0）：数据飞轮——终端用户 AB 采纳偏好回流
+    conn.execute("""CREATE TABLE IF NOT EXISTS ab_feedback (
+        fb_id TEXT PRIMARY KEY, trace_id TEXT, query_text TEXT, dimension TEXT,
+        winner TEXT NOT NULL, losers TEXT NOT NULL DEFAULT '[]',
+        source TEXT DEFAULT 'api', ts REAL)""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_abfb_ts ON ab_feedback(ts)")
     # 增量迁移：场景数据集题目可带参考答案（Judge 对照打分）
     try:
         conn.execute("ALTER TABLE bank_queries ADD COLUMN ideal TEXT")
