@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>运营看板 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=fbd4f67c">
+<link rel="stylesheet" href="./shared.css?v=2164e618">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   /* 组件数据卡：白底描边 + 左侧主色条，与灰底整体指标块区分 */
@@ -29,7 +29,7 @@
 <script src="./mock_data.js?v=fbb265e6"></script>
 <script src="./mock_api.js?v=8de3705b"></script>
 <script src="./tokens.js?v=360e29ec"></script>
-<script src="./ui.js?v=ea991321"></script>
+<script src="./ui.js?v=13fc5fd8"></script>
 <script>
 UI.nav("dashboard");
 const { el } = UI;
@@ -438,19 +438,19 @@ async function renderRouting() {
     ]));
   }
 
-  // 数据飞轮：终端用户 AB 采纳的回流情况（数据资产视角；更新画像入口在「通用数据集」页）
+  // 数据飞轮：终端用户 AB 采纳的回流情况（数据资产视角；导入入口在「数据飞轮」页）
   if (fly) {
     const top = (fly.win_rates || []).filter(w => w.rate != null)[0];
     box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
       el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:8px" }, [
         el("span", { style: "font-weight:600" }, ["数据飞轮"]),
-        el("span", { class: "muted" }, ["AB 双答案的采纳回流；明细与一键更新画像在「数据飞轮」页"]),
+        el("span", { class: "muted" }, ["AB 双答案的采纳回流；明细与导入入口在「数据飞轮」页"]),
       ]),
       el("div", { class: "mini-metrics", style: "grid-template-columns:repeat(5,1fr)" }, [
         mm("累计回流偏好", fly.total, null, "终端用户在 A/B 双答案里做出的采纳，经 /v1/feedback 回传"),
         mm("近 7 天回流", fly.last7d),
         mm("AB 采样率", `${Math.round((fly.sampling_rate || 0) * 100)}%`, null, "多大比例的请求出 A/B 双答案"),
-        mm("画像版本", fly.evolution ? `v${fly.evolution.version}` : "v1", fly.evolution ? "演化" : "冷启动"),
+        mm("数据集版本", `v${fly.dataset_version || 1}`, (fly.dataset_version || 1) > 1 ? "演化" : "冷启动"),
         mm("采纳胜率 Top1", top ? top.name : "-", top ? `${Math.round(top.rate * 100)}%（${top.total} 次对比）` : "数据不足"),
       ]),
     ]));
@@ -491,7 +491,7 @@ async function renderRouting() {
     el("table", { class: "data" }, [
       el("thead", {}, [el("tr", {}, ["路径", "请求数", "P50", "P95", "验收线"].map(h => el("th", { class: h === "验收线" ? "w-main" : "" }, [h])))]),
       el("tbody", {}, Object.entries(d.latency_by_path).map(([path, v]) => {
-        const name = { fastlane: "快车道", routed: "单模型路由", aggregated: "聚合路径", degraded: "降级", manual: "手动指定", await_user: "等待用户（触发组件）" }[path] || path;
+        const name = { fastlane: "快车道", routed: "单模型路由", aggregated: "聚合路径", degraded: "降级", manual: "手动指定", fallback: "兜底直连", await_user: "等待用户（触发组件）" }[path] || path;
         const target = path === "fastlane" ? 2000 : path === "aggregated" ? 25000 : null;
         const pass = target == null || v.p95 <= target;
         return el("tr", {}, [

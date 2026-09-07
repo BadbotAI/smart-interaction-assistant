@@ -434,19 +434,19 @@ async function renderRouting() {
     ]));
   }
 
-  // 数据飞轮：终端用户 AB 采纳的回流情况（数据资产视角；更新画像入口在「通用数据集」页）
+  // 数据飞轮：终端用户 AB 采纳的回流情况（数据资产视角；导入入口在「数据飞轮」页）
   if (fly) {
     const top = (fly.win_rates || []).filter(w => w.rate != null)[0];
     box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
       el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:8px" }, [
         el("span", { style: "font-weight:600" }, ["数据飞轮"]),
-        el("span", { class: "muted" }, ["AB 双答案的采纳回流；明细与一键更新画像在「数据飞轮」页"]),
+        el("span", { class: "muted" }, ["AB 双答案的采纳回流；明细与导入入口在「数据飞轮」页"]),
       ]),
       el("div", { class: "mini-metrics", style: "grid-template-columns:repeat(5,1fr)" }, [
         mm("累计回流偏好", fly.total, null, "终端用户在 A/B 双答案里做出的采纳，经 /v1/feedback 回传"),
         mm("近 7 天回流", fly.last7d),
         mm("AB 采样率", `${Math.round((fly.sampling_rate || 0) * 100)}%`, null, "多大比例的请求出 A/B 双答案"),
-        mm("画像版本", fly.evolution ? `v${fly.evolution.version}` : "v1", fly.evolution ? "演化" : "冷启动"),
+        mm("数据集版本", `v${fly.dataset_version || 1}`, (fly.dataset_version || 1) > 1 ? "演化" : "冷启动"),
         mm("采纳胜率 Top1", top ? top.name : "-", top ? `${Math.round(top.rate * 100)}%（${top.total} 次对比）` : "数据不足"),
       ]),
     ]));
@@ -487,7 +487,7 @@ async function renderRouting() {
     el("table", { class: "data" }, [
       el("thead", {}, [el("tr", {}, ["路径", "请求数", "P50", "P95", "验收线"].map(h => el("th", { class: h === "验收线" ? "w-main" : "" }, [h])))]),
       el("tbody", {}, Object.entries(d.latency_by_path).map(([path, v]) => {
-        const name = { fastlane: "快车道", routed: "单模型路由", aggregated: "聚合路径", degraded: "降级", manual: "手动指定", await_user: "等待用户（触发组件）" }[path] || path;
+        const name = { fastlane: "快车道", routed: "单模型路由", aggregated: "聚合路径", degraded: "降级", manual: "手动指定", fallback: "兜底直连", await_user: "等待用户（触发组件）" }[path] || path;
         const target = path === "fastlane" ? 2000 : path === "aggregated" ? 25000 : null;
         const pass = target == null || v.p95 <= target;
         return el("tr", {}, [

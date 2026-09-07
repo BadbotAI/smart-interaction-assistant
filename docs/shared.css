@@ -156,6 +156,9 @@ body.has-side .inputbar { left: var(--side-w); }
 }
 .help { display: inline-flex; color: var(--text-muted); cursor: help; vertical-align: -2px; margin-left: 4px; }
 .help:hover { color: var(--primary); }
+.help-tip { position: fixed; z-index: 1200; background: #24313C; color: #fff; padding: 8px 12px;
+  border-radius: 8px; font-size: var(--font-caption); line-height: 1.65; max-width: 300px;
+  box-shadow: 0 6px 20px rgba(16, 42, 67, 0.28); pointer-events: none; }
 
 .page { max-width: 1200px; margin: 0 auto; padding: 22px 26px; }
 .page-narrow { max-width: 920px; }

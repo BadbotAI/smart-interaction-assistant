@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>操作日志 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=fbd4f67c">
+<link rel="stylesheet" href="./shared.css?v=2164e618">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 </head>
 <body class="has-side">
@@ -25,7 +25,7 @@
 <script src="./mock_data.js?v=fbb265e6"></script>
 <script src="./mock_api.js?v=8de3705b"></script>
 <script src="./tokens.js?v=360e29ec"></script>
-<script src="./ui.js?v=ea991321"></script>
+<script src="./ui.js?v=13fc5fd8"></script>
 <script>
 UI.nav("audit");
 const { el } = UI;
@@ -35,7 +35,7 @@ const ACTION_NAMES = {
   card_rollback: "回滚配置", card_restore_draft: "载入历史版本为草稿", card_republish_same: "原样重新上线",
   echo_toggle: "切换回显", policy_update: "更新路由规则", policy_rollback: "回滚路由规则",
   model_register: "添加模型", model_status_change: "变更模型状态", model_set_default: "设默认兜底",
-  credential_delete: "删除凭证并暂停", export_csv: "导出明细", profile_rebuild: "更新画像",
+  credential_delete: "删除凭证并暂停", export_csv: "导出明细", profile_rebuild: "生成路由效果",
   brand_activate: "切换组件风格", brand_delete: "删除组件风格", label_review: "标签复核",
   unmask_trace: "解除脱敏",
   policy_create: "新增路由策略", policy_delete: "删除路由策略", policy_duplicate: "复制路由策略",
@@ -44,7 +44,8 @@ const ACTION_NAMES = {
   bank_scene_replace: "替换维度数据集", apikey_create: "创建 API Key", apikey_delete: "删除 API Key",
   ab_sampling_set: "调整 AB 采样率", ab_feedback: "偏好回流", dataset_reflow_import: "导入回流数据",
   dataset_rollback: "回滚数据集版本", profile_evolve: "一键更新画像（已并入导入）",
-  migrate_flywheel_v5: "升级通用数据集", judge_model_set: "配置 Judge 模型（已下线）",
+  migrate_flywheel_v5: "升级维度数据集", migrate_dataset_v5_2: "升级数据集版本化", migrate_trust_v5_1: "修正标准答案迁移",
+  judge_model_set: "配置 Judge 模型（已下线）",
   model_thinking: "切换思考模式", model_rename: "编辑模型", model_delete: "删除模型",
   model_profile_data: "导入画像数据", bank_import: "导入数据集", bank_import_failed: "导入数据集失败",
   bank_eval_pending: "评测回填", bank_staged_commit: "并入回流数据", bank_staged_discard: "移除回流数据",

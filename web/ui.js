@@ -299,8 +299,32 @@ window.UI = (function () {
     return side;
   }
 
-  // 说明信息收进图标悬停（砍文案）
-  function help(text) { return el("span", { class: "help", title: text, "aria-label": text }, [icon("info", 14)]); }
+  // 说明信息收进图标悬停（砍文案）。自绘即时 tooltip：原生 title 出得慢且样式不可控，
+  // 用户悬停常常只看到问号光标就划走了——info 图标必须一悬停就出内容
+  let _tipEl = null;
+  function _showTip(anchor, text) {
+    _hideTip();
+    _tipEl = el("div", { class: "help-tip", role: "tooltip" }, [text]);
+    document.body.appendChild(_tipEl);
+    const r = anchor.getBoundingClientRect();
+    const tw = _tipEl.offsetWidth, th = _tipEl.offsetHeight;
+    let left = r.left + r.width / 2 - tw / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+    let top = r.bottom + 7;
+    if (top + th > window.innerHeight - 8) top = r.top - th - 7; // 底部放不下翻到上方
+    _tipEl.style.left = left + "px";
+    _tipEl.style.top = top + "px";
+  }
+  function _hideTip() { if (_tipEl) { _tipEl.remove(); _tipEl = null; } }
+  window.addEventListener("scroll", _hideTip, true);
+  function help(text) {
+    const n = el("span", { class: "help", "aria-label": text, tabindex: "0" }, [icon("info", 14)]);
+    n.onmouseenter = () => _showTip(n, text);
+    n.onmouseleave = _hideTip;
+    n.onfocus = () => _showTip(n, text);
+    n.onblur = _hideTip;
+    return n;
+  }
 
   // 右侧抽屉：参数配置等中量级编辑场景（比弹窗更适合边看列表边改）
   function drawer(title, contentNode, footNode) {

@@ -184,7 +184,7 @@ async function renderModels() {
     });
     box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
       el("div", { class: "section-title", style: "margin:0 0 10px;display:flex;align-items:center" }, ["入池评测",
-        UI.help("新模型先在通用数据集的客观题上逐题作答，对照标准答案判分建立效果档案；覆盖率 100% 后自动并入下方「已接入模型」参与路由"),
+        UI.help("新模型先对数据集的 QA 对逐题作答，对照标准答案判分建立效果档案；覆盖率 100% 后自动并入下方「已接入模型」参与路由"),
         el("span", { class: "muted", style: "margin-left:8px;font-weight:400" }, [`${pending.length} 个进行中`])]),
       rows,
     ]));
@@ -365,6 +365,52 @@ function editModelDrawer(m) {
 
 // ================= 策略 =================
 
+// 参数配置里的 API 对接说明：请求参数与返回字段的完整口径，整块可复制给对接开发
+function apiSnippet(apiKey) {
+  return [
+    "// 1) 发起对话（POST /v1/route，SSE 流式返回）",
+    "{",
+    `  "api_key": "${apiKey}",   // 本策略的 Key，带上即按本策略路由`,
+    '  "text": "用户的问题",',
+    '  "aggregate": "auto"       // 可选，按次覆盖聚合开关：auto 跟随策略默认 / on 强制聚合 / off 关闭聚合',
+    "                            //（策略关闭「允许调用方按次覆盖」时 on 会被拒绝，applied.override_allowed=false）",
+    "}",
+    "",
+    "// 2) 返回（final 事件）关键字段",
+    "//   content           回答正文",
+    "//   request_id        本次请求编号，偏好回传时对账用",
+    "//   applied           本次实际生效口径：{ aggregate, aggregation_used, override_allowed, policy_id }",
+    "//   ab_test           命中 AB 采样时返回双答案 { options: [{ key, model_id, content }] }，由你的页面渲染让用户选",
+    "//                     （双答案复用本轮候选回答，不额外计费）",
+    "//   decision_summary  路由决策：命中层级 route_layer / 维度 dimension / 模型 / 成本",
+    "",
+    "// 3) 用户在 A/B 里做出采纳后回传（数据飞轮，POST /v1/feedback）",
+    '{ "request_id": "<返回的 request_id>", "chosen_model_id": "<被采纳回答的 model_id>" }',
+    "// 同一 request_id 只记一票；待导入回流可从 GET /v1/feedback/pending 拉取（增量参数 since）",
+  ].join("\n");
+}
+
+function buildApiDoc(policyId, apiKey, st) {
+  const body = el("pre", { class: "num", style: "margin:8px 0 0;background:var(--bg-sunken);border-radius:8px;" +
+    "padding:10px 12px;font-size:var(--font-caption);line-height:1.6;white-space:pre-wrap;overflow-x:auto" },
+    [apiSnippet(apiKey)]);
+  body.hidden = true;
+  const toggleBtn = el("button", { class: "btn small ghost", type: "button", onclick: () => {
+    body.hidden = !body.hidden; toggleBtn.classList.toggle("active", !body.hidden);
+  } }, ["API 参数与返回说明", UI.icon("chevron", 13)]);
+  return el("div", { class: "field", style: "margin-top:2px" }, [
+    el("div", { style: "display:flex;align-items:center;gap:8px" }, [
+      toggleBtn,
+      el("div", { style: "flex:1" }),
+      el("button", { class: "btn small", type: "button", onclick: () => {
+        navigator.clipboard.writeText(apiSnippet(apiKey));
+        UI.toast("已复制 API 对接说明（含请求参数与返回字段）");
+      } }, [UI.icon("copy", 13), "复制对接说明"]),
+    ]),
+    body,
+  ]);
+}
+
 // 策略表单（新增与编辑共用）：名称 / 候选模型（标签多选） / 兜底模型 / 成本-效果权重 / 聚合开关
 function policyForm(init, actives, policyId, apiKey) {
   const st = { name: init.name || "", alpha: init.alpha ?? 0.7, allow_agg: init.allow_agg !== false,
@@ -400,12 +446,13 @@ function policyForm(init, actives, policyId, apiKey) {
     policyId ? el("div", { class: "drawer-meta" }, [
       el("span", {}, ["策略 ID"]),
       el("span", { class: "cr-id num", title: "点击复制完整 ID", style: "cursor:pointer",
-        onclick: () => { navigator.clipboard.writeText(policyId); UI.toast("已复制策略 ID"); } }, ["ID:" + shortPolicyId(policyId)]),
+        onclick: () => { navigator.clipboard.writeText(policyId); UI.toast("已复制策略 ID"); } }, [shortPolicyId(policyId)]),
       apiKey ? el("span", {}, ["API Key"]) : null,
       apiKey ? el("button", { class: "key-chip", title: "点击复制完整 Key",
         onclick: () => { navigator.clipboard.writeText(apiKey); UI.toast("已复制 API Key"); } },
         [el("span", { class: "num" }, ["sk-route-••••" + apiKey.slice(-4)]), UI.icon("copy", 12)]) : null,
     ]) : null,
+    policyId && apiKey ? buildApiDoc(policyId, apiKey, st) : null,
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["策略名称"]), nameIn, nameErr]),
     el("div", { class: "form-sec" }, ["模型范围"]),
     el("div", { class: "field" }, [
@@ -609,7 +656,7 @@ async function renderProfileCards(container, policies) {
         pollProfile(container, policies);
       } catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
     } }, ["全部生成"]);
-  container.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;margin:16px 0 8px" }, [
+  container.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;margin:16px 0 8px;padding-right:16px" }, [
     el("span", { class: "section-title", style: "margin:0" }, ["路由效果"]),
     el("span", { class: "muted" }, ["每条策略按自己的候选模型与成本-效果权重做题判分，得到各维度由谁来回答；策略参数或画像变更后需重新生成"]),
     el("div", { style: "flex:1" }),
@@ -766,7 +813,7 @@ async function renderFlow() {
       tbody,
     ]));
   } else sceneRows.appendChild(el("div", { class: "empty-state" }, [
-    el("div", { class: "empty-title" }, ["还没有通用数据集"]),
+    el("div", { class: "empty-title" }, ["还没有数据集"]),
     el("div", {}, ["点「导入数据集」，把各能力维度的客观题导进来"]),
   ]));
 
@@ -803,12 +850,25 @@ async function renderFlow() {
     const histBtn = el("button", { class: "btn small ghost", onclick: () => {
       histBody.hidden = !histBody.hidden; histBtn.classList.toggle("active", !histBody.hidden);
     } }, ["版本历史", UI.icon("chevron", 13)]);
+    const verSel = UI.fancySelect({ value: String(active), width: "170px",
+      options: (dv.versions || []).map(v => [String(v.version), `v${v.version} · ${v.version === 1 ? "冷启动版" : "演化版"}`]),
+      onChange: async (val) => {
+        const v = Number(val);
+        if (v === active) return;
+        const ok = await UI.confirm("切换数据集版本",
+          `切换到 v${v} 后，之后版本导入的回流数据将退出路由与统计（数据保留，可再切回）；各策略的路由效果需重新生成。`,
+          { okText: "切换到 v" + v });
+        if (!ok) { renderFlow(); return; }
+        try { await UI.api("/api/dataset/rollback", { method: "POST", body: { version: v } });
+          UI.toast(`已切换到数据集 v${v}，请重新生成各策略路由效果`); renderFlow(); }
+        catch (e2) { UI.toast(e2.data?.error || e2.message, true); renderFlow(); }
+      } });
     box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
       el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap" }, [
-        el("span", { style: "font-weight:600;font-size:var(--font-title)" }, [`数据集 v${active}`]),
-        active > 1 ? el("span", { class: "chip blue" }, ["演化版"]) : el("span", { class: "chip gray" }, ["冷启动版"]),
+        el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["数据集版本"]),
+        verSel,
         el("span", { class: "muted" }, [`${UI.fmtTs(cur.ts)} 生成 · 冷启动 ${cur.cold_count} 对` +
-          (cur.reflow_count ? ` + 回流 ${cur.reflow_count} 对` : "") + " · 回流导入后自动生成新版本，可回滚"]),
+          (cur.reflow_count ? ` + 回流 ${cur.reflow_count} 对` : "") + " · 切换版本即回滚 / 恢复"]),
         el("div", { style: "flex:1" }),
         histBtn,
       ]),
@@ -878,11 +938,9 @@ async function renderFlywheel() {
     onclick: async (e) => {
       const dims2 = Object.entries(fly.dimensions || {});
       const low = dims2.filter(([, n]) => n < 10).map(([k, n]) => `${DOMAIN_NAMES[k] || k} ${n} 条`);
-      const covNote = low.length
-        ? `其中 ${low.join("、")} 样本不足（少于 10 条），这些维度的排序仅供参考、路由沿用冷启动基线。`
-        : "各维度覆盖充分。";
+      const covNote = low.length ? `${low.join("、")} 样本偏少，这些维度先沿用冷启动排序。` : "";
       const ok = await UI.confirm("导入回流数据",
-        `把 ${fly.pending} 条待导入回流转成 QA 对并入数据集，生成 v${(fly.dataset_version || 1) + 1}（重新聚类出团簇与胜率排序）。${covNote}旧版本保留、随时可回滚；完成后各策略的路由效果需要重新生成。`, { okText: "导入并生成新版本" });
+        `${fly.pending} 条回流将转成 QA 对并入数据集，生成 v${(fly.dataset_version || 1) + 1}。${covNote}旧版本保留可回滚；导入后各策略需重新生成路由效果。`, { okText: "导入并生成新版本" });
       if (!ok) return;
       try { await UI.api("/v1/bank/reflow/import", { method: "POST" }); renderFlywheel(); pollEvolve(); }
       catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
@@ -893,8 +951,9 @@ async function renderFlywheel() {
   const dimChips = Object.entries(fly.dimensions || {}).sort((a, b) => b[1] - a[1])
     .map(([k, n]) => el("span", { class: "chip gray" }, [`${DOMAIN_NAMES[k] || k} ${n}`]));
   const overviewKids = [
-    el("div", { class: "muted", style: "margin-bottom:12px" },
-      ["按采样率把一部分线上请求出成 A/B 双答案（复用本轮路由已生成的候选回答，不额外调用模型、不多花钱），终端用户在客户产品里选择采纳，客户端经 /v1/feedback 回传（同一请求只记一票）。待导入回流也可经数据接口自取：GET /v1/feedback/pending（增量参数 since）；点「导入回流数据」转成 QA 对并入数据集、生成新版本，效果不好可在数据集页回滚"]),
+    el("div", { class: "muted", style: "margin-bottom:12px;display:flex;align-items:center;flex-wrap:wrap" },
+      ["线上回答按采样率出 A/B 两份，用户选哪份、客户端就回传哪份；攒够了点右上角导入，数据集升级新版本",
+       UI.help("细节：双答案复用本轮已生成的候选回答，不额外调用模型；同一请求只记一票；待导入数据可经 GET /v1/feedback/pending 接口自取（增量参数 since）；导入后效果不好可在数据集页切回旧版本")]),
     el("div", { class: "mini-metrics", style: "grid-template-columns:repeat(4,1fr)" }, [
       el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["待导入回流"]), el("div", { class: "mm-value num" }, [String(fly.pending || 0)])]),
       el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["累计回流（含已导入）"]), el("div", { class: "mm-value num" }, [String(fly.total)])]),
@@ -925,11 +984,11 @@ async function renderFlywheel() {
       el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [d2]),
     ]);
     box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
-      el("div", { style: "font-weight:600;margin-bottom:10px" }, ["数据集目前是 v1 冷启动版（QA 对判分），飞轮这样转起来："]),
+      el("div", { style: "font-weight:600;margin-bottom:10px" }, ["数据集还是 v1 冷启动版，飞轮三步转起来："]),
       el("div", { style: "display:flex;gap:18px;flex-wrap:wrap" }, [
-        step(1, "出双答案", "按采样率把部分请求出成 A/B 两份回答，由终端用户挑一份采纳"),
-        step(2, "偏好回流", "客户端把采纳结果经 /v1/feedback 回传（也可从 /v1/feedback/pending 接口自取），在下方积累成待导入明细"),
-        step(3, "导入成新版本", "待导入满 " + (fly.min_required || 20) + " 条后点右上角导入：转成 QA 对并入数据集生成 v2，聚类出团簇与胜率排序；效果不好可回滚"),
+        step(1, "出双答案", "回答按采样率出 A/B 两份，用户挑一份"),
+        step(2, "偏好回流", "用户选了哪份，客户端就回传哪份，攒在下方明细里"),
+        step(3, "导入成新版本", "攒满 " + (fly.min_required || 20) + " 条点右上角导入，数据集升级 v2；不好可回滚"),
       ]),
     ]));
   }
@@ -966,7 +1025,8 @@ async function renderFlywheel() {
     const maxRate = Math.max(...wr.map(w => w.rate || 0), 0.01);
     box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
       el("div", { style: "font-weight:600;font-size:var(--font-title);margin-bottom:8px" }, ["各模型采纳胜率"]),
-      el("div", { class: "muted", style: "margin-bottom:10px" }, ["终端用户在 A/B 对比里更常采纳谁。采纳反映偏好、不等于正确性——正确性以通用数据集客观题判分为准，两者在画像里分开加权；对比不足 10 次的模型标「样本不足」，胜率差 1-2 个百分点不构成排序依据"]),
+      el("div", { class: "muted", style: "margin-bottom:10px;display:flex;align-items:center;flex-wrap:wrap" }, ["用户在 A/B 里更常采纳谁——这是偏好，不代表答得对",
+        UI.help("正确性以数据集 QA 对判分为准，偏好与正确性在画像里分开加权；对比不足 10 次标「样本不足」，胜率差 1-2 个百分点不构成排序依据")]),
       el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
         el("thead", {}, [el("tr", {}, ["模型", "胜率", "采纳次数", "对比总数"].map((h, i) => el("th", { class: i === 1 ? "w-main" : "" }, [h])))]),
         el("tbody", {}, wr.map(w => el("tr", {}, [
@@ -1001,7 +1061,7 @@ async function renderFlywheel() {
             el("td", {}, [el("span", { class: "chip blue" }, [r.winner_name || r.winner])]),
             el("td", { class: "muted" }, [(r.loser_names || r.losers || []).join("、") || "-"]),
             el("td", {}, [r.imported_version ? el("span", { class: "chip green" }, [`已导入 v${r.imported_version}`])
-              : el("span", { class: "chip gray" }, ["待导入"])]),
+              : el("span", { class: "muted" }, ["待导入"])]),
           ]))),
         ])])
       : el("div", { class: "empty-state" }, [
@@ -1103,7 +1163,7 @@ async function renderScene() {
   });
 
   box.appendChild(el("div", { style: "display:flex;align-items:center;gap:12px;margin-bottom:14px" }, [
-    el("a", { class: "back-link", href: "#flow" }, [UI.icon("arrow", 14), "返回通用数据集"]),
+    el("a", { class: "back-link", href: "#flow" }, [UI.icon("arrow", 14), "返回数据集"]),
     el("span", { class: "muted" }, [`「${sceneName}」共 ${questions.length} 个 QA 对`]),
     el("div", { style: "flex:1" }),
     el("button", { class: "btn small", onclick: () => {
@@ -1195,7 +1255,7 @@ async function renderImport() {
             ]),
             task.error ? el("div", { class: "field-error", style: "margin-top:8px" }, ["导入中断：" + task.error]) : null,
             el("div", { style: "margin-top:10px" }, [
-              el("button", { class: "btn primary", onclick: () => { location.hash = "#flow"; } }, ["返回通用数据集"]),
+              el("button", { class: "btn primary", onclick: () => { location.hash = "#flow"; } }, ["返回数据集"]),
             ]),
           ]),
     );
@@ -1215,12 +1275,12 @@ async function renderImport() {
   const dlBtn = el("button", { class: "btn small ghost", onclick: () => {
     const blob = new Blob(["\ufeff" + TPL_CSV], { type: "text/csv" });
     const a2 = document.createElement("a");
-    a2.href = URL.createObjectURL(blob); a2.download = "通用数据集模板.csv"; a2.click();
+    a2.href = URL.createObjectURL(blob); a2.download = "数据集模板.csv"; a2.click();
     URL.revokeObjectURL(a2.href);
     UI.toast("模板已下载，照模板填好后粘贴进来即可");
   } }, [UI.icon("download", 13), "下载模板"]);
   box.appendChild(el("div", { style: "display:flex;align-items:center;gap:12px;margin-bottom:14px" }, [
-    el("a", { class: "back-link", href: "#flow" }, [UI.icon("arrow", 14), "返回通用数据集"]),
+    el("a", { class: "back-link", href: "#flow" }, [UI.icon("arrow", 14), "返回数据集"]),
     el("span", { class: "muted" }, ["把各能力维度的客观题批量导入（题干 + 标准答案）；提交后逐条检查格式、维度与重复"]),
   ]));
   const presetScene = sessionStorage.getItem("import_scene");
@@ -1286,7 +1346,7 @@ async function renderDispatch() {
     el("p", {}, ["1. 硬规则层：请求先过基础规则——多模态（图像 / 音频）等功能性需求先按能力过滤模型（复合任务如「读图 + 算数」先保证会看图，再在会看图的模型里按成绩选）；日常闲聊走轻量直答，但问候里带着真实任务时按任务维度路由，不会被「你好」盖住。"]),
     el("p", {}, ["2. 维度匹配层：其余请求判定所属能力维度（通用问答、代码、数学推理、长文写作），取该维度下各候选模型的基准成绩，按「成本-效果权重」算综合分（权重 × 效果分 + (1 - 权重) × 省钱分）——领先直答；两名接近且策略允许聚合时并发作答，由聚合模型总结定稿。"]),
     el("p", {}, ["3. else 兜底：不属于任何维度或调用异常时切兜底模型直连；刚失败过的候选不会被重复调用，兜底也失败则明确报错，不做循环重试。"]),
-    el("p", {}, ["4. 成绩来源：冷启动用通用数据集的客观题判分——精确答案题比对标准答案，开放题按要点校验且不奖励编造（代码维度直接引用公开榜单）；上线后按采样率出 A/B 双答案回收用户采纳（双答案复用本轮已生成的候选回答，不额外调用模型），「一键更新画像」重新聚类，路由随真实数据演化。"]),
+    el("p", {}, ["4. 成绩来源：冷启动用数据集的 QA 对判分——精确答案题比对标准答案，开放题按要点校验且不奖励编造（代码维度直接引用公开榜单）；上线后按采样率出 A/B 双答案回收用户采纳（复用本轮候选回答，不额外调用模型），「导入回流数据」生成数据集新版本并重新聚类，效果不好可回滚。"]),
     el("p", {}, ["5. 产品对接：一条策略对应一个 API Key；请求可带 aggregate 参数按次覆盖聚合开关（策略可将默认值设为硬约束禁止覆盖），响应返回 request_id，客户端用它把用户采纳经 /v1/feedback 回传，同一 request_id 只记一票。"]),
   ]);
   const rulesBtn = el("button", { class: "btn small ghost", onclick: () => {
