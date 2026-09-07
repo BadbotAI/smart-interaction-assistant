@@ -68,12 +68,18 @@ def resolve_policy(tenant_id: str, scene: str, session_id: str):
     return None
 
 
+def active_dataset_version() -> int:
+    row = db.get_conn().execute("SELECT version FROM dataset_versions WHERE active=1").fetchone()
+    return row["version"] if row else 1
+
+
 def load_bank(tenant_id: str):
-    """加载双层 bank 到内存。演示规模（数百条）下逐请求加载可接受。"""
+    """加载双层 bank 到内存。只加载当前生效数据集版本内的数据（回滚后新版本回流数据即退出路由）。"""
     conn = db.get_conn()
     queries = conn.execute(
         "SELECT * FROM bank_queries WHERE (tenant_id IS NULL OR tenant_id=?) "
-        "AND (source IS NULL OR source != 'reflow_staged')", (tenant_id,)
+        "AND (source IS NULL OR source != 'reflow_staged') "
+        "AND (dataset_version IS NULL OR dataset_version <= ?)", (tenant_id, active_dataset_version())
     ).fetchall()
     qids = [q["query_id"] for q in queries]
     responses = {}
@@ -268,7 +274,9 @@ async def run_route(req: dict, recorder, emit):
             await emit({"step": "rule", "text": f"硬规则命中：多模态请求，仅在 {len(mm)} 个支持多模态的模型中路由"})
         else:
             req["_route"]["layer"] = "else"
-            await emit({"step": "rule", "text": f"硬规则命中：多模态请求，但候选中没有支持多模态的模型，切兜底 {default_model['display_name']}"})
+            _cap_note = "" if (default_model["capabilities"] or {}).get("vision") \
+                else "（兜底模型不具备多模态能力，将按文字尽力回答并说明限制）"
+            await emit({"step": "rule", "text": f"硬规则命中：多模态请求，但候选中没有支持多模态的模型，切兜底 {default_model['display_name']}{_cap_note}"})
             recorder.span("route_score", {"layer": "else", "reason": "no_multimodal_candidate",
                                           "fallback": default_model["model_id"]})
             ans = await _call_with_timeout(default_model, query, domain, recorder, emit)
@@ -366,10 +374,24 @@ async def run_route(req: dict, recorder, emit):
     tasks = [_call_with_timeout(by_id[c], query, domain, recorder, emit) for c in candidates]
     answers = [a for a in await asyncio.gather(*tasks) if a["status"] == "ok"]
     if not answers:
-        fallback = default_model or by_id[candidates[0]]
+        # 兜底不重入：刚失败过的候选（含在候选列表里的兜底模型本身）不再调第二次，防循环重试（用户质疑 Q14）
+        failed_ids = set(candidates)
+        fallback = default_model if default_model and default_model["model_id"] not in failed_ids else None
+        if not fallback:
+            fallback = next((m for m in get_active_models() if m["model_id"] not in failed_ids), None)
+        if not fallback:
+            await emit({"step": "degrade", "text": "全部候选失败，且没有未参与本轮的可用模型，本次请求终止"})
+            recorder.span("route_switch", {"reason": "all_candidates_failed_no_fallback"}, status="degraded")
+            return await _finalize(req, recorder, emit, None, "failed",
+                                   [{"model_id": c, "status": "timeout", "content": None, "latency_ms": 0,
+                                     "tokens_in": 0, "tokens_out": 0, "tokens_thinking": 0, "cost": 0.0}
+                                    for c in candidates][:1], g, {}, candidates, aggregator_id,
+                                   is_explore, t_start, support, error="all_models_failed")
         recorder.span("route_switch", {"reason": "all_candidates_failed",
                                        "fallback": fallback["model_id"]}, status="degraded")
-        await emit({"step": "degrade", "text": f"全部候选超时，降级到默认兜底模型 {fallback['model_id']}"})
+        _note = "" if (default_model and fallback["model_id"] == default_model["model_id"]) \
+            else "（默认兜底也在失败候选中，改用未参与本轮的模型）"
+        await emit({"step": "degrade", "text": f"全部候选超时，降级到兜底模型 {fallback['model_id']}{_note}"})
         ans = await _call_with_timeout(fallback, query, domain, recorder, emit)
         result = "degraded" if ans["status"] == "ok" else "failed"
         return await _finalize(req, recorder, emit, ans if ans["status"] == "ok" else None, result,

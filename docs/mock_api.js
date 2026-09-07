@@ -5,10 +5,29 @@
   const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
 
   const genLocal = {};
+  const genDropped = new Set(); // 参数保存后该策略效果失效
   let genCleared = false; // 一键更新画像后：各策略路由效果回到未生成
   const deadCards = new Set(); // 静态站会话内删除/下线的配置
   const prodLocal = { created: [], updated: {}, deleted: new Set() }; // 会话内产品操作
-  const flyLocal = { rate: null, evolution: null, extraFb: 0 }; // 数据飞轮会话内状态
+  const flyLocal = { rate: null, evolution: null, extraFb: 0, importedVersion: null, activeOverride: null }; // 数据飞轮会话内状态
+  function mockVersions() {
+    const base = ((D["/api/dataset/versions"] || {}).versions || [{ version: 1, ts: Date.now() / 1000 - 86400,
+      note: "冷启动：内置 benchmark QA 对", cold_count: 52, reflow_count: 0, active: 1 }]).map(v => ({ ...v }));
+    if (flyLocal.importedVersion && !base.find(v => v.version === flyLocal.importedVersion)) {
+      base.unshift({ version: flyLocal.importedVersion, ts: Date.now() / 1000,
+        note: "导入回流 " + (((D["/api/flywheel"] || {}).total) || 62) + " 条",
+        cold_count: base[base.length - 1].cold_count || 52,
+        reflow_count: ((D["/api/flywheel"] || {}).total) || 62, active: 0 });
+    }
+    const av = mockActiveVersion();
+    base.forEach(v => { v.active = v.version === av ? 1 : 0; });
+    return base;
+  }
+  function mockActiveVersion() {
+    if (flyLocal.activeOverride != null) return flyLocal.activeOverride;
+    if (flyLocal.importedVersion) return flyLocal.importedVersion;
+    return ((D["/api/dataset/versions"] || {}).active) || 1;
+  }
   function dimOf(text) {
     if (/图片|图像|截图|照片|音频|语音|视频|看图|扫描/.test(text)) return "multimodal";
     if (/代码|SQL|函数|脚本|报错|bug|正则|接口/i.test(text)) return "coding";
@@ -32,7 +51,13 @@
     }
     if (pn === "/api/profile/gen-status") {
       const base = D["/api/profile/gen-status"] || { generated: {}, task: { status: "idle" } };
-      return { generated: genCleared ? { ...genLocal } : { ...base.generated, ...genLocal }, task: { status: "idle" } };
+      const gen = genCleared ? { ...genLocal } : { ...base.generated, ...genLocal };
+      genDropped.forEach(k => { if (!genLocal[k]) delete gen[k]; });
+      const av = mockActiveVersion();
+      return { generated: gen, task: { status: "idle" }, dataset_version: av, dataset_ts: Date.now() / 1000 };
+    }
+    if (pn === "/api/dataset/versions") {
+      return { versions: mockVersions(), active: mockActiveVersion() };
     }
     if (pn === "/api/settings/ab-sampling") {
       const base = D[pn] || { rate: 0.2 };
@@ -40,15 +65,30 @@
     }
     if (pn === "/api/flywheel") {
       const base = JSON.parse(JSON.stringify(D[pn] || { total: 62, last7d: 62, dimensions: {}, win_rates: [],
-        sampling_rate: 0.2, evolution: null, min_required: 20 }));
+        sampling_rate: 0.2, evolution: null, min_required: 20, pending: 62, imported: 0, dataset_version: 1, recent: [] }));
       base.total += flyLocal.extraFb; base.last7d += flyLocal.extraFb;
       if (flyLocal.rate != null) base.sampling_rate = flyLocal.rate;
-      if (flyLocal.evolution) base.evolution = flyLocal.evolution;
+      const av = mockActiveVersion();
+      base.dataset_version = av;
+      if (flyLocal.importedVersion) {
+        if (av >= flyLocal.importedVersion) {
+          base.pending = flyLocal.extraFb; base.imported = base.total - flyLocal.extraFb;
+          base.evolution = flyLocal.evolution;
+          (base.recent || []).forEach(r => { r.imported_version = flyLocal.importedVersion; });
+        } else {
+          base.pending = base.total; base.imported = 0; base.evolution = null;
+        }
+      } else { base.pending = base.total; base.imported = 0; base.evolution = av > 1 ? base.evolution : null; }
       base.evolve_task = { status: "idle" };
       return base;
     }
-    if (pn === "/api/profile/evolve/status") {
-      return { task: flyLocal.evolution ? { status: "completed", done: 1, total: 1, version: flyLocal.evolution.version } : { status: "idle" } };
+    if (pn === "/v1/bank/reflow/import/status") {
+      return { task: flyLocal.importedVersion ? { status: "completed", done: 1, total: 1, version: flyLocal.importedVersion } : { status: "idle" } };
+    }
+    if (pn === "/v1/feedback/pending") {
+      const base = D["/api/flywheel"] || { total: 62 };
+      const n = flyLocal.importedVersion && mockActiveVersion() >= flyLocal.importedVersion ? flyLocal.extraFb : (base.total || 62) + flyLocal.extraFb;
+      return { pending: [], total_pending: n };
     }
     if (pn === "/v1/bank/questions") {
       const sc = new URLSearchParams((full || "").split("?")[1] || "").get("scene") || "general";
@@ -107,7 +147,13 @@
     if (pn === "/v1/bank/import/start") return { task: { status: "done", done: (body && body.items || []).length, total: (body && body.items || []).length, imported: (body && body.items || []).length, skipped: 0, invalid: 0 } };
     if (pn === "/v1/bank/staged/commit") return { committed: (body && body.query_ids || []).length };
     if (pn === "/v1/bank/staged/discard") return { discarded: (body && body.query_ids || []).length };
-    if (pn === "/api/profile/rebuild") { if (body && body.policy_id) genLocal[body.policy_id] = Date.now() / 1000; return { task: { status: "completed", done: 1, total: 1 } }; }
+    if (pn === "/api/profile/rebuild") {
+      if (body && body.all) {
+        (((D["/v1/policies"] || {}).policies) || []).filter(p => !p.ab_group)
+          .forEach(p => { genLocal[p.policy_id] = Date.now() / 1000; genDropped.delete(p.policy_id); });
+      } else if (body && body.policy_id) { genLocal[body.policy_id] = Date.now() / 1000; genDropped.delete(body.policy_id); }
+      return { task: { status: "completed", done: 1, total: 1 } };
+    }
     if (pn === "/v1/bank/question/delete" || pn === "/v1/bank/question/relabel") return { ok: true };
     if (pn === "/api/settings/ab-sampling") {
       const r = Number(body && body.rate);
@@ -120,7 +166,15 @@
       const base = D["/api/flywheel"] || { total: 62 };
       return { ok: true, flywheel_total: (base.total || 62) + flyLocal.extraFb };
     }
-    if (pn === "/api/profile/evolve") {
+    if (pn === "/api/dataset/rollback") {
+      const target = Number(body && body.version);
+      if (!target) return { error: "缺少目标版本号" };
+      if (target === mockActiveVersion()) return { error: "已是当前生效版本" };
+      flyLocal.activeOverride = target;
+      genCleared = true; Object.keys(genLocal).forEach(k => delete genLocal[k]);
+      return { ok: true, active: target };
+    }
+    if (pn === "/v1/bank/reflow/import") {
       const base = D["/api/flywheel"] || {};
       const dims = base.dimensions || { qa: 13, math: 18, writing: 18, coding: 9, multimodal: 4 };
       const names = { qa: "通用问答", coding: "代码", math: "数学推理", writing: "长文写作", multimodal: "多模态理解" };
@@ -134,10 +188,13 @@
         multimodal: [["nova-x", 0.75], ["atlas-72b", 0.5]] };
       const mnames = { "nova-x": "曜极 Nova-X", "atlas-72b": "衡岳 Atlas-72B", "sage-r1": "沉思 Sage-R1",
         "swift-4b": "迅答 Swift-4B", "harbor-13b": "港航 Harbor-13B", "lexi-34b": "法准 Lexi-34B" };
-      const prevV = flyLocal.evolution ? flyLocal.evolution.version : 1;
-      flyLocal.evolution = { version: prevV + 1, ts: Date.now() / 1000,
+      const prevV = mockActiveVersion();
+      const newV = prevV + 1;
+      flyLocal.evolution = { version: newV, ts: Date.now() / 1000,
         clusters: Object.keys(dims).map(k => ({ key: k, name: names[k] || k, keywords: kw[k] || [],
-          size: dims[k], sample: "", ranking: (rank[k] || []).map(([m, w]) => ({ model_id: m, name: mnames[m] || m, win_rate: w, n: dims[k] })) })) };
+          size: dims[k], low_sample: dims[k] < 10, sample: "",
+          ranking: (rank[k] || []).map(([m, w]) => ({ model_id: m, name: mnames[m] || m, win_rate: w, n: dims[k] })) })) };
+      flyLocal.importedVersion = newV; flyLocal.activeOverride = newV;
       genCleared = true; Object.keys(genLocal).forEach(k => delete genLocal[k]);
       return { task: { status: "running", done: 0, total: 62 } };
     }
@@ -148,6 +205,11 @@
       prodLocal.created.push({ product_id: pid, name, brand_file: (body && body.brand_file) || "brand-tokens.default.json",
         card_ids: (body && body.card_ids) || [], created_at: Date.now() / 1000, mcp_key: "sk-mcp-demo" + Math.random().toString(36).slice(2, 10) });
       return { product_id: pid, mcp_key: prodLocal.created[prodLocal.created.length - 1].mcp_key };
+    }
+    if (/^\/v1\/policies\/[^/]+$/.test(pn)) {
+      const pid2 = pn.split("/")[3];
+      delete genLocal[pid2]; genDropped.add(pid2);
+      return { ok: true, version: 2, profile_stale: true };
     }
     if (/^\/api\/products\/[^/]+$/.test(pn)) {
       const pid = pn.split("/")[3];
@@ -284,7 +346,12 @@
           usage: { cost: 0.0001, tokens: 90 } },
       ], 400);
     }
-    if (pol && !pol.allow_aggregation) {
+    const aggReq = (body && body.aggregate) || "auto";
+    const overrideDenied = aggReq === "on" && pol && ((pol.params || {}).allow_agg_override === 0);
+    if (aggReq === "on" && pol && !pol.allow_aggregation && !overrideDenied) {
+      return sseRouteDemoAgg({ ...polMeta, _override: "on" }, dim, DIM_CN[dim] || dim);
+    }
+    if ((pol && !pol.allow_aggregation) || aggReq === "off" || overrideDenied) {
       return sseStream([
         { step: "support", text: `第 2 层 · 维度匹配：判定为「${DIM_CN[dim] || dim}」，命中 42 条相似基准题` },
         { step: "coarse", text: "计算各模型在该维度的基准成绩",
@@ -295,13 +362,14 @@
           content: "结论先行：整体趋势上行，建议优先关注供给端节奏，必要时再拆分区域看结构差异。",
           decision_summary: { mode: "auto", switch_result: "fastlane", final_model: "swift-4b", candidates: ["swift-4b"],
             route_layer: "dimension", dimension: dim,
+            aggregate_override: aggReq !== "auto" ? aggReq : null, aggregate_override_denied: overrideDenied,
             total_cost: 0.0002, total_latency_ms: 410,
             model_calls: [{ model_id: "swift-4b", tokens_in: 120, tokens_out: 190, tokens_thinking: 0, cost: 0.0002, latency_ms: 410 }],
             policy: polMeta },
           usage: { cost: 0.0002, tokens: 310 } },
       ], 400);
     }
-    return sseRouteDemoAgg(polMeta, dim, DIM_CN[dim] || dim);
+    return sseRouteDemoAgg({ ...polMeta, _override: aggReq !== "auto" ? aggReq : null }, dim, DIM_CN[dim] || dim);
   }
 
   function sseRouteDemoAgg(polMeta, dim, dimName) {
@@ -322,6 +390,7 @@
         decision_summary: { mode: "auto", switch_result: "aggregated", final_model: "sage-r1",
           candidates: ["sage-r1", "nova-x", "atlas-72b"], aggregator: "sage-r1", is_explore: false,
           route_layer: "dimension", dimension: dim || "qa",
+          aggregate_override: polMeta._override || null, aggregate_override_denied: false,
           total_cost: 0.0083, total_latency_ms: 1240,
           model_calls: [
             { model_id: "sage-r1", tokens_in: 120, tokens_out: 260, tokens_thinking: 80, cost: 0.0041, latency_ms: 980 },

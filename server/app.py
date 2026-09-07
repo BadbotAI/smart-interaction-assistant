@@ -174,12 +174,18 @@ async def _handle_turn(body: dict, emit):
     agg_req = str(body.get("aggregate") or "auto").lower()
     if agg_req not in ("on", "off", "auto"):
         agg_req = "auto"
+    agg_override_denied = False
     if agg_req == "on" and mode == "auto":
-        # 终端用户点了「聚合答案」：允许并尽量兑现聚合（跳过快车道、细排至少保留两份）
-        req["policy"]["allow_aggregation"] = 1
-        req["policy"]["force_agg"] = 1
-        if req["policy"].get("latency_tier") == "fast":
-            req["policy"]["latency_tier"] = "balanced"
+        _pp = db.dj(policy.get("params"), {}) if isinstance(policy.get("params"), str) else (policy.get("params") or {})
+        if not _pp.get("allow_agg_override", 1):
+            # 管理员在策略里关闭了「允许调用方按次覆盖」：聚合默认值是硬约束，成本不可被调用方放大
+            agg_override_denied = True
+        else:
+            # 终端用户点了「聚合答案」：允许并尽量兑现聚合（跳过快车道、细排至少保留两份）
+            req["policy"]["allow_aggregation"] = 1
+            req["policy"]["force_agg"] = 1
+            if req["policy"].get("latency_tier") == "fast":
+                req["policy"]["latency_tier"] = "balanced"
     elif agg_req == "off":
         req["policy"]["allow_aggregation"] = 0
     if mode == "multi":
@@ -212,12 +218,16 @@ async def _handle_turn(body: dict, emit):
         if random.random() < _rate:
             alt = next((a for a in ok_answers if a["model_id"] != final["model_id"]), None)
             if alt:
-                ab_test = {"group_id": trace_id, "feedback_endpoint": "/v1/feedback", "options": [
-                    {"key": "A", "model_id": final["model_id"], "content": final["content"]},
-                    {"key": "B", "model_id": alt["model_id"], "content": alt["content"]},
-                ]}
+                # 左右随机：避免位置偏好污染采纳数据（终端用户偏爱左侧/A 的倾向）
+                opts = [{"model_id": final["model_id"], "content": final["content"]},
+                        {"model_id": alt["model_id"], "content": alt["content"]}]
+                random.shuffle(opts)
+                for _i, _o in enumerate(opts):
+                    _o["key"] = "AB"[_i]
+                ab_test = {"group_id": trace_id, "feedback_endpoint": "/v1/feedback", "options": opts}
                 # 落库 AB 标记：/v1/feedback 只认真实出过双答案的请求（防拿历史 trace 刷偏好污染飞轮）
-                decision["ab_test"] = {"models": [o["model_id"] for o in ab_test["options"]]}
+                decision["ab_test"] = {"models": [o["model_id"] for o in ab_test["options"]],
+                                       "contents": {o["model_id"]: (o["content"] or "")[:500] for o in ab_test["options"]}}
                 _c = db.get_conn()
                 _c.execute("UPDATE route_decisions SET decision=? WHERE trace_id=?", (db.j(decision), trace_id))
                 _c.commit()
@@ -253,6 +263,7 @@ async def _handle_turn(body: dict, emit):
         "content": final["content"], "components": components,
         "ab_test": ab_test,
         "applied": {"aggregate": agg_req, "aggregation_used": decision["switch_result"] == "aggregated",
+                    "override_allowed": not agg_override_denied,
                     "policy_id": policy.get("policy_id")},
         "decision_summary": {
             "mode": decision.get("mode", "auto"),
@@ -261,6 +272,7 @@ async def _handle_turn(body: dict, emit):
             "dimension": decision.get("dimension"),
             "ab_sampled": bool(ab_test),
             "aggregate_override": agg_req if agg_req != "auto" else None,
+            "aggregate_override_denied": agg_override_denied,
             "final_model": decision["final_model_or_aggregator"],
             "candidates": decision["candidate_models"],
             "aggregator": decision.get("aggregator_model"),
@@ -1225,11 +1237,14 @@ def bank_eval_pending():
     """评测回填：导入的客观题由各在线模型作答，对照标准答案判分入库（无需 LLM 裁判）。"""
     conn = db.get_conn()
     rows = conn.execute(
-        "SELECT q.query_id, q.query_text, q.domain_tags FROM bank_queries q WHERE q.tenant_id=? "
+        "SELECT q.query_id, q.query_text, q.domain_tags, q.ideal FROM bank_queries q WHERE q.tenant_id=? "
         "AND (q.source IS NULL OR q.source != 'reflow_staged') AND NOT EXISTS "
         "(SELECT 1 FROM bank_responses r WHERE r.query_id=q.query_id)", (seed.TENANT,)).fetchall()
     models = conn.execute("SELECT model_id, profile FROM models WHERE status='active'").fetchall()
     n_resp = 0
+    # 没有标准答案的题不可评测：跳过判分、不混入成绩统计（用户质疑 Q03）
+    n_unevaluable = sum(1 for q in rows if not (q["ideal"] or "").strip())
+    rows = [q for q in rows if (q["ideal"] or "").strip()]
     for q in rows:
         domain = (db.dj(q["domain_tags"], ["general"]) or ["general"])[0]
         for m in models:
@@ -1250,8 +1265,9 @@ def bank_eval_pending():
         rounds[dom] = rounds.get(dom, 0) + 1
     if rows:
         _set_setting("scene_rounds", db.j(rounds))
-    db.audit("demo-admin", "bank_eval_pending", {"queries": len(rows), "responses": n_resp})
-    return {"queries": len(rows), "responses": n_resp}
+    db.audit("demo-admin", "bank_eval_pending", {"queries": len(rows), "responses": n_resp,
+                                                 "unevaluable": n_unevaluable})
+    return {"queries": len(rows), "responses": n_resp, "unevaluable": n_unevaluable}
 
 
 # ============ P2 策略管理 ============
@@ -1289,6 +1305,8 @@ async def create_policy(request: Request):
         params["profile_w"] = max(1.0, min(2.0, float(body["profile_w"])))
     if body.get("fallback_model"):
         params["fallback_model"] = body["fallback_model"]
+    if body.get("allow_agg_override") is not None:
+        params["allow_agg_override"] = 1 if body["allow_agg_override"] else 0
     policy_id = "policy-" + db.new_id()[:8]
     budget = {"daily_usd": float(body["daily_usd"])} if body.get("daily_usd") not in (None, "") else {}
     conn.execute(
@@ -1397,8 +1415,15 @@ async def update_policy(policy_id: str, request: Request):
                                                 "explore_ratio": body.get("explore_ratio", row["explore_ratio"]),
                                                 "budget_cap": body.get("budget_cap")}), db.now_ts()))
     conn.commit()
+    # 参数变了 = 旧路由效果作废：撤掉该策略的「已生成」章，避免线上口径与展示口径静默混用（用户质疑 Q16）
+    _gen = db.dj(_get_setting("policy_profile_gen"), {}) or {}
+    stale_cleared = False
+    if policy_id in _gen:
+        _gen.pop(policy_id)
+        _set_setting("policy_profile_gen", db.j(_gen))
+        stale_cleared = True
     db.audit("demo-admin", "policy_update", {"policy_id": policy_id, "version": new_version})
-    return {"ok": True, "version": new_version, "warning": warning}
+    return {"ok": True, "version": new_version, "warning": warning, "profile_stale": stale_cleared}
 
 
 @app.get("/v1/policies/{policy_id}/history")
@@ -1542,10 +1567,11 @@ async def submit_feedback(request: Request):
     losers = sorted(m for m in ab_models if m != chosen)
     qtext = trow["query_text"] or ""
     dim = decision.get("dimension") or mockmodels.classify_dimension(qtext)
+    chosen_content = ((decision.get("ab_test") or {}).get("contents") or {}).get(chosen, "")
     conn.execute(
-        "INSERT INTO ab_feedback (fb_id, trace_id, query_text, dimension, winner, losers, source, ts) "
-        "VALUES (?,?,?,?,?,?,?,?)",
-        (db.new_id(), rid, qtext, dim, chosen, db.j(losers), "api", db.now_ts()))
+        "INSERT INTO ab_feedback (fb_id, trace_id, query_text, dimension, winner, losers, source, ts, chosen_content) "
+        "VALUES (?,?,?,?,?,?,?,?,?)",
+        (db.new_id(), rid, qtext, dim, chosen, db.j(losers), "api", db.now_ts(), chosen_content[:500]))
     conn.commit()
     total = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback").fetchone()["c"]
     db.audit("api", "ab_feedback", {"request_id": rid, "winner": chosen, "dimension": dim})
@@ -1578,64 +1604,106 @@ def flywheel_stats():
         rate = float(_get_setting("ab_sampling_rate") or 0.2)
     except (TypeError, ValueError):
         rate = 0.2
-    evo = db.dj(_get_setting("profile_evolution"), None)
+    active_v = router_core.active_dataset_version()
+    evo = db.dj(_get_setting(f"profile_evolution_v{active_v}"), None) if active_v > 1 else None
+    pending = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE imported_version IS NULL").fetchone()["c"]
+    imported = total - pending
     recent = []
-    for r in conn.execute("SELECT ts, query_text, dimension, winner, losers FROM ab_feedback "
+    for r in conn.execute("SELECT ts, query_text, dimension, winner, losers, imported_version FROM ab_feedback "
                           "ORDER BY ts DESC LIMIT 20").fetchall():
         losers = db.dj(r["losers"], []) or []
         recent.append({"ts": r["ts"], "query": r["query_text"] or "", "dimension": r["dimension"],
                        "winner": r["winner"], "winner_name": names.get(r["winner"], r["winner"]),
-                       "losers": losers, "loser_names": [names.get(l, l) for l in losers]})
+                       "losers": losers, "loser_names": [names.get(l, l) for l in losers],
+                       "imported_version": r["imported_version"]})
     return {"total": total, "last7d": last7, "dimensions": dims, "win_rates": win_rates,
             "sampling_rate": rate, "evolution": evo, "min_required": EVOLVE_MIN_FEEDBACK,
+            "pending": pending, "imported": imported, "dataset_version": active_v,
             "recent": recent, "evolve_task": _evolve_task}
 
 
 _evolve_task = {"status": "idle", "done": 0, "total": 0}
 
 
-@app.post("/api/profile/evolve")
-async def profile_evolve():
-    """一键更新画像：用回流偏好重新聚类（k-means 量级），得到团簇摘要 + 新模型排序。
-    完成后各策略的路由效果标记为待重新生成（偏好标签已并入数据集，重打分即生效）。"""
+@app.get("/v1/feedback/pending")
+def feedback_pending(since: float = 0, limit: int = Query(200, ge=1, le=1000)):
+    """回流数据接口：待导入数据集的偏好数据（QA 对原料），供导入动作与外部程序拉取。
+    增量拉取传 since（上次拉取的最大 ts）。"""
+    conn = db.get_conn()
+    rows = conn.execute(
+        "SELECT fb_id, ts, query_text, dimension, winner, losers, chosen_content, source FROM ab_feedback "
+        "WHERE imported_version IS NULL AND ts>? ORDER BY ts LIMIT ?", (since, limit)).fetchall()
+    out = [{"fb_id": r["fb_id"], "ts": r["ts"], "query": r["query_text"], "dimension": r["dimension"],
+            "winner": r["winner"], "losers": db.dj(r["losers"], []) or [],
+            "chosen_content": r["chosen_content"] or "", "source": r["source"]} for r in rows]
+    total = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE imported_version IS NULL").fetchone()["c"]
+    return {"pending": out, "total_pending": total}
+
+
+@app.post("/v1/bank/reflow/import")
+async def reflow_import():
+    """导入回流数据：把待导入偏好转成 QA 对并入数据集，生成新版本（重新聚类出演化画像）。
+    旧版本保留，效果不好可在数据集页回滚。"""
     if _evolve_task["status"] == "running":
         return {"task": _evolve_task}
     conn = db.get_conn()
-    since = float(_get_setting("evolve_last_ts") or 0)
-    total = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback").fetchone()["c"]
-    if total < EVOLVE_MIN_FEEDBACK:
-        return JSONResponse({"error": f"回流偏好不足 {EVOLVE_MIN_FEEDBACK} 条（当前 {total} 条），数据太少聚类不稳定"},
+    pending = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE imported_version IS NULL").fetchone()["c"]
+    if pending < EVOLVE_MIN_FEEDBACK:
+        return JSONResponse({"error": f"待导入回流不足 {EVOLVE_MIN_FEEDBACK} 条（当前 {pending} 条），数据太少聚类不稳定"},
                             status_code=409)
-    _evolve_task.update({"status": "running", "done": 0, "total": max(total, 1)})
-    asyncio.create_task(_run_evolve(since))
+    _evolve_task.update({"status": "running", "done": 0, "total": max(pending, 1)})
+    asyncio.create_task(_run_reflow_import())
     return {"task": _evolve_task}
 
 
-@app.get("/api/profile/evolve/status")
-def profile_evolve_status():
+@app.get("/v1/bank/reflow/import/status")
+def reflow_import_status():
     return {"task": _evolve_task}
 
 
-async def _run_evolve(since_ts: float):
+async def _run_reflow_import():
     try:
-        await _run_evolve_inner(since_ts)
+        await _run_reflow_import_inner()
     except Exception as e:
-        # 任务异常必须落终态，否则一键更新永远锁在 running（同导入任务的教训）
+        # 任务异常必须落终态，否则导入永远锁在 running（同批量导入任务的教训）
         _evolve_task["status"] = "failed"
         _evolve_task["error"] = str(e)[:200]
-        db.audit("system", "profile_evolve_failed", {"error": str(e)[:200]})
+        db.audit("system", "dataset_reflow_import_failed", {"error": str(e)[:200]})
 
 
-async def _run_evolve_inner(since_ts: float):
+async def _run_reflow_import_inner():
     conn = db.get_conn()
-    rows = [dict(r) for r in conn.execute("SELECT * FROM ab_feedback ORDER BY ts").fetchall()]
-    for i in range(len(rows)):
+    new_version = (conn.execute("SELECT MAX(version) AS v FROM dataset_versions").fetchone()["v"] or 1) + 1
+    rows = [dict(r) for r in conn.execute(
+        "SELECT * FROM ab_feedback WHERE imported_version IS NULL ORDER BY ts").fetchall()]
+    # 1) 回流 -> QA 对入库（query + 用户采纳的回答作参考答案），标记归属版本
+    merged = 0
+    for i, r in enumerate(rows):
         _evolve_task["done"] = i + 1
         if i % 5 == 0:
             await asyncio.sleep(0.05)
-    # 1) 聚类：按维度归簇（演示实现；生产为 query embedding 上的 k-means）
+        qid = "fb-" + (r["fb_id"] or db.new_id())[:8]
+        if not conn.execute("SELECT 1 FROM bank_queries WHERE query_id=?", (qid,)).fetchone():
+            conn.execute(
+                "INSERT INTO bank_queries (query_id, tenant_id, embedding, text_ref, query_text, domain_tags, "
+                "created_at, ttl_days, source, ideal, dataset_version) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (qid, seed.TENANT, db.j(embeddings.embed(r["query_text"] or "")), f"vault://feedback/{qid}",
+                 r["query_text"] or "", db.j([r["dimension"] or "general"]), r["ts"], 365, "reflow",
+                 (r["chosen_content"] or "").strip() or "用户采纳回答（内容未回传）", new_version))
+            pairs = [(r["winner"], 1.0)] + [(l, 0.0) for l in (db.dj(r["losers"], []) or [])]
+            for mid, val in pairs:
+                conn.execute(
+                    "INSERT OR REPLACE INTO bank_responses (query_id, model_id, response_embedding, completion_tokens, "
+                    "label_value, label_confidence, label_source, label_kind, created_at, updated_at) "
+                    "VALUES (?,?,NULL,0,?,0.6,'user_preference','capability',?,?)",
+                    (qid, mid, val, r["ts"], r["ts"]))
+            merged += 1
+        conn.execute("UPDATE ab_feedback SET imported_version=? WHERE fb_id=?", (new_version, r["fb_id"]))
+    # 2) 重新聚类：基于全部已导入偏好，得到该版本的演化画像（团簇摘要 + 采纳胜率排序）
+    all_rows = [dict(r) for r in conn.execute(
+        "SELECT * FROM ab_feedback WHERE imported_version IS NOT NULL ORDER BY ts").fetchall()]
     clusters = {}
-    for r in rows:
+    for r in all_rows:
         d = r["dimension"] or "general"
         c = clusters.setdefault(d, {"samples": [], "wins": {}, "losses": {}})
         c["samples"].append(r["query_text"] or "")
@@ -1654,48 +1722,64 @@ async def _run_evolve_inner(since_ts: float):
         kw = mockmodels.DIM_KEYWORDS.get(d, [])[:4]
         out.append({"key": d, "name": mockmodels.DIMENSIONS.get(d, d),
                     "keywords": kw, "size": len(c["samples"]),
+                    "low_sample": len(c["samples"]) < 10,  # 覆盖不足：排序仅供参考，沿用冷启动基线
                     "sample": (c["samples"][0] or "")[:24], "ranking": ranking[:5]})
-    prev = db.dj(_get_setting("profile_evolution"), None) or {}
-    version = int(prev.get("version") or 1) + 1
-    _set_setting("profile_evolution", db.j({"version": version, "ts": db.now_ts(), "clusters": out}))
-    # 2) 偏好并入数据集：增量回流写为 user_preference 标签（冷启动客观分 + 偏好胜率融合）
-    merged = 0
-    for r in rows:
-        if r["ts"] <= since_ts:
-            continue
-        qid = "fb-" + (r["fb_id"] or db.new_id())[:8]
-        if conn.execute("SELECT 1 FROM bank_queries WHERE query_id=?", (qid,)).fetchone():
-            continue
-        conn.execute(
-            "INSERT INTO bank_queries (query_id, tenant_id, embedding, text_ref, query_text, domain_tags, "
-            "created_at, ttl_days, source) VALUES (?,?,?,?,?,?,?,?,?)",
-            (qid, seed.TENANT, db.j(embeddings.embed(r["query_text"] or "")), f"vault://feedback/{qid}",
-             r["query_text"] or "", db.j([r["dimension"] or "general"]), r["ts"], 365, "reflow"))
-        pairs = [(r["winner"], 1.0)] + [(l, 0.0) for l in (db.dj(r["losers"], []) or [])]
-        for mid, val in pairs:
-            conn.execute(
-                "INSERT OR REPLACE INTO bank_responses (query_id, model_id, response_embedding, completion_tokens, "
-                "label_value, label_confidence, label_source, label_kind, created_at, updated_at) "
-                "VALUES (?,?,NULL,0,?,0.6,'user_preference','capability',?,?)",
-                (qid, mid, val, r["ts"], r["ts"]))
-        merged += 1
-    _set_setting("evolve_last_ts", str(db.now_ts()))
-    # 3) 各策略路由效果标记为待重新生成（更新后需重打分）
+    _set_setting(f"profile_evolution_v{new_version}", db.j({"version": new_version, "ts": db.now_ts(), "clusters": out}))
+    # 3) 版本记录 + 切为生效版本；各策略路由效果待重新生成
+    cold = conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE tenant_id IS NULL").fetchone()["c"]
+    reflow_total = conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE source='reflow' "
+                                "AND dataset_version<=?", (new_version,)).fetchone()["c"]
+    conn.execute("UPDATE dataset_versions SET active=0")
+    conn.execute("INSERT INTO dataset_versions (version, ts, note, cold_count, reflow_count, active) VALUES (?,?,?,?,?,1)",
+                 (new_version, db.now_ts(), f"导入回流 {merged} 条", cold, reflow_total))
     _set_setting("policy_profile_gen", db.j({}))
     conn.commit()
     _evolve_task["status"] = "completed"
-    _evolve_task["version"] = version
-    db.audit("demo-admin", "profile_evolve", {"version": version, "clusters": len(out), "merged": merged})
+    _evolve_task["version"] = new_version
+    db.audit("demo-admin", "dataset_reflow_import", {"version": new_version, "merged": merged, "clusters": len(out)})
+
+
+# ============ 数据集版本：列表 / 回滚 ============
+
+@app.get("/api/dataset/versions")
+def get_dataset_versions():
+    conn = db.get_conn()
+    rows = [dict(r) for r in conn.execute("SELECT * FROM dataset_versions ORDER BY version DESC").fetchall()]
+    return {"versions": rows, "active": router_core.active_dataset_version()}
+
+
+@app.post("/api/dataset/rollback")
+async def dataset_rollback(request: Request):
+    """回滚数据集版本：迭代效果不好时切回旧版本——该版本之后导入的回流数据即退出路由与统计，
+    数据保留不删除，可再切回来。切换后各策略路由效果需重新生成。"""
+    body = await request.json()
+    try:
+        target = int(body.get("version"))
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "缺少目标版本号"}, status_code=422)
+    conn = db.get_conn()
+    if not conn.execute("SELECT 1 FROM dataset_versions WHERE version=?", (target,)).fetchone():
+        return JSONResponse({"error": "版本不存在"}, status_code=404)
+    if target == router_core.active_dataset_version():
+        return JSONResponse({"error": "已是当前生效版本"}, status_code=409)
+    conn.execute("UPDATE dataset_versions SET active=0")
+    conn.execute("UPDATE dataset_versions SET active=1 WHERE version=?", (target,))
+    _set_setting("policy_profile_gen", db.j({}))
+    conn.commit()
+    db.audit("demo-admin", "dataset_rollback", {"to_version": target})
+    return {"ok": True, "active": target}
 
 
 @app.get("/v1/bank/scenes")
 def bank_scenes():
     """通用数据集总览：按能力维度分组统计冷启动 benchmark / 偏好回流 / 导入 / 待评测。"""
     conn = db.get_conn()
+    _av = router_core.active_dataset_version()
     rows = conn.execute(
         "SELECT q.query_id, q.tenant_id, q.domain_tags, q.source, q.created_at, "
         "EXISTS(SELECT 1 FROM bank_responses r WHERE r.query_id=q.query_id) AS has_resp "
-        "FROM bank_queries q WHERE q.tenant_id IS NULL OR q.tenant_id=?", (seed.TENANT,)).fetchall()
+        "FROM bank_queries q WHERE (q.tenant_id IS NULL OR q.tenant_id=?) "
+        "AND (q.dataset_version IS NULL OR q.dataset_version<=?)", (seed.TENANT, _av)).fetchall()
     scenes = {}
     def blank(dom):
         return {"domain": dom, "cold": 0, "reflow": 0, "staged": 0, "imported": 0, "pending": 0, "last_ts": 0}
@@ -1723,7 +1807,8 @@ def bank_scenes():
         sc["total"] = sc["cold"] + sc["reflow"] + sc["imported"]
         sc["rounds"] = rounds.get(sc["domain"], 0)
     out = sorted(scenes.values(), key=lambda x: -x["total"])
-    return {"scenes": out, "custom_scenes": custom,
+    n_active = conn.execute("SELECT COUNT(*) AS c FROM models WHERE status='active'").fetchone()["c"]
+    return {"scenes": out, "custom_scenes": custom, "active_models": n_active,
             "dimension_meta": db.dj(_get_setting("dimension_meta"), {}) or {}}
 
 
@@ -1887,7 +1972,8 @@ def bank_questions(scene: str):
             "SELECT q.query_id, q.query_text, q.domain_tags, q.source, q.created_at, q.ideal, q.tenant_id, "
             "EXISTS(SELECT 1 FROM bank_responses b WHERE b.query_id=q.query_id) AS has_resp "
             "FROM bank_queries q WHERE (q.tenant_id IS NULL OR q.tenant_id=?) AND q.source!='reflow_staged' "
-            "ORDER BY q.created_at DESC", (seed.TENANT,)).fetchall():
+            "AND (q.dataset_version IS NULL OR q.dataset_version<=?) "
+            "ORDER BY q.created_at DESC", (seed.TENANT, router_core.active_dataset_version())).fetchall():
         if (db.dj(r["domain_tags"], ["general"]) or ["general"])[0] != scene:
             continue
         out.append({"query_id": r["query_id"], "query": r["query_text"], "source": r["source"],
@@ -2051,7 +2137,9 @@ def routing_profile(tenant_id: str = None, alpha: float = Query(0.7, ge=0.0, le=
     for r in conn.execute(
             "SELECT bq.domain_tags, bq.query_id, br.model_id, br.label_value, br.label_confidence "
             "FROM bank_queries bq JOIN bank_responses br ON bq.query_id=br.query_id "
-            "WHERE (bq.tenant_id IS NULL OR bq.tenant_id=?) AND br.label_kind='capability'", (tid,)):
+            "WHERE (bq.tenant_id IS NULL OR bq.tenant_id=?) AND br.label_kind='capability' "
+            "AND (bq.dataset_version IS NULL OR bq.dataset_version<=?)",
+            (tid, router_core.active_dataset_version())):
         domains = db.dj(r["domain_tags"], []) or ["general"]
         for d in domains:
             counts.setdefault(d, set()).add(r["query_id"])
@@ -2090,17 +2178,26 @@ async def profile_rebuild(request: Request = None):
     可带 policy_id：该策略做题打分生成画像，完成后记录策略级生成时间供状态卡展示。"""
     if _profile_task["status"] == "running":
         return {"task": _profile_task}
-    pid = None
+    pid, all_flag = None, False
     if request is not None:
         try:
             body = await request.json()
             pid = (body or {}).get("policy_id")
+            all_flag = bool((body or {}).get("all"))
         except Exception:
             pid = None
     conn = db.get_conn()
+    pids = []
+    if all_flag:
+        pids = [r["policy_id"] for r in conn.execute(
+            "SELECT policy_id FROM policies WHERE enabled=1 AND ab_group IS NULL").fetchall()]
+    elif pid:
+        pids = [pid]
     n_domains = conn.execute("SELECT COUNT(DISTINCT domain_tags) AS c FROM bank_queries").fetchone()["c"]
     n_models = conn.execute("SELECT COUNT(*) AS c FROM models WHERE status='active'").fetchone()["c"]
-    _profile_task.update({"status": "running", "done": 0, "total": max(1, n_domains * n_models), "policy_id": pid})
+    _profile_task.update({"status": "running", "done": 0,
+                          "total": max(1, n_domains * n_models * max(1, len(pids))),
+                          "policy_id": pid, "policy_ids": pids})
     asyncio.create_task(_run_profile_rebuild())
     return {"task": _profile_task}
 
@@ -2116,18 +2213,24 @@ async def _run_profile_rebuild():
         await asyncio.sleep(0.06)
     _profile_task["status"] = "completed"
     _profile_task["version"] += 1
-    pid = _profile_task.get("policy_id")
-    if pid:
+    pids = _profile_task.get("policy_ids") or ([_profile_task["policy_id"]] if _profile_task.get("policy_id") else [])
+    if pids:
         gen = db.dj(_get_setting("policy_profile_gen"), {}) or {}
-        gen[pid] = db.now_ts()
+        _dv = router_core.active_dataset_version()
+        for p in pids:
+            gen[p] = {"ts": db.now_ts(), "dataset_version": _dv}
         _set_setting("policy_profile_gen", db.j(gen))
-    db.audit("demo-admin", "profile_rebuild", {"version": _profile_task["version"], "policy_id": pid})
+    db.audit("demo-admin", "profile_rebuild", {"version": _profile_task["version"], "policy_ids": pids})
 
 
 @app.get("/api/profile/gen-status")
 def profile_gen_status():
-    """各策略的画像生成状态：{policy_id: 生成时间戳}。"""
-    return {"generated": db.dj(_get_setting("policy_profile_gen"), {}) or {}, "task": _profile_task}
+    """各策略的画像生成状态：{policy_id: {ts, dataset_version}}；带当前生效数据集版本，前端据此标「基于旧版本」。"""
+    conn = db.get_conn()
+    av = router_core.active_dataset_version()
+    row = conn.execute("SELECT ts FROM dataset_versions WHERE active=1").fetchone()
+    return {"generated": db.dj(_get_setting("policy_profile_gen"), {}) or {}, "task": _profile_task,
+            "dataset_version": av, "dataset_ts": row["ts"] if row else None}
 
 
 # ============ 明细导出（标书 F-5-05：CSV 导出与查询结果一致） ============

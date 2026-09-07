@@ -74,6 +74,7 @@ window.TestChat = (function () {
       const close = (e) => { if (!pop.contains(e.target) && e.target !== modelSel) { pop.remove(); document.removeEventListener("click", close, true); } };
       setTimeout(() => document.addEventListener("click", close, true), 0);
     };
+    const aggState = { value: "auto" }; // 请求级 aggregate 参数（仅模型路由测试页暴露）
     const isAuto = () => pickState.kind !== "model";
     const pickedPolicy = () => pickState.kind === "policy" ? pickState.value : null;
     const pickedMode = () => pickState.kind === "multi" ? "multi" : (pickState.kind === "model" ? "manual" : "auto");
@@ -103,6 +104,11 @@ window.TestChat = (function () {
       modeBar.appendChild(UI.fancySelect({ value: pickState.value, width: "210px",
         options: policies2.map(it => [it.value, it.label]),
         onChange: (v) => { const hit = policies2.find(x => x.value === v); setPick("policy", v, hit ? hit.label : v); } }));
+      // 模拟客户端的 aggregate 传参：验证「按次覆盖聚合开关」与策略硬约束是否生效
+      modeBar.appendChild(el("span", { class: "muted", style: "flex:none;font-size:var(--font-small);margin-left:10px" }, ["聚合参数"]));
+      modeBar.appendChild(UI.fancySelect({ value: aggState.value, width: "150px",
+        options: [["auto", "跟随策略默认"], ["on", "强制聚合"], ["off", "关闭聚合"]],
+        onChange: (v) => { aggState.value = v; } }));
       modeBar.appendChild(el("div", { style: "flex:1" }));
     }
     const composer = el("div", { class: "tc-composer" }, [opts.mountEl ? null : modelSel, input, sendBtn]);
@@ -191,6 +197,7 @@ window.TestChat = (function () {
           body: JSON.stringify({ tenant_id: TENANT, session_id: SESSION, user_id: USER, text,
             card_context: cardContext, skip_card_match: !!o.skipCardMatch,
             mode: pickedMode(), manual_model: pickState.kind === "model" ? pickState.value : null,
+            aggregate: opts.keepReasoning && aggState.value !== "auto" ? aggState.value : undefined,
             policy_id: pickedPolicy() }),
         });
         const reader = res.body.getReader();
@@ -272,7 +279,8 @@ window.TestChat = (function () {
         } else {
           rows.push(["策略", `${pol.name || pol.policy_id || "-"} · 成本-效果权重 ${pol.alpha ?? "-"} · ` +
             (pol.allow_aggregation ? "允许聚合" : "仅单模型") +
-            (d.aggregate_override ? `（本次被请求参数 aggregate=${d.aggregate_override} 覆盖）` : "") +
+            (d.aggregate_override_denied ? `（请求要求 aggregate=${d.aggregate_override}，被策略硬约束拒绝）`
+              : d.aggregate_override ? `（本次被请求参数 aggregate=${d.aggregate_override} 覆盖）` : "") +
             (d.is_explore ? "（本次命中探索流量）" : "")]);
           if (d.route_layer) {
             rows.push(["层级", (LAYER_NAMES[d.route_layer] || d.route_layer) +

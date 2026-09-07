@@ -344,11 +344,11 @@ DIM_QUESTIONS = {
     ],
     "writing": [
         ("起草一份因台风停止装卸作业的客户通知", "含停工时间、影响范围、恢复预估、联系人四要素。"),
-        ("把「货到晚了别着急我们在催」改写成正式客服话术", "致歉+原因+跟进措施+预计时间。"),
+        ("把「货到晚了别着急我们在催」改写成正式客服话术", "致歉+跟进措施+反馈渠道；原因与预计时间题干未给出，应写明确认后同步，不得编造。"),
         ("写一段仓库安全月活动的动员文案", "主题、目标、行动号召三段式。"),
         ("起草一份供应商年度评审会议纪要模板", "含议题、结论、待办、责任人、期限字段。"),
         ("写一封催收逾期账款的商务邮件", "语气克制：事实+账期+付款方式+后续动作。"),
-        ("把这段口语化描述整理成周报条目：这周把华东的仓都盘完了问题不大", "华东区仓库盘点完成，差异率在阈值内。"),
+        ("把这段口语化描述整理成周报条目：这周把华东的仓都盘完了问题不大", "华东区仓库盘点已完成、无重大问题；差异数据题干未给出，应写明待补充，不得编造指标。"),
         ("为新上线的运单查询功能写一段产品公告", "功能说明+入口+适用范围+反馈渠道。"),
         ("起草一份节前发货截止时间的对外通知", "截止时间、恢复时间、应急联系人。"),
     ],
@@ -432,10 +432,11 @@ def seed_ab_feedback(force=False):
             pa, pb = a["profile"].get(dim, 0.5), b["profile"].get(dim, 0.5)
             winner, loser = (a, b) if rng.random() < pa / max(0.01, pa + pb) else (b, a)
             ts = time.time() - day * 86400 + rng.random() * 86400 * 0.7
+            content, _ = mockmodels.gen_structured(q, dim, True)
             conn.execute(
-                "INSERT INTO ab_feedback (fb_id, trace_id, query_text, dimension, winner, losers, source, ts) "
-                "VALUES (?,?,?,?,?,?,?,?)",
-                (db.new_id(), None, q, dim, winner["model_id"], db.j([loser["model_id"]]), "api", ts))
+                "INSERT INTO ab_feedback (fb_id, trace_id, query_text, dimension, winner, losers, source, ts, "
+                "chosen_content) VALUES (?,?,?,?,?,?,?,?,?)",
+                (db.new_id(), None, q, dim, winner["model_id"], db.j([loser["model_id"]]), "api", ts, content[:500]))
             n += 1
     conn.commit()
     return n
@@ -636,6 +637,49 @@ def migrate_questionnaire():
     conn.commit()
 
 
+def migrate_trust_v5_1():
+    """v5.1 可信度迁移（用户质疑 Q02/Q06）：修正会奖励编造的标准答案；榜单引用补来源与快照日期。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT v FROM kv_settings WHERE k='v5_1_trust'").fetchone():
+        return False
+    fixes = {
+        "把这段口语化描述整理成周报条目：这周把华东的仓都盘完了问题不大":
+            "华东区仓库盘点已完成、无重大问题；差异数据题干未给出，应写明待补充，不得编造指标。",
+        "把「货到晚了别着急我们在催」改写成正式客服话术":
+            "致歉+跟进措施+反馈渠道；原因与预计时间题干未给出，应写明确认后同步，不得编造。",
+    }
+    for q, ideal in fixes.items():
+        conn.execute("UPDATE bank_queries SET ideal=? WHERE query_text=?", (ideal, q))
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('dimension_meta', ?)",
+                 (db.j({"coding": {"source": "leaderboard", "ref": "公开代码榜单（HumanEval / MBPP 汇总）",
+                                   "asof": "2026-08"}}),))
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('v5_1_trust', '1')")
+    conn.commit()
+    db.audit("system", "migrate_trust_v5_1", {"ideal_fixed": len(fixes)})
+    return True
+
+
+def migrate_dataset_v5_2():
+    """v5.2 数据集版本化：v1 = 冷启动 QA 对；回流经接口显式导入生成新版本，可回滚。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT v FROM kv_settings WHERE k='v5_2_dataset'").fetchone():
+        return False
+    conn.execute("UPDATE bank_queries SET dataset_version=1 WHERE tenant_id IS NULL AND dataset_version IS NULL")
+    cold = conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE tenant_id IS NULL").fetchone()["c"]
+    if not conn.execute("SELECT 1 FROM dataset_versions WHERE version=1").fetchone():
+        conn.execute("INSERT INTO dataset_versions (version, ts, note, cold_count, reflow_count, active) "
+                     "VALUES (1,?,?,?,0,1)", (db.now_ts(), "冷启动：内置 benchmark QA 对", cold))
+    # 历史回流补采纳内容（QA 对的答案侧）
+    for r in conn.execute("SELECT fb_id, query_text, dimension FROM ab_feedback WHERE chosen_content IS NULL").fetchall():
+        content, _ = mockmodels.gen_structured(r["query_text"] or "", r["dimension"] or "qa", True)
+        conn.execute("UPDATE ab_feedback SET chosen_content=? WHERE fb_id=?", (content[:500], r["fb_id"]))
+    conn.execute("DELETE FROM kv_settings WHERE k IN ('profile_evolution','evolve_last_ts')")
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('v5_2_dataset', '1')")
+    conn.commit()
+    db.audit("system", "migrate_dataset_v5_2", {"cold_count": cold})
+    return True
+
+
 def run_all():
     db.init_db()
     seed_models()
@@ -643,7 +687,9 @@ def run_all():
     seed_products()
     seed_cards()
     migrate_flywheel_v5()
+    migrate_trust_v5_1()
     n_bank = seed_public_bank()
+    migrate_dataset_v5_2()
     n_fb = seed_ab_feedback()
     n_hist = seed_history()
     migrate_questionnaire()

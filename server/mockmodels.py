@@ -41,7 +41,8 @@ DIM_KEYWORDS = {
 
 
 def classify_dimension(text: str) -> str:
-    """三层路由的维度判定：先给硬规则层用（multimodal/chat），再给维度匹配层用。"""
+    """三层路由的维度判定：先给硬规则层用（multimodal/chat），再给维度匹配层用。
+    闲聊判定保守：问候词不能盖住真实任务——命中其他维度或文本较长时不算闲聊。"""
     scores = {}
     for dim, words in DIM_KEYWORDS.items():
         s = sum(1 for w in words if w in text)
@@ -49,9 +50,12 @@ def classify_dimension(text: str) -> str:
             scores[dim] = s
     if scores.get("multimodal"):
         return "multimodal"  # 多模态是硬规则：命中即定，不与其他维度比票
-    if not scores:
+    others = {d: s for d, s in scores.items() if d != "chat"}
+    if scores.get("chat") and not others and len(text) <= 12:
+        return "chat"
+    if not others:
         return "qa" if len(text) >= 6 else "general"
-    return max(scores, key=scores.get)
+    return max(others, key=others.get)
 
 
 MODEL_POOL = [

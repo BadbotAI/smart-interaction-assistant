@@ -281,6 +281,17 @@ def init_db():
         winner TEXT NOT NULL, losers TEXT NOT NULL DEFAULT '[]',
         source TEXT DEFAULT 'api', ts REAL)""")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_abfb_ts ON ab_feedback(ts)")
+    # 增量迁移（v5.1）：数据集版本化——回流显式导入成新版本，可回滚
+    for stmt in ("ALTER TABLE ab_feedback ADD COLUMN chosen_content TEXT",
+                 "ALTER TABLE ab_feedback ADD COLUMN imported_version INTEGER",
+                 "ALTER TABLE bank_queries ADD COLUMN dataset_version INTEGER"):
+        try:
+            conn.execute(stmt)
+        except sqlite3.OperationalError:
+            pass
+    conn.execute("""CREATE TABLE IF NOT EXISTS dataset_versions (
+        version INTEGER PRIMARY KEY, ts REAL, note TEXT,
+        cold_count INTEGER DEFAULT 0, reflow_count INTEGER DEFAULT 0, active INTEGER DEFAULT 0)""")
     # 增量迁移：场景数据集题目可带参考答案（Judge 对照打分）
     try:
         conn.execute("ALTER TABLE bank_queries ADD COLUMN ideal TEXT")
