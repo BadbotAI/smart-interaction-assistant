@@ -302,10 +302,12 @@ async def run_route(req: dict, recorder, emit):
 
     bank = load_bank(tenant_id)
     support = support_set(bank, q_emb, int(params["N_base"]), float(params["gamma"]))
-    dim_name = mockmodels.DIMENSIONS.get(dimension, dimension)
-    await emit({"step": "support",
-                "text": f"第 2 层 · 维度匹配：判定为「{dim_name}」，命中 {len(support)} 条相似基准题",
-                "count": len(support)})
+    theme_name = mockmodels.QUERY_THEMES.get(req["_route"]["dimension"], {}).get("label") \
+        or ("其他 / 长尾" if req["_route"]["dimension"] == "other" else req["_route"]["dimension"])
+    if bank:
+        await emit({"step": "support",
+                    "text": f"第 2 层 · 分类匹配：归入「{theme_name}」，命中 {len(support)} 条相似问题",
+                    "count": len(support)})
 
     # —— 冷启动 · 随机探索期：还没聚类定版（无路由支撑数据）时，均匀随机分配模型直答，
     #    一边收集 query 一边由 AB 采样收采纳；硬规则层（多模态/闲聊）仍在其前生效 ——
@@ -357,7 +359,7 @@ async def run_route(req: dict, recorder, emit):
         "coarse_scores": {k2: round(v, 4) for k2, v in g.items()},
         "candidates": candidates, "aggregator": aggregator_id, "domain": domain,
     })
-    await emit({"step": "coarse", "text": "计算各模型历史命中率",
+    await emit({"step": "coarse", "text": "计算各模型在该分类的画像得分",
                 "scores": {k2: round(v, 3) for k2, v in ranked}, "candidates": candidates})
 
     # 探索预算（§3.6）：强制随机打散候选
@@ -459,7 +461,7 @@ async def run_route(req: dict, recorder, emit):
                                aggregator_id, is_explore, t_start, support)
 
     # 聚合
-    await emit({"step": "switch", "text": f"保留 {len(kept)} 份回答，交给聚合器 {by_id[aggregator_id]['display_name']} 融合重写",
+    await emit({"step": "switch", "text": f"保留 {len(kept)} 份回答，交给聚合模型 {by_id[aggregator_id]['display_name']} 总结定稿",
                 "result": "aggregated", "pruned": pruned})
     t0 = time.time()
     agg = mockmodels.aggregate_answers(by_id[aggregator_id], query, domain, kept)

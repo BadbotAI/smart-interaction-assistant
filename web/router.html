@@ -648,7 +648,12 @@ function pollDs() {
     ]);
     const ct = c1.task || {}, gt = g1.task || {};
     if (ct.status === "running" || gt.status === "running") { renderFlow(); return; }
-    if (ct.status === "completed") UI.toast(`聚类完成：数据集 v${ct.version} 已生效，接着生成模型画像`);
+    if (ct.status === "completed") {
+      const ov2 = await UI.api("/api/dataset/overview").catch(() => null);
+      UI.toast(ov2 && !ov2.judge
+        ? `归类完成：数据集 v${ct.version} 已生效；配置 Judge 模型后即可生成画像`
+        : `归类完成：数据集 v${ct.version} 已生效，接着生成模型画像`);
+    }
     else if (ct.status === "failed") UI.toast("聚类中断：" + (ct.error || "未知错误") + "，可重试", true);
     if (gt.status === "completed") UI.toast("模型画像已生成，下方查看各簇路由去向");
     else if (gt.status === "failed") UI.toast("画像生成中断：" + (gt.error || "未知错误") + "，可重试", true);
@@ -674,7 +679,8 @@ async function renderFlow() {
     onclick: async () => {
       const ok = await UI.confirm(ov.active ? "重新归类生成新版本" : "归类生成数据集",
         ov.active
-          ? `把新增的 ${ov.pool_new} 条问题并入、全部重新归类，生成数据集 v${ov.active + 1}（分类名称由 AI 重新总结）；旧版本保留可回滚，生成后需重新生成画像。`
+          ? `把新增的 ${ov.pool_new} 条问题并入、全部重新归类，生成数据集 v${ov.active + 1}（分类名称由 AI 重新总结）；旧版本保留可回滚，生成后需重新生成画像。` +
+            (ov.pool_new < 50 ? `\n注意：新增仅 ${ov.pool_new} 条，重新归类的收益有限，建议积累更多后再生成。` : "")
           : `对已收集的 ${ov.pool_new} 条问题按主题归类（后台为聚类算法），AI 总结每类的名称与摘要，生成数据集 v1；之后即可生成模型画像、结束随机探索期。`,
         { okText: ov.active ? "重新归类" : "归类生成" });
       if (!ok) return;
@@ -857,7 +863,11 @@ async function renderFlow() {
   } else if (!ov.profile.generated) {
     effCard.appendChild(el("div", { class: "empty-state" }, [
       el("div", { class: "empty-title" }, ["数据集 v" + ov.active + " 还没生成画像"]),
-      el("div", {}, [judge ? "点右上角「生成模型画像」开始回放打分" : "先配置 Judge 模型，再生成画像"]),
+      el("div", {}, [judge ? "点右上角「生成模型画像」开始打分" : "先配置 Judge 模型，再生成画像"]),
+      ov.latest_profile_version && ov.latest_profile_version !== ov.active
+        ? el("div", { class: "muted", style: "margin-top:6px" },
+            [`线上路由暂沿用 v${ov.latest_profile_version} 的画像数据，本版画像生成后自动切换`])
+        : null,
     ]));
   } else {
     // 策略切换行 + 效果表

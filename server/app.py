@@ -1430,7 +1430,12 @@ def dataset_overview():
     est_calls = n_reps * n_models
     theme_names = {k: v["label"] for k, v in mockmodels.QUERY_THEMES.items()}
     theme_names["other"] = "其他 / 长尾"
+    latest_pv = 0
+    for vrow in versions:
+        if db.dj(_get_setting(f"profile_matrix_v{vrow['version']}"), None):
+            latest_pv = max(latest_pv, vrow["version"])
     return {"pool_total": pool_total, "pool_new": pool_new, "threshold": CLUSTER_MIN_QUERIES,
+            "latest_profile_version": latest_pv,
             "can_cluster": pool_new >= CLUSTER_MIN_QUERIES if av == 0 else pool_new > 0,
             "recent": recent, "versions": versions, "active": av,
             "clusters": clusters, "theme_names": theme_names,
