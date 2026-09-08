@@ -56,7 +56,7 @@ async function renderModels() {
   const statusChip = { active: ["在线", "green"], registering: ["注册中", "yellow"],
     paused: ["已停用", "gray"], retired: ["已退役", "red"] };
   const table = el("table", { class: "data" }, [
-    el("thead", {}, [el("tr", {}, ["供应商", "名称", "模型型号", "接入方式", "单价 ¥/M（入 / 出）", "思考模式", "启用情况", "操作"]
+    el("thead", {}, [el("tr", {}, ["供应商", "名称", "模型型号", "接入方式", "单价 ¥/M（入 / 出）", "多模态", "思考模式", "启用情况", "操作"]
       .map(h => el("th", { class: (h === "名称" || h === "模型型号") ? "w-main" : "" }, [h])))]),
     el("tbody", {}, models.filter(m => (m.bank_coverage || 0) >= 1)
       .sort((a2, b2) => String(a2.provider).localeCompare(String(b2.provider)) || String(a2.display_name).localeCompare(String(b2.display_name)))
@@ -84,6 +84,9 @@ async function renderModels() {
             ? el("span", {}, [`${m.price_input} / ${m.price_output}`,
                 m.deploy_type === "self_hosted" ? el("span", { class: "muted", style: "margin-left:4px" }, ["估算"]) : null])
             : el("span", { class: "muted", title: "点「编辑」补充单价（可贴定价页链接由 AI 读取）" }, ["待补充"])]),
+        el("td", {}, [caps.vision
+          ? el("span", { title: "支持图像识别：多模态请求会被硬规则层分流到该模型" }, ["支持图像"])
+          : el("span", { class: "muted", title: "不支持图像：多模态请求不会路由给它" }, ["不支持"])]),
         el("td", {}, [caps.thinking
           ? (() => {
               const lab2 = el("span", { class: "muted", style: "font-size:var(--font-caption)" }, [caps.thinking_enabled !== false ? "" : "关闭"]);
@@ -189,6 +192,7 @@ function registerDialog() {
           model_id: st.model_id, display_name: st.display_name, provider: st.provider,
           endpoint: st.endpoint, credential_ref: st.credential_ref,
           deploy_type: st.deploy_type, gpu_count: st.deploy_type === "self_hosted" ? Number(st.gpu_count) : 0,
+          vision: !!st.vision,
           capabilities: { tool_call: true, streaming: true } } });
         UI.toast(st.deploy_type === "self_hosted"
           ? "模型已添加，成本已按卡数估算。回填评测集后上线"
@@ -216,6 +220,11 @@ function registerDialog() {
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["接入方式",
       UI.help("API 接入的成本按官网单价；自有部署没有账单，按需要的 GPU 卡数做简易估算")]), deploySel]),
     gpuField,
+    el("div", { class: "field" }, [
+      el("span", { class: "label-text" }, ["图像识别（多模态）",
+        UI.help("模型能否看图：多模态请求只会分流给支持图像的模型，一个都没有时走兜底")]),
+      UI.toggle({ checked: false, label: "不支持", onChange: (v, lab) => { st.vision = v; return true; } }),
+    ]),
     err,
     el("div", { class: "muted", style: "margin:4px 0 8px" }, ["单价 / 上下文长度非必选，添加后可在模型列表「编辑」里随时补充"]),
     el("div", { style: "display:flex;justify-content:flex-end;margin-top:8px" }, [verifyBtn]),
@@ -226,7 +235,8 @@ function registerDialog() {
 // 编辑模型：改名 + 接入方式与成本（API 官网单价 / 自有部署按卡数估算）+ 上下文
 function editModelDrawer(m) {
   const nameIn = el("input", { type: "text", maxlength: "24", value: m.display_name });
-  const dst = { deploy_type: m.deploy_type || "api", gpu_count: m.gpu_count || "" };
+  const dst = { deploy_type: m.deploy_type || "api", gpu_count: m.gpu_count || "",
+    vision: !!(m.capabilities || {}).vision };
   const gpuIn = el("input", { type: "number", min: "1", max: "512", step: "1", value: dst.gpu_count || "", placeholder: "例如 16" });
   gpuIn.oninput = () => dst.gpu_count = gpuIn.value.trim();
   const gpuField = el("label", { class: "field", hidden: dst.deploy_type !== "self_hosted" }, [
@@ -269,7 +279,8 @@ function editModelDrawer(m) {
             price_input: Number(pin.value) || 0, price_output: Number(pout.value) || 0,
             context_window: Math.round((Number(ctx.value) || 0) * 1024),
             deploy_type: dst.deploy_type,
-            gpu_count: dst.deploy_type === "self_hosted" ? Number(dst.gpu_count) : 0 } });
+            gpu_count: dst.deploy_type === "self_hosted" ? Number(dst.gpu_count) : 0,
+            vision: dst.vision } });
           UI.toast("已保存");
           mask2.querySelector(".close-btn")?.click();
           renderModels();
@@ -283,6 +294,12 @@ function editModelDrawer(m) {
       el("span", { class: "muted", style: "margin-left:8px;font-weight:400;font-size:var(--font-caption)" }, ["API 接入贴官方定价页由 AI 读取；自有部署留空单价按卡数估算"])]),
     el("label", { class: "field" }, [el("span", { class: "label-text" }, ["接入方式"]), deploySel]),
     gpuField,
+    el("div", { class: "field" }, [
+      el("span", { class: "label-text" }, ["图像识别（多模态）",
+        UI.help("多模态请求只会分流给支持图像的模型")]),
+      UI.toggle({ checked: dst.vision, label: dst.vision ? "支持" : "不支持",
+        onChange: (v) => { dst.vision = v; return true; } }),
+    ]),
     el("label", { class: "field" }, [el("span", { class: "label-text" }, ["定价页链接"]),
       el("div", { style: "display:flex;gap:8px" }, [urlIn, aiBtn])]),
     el("div", { style: "display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 12px" }, [
@@ -351,9 +368,10 @@ function policyForm(init, actives, policyId, apiKey) {
   const nameIn = el("input", { type: "text", maxlength: "15", value: st.name, placeholder: "例如：夜间省钱档（1-15 字）" });
   const nameErr = el("div", { class: "field-error" });
   nameIn.oninput = () => { st.name = nameIn.value; nameErr.textContent = ""; };
+  const withCap = m => m.display_name + ((m.capabilities || {}).vision ? " · 图像" : "");
   const wlWrap = UI.tagSelect({
     selected: [...st.whitelist], minKeep: 1, placeholder: "点击选择候选模型，可输入搜索",
-    options: actives.map(m => [m.model_id, m.display_name]),
+    options: actives.map(m => [m.model_id, withCap(m)]),
     onChange: (vals) => { st.whitelist = new Set(vals); },
   });
   if (!st.fallback) {
@@ -361,7 +379,7 @@ function policyForm(init, actives, policyId, apiKey) {
     st.fallback = dm ? dm.model_id : "";
   }
   const fbSel = UI.fancySelect({ value: st.fallback, width: "100%",
-    options: actives.map(m => [m.model_id, m.display_name]),
+    options: actives.map(m => [m.model_id, withCap(m)]),
     onChange: (v) => st.fallback = v });
   const slider = (key, min, max, step, leftLb, rightLb) => {
     const val = el("span", { class: "num", style: "font-weight:600;min-width:34px;text-align:right" }, [Number(st[key]).toFixed(2)]);
@@ -405,9 +423,9 @@ function policyForm(init, actives, policyId, apiKey) {
         onChange: (v) => { st.allow_agg = v; return true; } }),
     ]),
     el("div", { class: "field" }, [
-      el("span", { class: "label-text" }, ["允许调用方按次覆盖",
-        UI.help("开启：调用方可在请求里带 aggregate 参数按次覆盖上面的默认值（终端用户自选聚合）。关闭：聚合默认值是硬约束，调用方传参无效——成本敏感策略建议关闭")]),
-      UI.toggle({ checked: st.allow_override, label: st.allow_override ? "调用方可覆盖" : "默认值为硬约束",
+      el("span", { class: "label-text" }, ["响应终端用户的聚合选择",
+        UI.help("你的产品可以在界面上让用户自选「多模型聚合回答」（请求带 aggregate 参数进来）。开启＝按用户的选择执行；关闭＝忽略用户选择、始终按上面的聚合开关来——想锁死成本就关闭")]),
+      UI.toggle({ checked: st.allow_override, label: st.allow_override ? "按用户选择执行" : "忽略用户选择",
         onChange: (v) => { st.allow_override = v; return true; } }),
     ]),
   ]);
@@ -520,7 +538,7 @@ async function renderPolicies(container, policies, actives) {
           const nameOfM = (id) => { const m = actives.find(x => x.model_id === id); return m ? m.display_name : id; };
           const fb = prm.fallback_model || (actives.find(m => m.is_default) || {}).model_id;
           return `候选模型 ${wlN} 个 · 成本-效果权重 ${prm.alpha ?? 0.7} · ${p.allow_aggregation ? "允许聚合" : "单模型"}` +
-            (prm.allow_agg_override === 0 ? "（硬约束）" : "") + ` · 兜底 ${fb ? nameOfM(fb) : "-"}`;
+            (prm.allow_agg_override === 0 ? "（忽略用户聚合选择）" : "") + ` · 兜底 ${fb ? nameOfM(fb) : "-"}`;
         })(),
       ]),
     ]);
@@ -533,7 +551,7 @@ function shortPolicyId(pid) {
   return String(parseInt(hex, 16) % 1000000).padStart(6, "0");
 }
 
-// ================= 数据集（Query 池 → 聚类定版 → 版本级画像）=================
+// ================= 数据集（问题池 → 归类生成版本 → 版本级画像）=================
 let dsPollTimer = null;
 
 // Judge 模型接入弹窗（画像打分裁判；不进业务模型池）
@@ -592,7 +610,7 @@ async function buildEffectTable(policyId) {
   return el("div", {}, [
     el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
       el("thead", {}, [el("tr", {}, [
-        el("th", {}, ["Query 簇"]), el("th", {}, ["样本"]),
+        el("th", {}, ["问题分类"]), el("th", {}, ["样本"]),
         ...mids.map(m => el("th", {}, [nameOf(m)])),
         el("th", { class: "w-main" }, ["路由去向"]),
       ])]),
@@ -647,22 +665,22 @@ async function renderFlow() {
   const clusterRunning = ct.status === "running";
   const pgenRunning = gt.status === "running";
 
-  // —— 聚类定版按钮（冷启动 hero 与版本条共用）——
+  // —— 归类生成按钮（冷启动 hero 与版本条共用）——
   const clusterBtn = el("button", {
     class: "btn" + (ov.active ? " small" : " primary"),
     ...(ov.can_cluster && !clusterRunning && !pgenRunning ? {} : { disabled: "",
       title: clusterRunning || pgenRunning ? "已有任务进行中"
-        : ov.active ? "上次定版后还没有新增 query" : `Query 池满 ${ov.threshold} 条后可定版（当前 ${ov.pool_new} 条）` }),
+        : ov.active ? "上次生成后还没有新增问题" : `问题池满 ${ov.threshold} 条后可生成（当前 ${ov.pool_new} 条）` }),
     onclick: async () => {
-      const ok = await UI.confirm(ov.active ? "重新聚类定版" : "聚类定版",
+      const ok = await UI.confirm(ov.active ? "重新归类生成新版本" : "归类生成数据集",
         ov.active
-          ? `把新增的 ${ov.pool_new} 条 query 并入并全量重新聚类，生成数据集 v${ov.active + 1}（AI 重新总结簇标签）；旧版本保留可回滚，定版后需重新生成画像。`
-          : `对已收集的 ${ov.pool_new} 条 query 聚类，AI 总结每簇标签与摘要，生成数据集 v1；之后即可生成模型画像、结束随机探索期。`,
-        { okText: ov.active ? "重新聚类" : "聚类定版" });
+          ? `把新增的 ${ov.pool_new} 条问题并入、全部重新归类，生成数据集 v${ov.active + 1}（分类名称由 AI 重新总结）；旧版本保留可回滚，生成后需重新生成画像。`
+          : `对已收集的 ${ov.pool_new} 条问题按主题归类（后台为聚类算法），AI 总结每类的名称与摘要，生成数据集 v1；之后即可生成模型画像、结束随机探索期。`,
+        { okText: ov.active ? "重新归类" : "归类生成" });
       if (!ok) return;
       try { await UI.api("/api/dataset/cluster", { method: "POST" }); renderFlow(); pollDs(); }
       catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
-    } }, [clusterRunning ? "聚类中…" : ov.active ? "重新聚类定版" : "聚类定版，生成数据集 v1"]);
+    } }, [clusterRunning ? "归类中…" : ov.active ? "重新归类生成新版本" : "归类生成数据集 v1"]);
 
   if (!ov.active) {
     // 冷启动 hero：进度 + 下一步
@@ -675,10 +693,10 @@ async function renderFlow() {
         clusterBtn,
       ]),
       el("div", { class: "muted", style: "margin:8px 0 10px" },
-        ["还没有数据集：线上请求正由各模型均匀分流作答，一边收集真实 query、一边按采样率收 AB 采纳；攒满门槛即可聚类定版"]),
+        ["还没有数据集：线上请求正由各模型均匀分流作答，一边收集真实问题、一边按采样率收 AB 采纳；攒满门槛就能归类生成数据集"]),
       el("div", { class: "progress-track" }, [el("div", { class: "progress-fill", style: `width:${pct}%` })]),
       el("div", { class: "muted num", style: "margin-top:6px" }, [`已收集 ${ov.pool_new} / ${ov.threshold} 条`]),
-      clusterRunning ? el("div", { class: "muted num", style: "margin-top:6px" }, [`聚类中 ${ct.done}/${ct.total}……`]) : null,
+      clusterRunning ? el("div", { class: "muted num", style: "margin-top:6px" }, [`归类中 ${ct.done}/${ct.total}……`]) : null,
     ]));
   } else {
     // 版本条：可选择切换（回滚 / 恢复）+ 版本历史
@@ -718,22 +736,22 @@ async function renderFlow() {
         el("div", { style: "flex:1" }),
         histBtn, clusterBtn,
       ]),
-      clusterRunning ? el("div", { class: "muted num", style: "margin-top:8px" }, [`聚类中 ${ct.done}/${ct.total}……`]) : null,
+      clusterRunning ? el("div", { class: "muted num", style: "margin-top:8px" }, [`归类中 ${ct.done}/${ct.total}……`]) : null,
       histBody,
     ]));
   }
 
-  // —— Query 池 ——
+  // —— 问题池 ——
   const srcName = { collected: "线上收集", reflow: "偏好回流" };
   box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
     el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap" }, [
-      el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["Query 池"]),
-      el("span", { class: "muted num" }, [`共 ${ov.pool_total} 条 · 待定版 ${ov.pool_new} 条`]),
+      el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["问题池"]),
+      el("span", { class: "muted num" }, [`共 ${ov.pool_total} 条 · 未入版本 ${ov.pool_new} 条`]),
       el("div", { style: "flex:1" }),
     ]),
     el("div", { class: "muted", style: "margin-bottom:10px;display:flex;align-items:center;flex-wrap:wrap" },
-      ["真实用户问题自动落池：随机探索与线上路由的请求都会进来（轻去重）",
-       UI.help("Query 池是聚类的原料：定版时全量重新聚类并打上版本号；未定版的部分不参与路由")]),
+      ["真实用户问题自动进入问题池：随机探索与线上路由的请求都会收进来（自动去重）",
+       UI.help("问题池是数据集的原料：归类生成时统一打上版本号；还没归入版本的部分不参与路由")]),
     (ov.recent || []).length
       ? el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
           el("thead", {}, [el("tr", {}, ["时间", "用户问题", "主题（自动归类）", "来源", "状态", "操作"].map(h => el("th", { class: h === "用户问题" ? "w-main" : "" }, [h])))]),
@@ -743,11 +761,11 @@ async function renderFlow() {
               el("td", { class: "w-main", style: "max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: r.query }, [r.query]),
               el("td", {}, [el("span", { class: "chip gray" }, [themeName(r.theme)])]),
               el("td", { class: "muted" }, [srcName[r.source] || r.source]),
-              el("td", {}, [r.dataset_version ? el("span", { class: "muted" }, [`v${r.dataset_version}`]) : el("span", { class: "muted" }, ["待定版"])]),
+              el("td", {}, [r.dataset_version ? el("span", { class: "muted" }, [`v${r.dataset_version}`]) : el("span", { class: "muted" }, ["未入版本"])]),
               el("td", {}, [el("button", { class: "btn small danger-text", onclick: async () => {
                 const ok = await UI.confirm("删除这条 query", "从池中移除，之后的聚类不再包含它。", { okText: "删除", danger: true });
                 if (!ok) return;
-                try { await UI.api("/v1/bank/question/delete", { method: "POST", body: { query_id: r.query_id } }); row.remove(); UI.toast("已删除"); }
+                try { await UI.api("/api/dataset/query/delete", { method: "POST", body: { query_id: r.query_id } }); row.remove(); UI.toast("已删除"); }
                 catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
               } }, ["删除"])]),
             ]);
@@ -764,11 +782,11 @@ async function renderFlow() {
   if (ov.active && (ov.clusters || []).length) {
     box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
       el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:10px" }, [
-        el("span", { style: "font-weight:600;font-size:var(--font-title)" }, [`数据集 v${ov.active} 的簇快照`]),
-        el("span", { class: "muted" }, [`聚类得到 ${ov.clusters.length} 个簇，标签与摘要由 AI 自动总结`]),
+        el("span", { style: "font-weight:600;font-size:var(--font-title)" }, [`数据集 v${ov.active} 的问题分类`]),
+        el("span", { class: "muted" }, [`自动归成 ${ov.clusters.length} 类，名称与摘要由 AI 总结`]),
       ]),
       el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
-        el("thead", {}, [el("tr", {}, ["簇标签", "摘要", "关键词", "样本数"].map(h => el("th", { class: h === "摘要" ? "w-main" : "" }, [h])))]),
+        el("thead", {}, [el("tr", {}, ["分类名称", "摘要", "关键词", "样本数"].map(h => el("th", { class: h === "摘要" ? "w-main" : "" }, [h])))]),
         el("tbody", {}, ov.clusters.map(c => el("tr", {}, [
           el("td", { style: "font-weight:600;white-space:nowrap" }, [c.label]),
           el("td", { class: "w-main muted", title: c.sample ? `样例：${c.sample}` : "" }, [c.summary || "-"]),
@@ -807,10 +825,10 @@ async function renderFlow() {
   const genBtn = el("button", {
     class: "btn" + (ov.profile.generated || pgenRunning ? " small" : " primary"),
     ...(ov.active && judge && !pgenRunning && !clusterRunning ? {} : { disabled: "",
-      title: pgenRunning || clusterRunning ? "已有任务进行中" : !ov.active ? "先聚类定版" : "先配置 Judge 模型" }),
+      title: pgenRunning || clusterRunning ? "已有任务进行中" : !ov.active ? "先归类生成数据集" : "先配置 Judge 模型" }),
     onclick: async () => {
       const ok = await UI.confirm("生成模型画像",
-        `将对数据集 v${ov.active} 的 ${(ov.clusters || []).length} 个簇抽代表 query，全部在线模型同题回放作答并由 Judge 打分，融合各簇 AB 采纳率。预计 ${est.calls} 次模型调用，约 ¥${est.cost}。`,
+        `将对数据集 v${ov.active} 的 ${(ov.clusters || []).length} 个分类各抽几条代表问题，让全部在线模型各答一遍、由 Judge 打分，再融合各分类的用户采纳率。预计 ${est.calls} 次模型调用，约 ¥${est.cost}。`,
         { okText: "开始生成" });
       if (!ok) return;
       try { await UI.api("/api/profile/generate", { method: "POST" }); renderFlow(); pollDs(); }
@@ -819,7 +837,7 @@ async function renderFlow() {
 
   box.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;margin:16px 0 8px;padding-right:16px" }, [
     el("span", { class: "section-title", style: "margin:0" }, ["路由效果"]),
-    el("span", { class: "muted" }, ["版本级画像一次覆盖所有簇与模型；各策略按成本-效果权重即时换算，无需分别生成"]),
+    el("span", { class: "muted" }, ["画像一次覆盖所有分类与模型；各策略按成本-效果权重即时换算，无需分别生成"]),
     el("div", { style: "flex:1" }),
     genBtn,
   ]));
@@ -829,11 +847,11 @@ async function renderFlow() {
   if (pgenRunning) {
     effCard.appendChild(el("div", {}, [
       el("div", { class: "progress-track" }, [el("div", { class: "progress-fill", style: `width:${gt.total ? Math.round(gt.done / gt.total * 100) : 0}%` })]),
-      el("div", { class: "muted num", style: "margin-top:6px" }, [`回放打分中 ${gt.done}/${gt.total}（簇代表题 × 全部模型）……`]),
+      el("div", { class: "muted num", style: "margin-top:6px" }, [`打分中 ${gt.done}/${gt.total}（各分类代表问题 × 全部模型）……`]),
     ]));
   } else if (!ov.active) {
     effCard.appendChild(el("div", { class: "empty-state" }, [
-      el("div", { class: "empty-title" }, ["聚类定版后可生成画像"]),
+      el("div", { class: "empty-title" }, ["归类生成数据集后可生成画像"]),
       el("div", {}, ["随机探索期间路由不依赖画像：各模型均匀分流直答"]),
     ]));
   } else if (!ov.profile.generated) {
@@ -871,38 +889,64 @@ async function renderFlow() {
 
 // ================= 数据飞轮（独立页）=================
 
+let fwDays = 0; // 最近回流时间范围（0=全部，默认最近 20 条）
+
+function feedbackApiDialog() {
+  const snippet = [
+    "// 回流数据对接（两个方向）",
+    "",
+    "// 1) 回传采纳：终端用户在 A/B 双答案里选了哪份，就回传哪份",
+    "POST /v1/feedback",
+    '{ "request_id": "<路由响应里的 request_id>", "chosen_model_id": "<被采纳回答的 model_id>" }',
+    "// 同一 request_id 只记一票；只有真实出过 AB 双答案的请求可回传",
+    "",
+    "// 2) 拉取未入版本的回流：自己的数据管道也可以把回流取走",
+    "GET /v1/feedback/pending?since=<上次拉取的最大 ts>&limit=200",
+    "// 返回字段：fb_id / ts / query / dimension(主题) / winner / losers / chosen_content(被采纳的回答文本)",
+  ].join("\n");
+  const mask = UI.modal("回流数据接口", el("div", {}, [
+    el("div", { class: "muted", style: "margin-bottom:10px" }, ["回流数据是双向可对接的：客户端回传采纳、数据管道拉取明细；随「数据集」页归类生成归入版本"]),
+    el("pre", { class: "num", style: "margin:0;background:var(--bg-sunken);border-radius:8px;padding:10px 12px;" +
+      "font-size:var(--font-caption);line-height:1.6;white-space:pre-wrap;overflow-x:auto" }, [snippet]),
+    el("div", { style: "display:flex;justify-content:flex-end;gap:8px;margin-top:12px" }, [
+      el("button", { class: "btn", onclick: () => { navigator.clipboard.writeText(snippet); UI.toast("已复制接口说明"); } }, [UI.icon("copy", 13), "复制"]),
+      el("button", { class: "btn primary", onclick: () => mask.remove() }, ["完成"]),
+    ]),
+  ]));
+}
+
 async function renderFlywheel() {
-  const fly = await UI.api("/api/flywheel");
+  const fly = await UI.api("/api/flywheel" + (fwDays ? `?days=${fwDays}&limit=100` : ""));
   const box = content();
   box.innerHTML = "";
   const running = false;
 
-  // 采样率：数值 + 编辑 icon（点击换输入框，回车/失焦保存）
-  const startRateEdit = () => {
-    const inp = el("input", { type: "number", min: "0", max: "1", step: "0.05", value: String(fly.sampling_rate),
-      style: "width:64px" });
-    rateWrap.replaceWith(inp); inp.focus();
-    const save = async () => {
-      try {
-        const r = await UI.api("/api/settings/ab-sampling", { method: "POST", body: { rate: Number(inp.value) } });
-        UI.toast(`AB 采样率已改为 ${Math.round(r.rate * 100)}%`); renderFlywheel();
-      } catch (e2) { UI.toast(e2.data?.error || e2.message, true); renderFlywheel(); }
-    };
-    inp.onblur = save;
-    inp.onkeydown = (ev) => { if (ev.key === "Enter") inp.blur(); };
+  // 采样率：滑杆（与策略权重同款交互），松手即保存
+  const rateVal = el("span", { class: "num", style: "font-weight:600;min-width:42px;text-align:right" },
+    [`${Math.round(fly.sampling_rate * 100)}%`]);
+  const rateInp = el("input", { type: "range", min: "0", max: "1", step: "0.05",
+    value: String(fly.sampling_rate), style: "flex:1;max-width:260px" });
+  const rateFill = () => rateInp.style.setProperty("--fill", (Number(rateInp.value) * 100) + "%");
+  rateFill();
+  rateInp.oninput = () => { rateVal.textContent = `${Math.round(Number(rateInp.value) * 100)}%`; rateFill(); };
+  rateInp.onchange = async () => {
+    try {
+      const r = await UI.api("/api/settings/ab-sampling", { method: "POST", body: { rate: Number(rateInp.value) } });
+      UI.toast(`AB 采样率已改为 ${Math.round(r.rate * 100)}%`);
+    } catch (e2) { UI.toast(e2.data?.error || e2.message, true); renderFlywheel(); }
   };
-  const rateWrap = el("span", { style: "display:inline-flex;align-items:center;gap:6px" }, [
-    el("span", { class: "num" }, [`${Math.round(fly.sampling_rate * 100)}%`]),
-    el("button", { class: "btn small iconic", title: "修改采样率：多大比例的请求出 A/B 双答案",
-      "aria-label": "修改采样率", onclick: startRateEdit }, [UI.icon("edit", 13)]),
+  const rateRow = el("div", { style: "display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap" }, [
+    el("span", { class: "muted", style: "flex:none" }, ["AB 采样率"]),
+    rateInp, rateVal,
+    el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["多大比例的请求出 A/B 双答案"]),
   ]);
 
   const evolveBtn = el("a", { class: "btn small ghost", href: "/web/router.html#flow",
-    title: "AB 采纳随数据集定版归账，并在生成画像时按簇融合" }, ["去数据集定版"]);
+    title: "AB 采纳随数据集版本归入，并在生成画像时按分类融合" }, ["去生成数据集"]);
   const fwRulesBlock = el("div", { class: "card explain-body", hidden: true, style: "margin-bottom:12px" }, [
     el("p", {}, ["1. 出双答案：线上回答按采样率出 A/B 两份，用户挑一份。画像路由期复用本轮候选回答、不额外调用；冷启动探索期会额外补调一个模型出第二份（收集数据的成本）。"]),
     el("p", {}, ["2. 偏好回流：用户选了哪份，客户端就经 /v1/feedback 回传哪份，同一请求只记一票；待导入数据也可从 GET /v1/feedback/pending 接口自取（增量参数 since）。"]),
-    el("p", {}, ["3. 归账与融合：采纳随「数据集」页的聚类定版归入版本；生成画像时按簇算采纳胜率，与 Judge 分自适应加权（AB 样本越多采纳越主导）。"]),
+    el("p", {}, ["3. 归入与融合：采纳随「数据集」页的归类生成归入版本；生成画像时按分类算采纳胜率，与 Judge 分自适应加权（AB 样本越多采纳越主导）。"]),
     el("p", {}, ["4. 回滚：新版本效果不好，在「数据集」页把版本切回去即可；数据保留，可再切回。"]),
   ]);
   const fwRulesBtn = el("button", { class: "btn small ghost", onclick: () => {
@@ -920,15 +964,15 @@ async function renderFlywheel() {
     .map(([k, n]) => el("span", { class: "chip gray" }, [`${DOMAIN_NAMES[k] || k} ${n}`]));
   const overviewKids = [
     el("div", { class: "muted", style: "margin-bottom:12px;display:flex;align-items:center;flex-wrap:wrap" },
-      ["线上回答按采样率出 A/B 两份，用户选哪份、客户端就回传哪份；采纳随数据集定版归账，画像生成时按簇融合进效果分",
-       UI.help("细节：画像路由期双答案复用本轮候选、不额外调用模型；冷启动随机探索是单模型直答，命中采样时会额外补调一个模型出第二份（探索期收集数据的成本）。同一请求只记一票；待归账数据可经 GET /v1/feedback/pending 接口自取（增量参数 since）")]),
-    el("div", { class: "mini-metrics", style: "grid-template-columns:repeat(4,1fr)" }, [
-      el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["待归账回流", UI.help("尚未随任何数据集版本归账的采纳；下次聚类定版时自动归入该版本，供画像按簇融合")]), el("div", { class: "mm-value num" }, [String(fly.pending || 0)])]),
+      ["线上回答按采样率出 A/B 两份，用户选哪份、客户端就回传哪份；采纳随数据集版本归入，画像生成时按分类融合进效果分",
+       UI.help("细节：画像路由期双答案复用本轮候选、不额外调用模型；冷启动随机探索是单模型直答，命中采样时会额外补调一个模型出第二份（探索期收集数据的成本）。同一请求只记一票；未入版本的数据可经 GET /v1/feedback/pending 接口自取（增量参数 since）")]),
+    el("div", { class: "mini-metrics", style: "grid-template-columns:repeat(3,1fr)" }, [
+      el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["未入版本的回流", UI.help("还没归入任何数据集版本的采纳；下次归类生成数据集时自动归入，供画像按分类融合")]), el("div", { class: "mm-value num" }, [String(fly.pending || 0)])]),
       el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["累计回流"]), el("div", { class: "mm-value num" }, [String(fly.total)])]),
-      el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["AB 采样率"]), el("div", { class: "mm-value" }, [rateWrap])]),
       el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["数据集版本"]),
-        el("div", { class: "mm-value" }, [`v${fly.dataset_version || 1}` + (fly.dataset_version > 1 ? " 演化" : " 冷启动")])]),
+        el("div", { class: "mm-value" }, [fly.dataset_version ? `v${fly.dataset_version}` : "冷启动中"])]),
     ]),
+    rateRow,
     dimChips.length ? el("div", { style: "display:flex;align-items:center;gap:6px;margin-top:12px;flex-wrap:wrap" }, [
       el("span", { class: "muted", style: "flex:none" }, ["回流分布"]), ...dimChips]) : null,
   ];
@@ -962,9 +1006,13 @@ async function renderFlywheel() {
   // 最近回流明细卡
   const recent = fly.recent || [];
   box.appendChild(el("div", { class: "card" }, [
-    el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:8px" }, [
+    el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap" }, [
       el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["最近回流"]),
-      el("span", { class: "muted" }, ["数据接口：GET /v1/feedback/pending"]),
+      UI.fancySelect({ value: String(fwDays), width: "120px",
+        options: [["0", "最近 20 条"], ["7", "近 7 天"], ["14", "近 14 天"], ["30", "近 30 天"]],
+        onChange: (v) => { fwDays = Number(v); renderFlywheel(); } }),
+      el("div", { style: "flex:1" }),
+      el("button", { class: "btn small ghost", onclick: feedbackApiDialog }, ["数据接口"]),
     ]),
     recent.length
       ? el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
@@ -975,8 +1023,8 @@ async function renderFlywheel() {
             el("td", {}, [el("span", { class: "chip gray" }, [DOMAIN_NAMES[r.dimension] || r.dimension || "-"])]),
             el("td", {}, [el("span", { class: "chip blue" }, [r.winner_name || r.winner])]),
             el("td", { class: "muted" }, [(r.loser_names || r.losers || []).join("、") || "-"]),
-            el("td", {}, [r.imported_version ? el("span", { class: "muted" }, [`已归账 v${r.imported_version}`])
-              : el("span", { class: "muted" }, ["待归账"])]),
+            el("td", {}, [r.imported_version ? el("span", { class: "muted" }, [`已归入 v${r.imported_version}`])
+              : el("span", { class: "muted" }, ["未入版本"])]),
           ]))),
         ])])
       : el("div", { class: "empty-state" }, [
@@ -1010,9 +1058,9 @@ async function renderDispatch() {
 
   const rulesBlock = el("div", { class: "card explain-body", hidden: true, style: "margin-bottom:10px" }, [
     el("p", {}, ["1. 硬规则层：请求先过基础规则——多模态（图像 / 音频）等功能性需求先按能力过滤模型（复合任务如「读图 + 算数」先保证会看图，再在会看图的模型里按成绩选）；日常闲聊走轻量直答，但问候里带着真实任务时按任务维度路由，不会被「你好」盖住。"]),
-    el("p", {}, ["2. 簇匹配层：请求匹配到画像里最相近的 Query 簇，取该簇下各候选模型的效果分（Judge 分与用户采纳的融合），按「成本-效果权重」算综合分——领先直答；两名接近且策略允许聚合时并发作答，由聚合模型总结定稿。冷启动还没画像时，本层为随机探索：各模型均匀分流直答、同时收集数据。"]),
+    el("p", {}, ["2. 分类匹配层：请求匹配到画像里最相近的问题分类，取该分类下各候选模型的效果分（Judge 分与用户采纳的融合），按「成本-效果权重」算综合分——领先直答；两名接近且策略允许聚合时并发作答，由聚合模型总结定稿。冷启动还没画像时，本层为随机探索：各模型均匀分流直答、同时收集数据。"]),
     el("p", {}, ["3. else 兜底：不属于任何维度或调用异常时切兜底模型直连；刚失败过的候选不会被重复调用，兜底也失败则明确报错，不做循环重试。"]),
-    el("p", {}, ["4. 成绩来源：真实用户 query 落池，攒满后聚类定版（AI 总结簇标签）；「生成模型画像」对每簇代表 query 做全模型同题回放、由 Judge 打分，融合簇内 AB 采纳率（权重随样本自适应）得到效果分。数据集带版本，效果不好可回滚。"]),
+    el("p", {}, ["4. 成绩来源：真实用户问题进入问题池，攒满后归类生成数据集（分类名称由 AI 总结）；「生成模型画像」从每个分类抽代表问题让全部模型各答一遍、由 Judge 打分，融合该分类的用户采纳率（权重随样本自适应）得到效果分。数据集带版本，效果不好可回滚。"]),
     el("p", {}, ["5. 产品对接：一条策略对应一个 API Key；请求可带 aggregate 参数按次覆盖聚合开关（策略可将默认值设为硬约束禁止覆盖），响应返回 request_id，客户端用它把用户采纳经 /v1/feedback 回传，同一 request_id 只记一票。"]),
   ]);
   const rulesBtn = el("button", { class: "btn small ghost", onclick: () => {
@@ -1030,7 +1078,7 @@ async function renderDispatch() {
     el("span", { class: "muted", style: "flex:none" }, ["每次请求按三层走："]),
     el("span", { class: "chip blue", title: "多模态等功能需求按能力分流；日常闲聊轻量直答" }, ["1 硬规则"]),
     el("span", { class: "muted" }, ["→"]),
-    el("span", { class: "chip blue", title: "按画像匹配 Query 簇选模型（冷启动期无画像时为各模型均匀随机分流）；成绩接近可聚合" }, ["2 簇匹配"]),
+    el("span", { class: "chip blue", title: "按画像匹配问题分类选模型（冷启动期无画像时为各模型均匀随机分流）；成绩接近可聚合" }, ["2 分类匹配"]),
     el("span", { class: "muted" }, ["→"]),
     el("span", { class: "chip blue", title: "不属于任何维度或调用异常时，兜底模型直连" }, ["3 else 兜底"]),
     el("span", { class: "muted", style: "margin-left:4px" }, ["详细规则见右上角「模型路由规则」"]),

@@ -77,6 +77,18 @@
       }
       return base;
     }
+    if (pn === "/api/dataset/pool") {
+      const ov = getMock("/api/dataset/overview");
+      return { items: ov.recent || [], total: ov.pool_total || 0, limit: 50, offset: 0 };
+    }
+    if (pn === "/api/profile/matrix") {
+      if (!v6.generated) return { error: "还没有生成画像" };
+      const prof = getMock("/api/profile", "/api/profile");
+      return { active_version: 1, version: 1, ts: Date.now() / 1000,
+        judge_name: v6.judge ? v6.judge.display_name : "Judge", adopt_smooth_k: 20,
+        clusters: (prof.clusters || []).map(c => ({ key: c.domain, label: c.label, size: c.queries,
+          models: c.scores })) };
+    }
     if (pn === "/api/dataset/versions") {
       const ov = getMock("/api/dataset/overview");
       return { versions: ov.versions, active: ov.active };
@@ -236,7 +248,7 @@
     if (pn === "/api/dataset/rollback") {
       return { error: "已是当前生效版本" };
     }
-    if (pn === "/v1/bank/question/delete") { if (body && body.query_id) v6.deletedQ.add(body.query_id); return { ok: true }; }
+    if (pn === "/api/dataset/query/delete") { if (body && body.query_id) v6.deletedQ.add(body.query_id); return { ok: true }; }
     if (pn === "/api/products") {
       const name = (body && body.name || "").trim();
       if (!name || name.length > 15) return { error: "产品名称必填，1-15 字" };

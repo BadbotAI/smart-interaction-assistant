@@ -434,33 +434,6 @@ def _load_preset():
         return {}
 
 
-@app.get("/v1/route/{trace_id}/explain")
-def explain(trace_id: str):
-    conn = db.get_conn()
-    row = conn.execute("SELECT decision FROM route_decisions WHERE trace_id=?", (trace_id,)).fetchone()
-    if not row:
-        return JSONResponse({"error": "not_found"}, status_code=404)
-    decision = db.dj(row["decision"], {})
-    support = []
-    ids = decision.get("support_set_ids", [])[:10]
-    if ids:
-        ph = ",".join("?" * len(ids))
-        for q in conn.execute(f"SELECT query_id, query_text, domain_tags FROM bank_queries WHERE query_id IN ({ph})", ids):
-            hits = {}
-            for r in conn.execute("SELECT model_id, label_value FROM bank_responses WHERE query_id=?", (q["query_id"],)):
-                hits[r["model_id"]] = r["label_value"]
-            support.append({"query_id": q["query_id"], "query_text": traces.mask_text(q["query_text"]),
-                            "domains": db.dj(q["domain_tags"], []), "model_hits": hits})
-    decision.pop("support_set_ids", None)
-    for c in decision.get("model_calls", []):
-        c.pop("resp_emb", None)
-    return {"support_set": support, "coarse_scores": decision.get("coarse_scores"),
-            "fine_scores": decision.get("fine_scores"), "switch_result": decision.get("switch_result"),
-            "decision": decision}
-
-
-# ============ 事件接入（P1 回流 SDK 服务端） ============
-
 @app.post("/v1/events")
 async def ingest_events(request: Request):
     body = await request.json()
@@ -470,61 +443,6 @@ async def ingest_events(request: Request):
 
 
 # ============ 群体决策（服务端串行化，§2.4） ============
-
-@app.post("/v1/group/vote")
-async def group_vote(request: Request):
-    body = await request.json()
-    render_id, participant = body.get("render_id"), body.get("participant")
-    card = cards.get_card(body.get("card_id")) if body.get("card_id") else None
-    gm = (card or {}).get("group_mode") or {"visibility": "realtime", "revisable": True,
-                                            "aggregation_rule": "majority", "deadline": {"quorum": 3}}
-    conn = db.get_conn()
-    existing = conn.execute("SELECT * FROM group_votes WHERE render_id=? AND participant=?",
-                            (render_id, participant)).fetchone()
-    if existing and not gm.get("revisable", True):
-        return JSONResponse({"error": "vote_not_revisable", "message": "该卡片配置为投票后不可修改"}, status_code=409)
-    conn.execute("INSERT OR REPLACE INTO group_votes (render_id, trace_id, participant, choice, ts) VALUES (?,?,?,?,?)",
-                 (render_id, body.get("trace_id"), participant, body.get("choice"), db.now_ts()))
-    conn.commit()
-    return _group_state(render_id, gm, requester=participant)
-
-
-@app.get("/v1/group/{render_id}/state")
-def group_state(render_id: str, card_id: str = None, participant: str = None):
-    card = cards.get_card(card_id) if card_id else None
-    gm = (card or {}).get("group_mode") or {"visibility": "realtime", "aggregation_rule": "majority",
-                                            "deadline": {"quorum": 3}}
-    return _group_state(render_id, gm, requester=participant)
-
-
-def _group_state(render_id: str, gm: dict, requester: str = None):
-    conn = db.get_conn()
-    votes = [dict(r) for r in conn.execute("SELECT * FROM group_votes WHERE render_id=?", (render_id,)).fetchall()]
-    quorum = (gm.get("deadline") or {}).get("quorum", 3)
-    closed = len(votes) >= quorum
-    dist = {}
-    for v in votes:
-        dist[v["choice"]] = dist.get(v["choice"], 0) + 1
-    final = max(dist, key=dist.get) if dist and closed else None
-    sealed = gm.get("visibility") == "sealed" and not closed
-    # sealed 模式：未揭晓前任何客户端不得取到他人选择
-    visible_dist = None if sealed else dist
-    own = next((v["choice"] for v in votes if v["participant"] == requester), None)
-    return {"render_id": render_id, "votes_count": len(votes), "quorum": quorum, "closed": closed,
-            "sealed_pending": sealed, "distribution": visible_dist, "final": final,
-            "own_choice": own, "aggregation_rule": gm.get("aggregation_rule", "majority"),
-            "feedback_to_model": gm.get("feedback_to_model", "distribution")}
-
-
-# ============ P1 卡片管理 API ============
-
-@app.get("/api/component-types")
-def component_types():
-    return {
-        "present": sorted(cards.PRESENT_TYPES), "collect": sorted(cards.COLLECT_TYPES),
-        "control": sorted(cards.CONTROL_TYPES), "evaluate": sorted(cards.EVALUATE_TYPES),
-    }
-
 
 @app.get("/api/cards")
 def list_cards(status: str = None, q: str = None, tenant_id: str = None):
@@ -616,22 +534,6 @@ def upgrade_refs(card_id: str):
     db.audit("demo-admin", "card_refs_upgrade", {"card_id": card_id, "to_version": card["version"], "count": n})
     return {"upgraded": n, "version": card["version"]}
 
-
-@app.post("/api/cards/debug")
-async def debug_card(request: Request):
-    """trigger_description 调试闭环（§2.6）：输入问法 → 命中判定 + 参数填充 + 竞争卡片。"""
-    body = await request.json()
-    query = body.get("query") or ""
-    hit, competitors = cards.match_cards(query, body.get("tenant_id") or seed.TENANT)
-    result = {"query": query, "competitors": competitors, "hit": None}
-    if hit:
-        result["hit"] = {"card_id": hit["card_id"], "name": hit["name"],
-                         "component_type": hit["component_type"],
-                         "filled_params": cards.fill_debug_params(hit, query)}
-    return result
-
-
-# ============ 信息模版：库 + AI 匹配 + 群体回显聚合 ============
 
 @app.get("/api/templates")
 def list_templates():
@@ -773,7 +675,6 @@ def dashboard_questions(days: int = Query(30, ge=1, le=90)):
 
 # ============ P2 模型注册与入池 ============
 
-_backfill_tasks = {}
 
 
 @app.get("/v1/models")
@@ -786,8 +687,6 @@ def list_models():
         ref = m.pop("credential_ref", "") or ""
         m["credential_masked"] = (ref[:12] + "****" + ref[-4:]) if len(ref) > 16 else "****"
         m.pop("profile", None)  # 隐藏能力画像不下发（那是被测对象，不是配置）
-        task = _backfill_tasks.get(m["model_id"])
-        m["backfill"] = {k: task[k] for k in ("status", "done", "total", "cost_est")} if task else None
         out.append(m)
     return {"models": out}
 
@@ -1012,6 +911,8 @@ async def import_model_profile_data(model_id: str, request: Request):
     caps = db.dj(row["capabilities"], {}) or {}
     if ctx > 0:
         caps["context_window"] = ctx
+    if body.get("vision") is not None:
+        caps["vision"] = bool(body["vision"])  # 多模态（图像识别）能力：硬规则层按它分流
     # 成本双类型：自有部署按卡数做简易估算（GPU 卡·时折算），API 接入按官网单价
     deploy_type = (body.get("deploy_type") or row["deploy_type"] or "api").strip()
     if deploy_type not in ("api", "self_hosted"):
@@ -1079,75 +980,14 @@ async def register_model(request: Request):
         "VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?,?)",
         (body["model_id"], body["display_name"], body["provider"], body["endpoint"], body["credential_ref"],
          pin, pout,
-         db.j(body.get("capabilities") or {"tool_call": True, "streaming": True, "context_window": 32768}),
+         db.j(body.get("capabilities") or {"tool_call": True, "streaming": True, "context_window": 32768,
+                                           "vision": bool(body.get("vision"))}),
          "active", int(body.get("latency_ms_base", 800)),
          db.j(body.get("profile") or {"general": 0.7}), deploy_type, gpu_count))
     conn.execute("UPDATE models SET bank_coverage=1.0 WHERE model_id=?", (body["model_id"],))
     conn.commit()
     db.audit("demo-admin", "model_register", {"model_id": body["model_id"]})
     return {"ok": True, "note": "模型已上线：即刻参与随机探索分流；下次「生成模型画像」将纳入打分。"}
-
-
-@app.post("/v1/models/{model_id}/backfill")
-async def start_backfill(model_id: str):
-    """模型入池任务：带进度、成本预估、可暂停（§3.3 落差四）。"""
-    conn = db.get_conn()
-    m = conn.execute("SELECT * FROM models WHERE model_id=?", (model_id,)).fetchone()
-    if not m:
-        return JSONResponse({"error": "not_found"}, status_code=404)
-    total = conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE tenant_id IS NULL").fetchone()["c"]
-    existing = _backfill_tasks.get(model_id)
-    if existing and existing["status"] == "running":
-        return {"task": existing}
-    cost_est = round(total * 300 / 1e6 * (m["price_input"] + m["price_output"]), 4)
-    task = {"model_id": model_id, "status": "running", "done": (existing or {}).get("done", 0),
-            "total": total, "cost_est": cost_est}
-    _backfill_tasks[model_id] = task
-    asyncio.create_task(_run_backfill(model_id))
-    return {"task": task}
-
-
-@app.post("/v1/models/{model_id}/backfill/pause")
-def pause_backfill(model_id: str):
-    task = _backfill_tasks.get(model_id)
-    if task and task["status"] == "running":
-        task["status"] = "paused"
-    return {"task": task}
-
-
-@app.get("/v1/models/{model_id}/backfill/status")
-def backfill_status(model_id: str):
-    return {"task": _backfill_tasks.get(model_id)}
-
-
-async def _run_backfill(model_id: str):
-    conn = db.get_conn()
-    m = dict(conn.execute("SELECT * FROM models WHERE model_id=?", (model_id,)).fetchone())
-    profile = db.dj(m["profile"], {"general": 0.7})
-    task = _backfill_tasks[model_id]
-    rows = conn.execute("SELECT * FROM bank_queries WHERE tenant_id IS NULL ORDER BY query_id").fetchall()
-    for i, q in enumerate(rows):
-        if i < task["done"]:
-            continue
-        if task["status"] != "running":
-            return  # 暂停：断点保留，可续跑
-        domain = (db.dj(q["domain_tags"], []) or ["general"])[0]
-        correct = mockmodels.is_correct(model_id, profile, q["query_text"], domain)
-        content, _ = mockmodels.gen_structured(q["query_text"], domain, correct)
-        conn.execute(
-            "INSERT OR REPLACE INTO bank_responses (query_id, model_id, response_embedding, completion_tokens, "
-            "label_value, label_confidence, label_source, label_kind, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (q["query_id"], model_id, db.j(embeddings.embed(content)), max(30, int(len(content) * 1.5)),
-             1.0 if correct else 0.0, 1.0, "ground_truth", "capability", db.now_ts(), db.now_ts()))
-        task["done"] = i + 1
-        coverage = task["done"] / max(1, task["total"])
-        conn.execute("UPDATE models SET bank_coverage=? WHERE model_id=?", (round(coverage, 4), model_id))
-        conn.commit()
-        await asyncio.sleep(0.02)
-    task["status"] = "completed"
-    conn.execute("UPDATE models SET bank_coverage=1.0, status='active' WHERE model_id=?", (model_id,))
-    conn.commit()
-    db.audit("system", "model_backfill_completed", {"model_id": model_id, "total": task["total"]})
 
 
 @app.post("/v1/models/{model_id}/status")
@@ -1201,59 +1041,6 @@ def delete_credential(model_id: str):
     db.audit("demo-admin", "credential_delete", {"model_id": model_id})
     return {"ok": True, "note": "凭证已删除，模型已停用。正在进行的会话将自动切换备选模型并在 Trace 中标记。"}
 
-
-
-LABEL_SOURCES = [
-    {"source": "explicit_preference", "name": "多回答择优", "confidence": 0.9,
-     "desc": "多模型回答里用户选出更好的一份，最高质量的成对标签"},
-    {"source": "explicit_binary", "name": "赞踩反馈", "confidence": 0.6,
-     "desc": "每条回答的赞 / 踩，按能力与偏好分组"},
-    {"source": "implicit_behavior", "name": "隐式行为", "confidence": 0.25,
-     "desc": "复制回答（弱正）、换模型重答（弱负）等行为信号，低置信自动降权"},
-]
-
-
-def _source_enabled(conn, source):
-    r = conn.execute("SELECT v FROM kv_settings WHERE k=?", (f"label_source_off:{source}",)).fetchone()
-    return not (r and r["v"] == "1")
-
-
-@app.get("/api/labels/summary")
-def labels_summary():
-    """反馈优化页总览：信号源构成 / 闸门状态 / 距画像更新的增量 / 待评测题量。"""
-    conn = db.get_conn()
-    since30 = db.now_ts() - 30 * 86400
-    rebuild_row = conn.execute(
-        "SELECT ts FROM audit_log WHERE action='profile_rebuild' ORDER BY id DESC LIMIT 1").fetchone()
-    last_rebuild = rebuild_row["ts"] if rebuild_row else None
-    out_sources = []
-    for m in LABEL_SOURCES:
-        n30 = conn.execute(
-            "SELECT COUNT(*) c FROM labels WHERE tenant_id=? AND source=? AND status='admitted' AND created_at>?",
-            (seed.TENANT, m["source"], since30)).fetchone()["c"]
-        out_sources.append({**m, "count_30d": n30, "enabled": _source_enabled(conn, m["source"])})
-    since_rebuild = conn.execute(
-        "SELECT COUNT(*) c FROM labels WHERE tenant_id=? AND status='admitted' AND created_at>?",
-        (seed.TENANT, last_rebuild or 0)).fetchone()["c"]
-    pending_eval = conn.execute(
-        "SELECT COUNT(*) c FROM bank_queries q WHERE q.tenant_id=? AND NOT EXISTS "
-        "(SELECT 1 FROM bank_responses r WHERE r.query_id=q.query_id)", (seed.TENANT,)).fetchone()["c"]
-    return {"sources": out_sources, "since_rebuild": since_rebuild,
-            "last_rebuild_ts": last_rebuild, "pending_eval": pending_eval}
-
-
-@app.post("/api/labels/sources")
-async def toggle_label_source(request: Request):
-    body = await request.json()
-    source, enabled = body.get("source"), bool(body.get("enabled"))
-    if source not in {m["source"] for m in LABEL_SOURCES}:
-        return JSONResponse({"error": "未知信号源"}, status_code=422)
-    conn = db.get_conn()
-    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES (?,?)",
-                 (f"label_source_off:{source}", "0" if enabled else "1"))
-    conn.commit()
-    db.audit("demo-admin", "label_source_toggle", {"source": source, "enabled": enabled})
-    return {"ok": True}
 
 
 # ============ P2 策略管理 ============
@@ -1443,51 +1230,6 @@ async def rollback_policy(policy_id: str, request: Request):
     return {"ok": True, "version": new_version}
 
 
-@app.post("/v1/policies/ab")
-async def create_ab(request: Request):
-    """基于现有策略创建 A/B 实验：原策略为 A 组，副本应用 overrides 为 B 组。"""
-    body = await request.json()
-    base_id = body.get("base_policy_id")
-    conn = db.get_conn()
-    base = conn.execute("SELECT * FROM policies WHERE policy_id=?", (base_id,)).fetchone()
-    if not base:
-        return JSONResponse({"error": "not_found"}, status_code=404)
-    split = int(body.get("split", 50))
-    b_id = base_id + "-ab-b"
-    params_b = {**db.dj(base["params"], {}), **(body.get("params_override") or {})}
-    conn.execute("UPDATE policies SET ab_group='A', ab_split=? WHERE policy_id=?", (split, base_id))
-    conn.execute(
-        "INSERT OR REPLACE INTO policies (policy_id, name, scope, tenant_id, scene, params, latency_tier, "
-        "allow_aggregation, explore_ratio, model_whitelist, budget_cap, enabled, ab_group, ab_split, version) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,1,'B',?,1)",
-        (b_id, (base["name"] or base_id) + " · B组", base["scope"], base["tenant_id"], base["scene"],
-         db.j(params_b), body.get("latency_tier", base["latency_tier"]),
-         base["allow_aggregation"], base["explore_ratio"], base["model_whitelist"], base["budget_cap"],
-         100 - split))
-    conn.commit()
-    db.audit("demo-admin", "ab_create", {"base": base_id, "b": b_id, "split": split})
-    return {"ok": True, "a": base_id, "b": b_id}
-
-
-@app.post("/v1/policies/ab/stop")
-async def stop_ab(request: Request):
-    body = await request.json()
-    base_id = body.get("base_policy_id")
-    conn = db.get_conn()
-    conn.execute("UPDATE policies SET ab_group=NULL WHERE policy_id=?", (base_id,))
-    conn.execute("UPDATE policies SET enabled=0, ab_group=NULL WHERE policy_id=?", (base_id + "-ab-b",))
-    conn.commit()
-    db.audit("demo-admin", "ab_stop", {"base": base_id})
-    return {"ok": True}
-
-
-# ============ bank ============
-
-@app.get("/v1/bank/health")
-def bank_health(tenant_id: str = None):
-    return dashboard.bank_health(tenant_id or seed.TENANT)
-
-
 def _get_setting(key, default=None):
     row = db.get_conn().execute("SELECT v FROM kv_settings WHERE k=?", (key,)).fetchone()
     return row["v"] if row else default
@@ -1497,11 +1239,6 @@ def _set_setting(key, val):
     conn = db.get_conn()
     conn.execute("INSERT INTO kv_settings (k, v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=?", (key, val, val))
     conn.commit()
-
-
-# ============ 数据飞轮（v5.0）：AB 采样 → 偏好回流 → 一键更新画像 ============
-
-EVOLVE_MIN_FEEDBACK = 20
 
 
 @app.get("/api/settings/ab-sampling")
@@ -1564,8 +1301,25 @@ async def submit_feedback(request: Request):
     return {"ok": True, "flywheel_total": total}
 
 
+@app.get("/v1/feedback/pending")
+def feedback_pending(since: float = 0, limit: int = Query(200, ge=1, le=1000)):
+    """回流数据接口：未入版本的偏好数据，供导入动作与外部数据管道拉取（增量传 since）。"""
+    conn = db.get_conn()
+    rows = conn.execute(
+        "SELECT fb_id, ts, query_text, dimension, winner, losers, chosen_content, source FROM ab_feedback "
+        "WHERE imported_version IS NULL AND ts>? ORDER BY ts LIMIT ?", (since, limit)).fetchall()
+    out = [{"fb_id": r["fb_id"], "ts": r["ts"], "query": r["query_text"], "dimension": r["dimension"],
+            "winner": r["winner"], "losers": db.dj(r["losers"], []) or [],
+            "chosen_content": r["chosen_content"] or "", "source": r["source"]} for r in rows]
+    total = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE imported_version IS NULL").fetchone()["c"]
+    return {"pending": out, "total_pending": total}
+
+
+EVOLVE_MIN_FEEDBACK = 20  # 飞轮展示口径沿用（v6 起真正的门槛是 CLUSTER_MIN_QUERIES）
+
+
 @app.get("/api/flywheel")
-def flywheel_stats():
+def flywheel_stats(days: int = Query(None, ge=1, le=90), limit: int = Query(20, ge=1, le=100)):
     """数据飞轮总览：回流量 / 各模型胜率 / 采样率 / 画像演化版本。"""
     conn = db.get_conn()
     total = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback").fetchone()["c"]
@@ -1594,8 +1348,9 @@ def flywheel_stats():
     pending = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE imported_version IS NULL").fetchone()["c"]
     imported = total - pending
     recent = []
+    _since = db.now_ts() - days * 86400 if days else 0
     for r in conn.execute("SELECT ts, query_text, dimension, winner, losers, imported_version FROM ab_feedback "
-                          "ORDER BY ts DESC LIMIT 20").fetchall():
+                          "WHERE ts>? ORDER BY ts DESC LIMIT ?", (_since, limit)).fetchall():
         losers = db.dj(r["losers"], []) or []
         recent.append({"ts": r["ts"], "query": r["query_text"] or "", "dimension": r["dimension"],
                        "winner": r["winner"], "winner_name": names.get(r["winner"], r["winner"]),
@@ -1697,10 +1452,10 @@ async def dataset_cluster():
     pool_new = conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE dataset_version IS NULL "
                             "AND source IN ('collected','reflow')").fetchone()["c"]
     if av == 0 and pool_new < CLUSTER_MIN_QUERIES:
-        return JSONResponse({"error": f"Query 池不足 {CLUSTER_MIN_QUERIES} 条（当前 {pool_new} 条），继续随机探索收集"},
+        return JSONResponse({"error": f"问题池不足 {CLUSTER_MIN_QUERIES} 条（当前 {pool_new} 条），继续随机探索收集"},
                             status_code=409)
     if av > 0 and pool_new == 0:
-        return JSONResponse({"error": "上次定版后没有新增 query，暂不需要重新聚类"}, status_code=409)
+        return JSONResponse({"error": "上次生成数据集后没有新增问题，暂不需要重新归类"}, status_code=409)
     total = conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE source IN ('collected','reflow')").fetchone()["c"]
     _cluster_task.update({"status": "running", "done": 0, "total": max(1, total)})
     asyncio.create_task(_run_cluster())
@@ -1753,7 +1508,7 @@ async def _run_cluster_inner():
     n_ab = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE imported_version=?", (new_version,)).fetchone()["c"]
     conn.execute("UPDATE dataset_versions SET active=0")
     conn.execute("INSERT INTO dataset_versions (version, ts, note, cold_count, reflow_count, active) VALUES (?,?,?,?,?,1)",
-                 (new_version, db.now_ts(), f"聚类定版：{len(rows)} 条 query，{len(out)} 个簇", len(rows), n_ab))
+                 (new_version, db.now_ts(), f"归类生成：{len(rows)} 条问题，{len(out)} 个分类", len(rows), n_ab))
     conn.commit()
     _cluster_task["status"] = "completed"
     _cluster_task["version"] = new_version
@@ -1768,7 +1523,7 @@ async def profile_generate():
         return JSONResponse({"error": "已有任务进行中"}, status_code=409)
     av = router_core.active_dataset_version()
     if av <= 0:
-        return JSONResponse({"error": "还没有数据集版本：先攒够 Query 再聚类定版"}, status_code=409)
+        return JSONResponse({"error": "还没有数据集：先攒够问题再归类生成数据集"}, status_code=409)
     judge = db.dj(_get_setting("judge_model_info"), None)
     if not (judge and judge.get("model_id")):
         return JSONResponse({"error": "未配置 Judge 模型：画像打分需要它，请先在数据集页配置"}, status_code=409)
@@ -1860,6 +1615,20 @@ async def _run_pgen_inner(version: int, judge: dict):
                                                 "models": len(models), "judge": judge.get("model_id")})
 
 
+@app.get("/api/profile/matrix")
+def profile_matrix(version: int = None):
+    """画像原始矩阵（未做策略换算）：Judge 分 / 采纳率 / 样本量 / 自适应权重 / 融合效果分。
+    可查任意历史版本（数据可管理：画像随版本留档、可对比、可导出）。"""
+    av = router_core.active_dataset_version()
+    v = version or av
+    if v <= 0:
+        return JSONResponse({"error": "还没有数据集版本"}, status_code=404)
+    matrix = db.dj(_get_setting(f"profile_matrix_v{v}"), None)
+    if not matrix:
+        return JSONResponse({"error": f"数据集 v{v} 还没有生成画像"}, status_code=404)
+    return {"active_version": av, **matrix}
+
+
 @app.get("/api/profile")
 def routing_profile(alpha: float = Query(0.7, ge=0.0, le=1.0), policy_id: str = None):
     """路由效果（版本级画像 + 策略 α 即时换算）：效果分 = Judge 分 × (1-w) + 采纳率 × w（w 随 AB 样本自适应）；
@@ -1917,6 +1686,30 @@ def routing_profile(alpha: float = Query(0.7, ge=0.0, le=1.0), policy_id: str = 
 
 # ============ 数据集版本：列表 / 回滚 ============
 
+@app.get("/api/dataset/pool")
+def dataset_pool(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+                 theme: str = None, source: str = None):
+    """Query 池完整列表（分页 / 按主题与来源筛选）：数据可管理——不止最近 15 条。"""
+    conn = db.get_conn()
+    conds, args = ["source IN ('collected','reflow')"], []
+    if source in ("collected", "reflow"):
+        conds = [f"source='{source}'"]
+    if theme:
+        conds.append("domain_tags LIKE ?")
+        args.append(f'%"{theme}"%')
+    where = " AND ".join(conds)
+    total = conn.execute(f"SELECT COUNT(*) AS c FROM bank_queries WHERE {where}", args).fetchone()["c"]
+    rows = conn.execute(
+        f"SELECT query_id, query_text, domain_tags, source, created_at, dataset_version "
+        f"FROM bank_queries WHERE {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        (*args, limit, offset)).fetchall()
+    out = [{"query_id": r["query_id"], "query": r["query_text"],
+            "theme": (db.dj(r["domain_tags"], []) or ["other"])[0],
+            "source": r["source"], "ts": r["created_at"], "dataset_version": r["dataset_version"]}
+           for r in rows]
+    return {"items": out, "total": total, "limit": limit, "offset": offset}
+
+
 @app.get("/api/dataset/versions")
 def get_dataset_versions():
     conn = db.get_conn()
@@ -1946,7 +1739,7 @@ async def dataset_rollback(request: Request):
     return {"ok": True, "active": target}
 
 
-@app.post("/v1/bank/question/delete")
+@app.post("/api/dataset/query/delete")
 async def bank_question_delete(request: Request):
     body = await request.json()
     qid = (body.get("query_id") or "").strip()
@@ -2035,11 +1828,6 @@ def api_overview(days: int = Query(7, ge=1, le=90), mode: str = None,
 @app.get("/api/dashboard/insights")
 def api_insights(days: int = Query(30, ge=1, le=90)):
     return dashboard.insights(days)
-
-
-@app.get("/api/ab/compare")
-def api_ab_compare(days: int = Query(14, ge=1, le=90)):
-    return dashboard.ab_compare(days)
 
 
 @app.get("/api/traces")

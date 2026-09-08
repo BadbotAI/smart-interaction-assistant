@@ -25,11 +25,11 @@ def snapshot():
     base = "http://127.0.0.1:8787"
     keys = ["/api/apikeys", "/api/products", "/api/audit?limit=100", "/api/brands", "/api/brands/active", "/api/cards",
             "/api/dashboard/insights?days=30", "/api/dashboard/overview?days=30",
-            "/api/dashboard/questions?days=30", "/api/labels/summary", "/api/profile",
+            "/api/dashboard/questions?days=30", "/api/profile",
             "/api/templates", "/api/flywheel", "/api/settings/ab-sampling",
             "/api/dataset/overview", "/api/dataset/versions", "/api/settings/judge-model",
             "/api/dataset/cluster/status", "/api/profile/generate/status",
-            "/api/traces?limit=30", "/v1/bank/health", "/v1/models", "/v1/policies"]
+            "/api/traces?limit=30", "/v1/models", "/v1/policies"]
 
     def get(p):
         with urllib.request.urlopen(base + p) as r:

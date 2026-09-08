@@ -274,7 +274,7 @@ window.TestChat = (function () {
         const DIM_NAMES = { logistics: "物流服务与异常", market: "价格与行情", compliance: "合同与合规",
           analytics: "经营分析与报表", writing: "公文与写作", tech: "系统与技术",
           other: "其他 / 长尾", chat: "日常闲聊", multimodal: "多模态", general: "通用" };
-        const LAYER_NAMES = { rule: "第 1 层 · 硬规则", dimension: "第 2 层 · 簇匹配",
+        const LAYER_NAMES = { rule: "第 1 层 · 硬规则", dimension: "第 2 层 · 分类匹配",
           explore: "冷启动 · 随机探索", "else": "第 3 层 · else 兜底" };
         if (d.mode === "manual") {
           rows.push(["策略", "手动指定模型（不走智能路由）"]);
@@ -286,16 +286,16 @@ window.TestChat = (function () {
             (d.is_explore ? "（本次命中探索流量）" : "")]);
           if (d.route_layer) {
             rows.push(["层级", (LAYER_NAMES[d.route_layer] || d.route_layer) +
-              (d.dimension && d.route_layer !== "else" ? ` · 判定为「${DIM_NAMES[d.dimension] || d.dimension}」` : "")]);
+              (d.dimension && d.route_layer !== "else" ? ` · 归入「${DIM_NAMES[d.dimension] || d.dimension}」` : "")]);
           }
           rows.push(["推导", d.route_layer === "explore"
             ? "冷启动随机探索：还没有画像，各模型均匀分流，本次随机分配一个模型直答（同时收集数据）"
             : d.route_layer === "else"
-            ? "未命中任何 Query 簇，走 else 兜底直连"
+            ? "未命中任何问题分类，走 else 兜底直连"
             : d.route_layer === "rule" && d.dimension === "multimodal"
             ? "硬规则命中多模态请求，只在支持多模态的模型中按成绩选择"
             : {
-            fastlane: "按各模型在该簇的画像分（Judge + 采纳融合），最高分显著领先（或策略仅单模型），直接单模型作答",
+            fastlane: "按各模型在该分类的画像分（Judge + 采纳融合），最高分显著领先（或策略仅单模型），直接单模型作答",
             explore: "冷启动随机探索：随机分配模型直答",
             routed: "候选并发作答后结合回答质量与消耗细排，单模型胜出",
             aggregated: "打分后两名成绩接近，按策略允许聚合：多路回答交给聚合模型总结定稿",
