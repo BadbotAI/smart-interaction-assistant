@@ -941,7 +941,7 @@ async function renderFlywheel() {
     box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
       el("div", { style: "font-weight:600;font-size:var(--font-title);margin-bottom:8px" }, ["各模型采纳胜率"]),
       el("div", { class: "muted", style: "margin-bottom:10px;display:flex;align-items:center;flex-wrap:wrap" }, ["用户在 A/B 里更常采纳谁——这是偏好，不代表答得对",
-        UI.help("正确性以数据集 QA 对判分为准，偏好与正确性在画像里分开加权；对比不足 10 次标「样本不足」，胜率差 1-2 个百分点不构成排序依据")]),
+        UI.help("正确性以画像里的 Judge 同题评分为准，采纳（偏好）与 Judge 分按样本量自适应加权；对比不足 10 次标「样本不足」，胜率差 1-2 个百分点不构成排序依据")]),
       el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
         el("thead", {}, [el("tr", {}, ["模型", "胜率", "采纳次数", "对比总数"].map((h, i) => el("th", { class: i === 1 ? "w-main" : "" }, [h])))]),
         el("tbody", {}, wr.map(w => el("tr", {}, [

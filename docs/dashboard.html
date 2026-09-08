@@ -491,7 +491,7 @@ async function renderRouting() {
     el("table", { class: "data" }, [
       el("thead", {}, [el("tr", {}, ["路径", "请求数", "P50", "P95", "验收线"].map(h => el("th", { class: h === "验收线" ? "w-main" : "" }, [h])))]),
       el("tbody", {}, Object.entries(d.latency_by_path).map(([path, v]) => {
-        const name = { fastlane: "快车道", routed: "单模型路由", aggregated: "聚合路径", degraded: "降级", manual: "手动指定", fallback: "兜底直连", await_user: "等待用户（触发组件）" }[path] || path;
+        const name = { fastlane: "快车道", routed: "单模型路由", aggregated: "聚合路径", degraded: "降级", manual: "手动指定", fallback: "兜底直连", explore: "随机探索", await_user: "等待用户（触发组件）" }[path] || path;
         const target = path === "fastlane" ? 2000 : path === "aggregated" ? 25000 : null;
         const pass = target == null || v.p95 <= target;
         return el("tr", {}, [

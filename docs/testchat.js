@@ -270,7 +270,7 @@ window.TestChat = (function () {
         const d = evt.decision_summary;
         const pol = d.policy || {};
         const rows = [];
-        // 三层路由：命中层级 + 能力维度（v5.0）
+        // 三层路由：命中层级 + Query 簇主题（v6.0）
         const DIM_NAMES = { logistics: "物流服务与异常", market: "价格与行情", compliance: "合同与合规",
           analytics: "经营分析与报表", writing: "公文与写作", tech: "系统与技术",
           other: "其他 / 长尾", chat: "日常闲聊", multimodal: "多模态", general: "通用" };
