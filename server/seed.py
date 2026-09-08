@@ -389,7 +389,7 @@ def seed_public_bank():
                 "created_at, ttl_days, source, ideal) VALUES (?,NULL,?,?,?,?,?,?,?,?)",
                 (qid, db.j(embeddings.embed(text)), f"vault://public/{qid}", text, db.j([dim]),
                  created, 365, "public", ideal))
-            src = "leaderboard" if dim == "coding" else "ground_truth"
+            src = "ground_truth"
             for m in mockmodels.MODEL_POOL:
                 correct = mockmodels.is_correct(m["model_id"], m["profile"], text, dim)
                 content, _ = mockmodels.gen_structured(text, dim, correct)
@@ -455,8 +455,6 @@ def migrate_flywheel_v5():
         conn.execute("UPDATE models SET deploy_type=?, gpu_count=? WHERE model_id=?",
                      (m.get("deploy_type", "api"), m.get("gpu_count", 0), m["model_id"]))
     conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('ab_sampling_rate', '0.2')")
-    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('dimension_meta', ?)",
-                 (db.j({"coding": {"source": "leaderboard", "ref": "公开代码榜单"}}),))
     conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('v5_flywheel', '1')")
     conn.commit()
     db.audit("system", "migrate_flywheel_v5", {"note": "通用数据集冷启动 + 数据飞轮启用，LLM 裁判下线"})
@@ -650,12 +648,22 @@ def migrate_trust_v5_1():
     }
     for q, ideal in fixes.items():
         conn.execute("UPDATE bank_queries SET ideal=? WHERE query_text=?", (ideal, q))
-    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('dimension_meta', ?)",
-                 (db.j({"coding": {"source": "leaderboard", "ref": "公开代码榜单（HumanEval / MBPP 汇总）",
-                                   "asof": "2026-08"}}),))
     conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('v5_1_trust', '1')")
     conn.commit()
     db.audit("system", "migrate_trust_v5_1", {"ideal_fixed": len(fixes)})
+    return True
+
+
+def migrate_generic_v5_3():
+    """v5.3 口径修正：冷启动就是一套通用数据集，不区分内置 benchmark / 公开榜单引用。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT v FROM kv_settings WHERE k='v5_3_generic'").fetchone():
+        return False
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('dimension_meta', '{}')")
+    conn.execute("UPDATE bank_responses SET label_source='ground_truth' WHERE label_source='leaderboard'")
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('v5_3_generic', '1')")
+    conn.commit()
+    db.audit("system", "migrate_generic_v5_3", {"note": "冷启动统一为通用数据集，榜单引用概念下线"})
     return True
 
 
@@ -690,6 +698,7 @@ def run_all():
     migrate_trust_v5_1()
     n_bank = seed_public_bank()
     migrate_dataset_v5_2()
+    migrate_generic_v5_3()
     n_fb = seed_ab_feedback()
     n_hist = seed_history()
     migrate_questionnaire()

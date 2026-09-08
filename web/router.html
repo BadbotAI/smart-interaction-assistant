@@ -773,20 +773,15 @@ async function renderFlow() {
   if (sc.scenes.length) {
     const tbody = el("tbody", {});
     sc.scenes.forEach(r => {
-      const judgeCell = (dimMeta[r.domain] || {}).source === "leaderboard"
-        ? el("span", { class: "muted" }, ["榜单引用"])
-        : el("span", { title: DIM_JUDGE[r.domain] === "要点校验"
+      const judgeCell = el("span", { title: DIM_JUDGE[r.domain] === "要点校验"
             ? "开放题按标准答案的要点校验：忠实度优先，不奖励编造事实" : "答案唯一，按标准答案比对" },
             [DIM_JUDGE[r.domain] || "要点校验"]);
       const srcCell = (() => {
-        const lm = dimMeta[r.domain] || {};
-        if (lm.source === "leaderboard")
-          return el("span", { class: "chip blue", title: `分数直接引用${lm.ref || "公开榜单"}（快照 ${lm.asof || "-"}），本地题目仅作补充参考` }, ["公开榜单引用"]);
         const parts = [];
-        if (r.cold) parts.push("内置 benchmark");
-        if (r.imported) parts.push("导入");
+        if (r.cold) parts.push("通用数据集");
+        if (r.imported) parts.push("上传导入");
         if (r.reflow) parts.push("偏好回流");
-        return el("span", { class: "muted" }, [parts.join(" + ") || "导入"]);
+        return el("span", { class: "muted" }, [parts.join(" + ") || "上传导入"]);
       })();
       const row = el("tr", {}, [
         el("td", { class: "w-main", style: "font-weight:600" }, [SCENE_NAMES2[r.domain] || r.domain]),
@@ -883,7 +878,7 @@ async function renderFlow() {
       el("button", { class: "btn small ghost", onclick: addSceneDialog }, [UI.icon("plus", 14), "添加维度"]),
       el("button", { class: "btn small primary", onclick: () => { location.hash = "#import"; } }, ["导入数据集"]),
     ]),
-    el("div", { class: "muted", style: "margin-bottom:12px" }, ["数据集由 QA 对（题目 + 标准答案）组成：精确答案题按答案比对判分；开放题按要点校验——忠实度优先，题干没给的信息不得编造，写明待确认不扣分；代码维度直接引用公开榜单。当前为小样本演示数据，生产建议每维度不少于 100 对"]),
+    el("div", { class: "muted", style: "margin-bottom:12px" }, ["数据集由 QA 对（题目 + 标准答案）组成：精确答案题按答案比对判分；开放题按要点校验——忠实度优先，题干没给的信息不得编造，写明待确认不扣分。冷启动预置一套通用数据集，可上传补充。当前为小样本演示数据，生产建议每维度不少于 100 对"]),
     sceneRows,
     el("div", { style: "display:flex;align-items:center;gap:16px;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;flex-wrap:wrap" }, [
       el("span", { style: "flex:1" }),
@@ -1143,7 +1138,7 @@ async function renderScene() {
             UI.toast(`已移到「${SCENE_NAMES2[v] || v}」`); row.remove();
           } catch (e2) { UI.toast(e2.data?.error || e2.message, true); renderScene(); }
         } })]),
-      el("td", { class: "muted" }, [{ public: "内置 benchmark", imported: "导入", tenant_imported: "导入", reflow: "偏好回流" }[q.source] || q.source]),
+      el("td", { class: "muted" }, [{ public: "通用数据集", imported: "上传导入", tenant_imported: "上传导入", reflow: "偏好回流" }[q.source] || q.source]),
       el("td", {}, [!(q.ideal || "").trim()
         ? el("span", { class: "chip gray", title: "缺标准答案：不参与判分，也不计入成绩统计；编辑补充答案后生效" }, ["不可评测"])
         : q.scored ? el("span", { class: "chip green" }, ["已判分"]) : el("span", { class: "chip gray" }, ["未判分"])]),
@@ -1174,14 +1169,6 @@ async function renderScene() {
     } }, ["替换数据集"]),
     el("button", { class: "btn small primary", onclick: addQuestionDialog }, [UI.icon("plus", 14), "添加单个数据"]),
   ]));
-  const dimMeta2 = sc.dimension_meta || {};
-  if ((dimMeta2[key] || {}).source === "leaderboard") {
-    const lm = dimMeta2[key];
-    box.appendChild(el("div", { class: "card", style: "margin-bottom:10px;display:flex;align-items:center;gap:10px" }, [
-      el("span", { class: "chip blue", style: "flex:none" }, ["公开榜单引用"]),
-      el("span", { class: "muted" }, [`该维度分数直接引用${lm.ref || "公开榜单"}（快照 ${lm.asof || "-"}），本地题目仅作补充参考、不参与排名`]),
-    ]));
-  }
   box.appendChild(el("div", { class: "card", style: "padding:0" }, [
     questions.length
       ? el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
@@ -1228,9 +1215,37 @@ async function renderImport() {
   const box = content();
   box.innerHTML = "";
   let dom = "general";
-  const ta = el("textarea", { rows: 10, placeholder: "在此粘贴数据，一行一条；或点右上方按钮填入示例 / 下载模板" });
-  const countLab = el("span", { class: "muted num" }, ["已识别 0 条"]);
-  ta.oninput = UI.debounce(() => { countLab.textContent = `已识别 ${parseImportText(ta.value, dom).length} 条`; }, 200);
+  // 上传式导入：选择或拖入 CSV / JSONL 文件，前端解析出条目后提交
+  let fileItems = [];
+  let fileName = "";
+  const countLab = el("span", { class: "muted num" }, ["还没有选择文件"]);
+  const fileIn = el("input", { type: "file", accept: ".csv,.jsonl,.txt,.json", hidden: "" });
+  const dropTitle = el("div", { style: "font-weight:600;margin-bottom:4px" }, ["点击选择文件，或拖到这里"]);
+  const dropSub = el("div", { class: "muted", style: "font-size:var(--font-caption)" },
+    ["支持 CSV / JSONL（模板见右上角）；单次最多 5000 条"]);
+  const dropZone = el("div", { style: "border:1.5px dashed var(--border-strong);border-radius:12px;padding:34px 20px;" +
+    "text-align:center;cursor:pointer;background:var(--bg-elevated)" }, [dropTitle, dropSub]);
+  function readFile(f) {
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      fileName = f.name;
+      fileItems = parseImportText(String(reader.result || ""), dom);
+      dropTitle.textContent = f.name;
+      dropSub.textContent = fileItems.length ? "已解析，可重新点击换文件" : "没有解析到有效数据，检查文件格式或换个文件";
+      countLab.textContent = fileItems.length ? `已识别 ${fileItems.length} 条` : "已识别 0 条";
+    };
+    reader.readAsText(f);
+  }
+  fileIn.onchange = () => readFile(fileIn.files && fileIn.files[0]);
+  dropZone.onclick = () => fileIn.click();
+  dropZone.ondragover = (ev) => { ev.preventDefault(); dropZone.style.borderColor = "var(--primary)"; };
+  dropZone.ondragleave = () => { dropZone.style.borderColor = "var(--border-strong)"; };
+  dropZone.ondrop = (ev) => {
+    ev.preventDefault();
+    dropZone.style.borderColor = "var(--border-strong)";
+    readFile(ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]);
+  };
   const progBox = el("div", { style: "margin-top:12px" });
   let startedHere = false;
   function drawProgress(task) {
@@ -1260,13 +1275,17 @@ async function renderImport() {
     drawProgress(task);
     if (task.status === "running" && activeTab === "import") setTimeout(poll, 500);
   }
-  const exBtn = el("button", { class: "btn small ghost", onclick: () => {
-    ta.value = TPL_JSONL; ta.oninput(); ta.focus();
-  } }, ["填入示例"]);
   const TPL_JSONL = ['{"query":"按年利率 3.8% 计算 200 万贷款一年的利息","scene":"math","ideal":"7.6 万元"}',
     '{"query":"写一个 SQL 统计近 30 天每日订单量","scene":"coding","ideal":"按日期 GROUP BY 计数"}',
     '{"query":"什么是电子提单","scene":"qa","labels":{"atlas-72b":1,"swift-4b":0}}'].join("\n");
   const TPL_CSV = "query,scene\n按年利率 3.8% 计算 200 万贷款一年的利息,math\n写一个 SQL 统计近 30 天每日订单量,coding\n什么是电子提单,qa";
+  const exBtn = el("button", { class: "btn small ghost", onclick: () => {
+    const blob = new Blob([TPL_JSONL], { type: "application/jsonl" });
+    const a2 = document.createElement("a");
+    a2.href = URL.createObjectURL(blob); a2.download = "数据集示例.jsonl"; a2.click();
+    URL.revokeObjectURL(a2.href);
+    UI.toast("示例文件已下载，可直接上传体验");
+  } }, ["下载示例"]);
   const dlBtn = el("button", { class: "btn small ghost", onclick: () => {
     const blob = new Blob(["\ufeff" + TPL_CSV], { type: "text/csv" });
     const a2 = document.createElement("a");
@@ -1276,7 +1295,7 @@ async function renderImport() {
   } }, [UI.icon("download", 13), "下载模板"]);
   box.appendChild(el("div", { style: "display:flex;align-items:center;gap:12px;margin-bottom:14px" }, [
     el("a", { class: "back-link", href: "#flow" }, [UI.icon("arrow", 14), "返回数据集"]),
-    el("span", { class: "muted" }, ["把各能力维度的客观题批量导入（题干 + 标准答案）；提交后逐条检查格式、维度与重复"]),
+    el("span", { class: "muted" }, ["上传 CSV / JSONL 文件批量导入 QA 对（题干 + 标准答案）；提交后逐条检查格式、维度与重复"]),
   ]));
   const presetScene = sessionStorage.getItem("import_scene");
   let replaceMode = sessionStorage.getItem("import_replace") === "1";
@@ -1286,26 +1305,28 @@ async function renderImport() {
     el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:18px" }, [
       el("span", { class: "label-text", style: "margin:0" }, ["维度："]),
       UI.fancySelect({ value: dom, width: "160px", options: Object.entries(SCENE_NAMES2).filter(([k]) => k !== "untagged"),
-        onChange: (v) => { dom = v; ta.oninput(); } }),
+        onChange: (v) => { dom = v; if (fileItems.length) { fileItems = fileItems.map(it => ({ ...it, domain: it.domain || v })); } } }),
       replaceMode ? el("span", { class: "chip red" }, ["替换模式：导入时将清空该维度原有题目"]) : null,
     ]),
     el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:8px" }, [
-      el("span", { class: "label-text", style: "margin:0" }, ["粘贴数据"]),
+      el("span", { class: "label-text", style: "margin:0" }, ["上传文件"]),
       el("div", { style: "flex:1" }),
       exBtn, dlBtn,
     ]),
-    ta,
+    dropZone, fileIn,
     el("div", { style: "display:flex;align-items:center;gap:10px;margin-top:8px" }, [
       countLab,
       el("div", { style: "flex:1" }),
       el("button", { class: "btn primary", onclick: async (e) => {
-        const items = parseImportText(ta.value, dom);
-        if (!items.length) { UI.toast("没有可导入的数据", true); return; }
+        if (!fileItems.length) { UI.toast(fileName ? "文件里没有解析到有效数据" : "先选择要上传的文件", true); return; }
         try {
-          const { task } = await UI.api("/v1/bank/import/start", { method: "POST", body: { items, domain: dom, ...(replaceMode ? { replace: true } : {}) } });
+          const { task } = await UI.api("/v1/bank/import/start", { method: "POST", body: { items: fileItems, domain: dom, ...(replaceMode ? { replace: true } : {}) } });
           if (replaceMode) { replaceMode = false; document.querySelectorAll(".chip.red").forEach(n => n.textContent === "替换模式：导入时将清空该维度原有题目" && n.remove()); }
           startedHere = true;
-          ta.value = ""; ta.oninput();
+          fileItems = []; fileName = ""; fileIn.value = "";
+          dropTitle.textContent = "点击选择文件，或拖到这里";
+          dropSub.textContent = "支持 CSV / JSONL（模板见右上角）；单次最多 5000 条";
+          countLab.textContent = "还没有选择文件";
           drawProgress(task); poll();
         } catch (err) { UI.toast(err.data?.error || err.message, true); }
       } }, ["开始导入"]),
@@ -1341,7 +1362,7 @@ async function renderDispatch() {
     el("p", {}, ["1. 硬规则层：请求先过基础规则——多模态（图像 / 音频）等功能性需求先按能力过滤模型（复合任务如「读图 + 算数」先保证会看图，再在会看图的模型里按成绩选）；日常闲聊走轻量直答，但问候里带着真实任务时按任务维度路由，不会被「你好」盖住。"]),
     el("p", {}, ["2. 维度匹配层：其余请求判定所属能力维度（通用问答、代码、数学推理、长文写作），取该维度下各候选模型的基准成绩，按「成本-效果权重」算综合分（权重 × 效果分 + (1 - 权重) × 省钱分）——领先直答；两名接近且策略允许聚合时并发作答，由聚合模型总结定稿。"]),
     el("p", {}, ["3. else 兜底：不属于任何维度或调用异常时切兜底模型直连；刚失败过的候选不会被重复调用，兜底也失败则明确报错，不做循环重试。"]),
-    el("p", {}, ["4. 成绩来源：冷启动用数据集的 QA 对判分——精确答案题比对标准答案，开放题按要点校验且不奖励编造（代码维度直接引用公开榜单）；上线后按采样率出 A/B 双答案回收用户采纳（复用本轮候选回答，不额外调用模型），「导入回流数据」生成数据集新版本并重新聚类，效果不好可回滚。"]),
+    el("p", {}, ["4. 成绩来源：冷启动用平台预置的通用数据集按 QA 对判分——精确答案题比对标准答案，开放题按要点校验且不奖励编造；上线后按采样率出 A/B 双答案回收用户采纳（复用本轮候选回答，不额外调用模型），「导入回流数据」生成数据集新版本并重新聚类，效果不好可回滚。"]),
     el("p", {}, ["5. 产品对接：一条策略对应一个 API Key；请求可带 aggregate 参数按次覆盖聚合开关（策略可将默认值设为硬约束禁止覆盖），响应返回 request_id，客户端用它把用户采纳经 /v1/feedback 回传，同一 request_id 只记一票。"]),
   ]);
   const rulesBtn = el("button", { class: "btn small ghost", onclick: () => {
