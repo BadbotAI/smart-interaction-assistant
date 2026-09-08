@@ -26,10 +26,10 @@ def snapshot():
     keys = ["/api/apikeys", "/api/products", "/api/audit?limit=100", "/api/brands", "/api/brands/active", "/api/cards",
             "/api/dashboard/insights?days=30", "/api/dashboard/overview?days=30",
             "/api/dashboard/questions?days=30", "/api/labels/summary", "/api/profile",
-            "/api/profile/rebuild/status", "/api/profile/gen-status", "/api/templates",
-            "/api/flywheel", "/api/settings/ab-sampling", "/api/dataset/versions",
-            "/api/traces?limit=30", "/v1/bank/health", "/v1/bank/import/status", "/v1/bank/scenes",
-            "/v1/models", "/v1/policies"]
+            "/api/templates", "/api/flywheel", "/api/settings/ab-sampling",
+            "/api/dataset/overview", "/api/dataset/versions", "/api/settings/judge-model",
+            "/api/dataset/cluster/status", "/api/profile/generate/status",
+            "/api/traces?limit=30", "/v1/bank/health", "/v1/models", "/v1/policies"]
 
     def get(p):
         with urllib.request.urlopen(base + p) as r:
@@ -38,8 +38,6 @@ def snapshot():
     data = {}
     for k in keys:
         data[k.split("?")[0]] = get(k)
-    for sc in [s["domain"] for s in data["/v1/bank/scenes"]["scenes"]]:
-        data["bankq:" + sc] = get("/v1/bank/questions?scene=" + sc)
     out = "window.MOCK_DATA = " + json.dumps(data, ensure_ascii=False, separators=(",", ":")) + ";\n"
     open(os.path.join(DOCS, "mock_data.js"), "w", encoding="utf-8").write(out)
     print("snapshot:", len(data), "keys,", len(out) // 1024, "KB")

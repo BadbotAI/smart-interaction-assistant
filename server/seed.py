@@ -405,12 +405,14 @@ def seed_public_bank():
 
 
 # 数据飞轮种子：模拟已回流的终端用户 AB 采纳偏好（真实来源是客户端调 /v1/feedback）
+# dimension 字段承载主题 key，与 Query 池聚类同口径
 AB_QUERY_POOL = {
-    "qa": ["保税仓的货可以直接内销吗", "电子提单现在普及到什么程度了", "甩柜了怎么跟客户解释", "信用证不符点常见有哪些"],
-    "coding": ["帮我看看这段 SQL 为什么慢", "写个脚本把运单号批量查一遍", "接口偶发超时怎么加重试", "正则匹配箱号怎么写"],
-    "math": ["这批货分三车怎么配载最省", "运费涨价 12% 我们利润还剩多少", "帮我算下这单的毛利率", "两个报价折算成同币种哪个便宜"],
+    "logistics": ["我的货三天没更新了帮我看看", "帮我催一下上海那票货", "破损赔付怎么申请", "取件改到明天上午可以吗"],
+    "market": ["铁矿石行情这周怎么看", "欧线运价还会涨吗", "大豆价格指数帮我分析下", "现在订舱价格合适吗"],
+    "compliance": ["这份合同的违约条款帮我看看", "锂电池出口要什么资质", "关税新政对我们有影响吗", "清关单证缺一项怎么补"],
+    "analytics": ["帮我算下这单的毛利率", "本月华东线路成本汇总一下", "利润同比下滑的原因怎么分析", "这批订单数据做个透视"],
     "writing": ["帮我写个延误道歉通知", "把这段话改成正式邮件", "写一份月度经营总结开头", "起草个涨价函"],
-    "multimodal": ["看下这张提单照片有没有问题", "这张截图的报错帮我看看", "识别下磅单上的净重", "这两张照片货损对比一下"],
+    "tech": ["帮我看看这段 SQL 为什么慢", "写个脚本把运单号批量查一遍", "接口偶发超时怎么加重试", "数据同步失败怎么排查"],
 }
 
 
@@ -425,11 +427,12 @@ def seed_ab_feedback(force=False):
         for _ in range(rng.randint(7, 12)):
             dim = rng.choice(list(AB_QUERY_POOL.keys()))
             q = rng.choice(AB_QUERY_POOL[dim])
-            pool = [m for m in models if (m["profile"].get(dim, 0) > 0.05)]
+            pkey = mockmodels.QUERY_THEMES.get(dim, {}).get("profile_key", "general")
+            pool = [m for m in models if (m["profile"].get(pkey, 0) > 0.05)]
             if len(pool) < 2:
                 continue
             a, b = rng.sample(pool, 2)
-            pa, pb = a["profile"].get(dim, 0.5), b["profile"].get(dim, 0.5)
+            pa, pb = a["profile"].get(pkey, 0.5), b["profile"].get(pkey, 0.5)
             winner, loser = (a, b) if rng.random() < pa / max(0.01, pa + pb) else (b, a)
             ts = time.time() - day * 86400 + rng.random() * 86400 * 0.7
             content, _ = mockmodels.gen_structured(q, dim, True)
@@ -654,6 +657,58 @@ def migrate_trust_v5_1():
     return True
 
 
+
+# v6.0 Query 池：冷启动不再预置 QA 对，随机探索期收集真实 query（种子模拟已收集 520+ 条）。
+# 主题是聚类的隐藏真值（演示用），映射到模型隐藏画像的既有键取答题概率。
+
+
+def seed_query_pool():
+    """随机探索期收集的 query 池（种子模拟 520+ 条，隐藏主题作聚类真值）。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE source='collected'").fetchone()["c"] > 0:
+        return 0
+    rng = random.Random(66)
+    n = 0
+    for theme, cfg in mockmodels.QUERY_THEMES.items():
+        per = rng.randint(78, 96)
+        for i in range(per):
+            t = cfg["templates"][i % len(cfg["templates"])]
+            text = t.format(c=rng.choice(COMMODITIES), p=rng.choice(PORTS))
+            if i >= len(cfg["templates"]):
+                text = text + ["", "，急", "，尽快", "，谢谢", "，这周内"][i % 5]
+            qid = f"col-{theme[:3]}{i:03d}"
+            created = time.time() - rng.random() * 21 * 86400
+            served = rng.choice(mockmodels.MODEL_POOL)["model_id"]
+            conn.execute(
+                "INSERT OR IGNORE INTO bank_queries (query_id, tenant_id, embedding, text_ref, query_text, "
+                "domain_tags, created_at, ttl_days, source) VALUES (?,?,?,?,?,?,?,?,?)",
+                (qid, TENANT, db.j(embeddings.embed(text)), f"vault://collected/{qid}", text,
+                 db.j([theme]), created, 365, "collected"))
+            n += 1
+    conn.commit()
+    return n
+
+
+def migrate_pool_v6():
+    """v6.0：数据集从 QA 对转为 Query 池 + 聚类簇快照；预置版本清空，回到随机探索初始态。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT v FROM kv_settings WHERE k='v6_query_pool'").fetchone():
+        return False
+    conn.execute("DELETE FROM bank_responses")
+    conn.execute("DELETE FROM bank_queries")
+    conn.execute("DELETE FROM dataset_versions")
+    conn.execute("DELETE FROM ab_feedback")  # 旧维度口径的 AB 种子重灌为主题口径
+    for k in ("policy_profile_gen", "custom_scenes", "scene_rounds", "dimension_meta"):
+        conn.execute("DELETE FROM kv_settings WHERE k=?", (k,))
+    for r in conn.execute("SELECT k FROM kv_settings WHERE k LIKE 'profile_evolution_v%' "
+                          "OR k LIKE 'profile_matrix_v%' OR k LIKE 'dataset_clusters_v%'").fetchall():
+        conn.execute("DELETE FROM kv_settings WHERE k=?", (r["k"],))
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('v6_query_pool', '1')")
+    conn.commit()
+    db.audit("system", "migrate_pool_v6", {"note": "QA 对下线，转 Query 池 + 聚类定版 + 版本级画像"})
+    return True
+
+
 def migrate_generic_v5_3():
     """v5.3 口径修正：冷启动就是一套通用数据集，不区分内置 benchmark / 公开榜单引用。"""
     conn = db.get_conn()
@@ -696,9 +751,10 @@ def run_all():
     seed_cards()
     migrate_flywheel_v5()
     migrate_trust_v5_1()
-    n_bank = seed_public_bank()
     migrate_dataset_v5_2()
     migrate_generic_v5_3()
+    migrate_pool_v6()
+    n_bank = seed_query_pool()
     n_fb = seed_ab_feedback()
     n_hist = seed_history()
     migrate_questionnaire()

@@ -210,13 +210,26 @@ async def _handle_turn(body: dict, emit):
     # 数据飞轮 · AB 采样：一定比例请求出 A/B 双答案，终端用户的采纳经 /v1/feedback 回流
     ab_test = None
     ok_answers = result.get("answers") or []
-    if mode == "auto" and len(ok_answers) >= 2 and final and final.get("content"):
+    _is_explore_layer = decision.get("route_layer") == "explore"
+    if mode == "auto" and final and final.get("content") and (len(ok_answers) >= 2 or _is_explore_layer):
         try:
             _rate = float(_get_setting("ab_sampling_rate") or 0.2)
         except (TypeError, ValueError):
             _rate = 0.2
         if random.random() < _rate:
             alt = next((a for a in ok_answers if a["model_id"] != final["model_id"]), None)
+            if alt is None and _is_explore_layer:
+                # 冷启动随机探索是单模型直答：命中采样时额外补调一个不同模型出第二份答案。
+                # 这是探索期收集采纳数据的真实成本（画像路由期 AB 复用候选、不额外调用）。
+                _others = [m for m in router_core.get_active_models() if m["model_id"] != final["model_id"]]
+                if _others:
+                    _alt_m = random.choice(_others)
+                    _domain2 = mockmodels.classify_domain(text)
+                    _alt_ans = await router_core._call_with_timeout(_alt_m, text, _domain2, recorder, emit)
+                    if _alt_ans.get("status") == "ok" and _alt_ans.get("content"):
+                        alt = _alt_ans
+                        router_core.record_usage(tenant_id, _alt_ans["tokens_in"] + _alt_ans["tokens_out"],
+                                                 _alt_ans["cost"])
             if alt:
                 # 左右随机：避免位置偏好污染采纳数据（终端用户偏爱左侧/A 的倾向）
                 opts = [{"model_id": final["model_id"], "content": final["content"]},
@@ -232,7 +245,17 @@ async def _handle_turn(body: dict, emit):
                 _c.execute("UPDATE route_decisions SET decision=? WHERE trace_id=?", (db.j(decision), trace_id))
                 _c.commit()
 
-    # （已按产品决策停用对话 query 自动回流采集：场景数据集以导入为准）
+    # v6.0：随机探索与线上运行期间，query 自动落池（聚类定版的原料；轻去重、限长）
+    if mode == "auto" and final.get("content") and 2 <= len(text) <= 500:
+        _cq = db.get_conn()
+        if not _cq.execute("SELECT 1 FROM bank_queries WHERE query_text=? AND source='collected'", (text,)).fetchone():
+            _qid = "col-" + db.new_id()[:8]
+            _cq.execute(
+                "INSERT INTO bank_queries (query_id, tenant_id, embedding, text_ref, query_text, domain_tags, "
+                "created_at, ttl_days, source) VALUES (?,?,?,?,?,?,?,?,?)",
+                (_qid, tenant_id, db.j(embeddings.embed(text)), f"vault://collected/{_qid}", text,
+                 db.j([mockmodels.classify_theme(text)]), db.now_ts(), 365, "collected"))
+            _cq.commit()
 
     components = []
 
@@ -1057,11 +1080,12 @@ async def register_model(request: Request):
         (body["model_id"], body["display_name"], body["provider"], body["endpoint"], body["credential_ref"],
          pin, pout,
          db.j(body.get("capabilities") or {"tool_call": True, "streaming": True, "context_window": 32768}),
-         "registering", int(body.get("latency_ms_base", 800)),
+         "active", int(body.get("latency_ms_base", 800)),
          db.j(body.get("profile") or {"general": 0.7}), deploy_type, gpu_count))
+    conn.execute("UPDATE models SET bank_coverage=1.0 WHERE model_id=?", (body["model_id"],))
     conn.commit()
     db.audit("demo-admin", "model_register", {"model_id": body["model_id"]})
-    return {"ok": True, "note": "入池未完成的模型不参与线上路由。请触发 bank 回填任务。"}
+    return {"ok": True, "note": "模型已上线：即刻参与随机探索分流；下次「生成模型画像」将纳入打分。"}
 
 
 @app.post("/v1/models/{model_id}/backfill")
@@ -1230,44 +1254,6 @@ async def toggle_label_source(request: Request):
     conn.commit()
     db.audit("demo-admin", "label_source_toggle", {"source": source, "enabled": enabled})
     return {"ok": True}
-
-
-@app.post("/v1/bank/eval-pending")
-def bank_eval_pending():
-    """评测回填：导入的客观题由各在线模型作答，对照标准答案判分入库（无需 LLM 裁判）。"""
-    conn = db.get_conn()
-    rows = conn.execute(
-        "SELECT q.query_id, q.query_text, q.domain_tags, q.ideal FROM bank_queries q WHERE q.tenant_id=? "
-        "AND (q.source IS NULL OR q.source != 'reflow_staged') AND NOT EXISTS "
-        "(SELECT 1 FROM bank_responses r WHERE r.query_id=q.query_id)", (seed.TENANT,)).fetchall()
-    models = conn.execute("SELECT model_id, profile FROM models WHERE status='active'").fetchall()
-    n_resp = 0
-    # 没有标准答案的题不可评测：跳过判分、不混入成绩统计（用户质疑 Q03）
-    n_unevaluable = sum(1 for q in rows if not (q["ideal"] or "").strip())
-    rows = [q for q in rows if (q["ideal"] or "").strip()]
-    for q in rows:
-        domain = (db.dj(q["domain_tags"], ["general"]) or ["general"])[0]
-        for m in models:
-            profile = db.dj(m["profile"], {})
-            correct = mockmodels.is_correct(m["model_id"], profile, q["query_text"], domain)
-            content, _ = mockmodels.gen_structured(q["query_text"], domain, correct)
-            conn.execute(
-                "INSERT INTO bank_responses (query_id, model_id, response_embedding, completion_tokens, "
-                "label_value, label_confidence, label_source, label_kind, created_at, updated_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (q["query_id"], m["model_id"], db.j(embeddings.embed(content)), max(30, int(len(content) * 1.5)),
-                 1.0 if correct else 0.0, 1.0, "ground_truth", "capability", db.now_ts(), db.now_ts()))
-            n_resp += 1
-    conn.commit()
-    # 评测轮次：本次覆盖到的每个场景 +1 轮
-    rounds = db.dj(_get_setting("scene_rounds"), {}) or {}
-    for dom in {(db.dj(q["domain_tags"], ["general"]) or ["general"])[0] for q in rows}:
-        rounds[dom] = rounds.get(dom, 0) + 1
-    if rows:
-        _set_setting("scene_rounds", db.j(rounds))
-    db.audit("demo-admin", "bank_eval_pending", {"queries": len(rows), "responses": n_resp,
-                                                 "unevaluable": n_unevaluable})
-    return {"queries": len(rows), "responses": n_resp, "unevaluable": n_unevaluable}
 
 
 # ============ P2 策略管理 ============
@@ -1605,7 +1591,6 @@ def flywheel_stats():
     except (TypeError, ValueError):
         rate = 0.2
     active_v = router_core.active_dataset_version()
-    evo = db.dj(_get_setting(f"profile_evolution_v{active_v}"), None) if active_v > 1 else None
     pending = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE imported_version IS NULL").fetchone()["c"]
     imported = total - pending
     recent = []
@@ -1617,126 +1602,317 @@ def flywheel_stats():
                        "losers": losers, "loser_names": [names.get(l, l) for l in losers],
                        "imported_version": r["imported_version"]})
     return {"total": total, "last7d": last7, "dimensions": dims, "win_rates": win_rates,
-            "sampling_rate": rate, "evolution": evo, "min_required": EVOLVE_MIN_FEEDBACK,
+            "sampling_rate": rate, "min_required": EVOLVE_MIN_FEEDBACK,
             "pending": pending, "imported": imported, "dataset_version": active_v,
-            "recent": recent, "evolve_task": _evolve_task}
+            "recent": recent}
 
 
-_evolve_task = {"status": "idle", "done": 0, "total": 0}
+CLUSTER_MIN_QUERIES = 500  # 第一次聚类定版的 Query 池门槛（用户拍板）
+ADOPT_SMOOTH_K = 20        # 采纳权重平滑常数：w_adopt = n_ab / (n_ab + K)，样本越多采纳越主导
+
+_cluster_task = {"status": "idle", "done": 0, "total": 0}
+_pgen_task = {"status": "idle", "done": 0, "total": 0}
+_evolve_task = _cluster_task  # 兼容旧引用
 
 
-@app.get("/v1/feedback/pending")
-def feedback_pending(since: float = 0, limit: int = Query(200, ge=1, le=1000)):
-    """回流数据接口：待导入数据集的偏好数据（QA 对原料），供导入动作与外部程序拉取。
-    增量拉取传 since（上次拉取的最大 ts）。"""
+# ============ Judge 模型（画像打分裁判，随真实 query 方案回归） ============
+
+@app.get("/api/settings/judge-model")
+def get_judge_model():
+    info = db.dj(_get_setting("judge_model_info"), None)
+    return {"judge": info if (info and info.get("model_id")) else None}
+
+
+@app.post("/api/settings/judge-model")
+async def set_judge_model(request: Request):
+    """Judge 模型独立接入（不进业务模型池）：画像生成时对各模型回放答案打分。传空 model_id 为移除。"""
+    body = await request.json()
+    mid = (body.get("model_id") or "").strip()
+    if not mid:
+        _set_setting("judge_model_info", "")
+        db.audit("demo-admin", "judge_model_set", {"model_id": "(移除)"})
+        return {"ok": True, "judge": None}
+    import re as _re3
+    if not body.get("display_name"):
+        return JSONResponse({"error": "请填写显示名"}, status_code=422)
+    if not _re3.fullmatch(r"[a-z0-9][a-z0-9-]{1,23}", mid):
+        return JSONResponse({"error": "模型 ID 需为 2-24 位小写字母、数字或短横线"}, status_code=422)
+    if not _re3.fullmatch(r"https://\S+", (body.get("endpoint") or "")):
+        return JSONResponse({"error": "接口地址必须是 https:// 开头的完整 URL"}, status_code=422)
+    if not _re3.fullmatch(r"vault://\S+", (body.get("credential_ref") or "")):
+        return JSONResponse({"error": "凭证需为 vault:// 引用（密钥不明文入库）"}, status_code=422)
+    info = {"model_id": mid, "display_name": body["display_name"].strip(),
+            "endpoint": body["endpoint"].strip(), "credential_ref": body["credential_ref"].strip()}
+    _set_setting("judge_model_info", db.j(info))
+    db.audit("demo-admin", "judge_model_set", {"model_id": mid, "display_name": info["display_name"]})
+    return {"ok": True, "judge": info}
+
+
+# ============ 数据集总览 / 聚类定版 / 版本级画像 ============
+
+@app.get("/api/dataset/overview")
+def dataset_overview():
+    """数据集页一屏所需：Query 池状态、定版门槛、版本与簇快照、画像状态与成本预估、judge。"""
     conn = db.get_conn()
-    rows = conn.execute(
-        "SELECT fb_id, ts, query_text, dimension, winner, losers, chosen_content, source FROM ab_feedback "
-        "WHERE imported_version IS NULL AND ts>? ORDER BY ts LIMIT ?", (since, limit)).fetchall()
-    out = [{"fb_id": r["fb_id"], "ts": r["ts"], "query": r["query_text"], "dimension": r["dimension"],
-            "winner": r["winner"], "losers": db.dj(r["losers"], []) or [],
-            "chosen_content": r["chosen_content"] or "", "source": r["source"]} for r in rows]
-    total = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE imported_version IS NULL").fetchone()["c"]
-    return {"pending": out, "total_pending": total}
+    av = router_core.active_dataset_version()
+    pool_new = conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE dataset_version IS NULL "
+                            "AND source IN ('collected','reflow')").fetchone()["c"]
+    pool_total = conn.execute("SELECT COUNT(*) AS c FROM bank_queries "
+                              "WHERE source IN ('collected','reflow')").fetchone()["c"]
+    recent = []
+    for r in conn.execute("SELECT query_id, query_text, domain_tags, source, created_at, dataset_version "
+                          "FROM bank_queries WHERE source IN ('collected','reflow') "
+                          "ORDER BY created_at DESC LIMIT 15").fetchall():
+        recent.append({"query_id": r["query_id"], "query": r["query_text"],
+                       "theme": (db.dj(r["domain_tags"], []) or ["other"])[0],
+                       "source": r["source"], "ts": r["created_at"], "dataset_version": r["dataset_version"]})
+    versions = [dict(r) for r in conn.execute("SELECT * FROM dataset_versions ORDER BY version DESC").fetchall()]
+    clusters = (db.dj(_get_setting(f"dataset_clusters_v{av}"), None) or {}).get("clusters") if av else None
+    matrix = db.dj(_get_setting(f"profile_matrix_v{av}"), None) if av else None
+    judge = db.dj(_get_setting("judge_model_info"), None) or None
+    n_models = conn.execute("SELECT COUNT(*) AS c FROM models WHERE status='active'").fetchone()["c"]
+    n_reps = sum(len(c.get("rep_ids") or []) for c in (clusters or []))
+    est_calls = n_reps * n_models
+    theme_names = {k: v["label"] for k, v in mockmodels.QUERY_THEMES.items()}
+    theme_names["other"] = "其他 / 长尾"
+    return {"pool_total": pool_total, "pool_new": pool_new, "threshold": CLUSTER_MIN_QUERIES,
+            "can_cluster": pool_new >= CLUSTER_MIN_QUERIES if av == 0 else pool_new > 0,
+            "recent": recent, "versions": versions, "active": av,
+            "clusters": clusters, "theme_names": theme_names,
+            "profile": {"generated": bool(matrix), "ts": matrix.get("ts") if matrix else None,
+                        "judge_name": (matrix or {}).get("judge_name"),
+                        "estimate": {"calls": est_calls, "cost": round(est_calls * 0.0032, 4)}},
+            "judge": judge if (judge and judge.get("model_id")) else None,
+            "cluster_task": _cluster_task, "pgen_task": _pgen_task}
 
 
-@app.post("/v1/bank/reflow/import")
-async def reflow_import():
-    """导入回流数据：把待导入偏好转成 QA 对并入数据集，生成新版本（重新聚类出演化画像）。
-    旧版本保留，效果不好可在数据集页回滚。"""
-    if _evolve_task["status"] == "running":
-        return {"task": _evolve_task}
+@app.post("/api/dataset/cluster")
+async def dataset_cluster():
+    """聚类定版：把未定版的 Query 池重新聚类（含历史已定版数据一起全量重聚），
+    AI 总结每簇标签与摘要，保存为新数据集版本并切为生效。首版门槛 500 条。"""
+    if _cluster_task["status"] == "running" or _pgen_task["status"] == "running":
+        return JSONResponse({"error": "已有任务进行中"}, status_code=409)
     conn = db.get_conn()
-    pending = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE imported_version IS NULL").fetchone()["c"]
-    if pending < EVOLVE_MIN_FEEDBACK:
-        return JSONResponse({"error": f"待导入回流不足 {EVOLVE_MIN_FEEDBACK} 条（当前 {pending} 条），数据太少聚类不稳定"},
+    av = router_core.active_dataset_version()
+    pool_new = conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE dataset_version IS NULL "
+                            "AND source IN ('collected','reflow')").fetchone()["c"]
+    if av == 0 and pool_new < CLUSTER_MIN_QUERIES:
+        return JSONResponse({"error": f"Query 池不足 {CLUSTER_MIN_QUERIES} 条（当前 {pool_new} 条），继续随机探索收集"},
                             status_code=409)
-    _evolve_task.update({"status": "running", "done": 0, "total": max(pending, 1)})
-    asyncio.create_task(_run_reflow_import())
-    return {"task": _evolve_task}
+    if av > 0 and pool_new == 0:
+        return JSONResponse({"error": "上次定版后没有新增 query，暂不需要重新聚类"}, status_code=409)
+    total = conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE source IN ('collected','reflow')").fetchone()["c"]
+    _cluster_task.update({"status": "running", "done": 0, "total": max(1, total)})
+    asyncio.create_task(_run_cluster())
+    return {"task": _cluster_task}
 
 
-@app.get("/v1/bank/reflow/import/status")
-def reflow_import_status():
-    return {"task": _evolve_task}
+@app.get("/api/dataset/cluster/status")
+def dataset_cluster_status():
+    return {"task": _cluster_task}
 
 
-async def _run_reflow_import():
+async def _run_cluster():
     try:
-        await _run_reflow_import_inner()
+        await _run_cluster_inner()
     except Exception as e:
-        # 任务异常必须落终态，否则导入永远锁在 running（同批量导入任务的教训）
-        _evolve_task["status"] = "failed"
-        _evolve_task["error"] = str(e)[:200]
-        db.audit("system", "dataset_reflow_import_failed", {"error": str(e)[:200]})
+        _cluster_task["status"] = "failed"
+        _cluster_task["error"] = str(e)[:200]
+        db.audit("system", "dataset_cluster_failed", {"error": str(e)[:200]})
 
 
-async def _run_reflow_import_inner():
+async def _run_cluster_inner():
     conn = db.get_conn()
-    new_version = (conn.execute("SELECT MAX(version) AS v FROM dataset_versions").fetchone()["v"] or 1) + 1
+    new_version = (conn.execute("SELECT MAX(version) AS v FROM dataset_versions").fetchone()["v"] or 0) + 1
     rows = [dict(r) for r in conn.execute(
-        "SELECT * FROM ab_feedback WHERE imported_version IS NULL ORDER BY ts").fetchall()]
-    # 1) 回流 -> QA 对入库（query + 用户采纳的回答作参考答案），标记归属版本
-    merged = 0
+        "SELECT query_id, query_text, domain_tags FROM bank_queries "
+        "WHERE source IN ('collected','reflow') ORDER BY created_at").fetchall()]
+    import random as _rnd
+    clusters = {}
     for i, r in enumerate(rows):
-        _evolve_task["done"] = i + 1
-        if i % 5 == 0:
+        _cluster_task["done"] = i + 1
+        if i % 40 == 0:
             await asyncio.sleep(0.05)
-        qid = "fb-" + (r["fb_id"] or db.new_id())[:8]
-        if not conn.execute("SELECT 1 FROM bank_queries WHERE query_id=?", (qid,)).fetchone():
-            conn.execute(
-                "INSERT INTO bank_queries (query_id, tenant_id, embedding, text_ref, query_text, domain_tags, "
-                "created_at, ttl_days, source, ideal, dataset_version) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                (qid, seed.TENANT, db.j(embeddings.embed(r["query_text"] or "")), f"vault://feedback/{qid}",
-                 r["query_text"] or "", db.j([r["dimension"] or "general"]), r["ts"], 365, "reflow",
-                 (r["chosen_content"] or "").strip() or "用户采纳回答（内容未回传）", new_version))
-            pairs = [(r["winner"], 1.0)] + [(l, 0.0) for l in (db.dj(r["losers"], []) or [])]
-            for mid, val in pairs:
+        theme = (db.dj(r["domain_tags"], []) or ["other"])[0]
+        if theme not in mockmodels.QUERY_THEMES:
+            theme = "other"
+        clusters.setdefault(theme, []).append(r)
+        conn.execute("UPDATE bank_queries SET dataset_version=? WHERE query_id=? AND dataset_version IS NULL",
+                     (new_version, r["query_id"]))
+    # AB 采纳随定版归账（按主题口径参与该版本画像）
+    conn.execute("UPDATE ab_feedback SET imported_version=? WHERE imported_version IS NULL", (new_version,))
+    out = []
+    rng = _rnd.Random(new_version)
+    for theme, items in sorted(clusters.items(), key=lambda x: -len(x[1])):
+        cfg = mockmodels.QUERY_THEMES.get(theme, {"label": "其他 / 长尾", "keywords": [], "summary": "未归入主类的长尾问题"})
+        reps = [it["query_id"] for it in rng.sample(items, min(8, len(items)))]
+        out.append({"key": theme, "label": cfg["label"], "summary": cfg.get("summary", ""),
+                    "keywords": cfg.get("keywords", []), "size": len(items), "rep_ids": reps,
+                    "sample": items[0]["query_text"][:24]})
+    _set_setting(f"dataset_clusters_v{new_version}", db.j({"version": new_version, "ts": db.now_ts(), "clusters": out}))
+    n_ab = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE imported_version=?", (new_version,)).fetchone()["c"]
+    conn.execute("UPDATE dataset_versions SET active=0")
+    conn.execute("INSERT INTO dataset_versions (version, ts, note, cold_count, reflow_count, active) VALUES (?,?,?,?,?,1)",
+                 (new_version, db.now_ts(), f"聚类定版：{len(rows)} 条 query，{len(out)} 个簇", len(rows), n_ab))
+    conn.commit()
+    _cluster_task["status"] = "completed"
+    _cluster_task["version"] = new_version
+    db.audit("demo-admin", "dataset_cluster", {"version": new_version, "queries": len(rows), "clusters": len(out)})
+
+
+@app.post("/api/profile/generate")
+async def profile_generate():
+    """生成模型画像（版本级一次全量）：每簇抽代表 query，所有在线模型同题回放作答，
+    Judge 同题打分；融合簇内 AB 采纳率（权重随样本量自适应），得到 簇 × 模型 分数矩阵。"""
+    if _pgen_task["status"] == "running" or _cluster_task["status"] == "running":
+        return JSONResponse({"error": "已有任务进行中"}, status_code=409)
+    av = router_core.active_dataset_version()
+    if av <= 0:
+        return JSONResponse({"error": "还没有数据集版本：先攒够 Query 再聚类定版"}, status_code=409)
+    judge = db.dj(_get_setting("judge_model_info"), None)
+    if not (judge and judge.get("model_id")):
+        return JSONResponse({"error": "未配置 Judge 模型：画像打分需要它，请先在数据集页配置"}, status_code=409)
+    clusters = (db.dj(_get_setting(f"dataset_clusters_v{av}"), None) or {}).get("clusters") or []
+    models = router_core.get_active_models()
+    total = max(1, sum(len(c.get("rep_ids") or []) for c in clusters) * len(models))
+    _pgen_task.update({"status": "running", "done": 0, "total": total, "version": av})
+    asyncio.create_task(_run_pgen(av, judge))
+    return {"task": _pgen_task}
+
+
+@app.get("/api/profile/generate/status")
+def profile_generate_status():
+    return {"task": _pgen_task}
+
+
+async def _run_pgen(version: int, judge: dict):
+    try:
+        await _run_pgen_inner(version, judge)
+    except Exception as e:
+        _pgen_task["status"] = "failed"
+        _pgen_task["error"] = str(e)[:200]
+        db.audit("system", "profile_generate_failed", {"error": str(e)[:200]})
+
+
+async def _run_pgen_inner(version: int, judge: dict):
+    conn = db.get_conn()
+    clusters = (db.dj(_get_setting(f"dataset_clusters_v{version}"), None) or {}).get("clusters") or []
+    models = router_core.get_active_models()
+    import random as _rnd
+    out = []
+    done = 0
+    for c in clusters:
+        pkey = mockmodels.QUERY_THEMES.get(c["key"], {}).get("profile_key", "general")
+        reps = []
+        for qid in c.get("rep_ids") or []:
+            r = conn.execute("SELECT query_id, query_text FROM bank_queries WHERE query_id=?", (qid,)).fetchone()
+            if r:
+                reps.append(dict(r))
+        # AB 采纳：该簇（主题）内、已归账的偏好
+        wins, losses = {}, {}
+        for r in conn.execute("SELECT winner, losers FROM ab_feedback WHERE dimension=? "
+                              "AND imported_version IS NOT NULL AND imported_version<=?", (c["key"], version)).fetchall():
+            wins[r["winner"]] = wins.get(r["winner"], 0) + 1
+            for l in db.dj(r["losers"], []) or []:
+                losses[l] = losses.get(l, 0) + 1
+        cell = {}
+        for m in models:
+            scores = []
+            for rq in reps:
+                done += 1
+                _pgen_task["done"] = done
+                if done % 6 == 0:
+                    await asyncio.sleep(0.05)
+                # 回放作答 + Judge 打分（演示模拟：以模型主题画像为真值，叠加评审噪声）
+                correct = mockmodels.is_correct(m["model_id"], m["profile"], rq["query_text"], pkey)
+                noise = (_rnd.Random("j" + m["model_id"] + rq["query_id"]).random() - 0.5) * 0.16
+                score = max(0.0, min(1.0, (0.86 if correct else 0.30) + noise))
+                scores.append(score)
+                content, _ = mockmodels.gen_structured(rq["query_text"], pkey, correct)
                 conn.execute(
                     "INSERT OR REPLACE INTO bank_responses (query_id, model_id, response_embedding, completion_tokens, "
                     "label_value, label_confidence, label_source, label_kind, created_at, updated_at) "
-                    "VALUES (?,?,NULL,0,?,0.6,'user_preference','capability',?,?)",
-                    (qid, mid, val, r["ts"], r["ts"]))
-            merged += 1
-        conn.execute("UPDATE ab_feedback SET imported_version=? WHERE fb_id=?", (new_version, r["fb_id"]))
-    # 2) 重新聚类：基于全部已导入偏好，得到该版本的演化画像（团簇摘要 + 采纳胜率排序）
-    all_rows = [dict(r) for r in conn.execute(
-        "SELECT * FROM ab_feedback WHERE imported_version IS NOT NULL ORDER BY ts").fetchall()]
-    clusters = {}
-    for r in all_rows:
-        d = r["dimension"] or "general"
-        c = clusters.setdefault(d, {"samples": [], "wins": {}, "losses": {}})
-        c["samples"].append(r["query_text"] or "")
-        c["wins"][r["winner"]] = c["wins"].get(r["winner"], 0) + 1
-        for l in db.dj(r["losers"], []) or []:
-            c["losses"][l] = c["losses"].get(l, 0) + 1
-    names = {m["model_id"]: m["display_name"] for m in conn.execute("SELECT model_id, display_name FROM models")}
-    out = []
-    for d, c in sorted(clusters.items(), key=lambda x: -len(x[1]["samples"])):
-        ranking = []
-        for mid in set(c["wins"]) | set(c["losses"]):
-            w, l = c["wins"].get(mid, 0), c["losses"].get(mid, 0)
-            ranking.append({"model_id": mid, "name": names.get(mid, mid),
-                            "win_rate": round(w / (w + l), 3) if (w + l) else 0.0, "n": w + l})
-        ranking.sort(key=lambda x: -x["win_rate"])
-        kw = mockmodels.DIM_KEYWORDS.get(d, [])[:4]
-        out.append({"key": d, "name": mockmodels.DIMENSIONS.get(d, d),
-                    "keywords": kw, "size": len(c["samples"]),
-                    "low_sample": len(c["samples"]) < 10,  # 覆盖不足：排序仅供参考，沿用冷启动基线
-                    "sample": (c["samples"][0] or "")[:24], "ranking": ranking[:5]})
-    _set_setting(f"profile_evolution_v{new_version}", db.j({"version": new_version, "ts": db.now_ts(), "clusters": out}))
-    # 3) 版本记录 + 切为生效版本；各策略路由效果待重新生成
-    cold = conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE tenant_id IS NULL").fetchone()["c"]
-    reflow_total = conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE source='reflow' "
-                                "AND dataset_version<=?", (new_version,)).fetchone()["c"]
-    conn.execute("UPDATE dataset_versions SET active=0")
-    conn.execute("INSERT INTO dataset_versions (version, ts, note, cold_count, reflow_count, active) VALUES (?,?,?,?,?,1)",
-                 (new_version, db.now_ts(), f"导入回流 {merged} 条", cold, reflow_total))
-    _set_setting("policy_profile_gen", db.j({}))
+                    "VALUES (?,?,?,?,?,0.7,'llm_judge','capability',?,?)",
+                    (rq["query_id"], m["model_id"], db.j(embeddings.embed(content)),
+                     max(30, int(len(content) * 1.5)), round(score, 3), db.now_ts(), db.now_ts()))
+            judge_avg = round(sum(scores) / len(scores), 3) if scores else None
+            w, l = wins.get(m["model_id"], 0), losses.get(m["model_id"], 0)
+            n_ab = w + l
+            adopt = round(w / n_ab, 3) if n_ab else None
+            w_adopt = round(n_ab / (n_ab + ADOPT_SMOOTH_K), 3)
+            if judge_avg is None and adopt is None:
+                combined = None
+            elif adopt is None:
+                combined = judge_avg
+            elif judge_avg is None:
+                combined = adopt
+            else:
+                combined = round((1 - w_adopt) * judge_avg + w_adopt * adopt, 3)
+            cell[m["model_id"]] = {"judge": judge_avg, "n_judge": len(scores),
+                                   "adopt": adopt, "n_ab": n_ab, "w_adopt": w_adopt, "combined": combined}
+        out.append({"key": c["key"], "label": c["label"], "size": c["size"], "models": cell})
+    _set_setting(f"profile_matrix_v{version}", db.j({
+        "version": version, "ts": db.now_ts(), "judge_name": judge.get("display_name") or judge.get("model_id"),
+        "adopt_smooth_k": ADOPT_SMOOTH_K, "clusters": out}))
     conn.commit()
-    _evolve_task["status"] = "completed"
-    _evolve_task["version"] = new_version
-    db.audit("demo-admin", "dataset_reflow_import", {"version": new_version, "merged": merged, "clusters": len(out)})
+    _pgen_task["status"] = "completed"
+    db.audit("demo-admin", "profile_generate", {"version": version, "clusters": len(out),
+                                                "models": len(models), "judge": judge.get("model_id")})
+
+
+@app.get("/api/profile")
+def routing_profile(alpha: float = Query(0.7, ge=0.0, le=1.0), policy_id: str = None):
+    """路由效果（版本级画像 + 策略 α 即时换算）：效果分 = Judge 分 × (1-w) + 采纳率 × w（w 随 AB 样本自适应）；
+    综合分 = α × 效果分 + (1-α) × 省钱分（单价归一）。"""
+    conn = db.get_conn()
+    av = router_core.active_dataset_version()
+    matrix = db.dj(_get_setting(f"profile_matrix_v{av}"), None) if av else None
+    models = {r["model_id"]: dict(r) for r in conn.execute(
+        "SELECT model_id, display_name, price_input, price_output, is_default FROM models WHERE status='active'")}
+    pol = None
+    if policy_id:
+        prow = conn.execute("SELECT * FROM policies WHERE policy_id=?", (policy_id,)).fetchone()
+        if prow:
+            pol = dict(prow)
+            wl = db.dj(pol.get("model_whitelist"), []) or []
+            if wl:
+                models = {k: v for k, v in models.items() if k in wl}
+            alpha = (db.dj(pol.get("params"), {}) or {}).get("alpha", alpha)
+    if not matrix or not models:
+        return {"version": av, "generated": False, "clusters": [], "alpha": alpha,
+                "models": {mid: m["display_name"] for mid, m in models.items()}}
+    prices = {mid: m["price_input"] + m["price_output"] for mid, m in models.items()}
+    inv = {mid: 1.0 / max(0.01, p) for mid, p in prices.items()}
+    lo, hi = min(inv.values()), max(inv.values())
+    eff = {mid: round((v - lo) / (hi - lo), 3) if hi > lo else 0.5 for mid, v in inv.items()}
+    clusters = []
+    for c in matrix.get("clusters") or []:
+        scores = {}
+        for mid in models:
+            cell = (c.get("models") or {}).get(mid)
+            perf = cell.get("combined") if cell else None
+            combined = round(alpha * perf + (1 - alpha) * eff[mid], 3) if perf is not None else None
+            scores[mid] = {"perf": perf, "eff": eff[mid], "combined": combined,
+                           "judge": cell.get("judge") if cell else None,
+                           "n_judge": cell.get("n_judge") if cell else 0,
+                           "adopt": cell.get("adopt") if cell else None,
+                           "n_ab": cell.get("n_ab") if cell else 0,
+                           "w_adopt": cell.get("w_adopt") if cell else 0}
+        valid = {m: s["combined"] for m, s in scores.items() if s["combined"] is not None}
+        best = max(valid, key=valid.get) if valid else None
+        agg_with = None
+        allow_agg = pol.get("allow_aggregation") if pol else 1
+        if allow_agg and len(valid) >= 2:
+            ranked2 = sorted(valid.items(), key=lambda x: -x[1])
+            t_val = (db.dj(pol.get("params"), {}) or {}).get("t", 0.8) if pol else 0.8
+            if ranked2[0][1] - ranked2[1][1] < max(0.02, (1 - float(t_val)) * 0.3):
+                agg_with = ranked2[1][0]
+        clusters.append({"domain": c["key"], "label": c["label"], "queries": c["size"],
+                         "scores": scores, "best": best, "agg_with": agg_with})
+    return {"version": av, "generated": True, "ts": matrix.get("ts"),
+            "judge_name": matrix.get("judge_name"), "alpha": alpha,
+            "clusters": clusters, "models": {mid: m["display_name"] for mid, m in models.items()}}
+
 
 
 # ============ 数据集版本：列表 / 回滚 ============
@@ -1770,219 +1946,6 @@ async def dataset_rollback(request: Request):
     return {"ok": True, "active": target}
 
 
-@app.get("/v1/bank/scenes")
-def bank_scenes():
-    """通用数据集总览：按能力维度分组统计冷启动 benchmark / 偏好回流 / 导入 / 待评测。"""
-    conn = db.get_conn()
-    _av = router_core.active_dataset_version()
-    rows = conn.execute(
-        "SELECT q.query_id, q.tenant_id, q.domain_tags, q.source, q.created_at, "
-        "EXISTS(SELECT 1 FROM bank_responses r WHERE r.query_id=q.query_id) AS has_resp "
-        "FROM bank_queries q WHERE (q.tenant_id IS NULL OR q.tenant_id=?) "
-        "AND (q.dataset_version IS NULL OR q.dataset_version<=?)", (seed.TENANT, _av)).fetchall()
-    scenes = {}
-    def blank(dom):
-        return {"domain": dom, "cold": 0, "reflow": 0, "staged": 0, "imported": 0, "pending": 0, "last_ts": 0}
-    for r in rows:
-        dom = (db.dj(r["domain_tags"], ["general"]) or ["general"])[0]
-        sc = scenes.setdefault(dom, blank(dom))
-        if r["source"] == "reflow_staged":
-            sc["staged"] += 1
-            continue  # 待并入不计入数据集，也不进待评测
-        if r["tenant_id"] is None:
-            sc["cold"] += 1
-        elif r["source"] == "reflow":
-            sc["reflow"] += 1
-        else:
-            sc["imported"] += 1
-        if not r["has_resp"]:
-            sc["pending"] += 1
-        sc["last_ts"] = max(sc["last_ts"], r["created_at"] or 0)
-    # 自定义场景（即使还没有题目也在表中出现）
-    custom = db.dj(_get_setting("custom_scenes"), []) or []
-    for c in custom:
-        scenes.setdefault(c["key"], blank(c["key"]))
-    rounds = db.dj(_get_setting("scene_rounds"), {}) or {}
-    for sc in scenes.values():
-        sc["total"] = sc["cold"] + sc["reflow"] + sc["imported"]
-        sc["rounds"] = rounds.get(sc["domain"], 0)
-    out = sorted(scenes.values(), key=lambda x: -x["total"])
-    n_active = conn.execute("SELECT COUNT(*) AS c FROM models WHERE status='active'").fetchone()["c"]
-    return {"scenes": out, "custom_scenes": custom, "active_models": n_active,
-            "dimension_meta": db.dj(_get_setting("dimension_meta"), {}) or {}}
-
-
-@app.post("/api/scenes")
-async def add_scene(request: Request):
-    """自定义业务场景：名称 + 描述（描述供分类与 Judge 评审理解场景用）。自动收集按内置分类，自定义场景通过导入积累。"""
-    body = await request.json()
-    name = (body.get("name") or "").strip()
-    desc = (body.get("desc") or "").strip()
-    if not name or len(name) > 12:
-        return JSONResponse({"error": "场景名必填，不超过 12 字"}, status_code=422)
-    custom = db.dj(_get_setting("custom_scenes"), []) or []
-    if any(c["name"] == name for c in custom):
-        return JSONResponse({"error": "已有同名场景"}, status_code=409)
-    key = "custom-" + db.new_id()[:6]
-    custom.append({"key": key, "name": name, "desc": desc})
-    _set_setting("custom_scenes", db.j(custom))
-    db.audit("demo-admin", "scene_add", {"key": key, "name": name})
-    return {"ok": True, "scene": {"key": key, "name": name, "desc": desc}}
-
-
-_import_task = {"status": "idle", "done": 0, "total": 0, "imported": 0, "skipped": 0, "invalid": 0, "domain": None}
-
-
-@app.post("/v1/bank/import/start")
-async def bank_import_start(request: Request):
-    """异步导入：客户端解析出 items 后提交，服务端逐条校验（格式 / 场景 / 去重）并入库，进度可轮询。"""
-    if _import_task["status"] == "running":
-        return JSONResponse({"error": "已有导入任务进行中"}, status_code=409)
-    body = await request.json()
-    items = body.get("items") or []
-    if not items:
-        return JSONResponse({"error": "没有可导入的数据"}, status_code=422)
-    if len(items) > 5000:
-        return JSONResponse({"error": f"单次最多导入 5000 条（当前 {len(items)} 条），请分批导入"}, status_code=422)
-    if body.get("replace") and body.get("domain"):
-        if not any((it.get("query") or "").strip() for it in items):
-            return JSONResponse({"error": "替换模式下没有解析到有效题目，未清空原数据"}, status_code=422)
-        conn0 = db.get_conn()
-        ids0 = _scene_query_ids(conn0, body["domain"])
-        _delete_bank_queries(conn0, ids0)
-        conn0.commit()
-        db.audit("demo-admin", "bank_scene_replace", {"domain": body["domain"], "cleared": len(ids0)})
-    _import_task.update({"status": "running", "done": 0, "total": len(items),
-                         "imported": 0, "skipped": 0, "invalid": 0, "domain": body.get("domain")})
-    asyncio.create_task(_run_import(items, body.get("tenant_id") or seed.TENANT))
-    return {"task": _import_task}
-
-
-@app.get("/v1/bank/import/status")
-def bank_import_status():
-    return {"task": _import_task}
-
-
-async def _run_import(items, tenant_id):
-    try:
-        await _run_import_inner(items, tenant_id)
-    except Exception as e:
-        # 任务异常必须落 done，否则全局导入任务永远锁在 running
-        _import_task["status"] = "done"
-        _import_task["error"] = str(e)[:200]
-        db.audit("demo-admin", "bank_import_failed", {"error": str(e)[:200]})
-
-
-async def _run_import_inner(items, tenant_id):
-    conn = db.get_conn()
-    custom = db.dj(_get_setting("custom_scenes"), []) or []
-    valid_scenes = set(mockmodels.DIMENSIONS.keys()) | {c["key"] for c in custom}
-    existing = {row["query_text"].strip() for row in conn.execute(
-        "SELECT query_text FROM bank_queries WHERE tenant_id=? OR tenant_id IS NULL", (tenant_id,)).fetchall()}
-    for it in items:
-        await asyncio.sleep(0.04)  # 演示：模拟逐条校验耗时
-        _import_task["done"] += 1
-        q = (it.get("query") or "").strip()
-        dom = (it.get("domain") or "general").strip() or "general"
-        if not q or len(q) > 500 or dom not in valid_scenes:
-            _import_task["invalid"] += 1
-            continue
-        if q in existing:
-            _import_task["skipped"] += 1
-            continue
-        existing.add(q)
-        qid = "imp-" + db.new_id()[:8]
-        conn.execute(
-            "INSERT INTO bank_queries (query_id, tenant_id, embedding, text_ref, query_text, domain_tags, "
-            "created_at, ttl_days, source, ideal) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (qid, tenant_id, db.j(embeddings.embed(q)), f"vault://import/{qid}", q,
-             db.j([dom]), db.now_ts(), 365, "tenant_imported", (it.get("ideal") or "").strip() or None))
-        for mid, val in (it.get("labels") or {}).items():
-            conn.execute(
-                "INSERT INTO bank_responses (query_id, model_id, response_embedding, completion_tokens, "
-                "label_value, label_confidence, label_source, label_kind, created_at, updated_at) "
-                "VALUES (?,?,NULL,0,?,1.0,'ground_truth','capability',?,?)",
-                (qid, mid, float(val), db.now_ts(), db.now_ts()))
-        _import_task["imported"] += 1
-    conn.commit()
-    _import_task["status"] = "done"
-    db.audit("demo-admin", "bank_import", {"count": _import_task["imported"], "skipped": _import_task["skipped"],
-                                           "invalid": _import_task["invalid"], "tenant_id": tenant_id, "async": True})
-
-
-@app.post("/v1/bank/staged/relabel")
-async def bank_staged_relabel(request: Request):
-    """回流校验：切换某条待并入数据的场景标签。"""
-    body = await request.json()
-    qid = body.get("query_id") or ""
-    dom = (body.get("domain") or "").strip()
-    custom = db.dj(_get_setting("custom_scenes"), []) or []
-    valid_scenes = set(mockmodels.DIMENSIONS.keys()) | {c["key"] for c in custom}
-    if dom not in valid_scenes:
-        return JSONResponse({"error": "未知场景"}, status_code=422)
-    conn = db.get_conn()
-    n = conn.execute("UPDATE bank_queries SET domain_tags=? WHERE tenant_id=? AND source='reflow_staged' AND query_id=?",
-                     (db.j([dom]), seed.TENANT, qid)).rowcount
-    conn.commit()
-    if not n:
-        return JSONResponse({"error": "条目不存在或已处理"}, status_code=404)
-    return {"ok": True}
-
-
-def _scene_query_ids(conn, key):
-    ids = []
-    for r in conn.execute("SELECT query_id, domain_tags FROM bank_queries WHERE tenant_id IS NULL OR tenant_id=?",
-                          (seed.TENANT,)).fetchall():
-        if (db.dj(r["domain_tags"], ["general"]) or ["general"])[0] == key:
-            ids.append(r["query_id"])
-    return ids
-
-
-def _delete_bank_queries(conn, ids):
-    for qid in ids:
-        conn.execute("DELETE FROM bank_responses WHERE query_id=?", (qid,))
-        conn.execute("DELETE FROM bank_queries WHERE query_id=?", (qid,))
-
-
-@app.post("/api/scenes/delete")
-async def delete_scene(request: Request):
-    """删除业务场景（通用场景除外）：连同该场景下的题目与作答一并删除。"""
-    body = await request.json()
-    key = (body.get("key") or "").strip()
-    custom = db.dj(_get_setting("custom_scenes"), []) or []
-    conn = db.get_conn()
-    ids = _scene_query_ids(conn, key)
-    hit = next((c for c in custom if c["key"] == key), None)
-    if not hit and not ids:
-        return JSONResponse({"error": "场景不存在或已为空"}, status_code=404)
-    _delete_bank_queries(conn, ids)
-    conn.commit()
-    if hit:
-        _set_setting("custom_scenes", db.j([c for c in custom if c["key"] != key]))
-    db.audit("demo-admin", "scene_delete", {"key": key, "questions_deleted": len(ids)})
-    return {"ok": True, "deleted": len(ids)}
-
-
-@app.get("/v1/bank/questions")
-def bank_questions(scene: str):
-    """场景详情：该场景下的题目清单（含打分状态）。"""
-    conn = db.get_conn()
-    out = []
-    for r in conn.execute(
-            "SELECT q.query_id, q.query_text, q.domain_tags, q.source, q.created_at, q.ideal, q.tenant_id, "
-            "EXISTS(SELECT 1 FROM bank_responses b WHERE b.query_id=q.query_id) AS has_resp "
-            "FROM bank_queries q WHERE (q.tenant_id IS NULL OR q.tenant_id=?) AND q.source!='reflow_staged' "
-            "AND (q.dataset_version IS NULL OR q.dataset_version<=?) "
-            "ORDER BY q.created_at DESC", (seed.TENANT, router_core.active_dataset_version())).fetchall():
-        if (db.dj(r["domain_tags"], ["general"]) or ["general"])[0] != scene:
-            continue
-        out.append({"query_id": r["query_id"], "query": r["query_text"], "source": r["source"],
-                    "created_at": r["created_at"], "ideal": r["ideal"] or "", "scored": bool(r["has_resp"])})
-        if len(out) >= 500:
-            break
-    return {"questions": out, "scene": scene}
-
-
 @app.post("/v1/bank/question/delete")
 async def bank_question_delete(request: Request):
     body = await request.json()
@@ -1996,244 +1959,6 @@ async def bank_question_delete(request: Request):
     db.audit("demo-admin", "bank_question_delete", {"query_id": qid})
     return {"ok": True}
 
-
-@app.post("/v1/bank/question/relabel")
-async def bank_question_relabel(request: Request):
-    """更改题目的场景标签。"""
-    body = await request.json()
-    qid = (body.get("query_id") or "").strip()
-    domain = (body.get("domain") or "").strip()
-    if not domain:
-        return JSONResponse({"error": "缺少目标场景"}, status_code=422)
-    conn = db.get_conn()
-    row = conn.execute("SELECT query_id FROM bank_queries WHERE query_id=?", (qid,)).fetchone()
-    if not row:
-        return JSONResponse({"error": "题目不存在"}, status_code=404)
-    conn.execute("UPDATE bank_queries SET domain_tags=? WHERE query_id=?", (db.j([domain]), qid))
-    conn.commit()
-    db.audit("demo-admin", "bank_question_relabel", {"query_id": qid, "domain": domain})
-    return {"ok": True}
-
-
-@app.get("/v1/bank/staged")
-def bank_staged(domain: str = None):
-    """待并入区：自动收集、尚未并入数据集的 query，供逐条审核。"""
-    conn = db.get_conn()
-    rows = conn.execute(
-        "SELECT query_id, query_text, domain_tags, created_at FROM bank_queries "
-        "WHERE tenant_id=? AND source='reflow_staged' ORDER BY created_at DESC", (seed.TENANT,)).fetchall()
-    out = []
-    for r in rows:
-        dom = (db.dj(r["domain_tags"], ["general"]) or ["general"])[0]
-        if domain and dom != domain:
-            continue
-        out.append({"query_id": r["query_id"], "query": r["query_text"], "domain": dom, "ts": r["created_at"]})
-    return {"staged": out}
-
-
-@app.post("/v1/bank/staged/commit")
-async def bank_staged_commit(request: Request):
-    """把选中的待并入 query 转正式入库（进入待评测）；未选中的保留在待并入区。"""
-    body = await request.json()
-    ids = body.get("query_ids") or []
-    if not ids:
-        return JSONResponse({"error": "没有选中任何条目"}, status_code=422)
-    conn = db.get_conn()
-    ph = ",".join("?" * len(ids))
-    n = conn.execute(f"UPDATE bank_queries SET source='reflow' WHERE tenant_id=? AND source='reflow_staged' "
-                     f"AND query_id IN ({ph})", (seed.TENANT, *ids)).rowcount
-    conn.commit()
-    db.audit("demo-admin", "bank_staged_commit", {"count": n})
-    return {"committed": n}
-
-
-@app.post("/v1/bank/staged/discard")
-async def bank_staged_discard(request: Request):
-    """剔除待并入区的脏数据（永久删除，不进数据集）。"""
-    body = await request.json()
-    ids = body.get("query_ids") or []
-    if not ids:
-        return JSONResponse({"error": "没有选中任何条目"}, status_code=422)
-    conn = db.get_conn()
-    ph = ",".join("?" * len(ids))
-    n = conn.execute(f"DELETE FROM bank_queries WHERE tenant_id=? AND source='reflow_staged' "
-                     f"AND query_id IN ({ph})", (seed.TENANT, *ids)).rowcount
-    conn.commit()
-    db.audit("demo-admin", "bank_staged_discard", {"count": n})
-    return {"discarded": n}
-
-
-@app.post("/v1/bank/import")
-async def bank_import(request: Request):
-    """标注数据导入（冷启动工具，§3.5）。items: [{query, domain, labels: {model_id: 0/1}}]"""
-    body = await request.json()
-    items = body.get("items") or []
-    if len(items) > 5000:
-        return JSONResponse({"error": f"单次最多导入 5000 条（当前 {len(items)} 条），请分批导入"}, status_code=422)
-    tenant_id = body.get("tenant_id") or seed.TENANT
-    conn = db.get_conn()
-    n = 0
-    skipped = 0
-    existing = {row["query_text"].strip() for row in conn.execute(
-        "SELECT query_text FROM bank_queries WHERE tenant_id=? OR tenant_id IS NULL", (tenant_id,)).fetchall()}
-    for it in items:
-        if not it.get("query"):
-            continue
-        if it["query"].strip() in existing:
-            skipped += 1
-            continue
-        existing.add(it["query"].strip())
-        qid = "imp-" + db.new_id()[:8]
-        conn.execute(
-            "INSERT INTO bank_queries (query_id, tenant_id, embedding, text_ref, query_text, domain_tags, "
-            "created_at, ttl_days, source, ideal) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (qid, tenant_id, db.j(embeddings.embed(it["query"])), f"vault://import/{qid}", it["query"],
-             db.j([it.get("domain", "general")]), db.now_ts(), 365, "tenant_imported",
-             (it.get("ideal") or "").strip() or None))
-        for mid, val in (it.get("labels") or {}).items():
-            conn.execute(
-                "INSERT INTO bank_responses (query_id, model_id, response_embedding, completion_tokens, "
-                "label_value, label_confidence, label_source, label_kind, created_at, updated_at) "
-                "VALUES (?,?,NULL,0,?,1.0,'ground_truth','capability',?,?)",
-                (qid, mid, float(val), db.now_ts(), db.now_ts()))
-        n += 1
-    conn.commit()
-    db.audit("demo-admin", "bank_import", {"count": n, "skipped": skipped, "tenant_id": tenant_id})
-    return {"imported": n, "skipped": skipped}
-
-
-# ============ 路由画像（Avengers-Pro 产品化：簇 × 模型 分数矩阵） ============
-
-_profile_task = {"status": "idle", "done": 0, "total": 0, "version": 1}
-
-
-@app.get("/api/profile")
-def routing_profile(tenant_id: str = None, alpha: float = Query(0.7, ge=0.0, le=1.0), policy_id: str = None):
-    """路由画像：按问题簇（领域）× 模型 输出 性能分 / 效率分 / α 综合分。
-    性能分来自评测数据集（bank）的历史命中率；效率分由模型单价归一化。
-    综合分 = α·性能 + (1-α)·效率 —— α 是管理员可调的质量-成本旋钮。"""
-    conn = db.get_conn()
-    tid = tenant_id or seed.TENANT
-    models = {r["model_id"]: dict(r) for r in conn.execute(
-        "SELECT model_id, display_name, price_input, price_output, is_default FROM models WHERE status='active'")}
-    # 按策略过滤候选模型 + 取聚合参数（不同策略 → 不同去向）
-    pol = None
-    if policy_id:
-        prow = conn.execute("SELECT * FROM policies WHERE policy_id=?", (policy_id,)).fetchone()
-        if prow:
-            pol = dict(prow)
-            wl = db.dj(pol.get("model_whitelist"), []) or []
-            if wl:
-                models = {k: v for k, v in models.items() if k in wl}
-    if not models:
-        return {"clusters": [], "alpha": alpha, "policy_id": policy_id}
-    prices = {mid: m["price_input"] + m["price_output"] for mid, m in models.items()}
-    inv = {mid: 1.0 / max(0.01, p) for mid, p in prices.items()}
-    lo, hi = min(inv.values()), max(inv.values())
-    eff = {mid: round((v - lo) / (hi - lo), 3) if hi > lo else 0.5 for mid, v in inv.items()}
-
-    stats = {}   # domain -> model -> [sum, cnt]
-    counts = {}  # domain -> query count
-    for r in conn.execute(
-            "SELECT bq.domain_tags, bq.query_id, br.model_id, br.label_value, br.label_confidence "
-            "FROM bank_queries bq JOIN bank_responses br ON bq.query_id=br.query_id "
-            "WHERE (bq.tenant_id IS NULL OR bq.tenant_id=?) AND br.label_kind='capability' "
-            "AND (bq.dataset_version IS NULL OR bq.dataset_version<=?)",
-            (tid, router_core.active_dataset_version())):
-        domains = db.dj(r["domain_tags"], []) or ["general"]
-        for d in domains:
-            counts.setdefault(d, set()).add(r["query_id"])
-            if r["model_id"] not in models or r["label_value"] is None:
-                continue
-            cell = stats.setdefault(d, {}).setdefault(r["model_id"], [0.0, 0])
-            cell[0] += r["label_value"] * (r["label_confidence"] or 0.5)
-            cell[1] += 1
-
-    clusters = []
-    for d, per_model in sorted(stats.items(), key=lambda x: -len(counts.get(x[0], set()))):
-        scores = {}
-        for mid in models:
-            cell = per_model.get(mid)
-            perf = round(cell[0] / cell[1], 3) if cell and cell[1] else None
-            combined = round(alpha * perf + (1 - alpha) * eff[mid], 3) if perf is not None else None
-            scores[mid] = {"perf": perf, "eff": eff[mid], "combined": combined}
-        valid = {m: s["combined"] for m, s in scores.items() if s["combined"] is not None}
-        best = max(valid, key=valid.get) if valid else None
-        agg_with = None
-        if pol and pol.get("allow_aggregation") and len(valid) >= 2:
-            ranked2 = sorted(valid.items(), key=lambda x: -x[1])
-            t_val = (db.dj(pol.get("params"), {}) or {}).get("t", 0.8)
-            # 聚合值越低越容易聚合：两名分差小于阈值时该场景走「聚合」
-            if ranked2[0][1] - ranked2[1][1] < max(0.02, (1 - float(t_val)) * 0.3):
-                agg_with = ranked2[1][0]
-        clusters.append({"domain": d, "queries": len(counts.get(d, set())),
-                         "scores": scores, "best": best, "agg_with": agg_with})
-    return {"clusters": clusters, "alpha": alpha, "version": _profile_task["version"],
-            "models": {mid: m["display_name"] for mid, m in models.items()}}
-
-
-@app.post("/api/profile/rebuild")  # running 态重复触发直接拒绝（见函数体守门）
-async def profile_rebuild(request: Request = None):
-    """重建路由画像（离线管道：向量化 → 聚类 → 回填评测 → 画像矩阵）。演示环境为模拟进度。
-    可带 policy_id：该策略做题打分生成画像，完成后记录策略级生成时间供状态卡展示。"""
-    if _profile_task["status"] == "running":
-        return {"task": _profile_task}
-    pid, all_flag = None, False
-    if request is not None:
-        try:
-            body = await request.json()
-            pid = (body or {}).get("policy_id")
-            all_flag = bool((body or {}).get("all"))
-        except Exception:
-            pid = None
-    conn = db.get_conn()
-    pids = []
-    if all_flag:
-        pids = [r["policy_id"] for r in conn.execute(
-            "SELECT policy_id FROM policies WHERE enabled=1 AND ab_group IS NULL").fetchall()]
-    elif pid:
-        pids = [pid]
-    n_domains = conn.execute("SELECT COUNT(DISTINCT domain_tags) AS c FROM bank_queries").fetchone()["c"]
-    n_models = conn.execute("SELECT COUNT(*) AS c FROM models WHERE status='active'").fetchone()["c"]
-    _profile_task.update({"status": "running", "done": 0,
-                          "total": max(1, n_domains * n_models * max(1, len(pids))),
-                          "policy_id": pid, "policy_ids": pids})
-    asyncio.create_task(_run_profile_rebuild())
-    return {"task": _profile_task}
-
-
-@app.get("/api/profile/rebuild/status")
-def profile_rebuild_status():
-    return {"task": _profile_task}
-
-
-async def _run_profile_rebuild():
-    for i in range(_profile_task["total"]):
-        _profile_task["done"] = i + 1
-        await asyncio.sleep(0.06)
-    _profile_task["status"] = "completed"
-    _profile_task["version"] += 1
-    pids = _profile_task.get("policy_ids") or ([_profile_task["policy_id"]] if _profile_task.get("policy_id") else [])
-    if pids:
-        gen = db.dj(_get_setting("policy_profile_gen"), {}) or {}
-        _dv = router_core.active_dataset_version()
-        for p in pids:
-            gen[p] = {"ts": db.now_ts(), "dataset_version": _dv}
-        _set_setting("policy_profile_gen", db.j(gen))
-    db.audit("demo-admin", "profile_rebuild", {"version": _profile_task["version"], "policy_ids": pids})
-
-
-@app.get("/api/profile/gen-status")
-def profile_gen_status():
-    """各策略的画像生成状态：{policy_id: {ts, dataset_version}}；带当前生效数据集版本，前端据此标「基于旧版本」。"""
-    conn = db.get_conn()
-    av = router_core.active_dataset_version()
-    row = conn.execute("SELECT ts FROM dataset_versions WHERE active=1").fetchone()
-    return {"generated": db.dj(_get_setting("policy_profile_gen"), {}) or {}, "task": _profile_task,
-            "dataset_version": av, "dataset_ts": row["ts"] if row else None}
-
-
-# ============ 明细导出（标书 F-5-05：CSV 导出与查询结果一致） ============
 
 @app.get("/api/export/traces.csv")
 def export_traces_csv(days: int = Query(30, ge=1, le=90), mode: str = None,

@@ -69,17 +69,21 @@ def resolve_policy(tenant_id: str, scene: str, session_id: str):
 
 
 def active_dataset_version() -> int:
+    """当前生效数据集版本；0 = 还没聚类定版（冷启动随机探索期）。"""
     row = db.get_conn().execute("SELECT version FROM dataset_versions WHERE active=1").fetchone()
-    return row["version"] if row else 1
+    return row["version"] if row else 0
 
 
 def load_bank(tenant_id: str):
-    """加载双层 bank 到内存。只加载当前生效数据集版本内的数据（回滚后新版本回流数据即退出路由）。"""
+    """加载路由支撑集：只吃已聚类定版的数据（未定版的 Query 池不参与路由；回滚即退出）。"""
     conn = db.get_conn()
+    av = active_dataset_version()
+    if av <= 0:
+        return []
     queries = conn.execute(
         "SELECT * FROM bank_queries WHERE (tenant_id IS NULL OR tenant_id=?) "
         "AND (source IS NULL OR source != 'reflow_staged') "
-        "AND (dataset_version IS NULL OR dataset_version <= ?)", (tenant_id, active_dataset_version())
+        "AND dataset_version IS NOT NULL AND dataset_version <= ?", (tenant_id, av)
     ).fetchall()
     qids = [q["query_id"] for q in queries]
     responses = {}
@@ -227,8 +231,8 @@ async def run_route(req: dict, recorder, emit):
         K = max(K, 2)  # 请求级 aggregate=on：至少两路候选才聚得起来
     domain = mockmodels.classify_domain(query)
     # 三层路由（v5.0）：先判能力维度——multimodal/chat 走硬规则层，其余进维度匹配层
-    dimension = mockmodels.classify_dimension(query)
-    req["_route"] = {"layer": "dimension", "dimension": dimension}
+    dimension = mockmodels.classify_dimension(query)  # 硬规则判定用（multimodal / chat）
+    req["_route"] = {"layer": "dimension", "dimension": mockmodels.classify_theme(query)}
 
     whitelist = db.dj(policy.get("model_whitelist"), []) or None
     models = get_active_models(whitelist=whitelist)
@@ -302,6 +306,27 @@ async def run_route(req: dict, recorder, emit):
     await emit({"step": "support",
                 "text": f"第 2 层 · 维度匹配：判定为「{dim_name}」，命中 {len(support)} 条相似基准题",
                 "count": len(support)})
+
+    # —— 冷启动 · 随机探索期：还没聚类定版（无路由支撑数据）时，均匀随机分配模型直答，
+    #    一边收集 query 一边由 AB 采样收采纳；硬规则层（多模态/闲聊）仍在其前生效 ——
+    if not bank and mode != "multi":
+        req["_route"]["layer"] = "explore"
+        target = random.choice(models)
+        await emit({"step": "explore", "text": f"冷启动随机探索：本次随机分配 {target['display_name']} 作答（各模型均匀分流，收集数据）"})
+        recorder.span("route_score", {"layer": "explore", "target": target["model_id"]})
+        ans = await _call_with_timeout(target, query, domain, recorder, emit)
+        if ans["status"] != "ok":
+            fb2 = default_model if default_model and default_model["model_id"] != target["model_id"] \
+                else next((m for m in models if m["model_id"] != target["model_id"]), None)
+            if fb2:
+                await emit({"step": "degrade", "text": f"{target['model_id']} 异常，切换 {fb2['display_name']}"})
+                ans = await _call_with_timeout(fb2, query, domain, recorder, emit)
+        if ans["status"] != "ok":
+            return await _finalize(req, recorder, emit, None, "failed", [ans], {}, {},
+                                   [target["model_id"]], target["model_id"], False, t_start, [],
+                                   error="all_models_failed")
+        return await _finalize(req, recorder, emit, ans, "explore", [ans], {}, {},
+                               [target["model_id"]], target["model_id"], True, t_start, [])
 
     # —— 第 3 层 · else 兜底：不属于任何维度（无相似基准题）时兜底模型直连 ——
     if not support and mode != "multi":

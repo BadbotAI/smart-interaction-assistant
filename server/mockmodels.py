@@ -323,3 +323,51 @@ def aggregate_answers(aggregator: dict, query: str, domain: str, answers: list) 
     return {"model_id": aggregator["model_id"], "status": "ok", "content": content, "data": data,
             "latency_ms": int(latency), "tokens_in": tokens_in, "tokens_out": tokens_out,
             "tokens_thinking": 0, "cost": round(cost, 8), "correct": final_correct}
+
+
+# ---------- v6.0 Query 主题（聚类的隐藏真值 + 在线主题归类） ----------
+QUERY_THEMES = {
+    "logistics": {"label": "物流服务与异常", "profile_key": "service",
+        "keywords": ["物流跟踪", "延误", "取件", "赔付"],
+        "summary": "查件、延误、取件改约、破损赔付等售后服务类问题",
+        "templates": ["我的货到哪了帮我查下{c}那票", "{c}这批货延误两天了怎么办", "帮我改约明天的取件时间",
+                      "{c}的包裹破损了怎么申请赔付", "这票货物流三天没更新了", "帮我催一下{c}那单",
+                      "取件地址想换到{p}怎么改", "回单什么时候能返回来"]},
+    "market": {"label": "价格与行情", "profile_key": "price",
+        "keywords": ["运价", "行情", "涨跌", "指数"],
+        "summary": "运价与商品行情研判、价格指数走势类问题",
+        "templates": ["{c}近期价格走势怎么看", "{p}航线运价这周涨了多少", "{c}的行情还会继续跌吗",
+                      "帮我分析下{c}价格指数", "下个月{p}的运价怎么预判", "{c}现在入手合适吗"]},
+    "compliance": {"label": "合同与合规", "profile_key": "compliance",
+        "keywords": ["合同", "条款", "合规", "关税"],
+        "summary": "合同条款审查、出口合规、关税申报类问题",
+        "templates": ["这份{c}采购合同的付款条款帮我看看", "{c}出口到{p}要注意什么合规要求",
+                      "危险品申报流程是怎样的", "{c}的关税怎么算", "合同里的违约条款这样写行不行",
+                      "{p}的清关单证需要哪些"]},
+    "analytics": {"label": "经营分析与报表", "profile_key": "analytics",
+        "keywords": ["报表", "毛利", "同比", "汇总"],
+        "summary": "经营数据分析、报表汇总、利润核算类问题",
+        "templates": ["帮我算下{c}这单的毛利率", "汇总一下本月{p}线路的成本", "{c}业务线利润同比怎么样",
+                      "这批订单的数据帮我做个分析", "月度经营报表的要点帮我列一下", "{c}板块环比数据怎么解读"]},
+    "writing": {"label": "公文与写作", "profile_key": "writing",
+        "keywords": ["通知", "邮件", "总结", "函件"],
+        "summary": "通知、邮件、总结、函件等商务写作类需求",
+        "templates": ["帮我写一份{p}停航的客户通知", "起草一封催收账款的邮件", "把这段话改成正式函件",
+                      "写个季度工作总结的开头", "给{c}供应商写份涨价说明", "帮我润色这份会议纪要"]},
+    "tech": {"label": "系统与技术", "profile_key": "coding",
+        "keywords": ["接口", "SQL", "报错", "系统"],
+        "summary": "系统对接、SQL 查询、接口报错等技术类问题",
+        "templates": ["写个 SQL 统计{c}订单量", "接口偶发超时怎么加重试", "这段报错帮我看看什么原因",
+                      "对接你们系统的 API 怎么调", "帮我写个批量导出的脚本", "数据同步失败一般怎么排查"]},
+}
+
+
+def classify_theme(text: str) -> str:
+    """在线收集 query 的主题归类（演示实现；生产为 embedding 聚类的近邻指派）。"""
+    best, score = "other", 0
+    for theme, cfg in QUERY_THEMES.items():
+        s = sum(1 for w in cfg["keywords"] if w in text)
+        s += sum(1 for t in cfg["templates"] for w in [t[:4]] if w and w in text)
+        if s > score:
+            best, score = theme, s
+    return best if score > 0 else "other"
