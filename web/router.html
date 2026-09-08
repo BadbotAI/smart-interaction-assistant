@@ -424,7 +424,7 @@ function policyForm(init, actives, policyId, apiKey) {
     ]),
     el("div", { class: "field" }, [
       el("span", { class: "label-text" }, ["响应终端用户的聚合选择",
-        UI.help("你的产品可以在界面上让用户自选「多模型聚合回答」（请求带 aggregate 参数进来）。开启＝按用户的选择执行；关闭＝忽略用户选择、始终按上面的聚合开关来——想锁死成本就关闭")]),
+        UI.help("你的产品可以在界面上让用户自选「多模型聚合回答」（请求带 aggregate 参数进来）。开启＝按用户的选择执行；关闭＝忽略用户选择、始终按上面的聚合开关来——需要严格控制成本时建议关闭")]),
       UI.toggle({ checked: st.allow_override, label: st.allow_override ? "按用户选择执行" : "忽略用户选择",
         onChange: (v) => { st.allow_override = v; return true; } }),
     ]),
@@ -633,7 +633,7 @@ async function buildEffectTable(policyId) {
     ])]),
     el("div", { class: "muted", style: "margin-top:10px;display:flex;align-items:center;flex-wrap:wrap" }, [
       `效果分 = Judge 分 ×（1 - w）+ 采纳率 × w，w 随该簇 AB 样本量自适应；综合分 = 权重 × 效果 + (1 - 权重) × 省钱。Judge：${p.judge_name || "-"}`,
-      UI.help("w = AB 对比次数 ÷（AB 对比次数 + 20）：采纳样本少时 Judge 分主导，样本攒多后用户采纳自动升权。悬停任意分数可见该格的完整构成"),
+      UI.help("w = AB 对比次数 ÷（AB 对比次数 + 20）：采纳样本较少时 Judge 分主导，样本增多后用户采纳自动升权。悬停任意分数可见该格的完整构成"),
     ]),
   ]);
 }
@@ -687,13 +687,13 @@ async function renderFlow() {
     const pct = Math.min(100, Math.round(ov.pool_new / ov.threshold * 100));
     box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
       el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap" }, [
-        el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["冷启动 · 随机探索进行中"]),
-        el("span", { class: "chip blue" }, ["收集数据"]),
+        el("span", { style: "font-weight:600;font-size:var(--font-title)" }, ["冷启动数据收集"]),
+        el("span", { class: "chip blue" }, ["进行中"]),
         el("div", { style: "flex:1" }),
         clusterBtn,
       ]),
       el("div", { class: "muted", style: "margin:8px 0 10px" },
-        ["还没有数据集：线上请求正由各模型均匀分流作答，一边收集真实问题、一边按采样率收 AB 采纳；攒满门槛就能归类生成数据集"]),
+        ["尚未生成数据集：线上请求由各模型均匀分流作答，同步收集真实问题与 AB 采纳数据；达到数量门槛后即可归类生成数据集 v1"]),
       el("div", { class: "progress-track" }, [el("div", { class: "progress-fill", style: `width:${pct}%` })]),
       el("div", { class: "muted num", style: "margin-top:6px" }, [`已收集 ${ov.pool_new} / ${ov.threshold} 条`]),
       clusterRunning ? el("div", { class: "muted num", style: "margin-top:6px" }, [`归类中 ${ct.done}/${ct.total}……`]) : null,
@@ -773,8 +773,8 @@ async function renderFlow() {
           })),
         ])])
       : el("div", { class: "empty-state" }, [
-          el("div", { class: "empty-title" }, ["池子还是空的"]),
-          el("div", {}, ["线上或测试页发起对话后，问题会自动出现在这里"]),
+          el("div", { class: "empty-title" }, ["问题池暂无数据"]),
+          el("div", {}, ["线上或测试页发起对话后，问题会自动收集到这里"]),
         ]),
   ]));
 
@@ -805,7 +805,7 @@ async function renderFlow() {
       el("div", { style: "font-weight:600" }, [judge ? `Judge 模型：${judge.display_name || judge.model_id}` : "还没配置 Judge 模型"]),
       el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [judge
         ? "生成画像时对各模型同题回放答案打分；效果分中标注为「Judge」的部分来自它"
-        : "画像打分需要 Judge：真实 query 没有标准答案，由 Judge 同题评分 + 用户 AB 采纳共同构成效果分"]),
+        : "画像打分需要 Judge：真实用户问题没有标准答案，由 Judge 同题评分与用户 AB 采纳共同构成效果分"]),
     ]),
     el("div", { style: "flex:1" }),
     judge
@@ -828,7 +828,7 @@ async function renderFlow() {
       title: pgenRunning || clusterRunning ? "已有任务进行中" : !ov.active ? "先归类生成数据集" : "先配置 Judge 模型" }),
     onclick: async () => {
       const ok = await UI.confirm("生成模型画像",
-        `将对数据集 v${ov.active} 的 ${(ov.clusters || []).length} 个分类各抽几条代表问题，让全部在线模型各答一遍、由 Judge 打分，再融合各分类的用户采纳率。预计 ${est.calls} 次模型调用，约 ¥${est.cost}。`,
+        `将对数据集 v${ov.active} 的 ${(ov.clusters || []).length} 个分类各抽取代表问题，由全部在线模型逐一作答、Judge 评分，再融合各分类的用户采纳率。预计 ${est.calls} 次模型调用，约 ¥${est.cost}。`,
         { okText: "开始生成" });
       if (!ok) return;
       try { await UI.api("/api/profile/generate", { method: "POST" }); renderFlow(); pollDs(); }
@@ -852,7 +852,7 @@ async function renderFlow() {
   } else if (!ov.active) {
     effCard.appendChild(el("div", { class: "empty-state" }, [
       el("div", { class: "empty-title" }, ["归类生成数据集后可生成画像"]),
-      el("div", {}, ["随机探索期间路由不依赖画像：各模型均匀分流直答"]),
+      el("div", {}, ["随机探索期间路由不依赖画像：各模型均匀分流作答"]),
     ]));
   } else if (!ov.profile.generated) {
     effCard.appendChild(el("div", { class: "empty-state" }, [
@@ -895,7 +895,7 @@ function feedbackApiDialog() {
   const snippet = [
     "// 回流数据对接（两个方向）",
     "",
-    "// 1) 回传采纳：终端用户在 A/B 双答案里选了哪份，就回传哪份",
+    "// 1) 回传采纳：终端用户在 A/B 双答案中的选择，由客户端回传",
     "POST /v1/feedback",
     '{ "request_id": "<路由响应里的 request_id>", "chosen_model_id": "<被采纳回答的 model_id>" }',
     "// 同一 request_id 只记一票；只有真实出过 AB 双答案的请求可回传",
@@ -944,10 +944,10 @@ async function renderFlywheel() {
   const evolveBtn = el("a", { class: "btn small ghost", href: "/web/router.html#flow",
     title: "AB 采纳随数据集版本归入，并在生成画像时按分类融合" }, ["去生成数据集"]);
   const fwRulesBlock = el("div", { class: "card explain-body", hidden: true, style: "margin-bottom:12px" }, [
-    el("p", {}, ["1. 出双答案：线上回答按采样率出 A/B 两份，用户挑一份。画像路由期复用本轮候选回答、不额外调用；冷启动探索期会额外补调一个模型出第二份（收集数据的成本）。"]),
-    el("p", {}, ["2. 偏好回流：用户选了哪份，客户端就经 /v1/feedback 回传哪份，同一请求只记一票；待导入数据也可从 GET /v1/feedback/pending 接口自取（增量参数 since）。"]),
+    el("p", {}, ["1. 出双答案：线上回答按采样率出 A/B 两份，由终端用户选择其一。画像路由期复用本轮候选回答、不额外调用；冷启动探索期会额外补调一个模型生成第二份（数据收集成本）。"]),
+    el("p", {}, ["2. 偏好回流：用户的选择由客户端经 /v1/feedback 回传，同一请求仅记一票；未入版本数据可经 GET /v1/feedback/pending 接口拉取（增量参数 since）。"]),
     el("p", {}, ["3. 归入与融合：采纳随「数据集」页的归类生成归入版本；生成画像时按分类算采纳胜率，与 Judge 分自适应加权（AB 样本越多采纳越主导）。"]),
-    el("p", {}, ["4. 回滚：新版本效果不好，在「数据集」页把版本切回去即可；数据保留，可再切回。"]),
+    el("p", {}, ["4. 回滚：新版本效果不佳时，在「数据集」页切换回旧版本即可；数据保留，可再切回。"]),
   ]);
   const fwRulesBtn = el("button", { class: "btn small ghost", onclick: () => {
     fwRulesBlock.hidden = !fwRulesBlock.hidden;
@@ -964,7 +964,7 @@ async function renderFlywheel() {
     .map(([k, n]) => el("span", { class: "chip gray" }, [`${DOMAIN_NAMES[k] || k} ${n}`]));
   const overviewKids = [
     el("div", { class: "muted", style: "margin-bottom:12px;display:flex;align-items:center;flex-wrap:wrap" },
-      ["线上回答按采样率出 A/B 两份，用户选哪份、客户端就回传哪份；采纳随数据集版本归入，画像生成时按分类融合进效果分",
+      ["线上回答按采样率出 A/B 两份，终端用户的选择由客户端回传；采纳随数据集版本归入，画像生成时按分类融合进效果分",
        UI.help("细节：画像路由期双答案复用本轮候选、不额外调用模型；冷启动随机探索是单模型直答，命中采样时会额外补调一个模型出第二份（探索期收集数据的成本）。同一请求只记一票；未入版本的数据可经 GET /v1/feedback/pending 接口自取（增量参数 since）")]),
     el("div", { class: "mini-metrics", style: "grid-template-columns:repeat(3,1fr)" }, [
       el("div", { class: "mini-metric" }, [el("div", { class: "mm-label" }, ["未入版本的回流", UI.help("还没归入任何数据集版本的采纳；下次归类生成数据集时自动归入，供画像按分类融合")]), el("div", { class: "mm-value num" }, [String(fly.pending || 0)])]),
@@ -984,7 +984,7 @@ async function renderFlywheel() {
     const maxRate = Math.max(...wr.map(w => w.rate || 0), 0.01);
     box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
       el("div", { style: "font-weight:600;font-size:var(--font-title);margin-bottom:8px" }, ["各模型采纳胜率"]),
-      el("div", { class: "muted", style: "margin-bottom:10px;display:flex;align-items:center;flex-wrap:wrap" }, ["用户在 A/B 里更常采纳谁——这是偏好，不代表答得对",
+      el("div", { class: "muted", style: "margin-bottom:10px;display:flex;align-items:center;flex-wrap:wrap" }, ["用户在 A/B 里更常采纳谁——仅代表偏好，不等于回答正确性",
         UI.help("正确性以画像里的 Judge 同题评分为准，采纳（偏好）与 Judge 分按样本量自适应加权；对比不足 10 次标「样本不足」，胜率差 1-2 个百分点不构成排序依据")]),
       el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
         el("thead", {}, [el("tr", {}, ["模型", "胜率", "采纳次数", "对比总数"].map((h, i) => el("th", { class: i === 1 ? "w-main" : "" }, [h])))]),
@@ -1060,7 +1060,7 @@ async function renderDispatch() {
     el("p", {}, ["1. 硬规则层：请求先过基础规则——多模态（图像 / 音频）等功能性需求先按能力过滤模型（复合任务如「读图 + 算数」先保证会看图，再在会看图的模型里按成绩选）；日常闲聊走轻量直答，但问候里带着真实任务时按任务维度路由，不会被「你好」盖住。"]),
     el("p", {}, ["2. 分类匹配层：请求匹配到画像里最相近的问题分类，取该分类下各候选模型的效果分（Judge 分与用户采纳的融合），按「成本-效果权重」算综合分——领先直答；两名接近且策略允许聚合时并发作答，由聚合模型总结定稿。冷启动还没画像时，本层为随机探索：各模型均匀分流直答、同时收集数据。"]),
     el("p", {}, ["3. else 兜底：不属于任何维度或调用异常时切兜底模型直连；刚失败过的候选不会被重复调用，兜底也失败则明确报错，不做循环重试。"]),
-    el("p", {}, ["4. 成绩来源：真实用户问题进入问题池，攒满后归类生成数据集（分类名称由 AI 总结）；「生成模型画像」从每个分类抽代表问题让全部模型各答一遍、由 Judge 打分，融合该分类的用户采纳率（权重随样本自适应）得到效果分。数据集带版本，效果不好可回滚。"]),
+    el("p", {}, ["4. 成绩来源：真实用户问题进入问题池，达到数量门槛后归类生成数据集（分类名称由 AI 总结）；「生成模型画像」从每个分类抽取代表问题，由全部模型逐一作答、Judge 评分，融合该分类的用户采纳率（权重随样本自适应）得到效果分。数据集带版本，效果不佳可随时回滚。"]),
     el("p", {}, ["5. 产品对接：一条策略对应一个 API Key；请求可带 aggregate 参数按次覆盖聚合开关（策略可将默认值设为硬约束禁止覆盖），响应返回 request_id，客户端用它把用户采纳经 /v1/feedback 回传，同一 request_id 只记一票。"]),
   ]);
   const rulesBtn = el("button", { class: "btn small ghost", onclick: () => {
