@@ -851,8 +851,10 @@ async def import_model_profile_data(model_id: str, request: Request):
         ctx = int(body.get("context_window") or 0)
     except (TypeError, ValueError):
         return JSONResponse({"error": "单价与上下文长度需为数字"}, status_code=422)
-    if pin < 0 or pout < 0:
-        return JSONResponse({"error": "单价不能为负数"}, status_code=422)
+    if not (0 <= pin <= 10000) or not (0 <= pout <= 10000):
+        return JSONResponse({"error": "单价需在 0 ~ 10000 之间"}, status_code=422)
+    if not (0 <= ctx <= 100000 * 1024):
+        return JSONResponse({"error": "上下文长度超出合理范围"}, status_code=422)
     caps = db.dj(row["capabilities"], {}) or {}
     if ctx > 0:
         caps["context_window"] = ctx

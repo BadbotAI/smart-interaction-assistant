@@ -238,6 +238,10 @@
           return { ok: true };
         }
         if (act === "profile-data") {
+          if (body) {
+            const bad = ["price_input", "price_output"].some(k => body[k] != null && !(Number(body[k]) >= 0 && Number(body[k]) <= 10000));
+            if (bad) return { error: "单价需在 0 ~ 10000 之间" };
+          }
           const u = modelLocal.updated[mid] = { ...(modelLocal.updated[mid] || {}) };
           if (body) {
             if (body.price_input != null) u.price_input = Number(body.price_input) || 0;

@@ -17,6 +17,7 @@ window.UI = (function () {
       if (k === "class") node.className = v;
       else if (k === "html") node.innerHTML = v;
       else if (k.startsWith("on")) node[k] = v;
+      else if (typeof v === "boolean") { if (v) node.setAttribute(k, ""); }
       else node.setAttribute(k, v);
     }
     for (const c of [].concat(children)) {
@@ -231,7 +232,7 @@ window.UI = (function () {
         ] },
         { title: "运营", items: [
           ["playground:model", "模型路由测试", "./playground.html#model", "play"],
-          ["dashboard:routing", "模型路由数据", "./dashboard.html#routing", "activity"],
+          ["dashboard:routing", "路由数据分析", "./dashboard.html#routing", "activity"],
         ] },
       ],
     },

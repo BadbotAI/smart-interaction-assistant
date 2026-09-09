@@ -1230,3 +1230,7 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .fs-card.on { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
 .fs-card .fs-demo { color: var(--text-primary); line-height: 1.2; font-size: 15px; white-space: nowrap; }
 .fs-card .fs-name { font-size: var(--font-caption); color: var(--text-muted); white-space: nowrap; }
+
+[hidden] { display: none !important; }
+
+.form-loose label.field, .form-loose .field { margin-bottom: 18px; }

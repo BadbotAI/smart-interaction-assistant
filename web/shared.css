@@ -1342,3 +1342,9 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .fs-card.on { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
 .fs-card .fs-demo { color: var(--text-primary); line-height: 1.2; font-size: 15px; white-space: nowrap; }
 .fs-card .fs-name { font-size: var(--font-caption); color: var(--text-muted); white-space: nowrap; }
+
+/* 原生 hidden 属性必须压过任何作者 display（label.field 等曾把它顶掉） */
+[hidden] { display: none !important; }
+
+/* 表单宽松间距：字段多的弹窗 / 抽屉（模型添加、模型编辑）用，默认 12px 太挤 */
+.form-loose label.field, .form-loose .field { margin-bottom: 18px; }

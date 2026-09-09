@@ -205,7 +205,7 @@ function registerDialog() {
   const deploySel = UI.fancySelect({ value: "api", width: "100%",
     options: [["api", "API 接入（按官网单价计成本）"], ["self_hosted", "自有部署（按卡数做简易估算）"]],
     onChange: (v) => { st.deploy_type = v; gpuField.hidden = v !== "self_hosted"; } });
-  const body = el("div", {}, [
+  const body = el("div", { class: "form-loose" }, [
     el("div", { class: "sec-head" }, ["接入信息"]),
     el("div", { class: "grid cols-2" }, [
       fieldEl("显示名", "display_name", "例如：迅答 Swift-4B"),
@@ -242,12 +242,13 @@ function editModelDrawer(m) {
     options: [["api", "API 接入（按官网单价计成本）"], ["self_hosted", "自有部署（按卡数做简易估算）"]],
     onChange: (v) => { dst.deploy_type = v; gpuField.hidden = v !== "self_hosted"; } });
   const urlIn = el("input", { type: "url", placeholder: "https://provider.com/pricing（官方定价 / 模型文档页）" });
-  const pin = el("input", { type: "number", step: "0.05", min: "0", value: Number(m.price_input) || "", placeholder: "例如 0.4" });
-  const pout = el("input", { type: "number", step: "0.05", min: "0", value: Number(m.price_output) || "", placeholder: "例如 0.8" });
-  const ctx = el("input", { type: "number", step: "1", min: "0", value: (m.capabilities?.context_window || 0) / 1024 || "", placeholder: "例如 128" });
+  const pin = el("input", { type: "number", step: "0.05", min: "0", max: "10000", value: Number(m.price_input) || "", placeholder: "例如 0.4" });
+  const pout = el("input", { type: "number", step: "0.05", min: "0", max: "10000", value: Number(m.price_output) || "", placeholder: "例如 0.8" });
+  const ctx = el("input", { type: "number", step: "1", min: "0", max: "100000", value: (m.capabilities?.context_window || 0) / 1024 || "", placeholder: "例如 128" });
   const err = el("div", { class: "field-error" });
-  const aiBtn = el("button", { class: "btn ai", type: "button", onclick: async (e) => {
-    if (!/^https:\/\/\S+$/.test(urlIn.value.trim())) { err.textContent = "请先填写 https:// 开头的定价页链接"; return; }
+  const aiBtn = el("button", { class: "btn ai", type: "button", disabled: true,
+    title: "先填写定价页链接", onclick: async (e) => {
+    if (!/^https:\/\/\S+$/.test(urlIn.value.trim())) { err.textContent = "定价页链接需为 https:// 开头的完整 URL"; return; }
     err.textContent = "";
     await UI.withBusy(e.currentTarget, async () => {
       await new Promise(r => setTimeout(r, 900)); // 演示：模拟 AI 抓取定价页
@@ -259,11 +260,21 @@ function editModelDrawer(m) {
       UI.toast("AI 已从页面读出单价与上下文长度，请核对后保存");
     }, "AI 获取中……");
   } }, [UI.icon("wand", 14), "AI 自动获取"]);
+  urlIn.oninput = () => {
+    const has = !!urlIn.value.trim();
+    if (has) aiBtn.removeAttribute("disabled"); else aiBtn.setAttribute("disabled", "");
+    aiBtn.title = has ? "" : "先填写定价页链接";
+  };
   const foot = el("div", { style: "display:flex;gap:8px;justify-content:flex-end;align-items:center;width:100%" }, [
     err, el("div", { style: "flex:1" }),
     el("button", { class: "btn", onclick: () => mask2.querySelector(".close-btn")?.click() }, ["取消"]),
     el("button", { class: "btn primary", onclick: async (e) => {
       if (!nameIn.value.trim()) { err.textContent = "显示名必填"; return; }
+      for (const [inp, lab] of [[pin, "输入单价"], [pout, "输出单价"]]) {
+        const v = inp.value.trim();
+        if (v !== "" && !(Number(v) >= 0 && Number(v) <= 10000)) { err.textContent = lab + " 需在 0 ~ 10000 之间"; return; }
+      }
+      if (ctx.value.trim() !== "" && !(Number(ctx.value) >= 0 && Number(ctx.value) <= 100000)) { err.textContent = "上下文长度需在 0 ~ 100000k 之间"; return; }
       if (dst.deploy_type === "self_hosted") {
         const g = Number(dst.gpu_count);
         if (!Number.isInteger(g) || g < 1 || g > 512) { err.textContent = "自有部署请填写卡数（1-512 的整数）"; return; }
@@ -284,7 +295,7 @@ function editModelDrawer(m) {
       }, "保存中……");
     } }, ["保存"]),
   ]);
-  const mask2 = UI.drawer(`编辑模型 · ${m.display_name}`, el("div", {}, [
+  const mask2 = UI.drawer(`编辑模型 · ${m.display_name}`, el("div", { class: "form-loose" }, [
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["模型名称"]), nameIn]),
     el("div", { class: "sec-head", style: "margin-top:8px" }, ["接入方式与成本",
       el("span", { class: "muted", style: "margin-left:8px;font-weight:400;font-size:var(--font-caption)" }, ["API 接入贴官方定价页由 AI 读取；自有部署留空单价按卡数估算"])]),
@@ -785,7 +796,7 @@ async function renderProfile() {
     const pols = (policies || []).filter(p2 => p2.enabled && !p2.ab_group);
     const first = pols.find(p2 => p2.scope === "global") || pols[0];
     polSel.appendChild(UI.fancySelect({ value: first ? first.policy_id : "", width: "220px",
-      options: pols.map(p2 => [p2.policy_id, `${p2.name} · 权重 ${(p2.params || {}).alpha ?? 0.7}`]),
+      options: pols.map(p2 => [p2.policy_id, p2.name]),
       onChange: (v) => loadTable(v) }));
     await loadTable(first ? first.policy_id : null);
   } catch (e2) { await loadTable(null); }
