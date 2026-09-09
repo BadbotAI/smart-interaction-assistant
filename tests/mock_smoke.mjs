@@ -124,5 +124,21 @@ assert(r.ok && r.router === null, "移除路由模型");
 evts = await sse({ text: "起草一份复工通知", policy_id: "policy-global-balanced" });
 assert(finalOf(evts).decision_summary.route_layer === "no_router", "移除后应回 no_router 兜底");
 
+// 9) 智能交互：卡片上下线状态机（曾因 mock 无状态导致点「下线」界面无反应）
+const cardsAll = (await api("/api/cards")).cards || [];
+const pub = cardsAll.find(c => c.status === "published");
+if (pub) {
+  r = await post(`/api/cards/${pub.card_id}/transition`, { action: "offline" });
+  assert(r.card && r.card.status === "offline", "下线应返回更新后的 card");
+  const one = await api(`/api/cards/${pub.card_id}`);
+  assert(one.card.status === "offline", "单卡详情应反映下线");
+  const listAfter = (await api("/api/cards")).cards.find(c => c.card_id === pub.card_id);
+  assert(listAfter.status === "offline", "列表应反映下线");
+  r = await post(`/api/cards/${pub.card_id}/transition`, { action: "publish" });
+  assert(r.card && r.card.status === "published", "重新上线应生效");
+} else {
+  assert(false, "快照中应有已上线卡片");
+}
+
 console.log(failures === 0 ? "MOCK SMOKE: ALL PASS" : `MOCK SMOKE: ${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

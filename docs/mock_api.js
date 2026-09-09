@@ -6,7 +6,8 @@
 
   // v7 会话状态机：配置智能路由模型 → benchmark 得分表（点格修正）→ 判维路由（静态站可走完整动线）
   const v7 = { router: null, overrides: {}, asof: null, keys: {} };
-  const deadCards = new Set(); // 静态站会话内删除/下线的配置
+  const deadCards = new Set(); // 静态站会话内删除的配置
+  const cardStatus = {}; // 会话内上下线状态（否则点「下线」快照回读=界面无反应且无法编辑）
   const prodLocal = { created: [], updated: {}, deleted: new Set() }; // 会话内产品操作
   // 模型操作会话内状态：设默认兜底 / 启停 / 思考开关 / 编辑 / 删除（否则快照回读=界面无反应）
   const modelLocal = { defaultId: null, status: {}, thinking: {}, updated: {}, deleted: new Set() };
@@ -60,9 +61,10 @@
         .concat(prodLocal.created);
       return base;
     }
-    if (pn === "/api/cards" && deadCards.size) {
+    if (pn === "/api/cards") {
       const base = JSON.parse(JSON.stringify(D[pn] || { cards: [] }));
-      base.cards = (base.cards || []).filter(c => !deadCards.has(c.card_id));
+      base.cards = (base.cards || []).filter(c => !deadCards.has(c.card_id))
+        .map(c => cardStatus[c.card_id] ? { ...c, status: cardStatus[c.card_id] } : c);
       return base;
     }
     if (pn === "/api/benchmark") {
@@ -125,7 +127,7 @@
     const m = pn.match(/^\/api\/cards\/([^/]+)$/);
     if (m && D["/api/cards"]) {
       const card = D["/api/cards"].cards.find(c => c.card_id === m[1]);
-      if (card) return { card };
+      if (card) return { card: cardStatus[card.card_id] ? { ...card, status: cardStatus[card.card_id] } : card };
     }
     if (pn.startsWith("/api/dashboard/questions")) return D["/api/dashboard/questions"];
     if (pn.startsWith("/api/dashboard/insights")) return D["/api/dashboard/insights"];
@@ -162,7 +164,14 @@
     }
     if (/^\/api\/apikeys\/[^/]+\/delete$/.test(pn)) return { ok: true };
     if (pn === "/v1/events") return { accepted: (body && body.events || []).length || 1 };
-    if (pn.endsWith("/transition")) return { ok: true, demo: true };
+    if (pn.endsWith("/transition")) {
+      const cid = pn.split("/")[3];
+      const action = body && body.action;
+      if (action === "publish") cardStatus[cid] = "published";
+      else if (action === "offline") cardStatus[cid] = "offline";
+      const base = ((D["/api/cards"] || {}).cards || []).find(c => c.card_id === cid);
+      return { ok: true, card: base ? { ...base, status: cardStatus[cid] || base.status } : null };
+    }
     if (pn === "/api/templates/suggest") {
       const t = (D["/api/templates"] || { templates: [] }).templates.slice(0, 3);
       return { suggestions: t.map(x => ({ component_type: x.component_type, name: x.name, reason: "按场景匹配推荐" })) };
@@ -290,7 +299,9 @@
   }
 
   function matchCard(text) {
-    const cards = ((D["/api/cards"] || {}).cards || []).filter(c =>
+    const cards = ((D["/api/cards"] || {}).cards || [])
+      .map(c => cardStatus[c.card_id] ? { ...c, status: cardStatus[c.card_id] } : c)
+      .filter(c =>
       (c.status === "published" || (c.status === "draft" && c.version >= 1)) &&
       ["collect", "control"].includes(c.semantic_category));
     let best = null;
