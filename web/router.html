@@ -149,6 +149,8 @@ async function renderModels() {
     el("div", { style: "display:flex;justify-content:space-between;margin-bottom:10px" }, [
       el("div", { class: "section-title", style: "margin:0" }, ["已接入模型"]),
       el("div", { style: "display:flex;gap:8px" }, [
+        el("a", { class: "btn ghost", href: "/web/router.html#apidoc", target: "_blank", rel: "noopener",
+          title: "对接开发的完整口径（新标签页打开）" }, [UI.icon("link", 14), "接入文档"]),
         el("a", { class: "btn", href: "/web/playground.html#model" }, [UI.icon("play", 14), "测试"]),
         el("button", { class: "btn primary", onclick: registerDialog }, [UI.icon("plus", 14), "添加模型"]),
       ]),
@@ -430,7 +432,7 @@ function policyForm(init, actives, policyId, apiKey) {
         onChange: (v) => { st.allow_override = v; return true; } }),
       el("div", { class: "muted", style: "font-size:var(--font-caption);margin-top:6px" }, [
         "调用方在请求里传 aggregate=on/off 即为用户的聚合选择；关闭本开关后 on 会被拒绝，响应 applied.override_allowed=false。完整口径见",
-        el("a", { href: "/web/router.html#apidoc", onclick: (e) => { e.preventDefault(); document.querySelector(".drawer-mask .close-btn")?.click(); location.hash = "apidoc"; } }, ["「接入文档」"]),
+        el("a", { href: "/web/router.html#apidoc", target: "_blank", rel: "noopener" }, ["「接入文档」"]),
       ]),
     ]),
   ]);

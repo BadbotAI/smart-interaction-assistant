@@ -229,7 +229,6 @@ window.UI = (function () {
           ["router:dispatch", "路由策略", "./router.html#dispatch", "route2"],
           ["router:profile", "模型画像", "./router.html#profile", "database"],
           ["router:models", "模型接入", "./router.html#models", "cpu"],
-          ["router:apidoc", "接入文档", "./router.html#apidoc", "link"],
         ] },
         { title: "运营", items: [
           ["playground:model", "模型路由测试", "./playground.html#model", "play"],
