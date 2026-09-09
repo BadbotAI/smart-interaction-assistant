@@ -245,7 +245,10 @@
         if (act === "thinking") { modelLocal.thinking[mid] = !(body && body.enabled === false); return { ok: true }; }
         if (act === "delete") { modelLocal.deleted.add(mid); return { ok: true }; }
         if (act === "update") {
-          modelLocal.updated[mid] = { ...(modelLocal.updated[mid] || {}), ...(body && body.display_name ? { display_name: body.display_name } : {}) };
+          const patch = {};
+          if (body && body.display_name) patch.display_name = body.display_name;
+          if (body && body.provider) patch.provider = body.provider;
+          modelLocal.updated[mid] = { ...(modelLocal.updated[mid] || {}), ...patch };
           return { ok: true };
         }
         if (act === "profile-data") {

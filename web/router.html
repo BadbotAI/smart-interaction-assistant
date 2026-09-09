@@ -49,6 +49,9 @@ async function renderModels() {
   const { models } = await UI.api("/v1/models");
   const box = content();
   box.innerHTML = "";
+  document.getElementById("headActions").appendChild(
+    el("a", { class: "btn small ghost", href: "/web/router.html#apidoc", target: "_blank", rel: "noopener",
+      title: "对接开发的完整口径（新标签页打开）" }, [UI.icon("link", 13), "接入文档"]));
   const statusChip = { active: ["在线", "green"], registering: ["注册中", "yellow"],
     paused: ["已停用", "gray"], retired: ["已退役", "red"] };
   const table = el("table", { class: "data" }, [
@@ -70,7 +73,7 @@ async function renderModels() {
           el("div", { style: "font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap" }, [m.display_name,
             m.is_default ? el("span", { class: "chip blue", style: "flex:none;max-width:none", title: "默认兜底：路由 / 手动模式故障时切换到此模型；不能停用或删凭证" }, ["默认兜底"]) : null]),
         ]),
-        el("td", { class: "muted num" }, [m.model_id]),
+        el("td", { class: "muted num" }, [m.model_name || m.model_id]),
         el("td", {}, [m.deploy_type === "self_hosted"
           ? el("span", { title: "自有部署：成本按 GPU 卡·时做简易估算" }, [`自有部署 · ${m.gpu_count} 卡`])
           : el("span", { class: "muted" }, ["API 接入"])]),
@@ -149,8 +152,6 @@ async function renderModels() {
     el("div", { style: "display:flex;justify-content:space-between;margin-bottom:10px" }, [
       el("div", { class: "section-title", style: "margin:0" }, ["已接入模型"]),
       el("div", { style: "display:flex;gap:8px" }, [
-        el("a", { class: "btn ghost", href: "/web/router.html#apidoc", target: "_blank", rel: "noopener",
-          title: "对接开发的完整口径（新标签页打开）" }, [UI.icon("link", 14), "接入文档"]),
         el("a", { class: "btn", href: "/web/playground.html#model" }, [UI.icon("play", 14), "测试"]),
         el("button", { class: "btn primary", onclick: registerDialog }, [UI.icon("plus", 14), "添加模型"]),
       ]),
@@ -163,7 +164,7 @@ async function renderModels() {
 function registerDialog() {
   if (document.querySelector(".modal-mask")) return; // 防连点叠开
   // 两步：1 填接入信息做连接校验 → 2 自动带出单价与能力（可修改）后添加
-  const st = { model_id: "", display_name: "", provider: "", endpoint: "", credential_ref: "",
+  const st = { model_name: "", display_name: "", provider: "", endpoint: "", credential_ref: "",
                price_input: null, price_output: null, caps: null, deploy_type: "api", gpu_count: "" };
   const fieldEl = (label, key, ph, hint, type = "text") => {
     const n = el("input", { type, value: st[key] ?? "", placeholder: ph });
@@ -174,8 +175,9 @@ function registerDialog() {
   const err = el("div", { class: "field-error" });
   const verifyBtn = el("button", { class: "btn primary", onclick: async (e) => {
     err.textContent = "";
-    if (!st.display_name) { err.textContent = "请填写显示名"; return; }
-    if (!/^[a-z0-9][a-z0-9-]{1,23}$/.test(st.model_id)) { err.textContent = "模型 ID 需为 2-24 位小写字母、数字或短横线"; return; }
+    if (!st.provider) { err.textContent = "请填写供应商"; return; }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(st.model_name)) { err.textContent = "模型型号需为 1-40 位字母、数字、点、下划线或短横线"; return; }
+    if (!st.display_name) { err.textContent = "请填写名称"; return; }
     if (!/^https:\/\/\S+$/.test(st.endpoint)) { err.textContent = "接口地址必须是 https:// 开头的完整 URL"; return; }
     if (!/^vault:\/\/\S+$/.test(st.credential_ref)) { err.textContent = "凭证需为 vault:// 引用（密钥不明文入库）"; return; }
     if (st.deploy_type === "self_hosted") {
@@ -184,17 +186,17 @@ function registerDialog() {
     }
     await UI.withBusy(e.currentTarget, async () => {
       await new Promise(r => setTimeout(r, 600)); // 演示：模拟连通性校验
-      st.provider = st.provider || (st.endpoint.split("//")[1] || "").split(".")[0] || "custom";
       try {
-        await UI.api("/v1/models", { method: "POST", body: {
-          model_id: st.model_id, display_name: st.display_name, provider: st.provider,
+        const r = await UI.api("/v1/models", { method: "POST", body: {
+          model_name: st.model_name, display_name: st.display_name, provider: st.provider,
           endpoint: st.endpoint, credential_ref: st.credential_ref,
           deploy_type: st.deploy_type, gpu_count: st.deploy_type === "self_hosted" ? Number(st.gpu_count) : 0,
           vision: !!st.vision,
           capabilities: { tool_call: true, streaming: true } } });
-        UI.toast(st.deploy_type === "self_hosted"
+        UI.toast((st.deploy_type === "self_hosted"
           ? "模型已添加并生效，成本已按卡数估算；benchmark 得分缺失时在「模型画像」页补录"
-          : "模型已添加并生效。可在列表「编辑」里补充官网单价，benchmark 得分缺失时在「模型画像」页补录");
+          : "模型已添加并生效。可在列表「编辑」里补充官网单价，benchmark 得分缺失时在「模型画像」页补录")
+          + (r.same_name_count ? `。注意：型号 ${st.model_name} 已有 ${r.same_name_count} 条接入，请用名称区分` : ""));
         mask.remove(); renderModels();
       } catch (e2) { err.textContent = e2.data?.error || e2.message; }
     }, "校验中……");
@@ -210,9 +212,11 @@ function registerDialog() {
   const body = el("div", { class: "form-loose" }, [
     el("div", { class: "sec-head" }, ["接入信息"]),
     el("div", { class: "grid cols-2" }, [
-      fieldEl("显示名", "display_name", "例如：迅答 Swift-4B"),
-      fieldEl("模型 ID", "model_id", "my-model-7b", "2-24 位小写字母、数字或短横线；注册后不可修改"),
+      fieldEl("供应商", "provider", "例如：alibaba / deepseek / 自研"),
+      fieldEl("模型型号", "model_name", "例如：qwen3-vl-8b-instruct",
+        "模型的官方型号。同一型号可接多条——官方 API 一条、自有部署一条，用名称区分；实例 ID 由系统生成"),
     ]),
+    fieldEl("名称", "display_name", "例如：Qwen3-VL 官方版 / Qwen3-VL 本地版", "列表与路由决策里展示的名字，同型号多条接入靠它区分"),
     fieldEl("接口地址", "endpoint", "https://api.provider.com/v1", "仅 https"),
     fieldEl("API 凭证", "credential_ref", "vault://cred/my-model", "填 vault:// 引用，密钥加密存储、展示脱敏"),
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["接入方式",
@@ -233,6 +237,7 @@ function registerDialog() {
 // 编辑模型：改名 + 接入方式与成本（API 官网单价 / 自有部署按卡数估算）+ 上下文
 function editModelDrawer(m) {
   const nameIn = el("input", { type: "text", maxlength: "24", value: m.display_name });
+  const provIn = el("input", { type: "text", maxlength: "20", value: m.provider || "" });
   const dst = { deploy_type: m.deploy_type || "api", gpu_count: m.gpu_count || "",
     vision: !!(m.capabilities || {}).vision };
   const gpuIn = el("input", { type: "number", min: "1", max: "512", step: "1", value: dst.gpu_count || "", placeholder: "例如 16" });
@@ -283,7 +288,9 @@ function editModelDrawer(m) {
       }
       await UI.withBusy(e.currentTarget, async () => {
         try {
-          await UI.api(`/v1/models/${m.model_id}/update`, { method: "POST", body: { display_name: nameIn.value.trim() } });
+          if (!provIn.value.trim()) { err.textContent = "供应商必填"; return; }
+          await UI.api(`/v1/models/${m.model_id}/update`, { method: "POST",
+            body: { display_name: nameIn.value.trim(), provider: provIn.value.trim() } });
           await UI.api(`/v1/models/${m.model_id}/profile-data`, { method: "POST", body: {
             price_input: Number(pin.value) || 0, price_output: Number(pout.value) || 0,
             context_window: Math.round((Number(ctx.value) || 0) * 1024),
@@ -299,6 +306,12 @@ function editModelDrawer(m) {
   ]);
   const mask2 = UI.drawer(`编辑模型 · ${m.display_name}`, el("div", { class: "form-loose" }, [
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["模型名称"]), nameIn]),
+    el("div", { class: "grid cols-2" }, [
+      el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["供应商"]), provIn]),
+      el("label", { class: "field" }, [el("span", { class: "label-text" }, ["模型型号",
+        UI.help("注册时确定，不可修改；同一型号可另接一条不同部署方式的实例")]),
+        el("input", { type: "text", value: m.model_name || m.model_id, disabled: true })]),
+    ]),
     el("div", { class: "sec-head", style: "margin-top:8px" }, ["接入方式与成本",
       el("span", { class: "muted", style: "margin-left:8px;font-weight:400;font-size:var(--font-caption)" }, ["API 接入贴官方定价页由 AI 读取；自有部署留空单价按卡数估算"])]),
     el("label", { class: "field" }, [el("span", { class: "label-text" }, ["接入方式"]), deploySel]),
@@ -316,7 +329,7 @@ function editModelDrawer(m) {
       el("label", { class: "field" }, [el("span", { class: "label-text" }, ["输出单价（¥/M）"]), pout]),
       el("label", { class: "field" }, [el("span", { class: "label-text" }, ["上下文（k）"]), ctx]),
     ]),
-    el("div", { class: "muted" }, ["模型 ID、接口地址与凭证在注册时确定；换凭证走「更多 → 删除凭证并暂停」后重新添加"]),
+    el("div", { class: "muted" }, ["模型型号、接口地址与凭证在注册时确定；换凭证走「更多 → 删除凭证并暂停」后重新添加"]),
   ]), foot);
 }
 
@@ -593,8 +606,9 @@ function routerModelDialog(existing, onSaved) {
   const err = el("div", { class: "field-error" });
   const saveBtn = el("button", { class: "btn primary", onclick: async (e) => {
     err.textContent = "";
-    if (!st.display_name) { err.textContent = "请填写显示名"; return; }
-    if (!/^[a-z0-9][a-z0-9-]{1,23}$/.test(st.model_id)) { err.textContent = "模型 ID 需为 2-24 位小写字母、数字或短横线"; return; }
+    if (!st.provider) { err.textContent = "请填写供应商"; return; }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(st.model_name)) { err.textContent = "模型型号需为 1-40 位字母、数字、点、下划线或短横线"; return; }
+    if (!st.display_name) { err.textContent = "请填写名称"; return; }
     if (!/^https:\/\/\S+$/.test(st.endpoint)) { err.textContent = "接口地址必须是 https:// 开头的完整 URL"; return; }
     if (!/^vault:\/\/\S+$/.test(st.credential_ref)) { err.textContent = "凭证需为 vault:// 引用（密钥不明文入库）"; return; }
     await UI.withBusy(e.currentTarget, async () => {

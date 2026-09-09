@@ -761,6 +761,19 @@ def migrate_bench_v7():
     return True
 
 
+def migrate_model_name_v71():
+    """v7.1：模型「型号」与「接入实例」解耦——model_name 存官方型号（可重复），model_id 变纯实例键。
+    同一型号可分别接官方 API 与自有部署多条。存量行型号回填为 model_id。"""
+    conn = db.get_conn()
+    cols = [r["name"] for r in conn.execute("PRAGMA table_info(models)").fetchall()]
+    if "model_name" in cols:
+        return False
+    conn.execute("ALTER TABLE models ADD COLUMN model_name TEXT")
+    conn.execute("UPDATE models SET model_name=model_id WHERE model_name IS NULL")
+    conn.commit()
+    return True
+
+
 def run_all():
     db.init_db()
     seed_models()
@@ -773,6 +786,7 @@ def run_all():
     migrate_generic_v5_3()
     migrate_pool_v6()
     migrate_bench_v7()
+    migrate_model_name_v71()
     n_bank = 0
     n_fb = seed_ab_feedback()
     n_hist = seed_history()

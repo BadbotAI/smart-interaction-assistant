@@ -820,7 +820,14 @@ async def update_model_info(model_id: str, request: Request):
     if not name or len(name) > 24:
         return JSONResponse({"error": "显示名必填，不超过 24 字"}, status_code=422)
     conn = db.get_conn()
-    n = conn.execute("UPDATE models SET display_name=? WHERE model_id=?", (name, model_id)).rowcount
+    sets, vals = ["display_name=?"], [name]
+    if body.get("provider") is not None:
+        prov = str(body["provider"]).strip()
+        if not (1 <= len(prov) <= 20):
+            return JSONResponse({"error": "供应商必填，不超过 20 字"}, status_code=422)
+        sets.append("provider=?")
+        vals.append(prov)
+    n = conn.execute(f"UPDATE models SET {', '.join(sets)} WHERE model_id=?", (*vals, model_id)).rowcount
     conn.commit()
     if not n:
         return JSONResponse({"error": "模型不存在"}, status_code=404)
@@ -913,7 +920,7 @@ async def import_model_profile_data(model_id: str, request: Request):
 @app.post("/v1/models")
 async def register_model(request: Request):
     body = await request.json()
-    required = ["model_id", "display_name", "provider", "endpoint", "credential_ref"]
+    required = ["model_name", "display_name", "provider", "endpoint", "credential_ref"]
     missing = [f for f in required if not body.get(f)]
     body.setdefault("price_input", 0)
     body.setdefault("price_output", 0)
@@ -929,8 +936,25 @@ async def register_model(request: Request):
     except (TypeError, ValueError):
         return JSONResponse({"error": "单价与延迟必须是数字"}, status_code=422)
     conn = db.get_conn()
-    if conn.execute("SELECT 1 FROM models WHERE model_id=?", (body["model_id"],)).fetchone():
-        return JSONResponse({"error": "model_id 已存在"}, status_code=409)
+    import re as _re4
+    provider = str(body["provider"]).strip()
+    model_name = str(body["model_name"]).strip()
+    if not (1 <= len(provider) <= 20):
+        return JSONResponse({"error": "供应商必填，不超过 20 字"}, status_code=422)
+    if not _re4.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,39}", model_name):
+        return JSONResponse({"error": "模型型号需为 1-40 位字母、数字、点、下划线或短横线"}, status_code=422)
+    # 同一型号允许多条接入（官方 API / 自有部署各一条）：实例 ID 由服务端生成，型号只是标签
+    same_name = conn.execute("SELECT COUNT(*) c FROM models WHERE model_name=?", (model_name,)).fetchone()["c"]
+    slug = _re4.sub(r"[^a-z0-9]+", "-", model_name.lower()).strip("-")[:18] or "model"
+    model_id = None
+    for _ in range(8):
+        cand = slug + "-" + db.new_id()[:4]
+        if not conn.execute("SELECT 1 FROM models WHERE model_id=?", (cand,)).fetchone():
+            model_id = cand
+            break
+    if not model_id:
+        return JSONResponse({"error": "实例 ID 生成失败，请重试"}, status_code=500)
+    body["model_id"] = model_id
     deploy_type = (body.get("deploy_type") or "api").strip()
     if deploy_type not in ("api", "self_hosted"):
         return JSONResponse({"error": "接入方式仅支持 api / self_hosted"}, status_code=422)
@@ -946,10 +970,10 @@ async def register_model(request: Request):
             pin = round(0.15 * gpu_count, 2)
             pout = round(0.30 * gpu_count, 2)
     conn.execute(
-        "INSERT INTO models (model_id, display_name, provider, endpoint, credential_ref, price_input, "
+        "INSERT INTO models (model_id, model_name, display_name, provider, endpoint, credential_ref, price_input, "
         "price_output, capabilities, status, bank_coverage, latency_ms_base, profile, deploy_type, gpu_count) "
-        "VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?,?)",
-        (body["model_id"], body["display_name"], body["provider"], body["endpoint"], body["credential_ref"],
+        "VALUES (?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)",
+        (body["model_id"], model_name, body["display_name"], provider, body["endpoint"], body["credential_ref"],
          pin, pout,
          db.j(body.get("capabilities") or {"tool_call": True, "streaming": True, "context_window": 32768,
                                            "vision": bool(body.get("vision"))}),
@@ -957,8 +981,9 @@ async def register_model(request: Request):
          db.j(body.get("profile") or {"general": 0.7}), deploy_type, gpu_count))
     conn.execute("UPDATE models SET bank_coverage=1.0 WHERE model_id=?", (body["model_id"],))
     conn.commit()
-    db.audit("demo-admin", "model_register", {"model_id": body["model_id"]})
-    return {"ok": True, "note": "模型已上线：即刻参与随机探索分流；下次「生成模型画像」将纳入打分。"}
+    db.audit("demo-admin", "model_register", {"model_id": body["model_id"], "model_name": model_name, "provider": provider})
+    return {"ok": True, "model_id": body["model_id"], "same_name_count": same_name,
+            "note": "模型已上线并纳入智能判维路由；benchmark 得分缺失时在「模型画像」页补录。"}
 
 
 @app.post("/v1/models/{model_id}/status")
