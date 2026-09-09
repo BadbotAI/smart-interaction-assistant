@@ -419,7 +419,7 @@ async function renderRouting() {
         null, "切兜底直连或降级处理的请求占比，健康时接近 0"),
     ]),
     kpiCard("聚合效果", [
-      mm("聚合请求", ag.requests ?? "-", d.total_requests ? `占 ${Math.round((ag.requests || 0) / d.total_requests * 100)}%` : null, "成绩接近时多路回答由聚合器融合重写"),
+      mm("聚合请求", ag.requests ?? "-", d.total_requests ? `占 ${Math.round((ag.requests || 0) / d.total_requests * 100)}%` : null, "得分接近时多路回答由聚合器融合重写"),
       mm("聚合成本占比", ag.cost_share == null ? "-" : UI.fmtPct(ag.cost_share), ag.cost ? `共 ${UI.fmtCost(ag.cost)}` : null),
       mm("聚合平均延迟", ag.avg_latency_agg == null ? "-" : UI.fmtMs(ag.avg_latency_agg)),
       mm("单模型平均延迟", ag.avg_latency_single == null ? "-" : UI.fmtMs(ag.avg_latency_single),
@@ -430,7 +430,7 @@ async function renderRouting() {
     box.appendChild(el("div", { class: "card", style: "border-color:var(--danger);margin-bottom:12px" }, [
       el("span", { class: "chip red" }, ["告警"]),
       el("span", { class: "secondary", style: "margin-left:8px" },
-        ["路由正在向少数模型集中：检查候选配置与维度成绩是否失衡"]),
+        ["路由正在向少数模型集中：检查候选配置与维度得分是否失衡"]),
     ]));
   }
 

@@ -295,7 +295,7 @@ window.TestChat = (function () {
             : d.route_layer === "rule" && !(d.dimensions || []).length
             ? "硬规则命中日常闲聊：最便宜的在线模型轻量直答，不判维、不聚合"
             : (d.dimensions || []).includes("multimodal")
-            ? "硬规则命中多模态请求，只在支持图像的模型中按判定维度的成绩选择"
+            ? "硬规则命中多模态请求，只在支持图像的模型中按判定维度的得分选择"
             : {
             fastlane: "取各模型在判定维度的 benchmark 平均分，融合省钱分算综合分——最高分显著领先（或策略仅单模型），直接单模型作答",
             routed: "候选并发作答后结合回答质量与消耗细排，单模型胜出",

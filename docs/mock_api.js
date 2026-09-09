@@ -4,7 +4,7 @@
   const realFetch = window.fetch.bind(window);
   const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
 
-  // v7 会话状态机：配置智能路由模型 → benchmark 成绩表（点格修正）→ 判维路由（静态站可走完整动线）
+  // v7 会话状态机：配置智能路由模型 → benchmark 得分表（点格修正）→ 判维路由（静态站可走完整动线）
   const v7 = { router: null, overrides: {}, asof: null };
   const deadCards = new Set(); // 静态站会话内删除/下线的配置
   const prodLocal = { created: [], updated: {}, deleted: new Set() }; // 会话内产品操作
@@ -180,8 +180,8 @@
       let score = body ? body.score : undefined;
       if (score !== null) {
         score = Number(score);
-        if (!Number.isFinite(score)) return { error: "成绩需为 0-100 的数字，或 null 标记缺失" };
-        if (score < 0 || score > 100) return { error: "成绩需在 0-100 之间" };
+        if (!Number.isFinite(score)) return { error: "得分需为 0-100 的数字，或 null 标记缺失" };
+        if (score < 0 || score > 100) return { error: "得分需在 0-100 之间" };
       }
       v7.overrides[mid] = { ...(v7.overrides[mid] || {}) };
       v7.overrides[mid][dim] = score;
@@ -382,7 +382,7 @@
     const rname = v7.router.display_name || v7.router.model_id;
     steps.push({ step: "dims", text: `智能路由模型 ${rname} 判定：相关维度「${dims.map(d => DIM_CN[d] || d).join("、")}」（180ms · ¥0.0001）`, dims });
 
-    // 综合分：判定维度平均成绩 × 权重 + 省钱分 ×（1 - 权重）
+    // 综合分：判定维度平均得分 × 权重 + 省钱分 ×（1 - 权重）
     const inv = {}; let lo = Infinity, hi = -Infinity;
     models.forEach(m => { const v = 1 / Math.max(0.01, (m.price_input || 0) + (m.price_output || 0));
       inv[m.model_id] = v; lo = Math.min(lo, v); hi = Math.max(hi, v); });
@@ -397,7 +397,7 @@
     });
     ranked.sort((a, b) => b[1] - a[1]);
     if (!ranked.length) {
-      steps.push({ step: "rule", text: "候选模型在判定维度上均无成绩，切兜底直连" });
+      steps.push({ step: "rule", text: "候选模型在判定维度上均无得分，切兜底直连" });
       steps.push({ step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
         content: "（兜底直连示例回答）已按通用能力尽力作答。",
         decision_summary: { mode: "auto", switch_result: "fallback", final_model: "atlas-72b", candidates: ["atlas-72b"],

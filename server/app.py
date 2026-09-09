@@ -806,7 +806,7 @@ async def update_model_info(model_id: str, request: Request):
 
 @app.post("/v1/models/{model_id}/delete")
 async def delete_model(model_id: str):
-    """删除模型：默认兜底模型不可删；历史评测成绩与调用记录保留用于审计。"""
+    """删除模型：默认兜底模型不可删；历史评测得分与调用记录保留用于审计。"""
     conn = db.get_conn()
     row = conn.execute("SELECT is_default, display_name FROM models WHERE model_id=?", (model_id,)).fetchone()
     if not row:
@@ -1207,7 +1207,7 @@ async def set_router_model(request: Request):
     return {"ok": True, "router": info}
 
 
-# ============ 模型画像 = Benchmark 成绩表 + 成本（静态配置，即改即生效） ============
+# ============ 模型画像 = Benchmark 得分表 + 成本（静态配置，即改即生效） ============
 
 @app.get("/api/benchmark")
 def get_benchmark():
@@ -1239,9 +1239,9 @@ async def set_benchmark_score(request: Request):
         try:
             score = float(score)
         except (TypeError, ValueError):
-            return JSONResponse({"error": "成绩需为 0-100 的数字，或 null 标记缺失"}, status_code=422)
+            return JSONResponse({"error": "得分需为 0-100 的数字，或 null 标记缺失"}, status_code=422)
         if not (0 <= score <= 100):
-            return JSONResponse({"error": "成绩需在 0-100 之间"}, status_code=422)
+            return JSONResponse({"error": "得分需在 0-100 之间"}, status_code=422)
     overrides = db.dj(_get_setting("benchmark_overrides"), {}) or {}
     overrides.setdefault(mid, {})[dim] = score
     _set_setting("benchmark_overrides", db.j(overrides))
