@@ -1,5 +1,5 @@
 // 静态站 mock 状态机冒烟：node tests/mock_smoke.mjs
-// 驱动完整动线（配 Judge → 归类生成 → 生成画像 → 效果换算 → 模型操作），断言状态推进。
+// 驱动 v7 完整动线（配置智能路由模型 → benchmark 修正 → 判维路由 → 模型操作），断言状态推进。
 // mock 曾出过多份重复函数覆盖的事故——语法检查不够，必须行为断言。
 import { readFileSync } from "fs";
 
@@ -20,58 +20,97 @@ const api = async (path, opts) => {
   return res.json();
 };
 const post = (path, body) => api(path, { method: "POST", body: JSON.stringify(body || {}) });
+// SSE 路由：收齐全部事件（skip_card_match 跳过组件触发层）
+const sse = async (body) => {
+  const res = await window.fetch("/v1/route", { method: "POST", body: JSON.stringify({ skip_card_match: true, ...body }) });
+  const txt = await res.text();
+  return txt.split("\n\n").filter(Boolean).map(l => JSON.parse(l.replace(/^data:/, "")));
+};
+const finalOf = evts => evts.find(e => e.step === "final") || {};
 
 let failures = 0;
 const assert = (cond, msg) => { if (!cond) { failures++; console.error("FAIL:", msg); } };
 
-// 1) 冷启动初始态
-let ov = await api("/api/dataset/overview");
-assert(ov.active === 0, "初始应为未生成数据集");
-assert(ov.pool_new >= ov.threshold, "问题池应达标");
-assert(ov.judge === null, "初始无 Judge");
-let prof = await api("/api/profile");
-assert(prof.generated === false, "初始无画像");
-
-// 2) 守卫：未配 Judge / 未归类时生成画像应拒
-let r = await post("/api/profile/generate");
-assert(r.error && r.error.includes("数据集"), "未归类生成画像应报数据集错误: " + JSON.stringify(r));
-
-// 3) 配 Judge → 归类 → 生成画像
-r = await post("/api/settings/judge-model", { model_id: "judge-72b", display_name: "Judge-72B" });
-assert(r.ok && r.judge.model_id === "judge-72b", "配置 Judge");
-r = await post("/api/dataset/cluster");
-assert(r.task, "归类生成应返回任务");
-ov = await api("/api/dataset/overview");
-assert(ov.active === 1 && (ov.clusters || []).length === 6, "归类后 v1 生效且 6 个分类");
-r = await post("/api/profile/generate");
-assert(r.task, "生成画像应返回任务: " + JSON.stringify(r));
-prof = await api("/api/profile?policy_id=policy-scene-fast");
-assert(prof.generated === true && prof.clusters.length === 6, "画像生成后效果表 6 行");
+// 1) 初始态：未配置智能路由模型，benchmark 表就绪
+let rm = await api("/api/settings/router-model");
+assert(rm.router === null, "初始应无智能路由模型");
+let bm = await api("/api/benchmark");
+assert((bm.dims || []).length === 7, "应有 7 个 benchmark 维度，实际 " + (bm.dims || []).length);
+assert(bm.scores["swift-4b"] && bm.scores["swift-4b"].knowledge === 58, "快照分应就绪");
+assert(bm.scores["swift-4b"].multimodal === null, "缺失分应为 null");
+let prof = await api("/api/profile?policy_id=policy-scene-fast");
+assert(prof.generated === true && prof.clusters.length === 7, "画像常绿：7 个维度行");
 assert(prof.alpha === 0.25, "省钱优先 α 应为 0.25，实际 " + prof.alpha);
-const cell = prof.clusters[0].scores["swift-4b"];
-assert(cell && typeof cell.judge === "number" && "adopt" in cell && "w_adopt" in cell, "分数格应含 Judge/采纳构成");
-const mx = await api("/api/profile/matrix");
-assert(mx.version === 1 && mx.clusters.length === 6, "原始矩阵可取");
 
-// 4) 飞轮与版本联动
-const fly = await api("/api/flywheel");
-assert(fly.dataset_version === 1 && fly.pending === 0, "归类后回流应已归入版本");
+// 2) 未配置路由模型：路由应 no_router 兜底
+let evts = await sse({ text: "起草一份复工通知", policy_id: "policy-global-balanced" });
+let fin = finalOf(evts);
+assert(fin.decision_summary && fin.decision_summary.route_layer === "no_router", "未配置应 no_router 兜底: " + JSON.stringify(fin.decision_summary || {}));
 
-// 5) 模型操作状态化
+// 3) 配置智能路由模型（含校验）
+let r = await post("/api/settings/router-model", { model_id: "pilot-2b" });
+assert(r.error, "缺显示名应报错");
+r = await post("/api/settings/router-model", { model_id: "pilot-2b", display_name: "Pilot-2B",
+  endpoint: "https://api.mocklab.local/pilot", credential_ref: "vault://router/pilot" });
+assert(r.ok && r.router.model_id === "pilot-2b", "配置路由模型");
+rm = await api("/api/settings/router-model");
+assert(rm.router && rm.router.display_name === "Pilot-2B", "配置后可回读");
+
+// 4) 判维路由：复合任务双维、多模态过滤、强制聚合
+evts = await sse({ text: "帮我算下这单的毛利率再写一篇经营分析", policy_id: "policy-global-balanced" });
+const dimsEvt = evts.find(e => e.step === "dims");
+assert(dimsEvt && dimsEvt.dims.length === 2 && dimsEvt.dims.includes("math") && dimsEvt.dims.includes("writing"),
+  "复合任务应判出 math+writing: " + JSON.stringify(dimsEvt && dimsEvt.dims));
+fin = finalOf(evts);
+assert((fin.decision_summary.dimensions || []).length === 2, "决策摘要应带双维度");
+
+evts = await sse({ text: "识别这张图片里的集装箱箱号", policy_id: "policy-global-balanced" });
+assert(evts.some(e => e.step === "rule" && /支持图像/.test(e.text)), "多模态应命中硬规则 vision 过滤");
+fin = finalOf(evts);
+assert((fin.decision_summary.dimensions || []).includes("multimodal"), "多模态维度应入决策");
+
+evts = await sse({ text: "写一段产品介绍", policy_id: "policy-scene-quality", aggregate: "on" });
+fin = finalOf(evts);
+assert(fin.decision_summary.switch_result === "aggregated", "aggregate=on 应聚合: " + fin.decision_summary.switch_result);
+
+// 5) benchmark 分数修正：校验、生效、联动、恢复
+r = await post("/api/benchmark/score", { model_id: "swift-4b", dim: "nope", score: 50 });
+assert(r.error, "未知维度应报错");
+r = await post("/api/benchmark/score", { model_id: "swift-4b", dim: "math", score: 150 });
+assert(r.error, "越界分数应报错");
+r = await post("/api/benchmark/score", { model_id: "swift-4b", dim: "math", score: 90 });
+assert(r.ok, "修正分数");
+bm = await api("/api/benchmark");
+assert(bm.scores["swift-4b"].math === 90 && bm.overrides["swift-4b"].math === 90, "修正应生效并标记 override");
+prof = await api("/api/profile");
+const mathRow = prof.clusters.find(c => c.domain === "math");
+assert(mathRow.scores["swift-4b"].raw === 90 && mathRow.scores["swift-4b"].override === true, "效果表应即时反映修正");
+r = await post("/api/benchmark/score/reset", { model_id: "swift-4b", dim: "math" });
+bm = await api("/api/benchmark");
+assert(bm.scores["swift-4b"].math === 31, "恢复榜单值应回 31，实际 " + bm.scores["swift-4b"].math);
+
+// 6) 刷新榜单快照：日期更新、修正保留
+await post("/api/benchmark/score", { model_id: "swift-4b", dim: "coding", score: 77 });
+r = await post("/api/benchmark/refresh");
+assert(r.ok && r.asof !== "2026-08", "刷新应更新快照日期");
+bm = await api("/api/benchmark");
+assert(bm.asof === r.asof && bm.scores["swift-4b"].coding === 77, "刷新后修正应保留");
+
+// 7) 模型操作联动
 await post("/v1/models/nova-x/set-default");
 const ms = await api("/v1/models");
-const nova = ms.models.find(m => m.model_id === "nova-x");
-assert(nova && nova.is_default === 1, "设默认兜底应生效");
+assert(ms.models.find(m => m.model_id === "nova-x").is_default === 1, "设默认兜底应生效");
 await post("/v1/models/swift-4b/delete");
-const ms2 = await api("/v1/models");
-assert(!ms2.models.find(m => m.model_id === "swift-4b"), "删除模型应生效");
-const prof2 = await api("/api/profile");
-assert(!("swift-4b" in prof2.clusters[0].scores), "效果表应随删除联动");
+bm = await api("/api/benchmark");
+assert(!bm.models.find(m => m.model_id === "swift-4b"), "删除模型应从成绩表消失");
+prof = await api("/api/profile");
+assert(!("swift-4b" in prof.clusters[0].scores), "效果表应随删除联动");
 
-// 6) 问题池删除
-await post("/api/dataset/query/delete", { query_id: (ov.recent[0] || {}).query_id });
-const ov2 = await api("/api/dataset/overview");
-assert(ov2.recent.length === ov.recent.length - 1, "删除问题应从列表消失");
+// 8) 移除路由模型：恢复 no_router 兜底
+r = await post("/api/settings/router-model", { model_id: "" });
+assert(r.ok && r.router === null, "移除路由模型");
+evts = await sse({ text: "起草一份复工通知", policy_id: "policy-global-balanced" });
+assert(finalOf(evts).decision_summary.route_layer === "no_router", "移除后应回 no_router 兜底");
 
 console.log(failures === 0 ? "MOCK SMOKE: ALL PASS" : `MOCK SMOKE: ${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

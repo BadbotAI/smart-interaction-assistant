@@ -26,10 +26,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=3eff4040"></script>
-<script src="./mock_api.js?v=d77a37db"></script>
+<script src="./mock_data.js?v=17f3c9a0"></script>
+<script src="./mock_api.js?v=230c7060"></script>
 <script src="./tokens.js?v=360e29ec"></script>
-<script src="./ui.js?v=150b70e8"></script>
+<script src="./ui.js?v=48025282"></script>
 <script>
 UI.nav("dashboard");
 const { el } = UI;
@@ -383,10 +383,9 @@ function renderConversionModules(box, ins) {
 
 async function renderRouting() {
   const fq = new URLSearchParams({ days: days() });
-  const [d, ins, fly] = await Promise.all([
+  const [d, ins] = await Promise.all([
     UI.api("/api/dashboard/overview?" + fq),
     UI.api("/api/dashboard/insights?days=" + days()),
-    UI.api("/api/flywheel").catch(() => null),
   ]);
   const box = content();
   box.innerHTML = "";
@@ -420,7 +419,8 @@ async function renderRouting() {
       mm("聚合率", UI.fmtPct(d.aggregation_rate), null, "多模型并发后聚合重写的占比，成本的最大杠杆"),
       mm("快车道", UI.fmtPct(d.fastlane_rate), null, "高置信直接单模型作答的占比"),
       mm("模型多样性", (Number(d.selection_entropy) || 0).toFixed(2), d.entropy_alert ? "低于告警线" : "健康", "路由采用模型的分布熵，越低越集中；告警线 1.0"),
-      mm("探索流量", UI.fmtPct(d.explore_rate), null, "随机试用非最优模型的比例，防模型池坍缩"),
+      mm("兜底与降级", UI.fmtPct(d.total_requests ? (((d.switch_counts || {}).fallback || 0) + ((d.switch_counts || {}).degraded || 0)) / d.total_requests : 0),
+        null, "切兜底直连或降级处理的请求占比，健康时接近 0"),
     ]),
     kpiCard("聚合效果", [
       mm("聚合请求", ag.requests ?? "-", d.total_requests ? `占 ${Math.round((ag.requests || 0) / d.total_requests * 100)}%` : null, "成绩接近时多路回答由聚合器融合重写"),
@@ -434,25 +434,7 @@ async function renderRouting() {
     box.appendChild(el("div", { class: "card", style: "border-color:var(--danger);margin-bottom:12px" }, [
       el("span", { class: "chip red" }, ["告警"]),
       el("span", { class: "secondary", style: "margin-left:8px" },
-        ["路由正在向少数模型集中：检查探索预算或标签污染"]),
-    ]));
-  }
-
-  // 数据飞轮：终端用户 AB 采纳的回流情况（数据资产视角；导入入口在「数据飞轮」页）
-  if (fly) {
-    const top = (fly.win_rates || []).filter(w => w.rate != null)[0];
-    box.appendChild(el("div", { class: "card", style: "margin-bottom:12px" }, [
-      el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:8px" }, [
-        el("span", { style: "font-weight:600" }, ["数据飞轮"]),
-        el("span", { class: "muted" }, ["AB 双答案的采纳回流；明细与导入入口在「数据飞轮」页"]),
-      ]),
-      el("div", { class: "mini-metrics", style: "grid-template-columns:repeat(5,1fr)" }, [
-        mm("累计回流偏好", fly.total, null, "终端用户在 A/B 双答案里做出的采纳，经 /v1/feedback 回传"),
-        mm("近 7 天回流", fly.last7d),
-        mm("AB 采样率", `${Math.round((fly.sampling_rate || 0) * 100)}%`, null, "多大比例的请求出 A/B 双答案"),
-        mm("数据集版本", `v${fly.dataset_version || 1}`, (fly.dataset_version || 1) > 1 ? "演化" : "冷启动"),
-        mm("采纳胜率 Top1", top ? top.name : "-", top ? `${Math.round(top.rate * 100)}%（${top.total} 次对比）` : "数据不足"),
-      ]),
+        ["路由正在向少数模型集中：检查候选配置与维度成绩是否失衡"]),
     ]));
   }
 
@@ -491,7 +473,7 @@ async function renderRouting() {
     el("table", { class: "data" }, [
       el("thead", {}, [el("tr", {}, ["路径", "请求数", "P50", "P95", "验收线"].map(h => el("th", { class: h === "验收线" ? "w-main" : "" }, [h])))]),
       el("tbody", {}, Object.entries(d.latency_by_path).map(([path, v]) => {
-        const name = { fastlane: "快车道", routed: "单模型路由", aggregated: "聚合路径", degraded: "降级", manual: "手动指定", fallback: "兜底直连", explore: "随机探索", await_user: "等待用户（触发组件）" }[path] || path;
+        const name = { fastlane: "快车道", routed: "单模型路由", aggregated: "聚合路径", degraded: "降级", manual: "手动指定", fallback: "兜底直连", explore: "随机探索（历史）", await_user: "等待用户（触发组件）" }[path] || path;
         const target = path === "fastlane" ? 2000 : path === "aggregated" ? 25000 : null;
         const pass = target == null || v.p95 <= target;
         return el("tr", {}, [

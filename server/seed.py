@@ -743,6 +743,24 @@ def migrate_dataset_v5_2():
     return True
 
 
+def migrate_bench_v7():
+    """v7 智能路由方案：画像 = benchmark 表 + 成本。清空 v6 的问题池 / 版本 / 采纳 / Judge 数据。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT v FROM kv_settings WHERE k='v7_bench'").fetchone():
+        return False
+    conn.execute("DELETE FROM bank_responses")
+    conn.execute("DELETE FROM bank_queries WHERE source IN ('collected','reflow','reflow_staged')")
+    conn.execute("DELETE FROM dataset_versions")
+    conn.execute("DELETE FROM ab_feedback")
+    for r in conn.execute("SELECT k FROM kv_settings WHERE k LIKE 'dataset_clusters_v%' OR k LIKE 'profile_matrix_v%' "
+                          "OR k IN ('judge_model_info','ab_sampling_rate','policy_profile_gen','v6_query_pool')").fetchall():
+        conn.execute("DELETE FROM kv_settings WHERE k=?", (r["k"],))
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('v7_bench', '1')")
+    conn.commit()
+    db.audit("system", "migrate_bench_v7", {"note": "画像改为 benchmark 分数表 + 成本；数据集/飞轮/Judge 下线"})
+    return True
+
+
 def run_all():
     db.init_db()
     seed_models()
@@ -754,7 +772,8 @@ def run_all():
     migrate_dataset_v5_2()
     migrate_generic_v5_3()
     migrate_pool_v6()
-    n_bank = seed_query_pool()
+    migrate_bench_v7()
+    n_bank = 0
     n_fb = seed_ab_feedback()
     n_hist = seed_history()
     migrate_questionnaire()

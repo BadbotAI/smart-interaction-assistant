@@ -270,39 +270,37 @@ window.TestChat = (function () {
         const d = evt.decision_summary;
         const pol = d.policy || {};
         const rows = [];
-        // 三层路由：命中层级 + Query 簇主题（v6.0）
-        const DIM_NAMES = { logistics: "物流服务与异常", market: "价格与行情", compliance: "合同与合规",
-          analytics: "经营分析与报表", writing: "公文与写作", tech: "系统与技术",
-          other: "其他 / 长尾", chat: "日常闲聊", multimodal: "多模态", general: "通用" };
-        const LAYER_NAMES = { rule: "第 1 层 · 硬规则", dimension: "第 2 层 · 分类匹配",
-          explore: "冷启动 · 随机探索", "else": "第 3 层 · else 兜底" };
+        // 三层路由（v7）：命中层级 + 智能路由模型判定的 benchmark 维度
+        const DIM_NAMES = { knowledge: "通用知识", math: "数学推理", coding: "代码生成", writing: "长文写作",
+          instruct: "指令遵循", chinese: "中文理解", multimodal: "多模态理解" };
+        const LAYER_NAMES = { rule: "第 1 层 · 硬规则", dims: "第 2 层 · 智能判维",
+          no_router: "兜底 · 未配置路由模型", "else": "第 3 层 · else 兜底" };
+        const dimLabels = (d.dimensions || []).map(k => DIM_NAMES[k] || k);
         if (d.mode === "manual") {
           rows.push(["策略", "手动指定模型（不走智能路由）"]);
         } else {
           rows.push(["策略", `${pol.name || pol.policy_id || "-"} · 成本-效果权重 ${pol.alpha ?? "-"} · ` +
             (pol.allow_aggregation ? "允许聚合" : "仅单模型") +
             (d.aggregate_override_denied ? `（请求要求 aggregate=${d.aggregate_override}，被策略硬约束拒绝）`
-              : d.aggregate_override ? `（本次被请求参数 aggregate=${d.aggregate_override} 覆盖）` : "") +
-            (d.is_explore ? "（本次命中探索流量）" : "")]);
+              : d.aggregate_override ? `（本次被请求参数 aggregate=${d.aggregate_override} 覆盖）` : "")]);
           if (d.route_layer) {
             rows.push(["层级", (LAYER_NAMES[d.route_layer] || d.route_layer) +
-              (d.dimension && d.route_layer !== "else" ? ` · 归入「${DIM_NAMES[d.dimension] || d.dimension}」` : "")]);
+              (dimLabels.length && d.route_layer !== "else" && d.route_layer !== "no_router"
+                ? ` · 相关维度「${dimLabels.join("、")}」` : "")]);
           }
-          rows.push(["推导", d.route_layer === "explore"
-            ? "冷启动随机探索：还没有画像，各模型均匀分流，本次随机分配一个模型直答（同时收集数据）"
+          rows.push(["推导", d.route_layer === "no_router"
+            ? "未配置智能路由模型：无法判定相关维度，直连兜底模型（在「模型画像」页配置后恢复智能路由）"
             : d.route_layer === "else"
-            ? "未命中任何问题分类，走 else 兜底直连"
-            : d.route_layer === "rule" && d.dimension === "multimodal"
-            ? "硬规则命中多模态请求，只在支持多模态的模型中按成绩选择"
+            ? "判定维度全部缺分或候选异常，走 else 兜底直连"
+            : (d.dimensions || []).includes("multimodal")
+            ? "硬规则命中多模态请求，只在支持图像的模型中按判定维度的成绩选择"
             : {
-            fastlane: "按各模型在该分类的画像分（Judge + 采纳融合），最高分显著领先（或策略仅单模型），直接单模型作答",
-            explore: "冷启动随机探索：随机分配模型直答",
+            fastlane: "取各模型在判定维度的 benchmark 平均分，融合省钱分算综合分——最高分显著领先（或策略仅单模型），直接单模型作答",
             routed: "候选并发作答后结合回答质量与消耗细排，单模型胜出",
-            aggregated: "打分后两名成绩接近，按策略允许聚合：多路回答交给聚合模型总结定稿",
+            aggregated: "综合分接近，按策略允许聚合：多路回答交给聚合模型总结定稿",
             fallback: "候选不可用，切兜底模型直连",
             degraded: "候选模型异常，按稳态规则降级处理",
           }[d.switch_result] || "按策略参数推导路由去向"]);
-          if (d.ab_sampled) rows.push(["采样", "本次命中 AB 采样：响应带 A/B 双答案，等待终端用户采纳回传（/v1/feedback）"]);
         }
         const modelName = (id) => {
           const hit = (pickGroups.find(g => g.label === "指定模型") || { items: [] }).items.find(x => x.value === id);

@@ -223,14 +223,13 @@ window.UI = (function () {
       name: "模型路由平台", home: "/web/home-router.html",
       groups: [
         { title: "", items: [["home", "首页", "/web/home-router.html", "home"]] },
-        // 按用户动线分两组：一次性搭建（接模型→备数据→配策略）与日常运营（飞轮→测试→数据）
+        // 按用户动线分两组：一次性搭建（配策略→定画像→接模型）与日常运营（测试→数据）
         { title: "配置", items: [
           ["router:dispatch", "路由策略", "/web/router.html#dispatch", "route2"],
-          ["router:flow", "数据集", "/web/router.html#flow", "database"],
+          ["router:profile", "模型画像", "/web/router.html#profile", "database"],
           ["router:models", "模型接入", "/web/router.html#models", "cpu"],
         ] },
         { title: "运营", items: [
-          ["router:flywheel", "数据飞轮", "/web/router.html#flywheel", "refresh"],
           ["playground:model", "模型路由测试", "/web/playground.html#model", "play"],
           ["dashboard:routing", "模型路由数据", "/web/dashboard.html#routing", "activity"],
         ] },

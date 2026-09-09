@@ -19,12 +19,12 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=3eff4040"></script>
-<script src="./mock_api.js?v=d77a37db"></script>
+<script src="./mock_data.js?v=17f3c9a0"></script>
+<script src="./mock_api.js?v=230c7060"></script>
 <script src="./tokens.js?v=360e29ec"></script>
-<script src="./ui.js?v=150b70e8"></script>
+<script src="./ui.js?v=48025282"></script>
 <script src="./components.js?v=2e39e148"></script>
-<script src="./testchat.js?v=c4849aa7"></script>
+<script src="./testchat.js?v=e6dfe92a"></script>
 <script>
 const { el } = UI;
 const MODES = {
@@ -48,11 +48,11 @@ async function buildSuggestions(m) {
     return [{ text: "我的货三天没更新了", label: "触发物流异常处理" }, { text: "我要开发票", label: "触发发票类型确认" }];
   }
   return [
-    { text: "我的货三天没更新了帮我催一下", label: "物流服务：看分类匹配与打分" },
-    { text: "帮我看看这段 SQL 为什么慢", label: "系统技术：换个策略对比决策" },
-    { text: "帮我算下这单的毛利率再做个分析", label: "经营分析：观察聚合定稿" },
+    { text: "帮我看看这段 SQL 为什么慢", label: "代码生成：看判维与打分" },
+    { text: "帮我算下这单的毛利率再写一段分析", label: "复合任务：判出双维度" },
     { text: "识别这张图片里的集装箱箱号", label: "多模态：命中硬规则层" },
-    { text: "起草一份因台风停止装卸作业的客户通知", label: "公文写作" },
+    { text: "起草一份因台风停止装卸作业的客户通知", label: "长文写作：换个策略对比" },
+    { text: "按 JSON 格式逐条列出验收要点", label: "指令遵循" },
     { text: "你好，在吗", label: "闲聊：硬规则轻量直答" },
   ];
 }
@@ -72,7 +72,7 @@ async function boot() {
     guideTitle: k === "comp" ? "试试这些会触发组件的问法" : "换一种策略，问同一个问题，对比路由决策",
     hint: k === "comp"
       ? "点击任意问法发送；命中触发条件时 AI 会插入对应的交互组件，可直接操作提交、也可从组件进入编辑"
-      : "下方可切换路由策略与聚合参数（模拟客户端的 aggregate 传参）；每次回答展示打分过程、最终去向与本次成本。演示环境：模型与计价均为模拟",
+      : "下方可切换路由策略与聚合参数（模拟客户端的 aggregate 传参）；每次回答展示判维结果、打分过程、最终去向与本次成本。演示环境：模型与计价均为模拟",
     keepReasoning: k === "model",
     editableCards: k === "comp",
   });

@@ -207,56 +207,6 @@ async def _handle_turn(body: dict, emit):
     final = result["final"]
     decision = result["decision"]
 
-    # 数据飞轮 · AB 采样：一定比例请求出 A/B 双答案，终端用户的采纳经 /v1/feedback 回流
-    ab_test = None
-    ok_answers = result.get("answers") or []
-    _is_explore_layer = decision.get("route_layer") == "explore"
-    if mode == "auto" and final and final.get("content") and (len(ok_answers) >= 2 or _is_explore_layer):
-        try:
-            _rate = float(_get_setting("ab_sampling_rate") or 0.2)
-        except (TypeError, ValueError):
-            _rate = 0.2
-        if random.random() < _rate:
-            alt = next((a for a in ok_answers if a["model_id"] != final["model_id"]), None)
-            if alt is None and _is_explore_layer:
-                # 冷启动随机探索是单模型直答：命中采样时额外补调一个不同模型出第二份答案。
-                # 这是探索期收集采纳数据的真实成本（画像路由期 AB 复用候选、不额外调用）。
-                _others = [m for m in router_core.get_active_models() if m["model_id"] != final["model_id"]]
-                if _others:
-                    _alt_m = random.choice(_others)
-                    _domain2 = mockmodels.classify_domain(text)
-                    _alt_ans = await router_core._call_with_timeout(_alt_m, text, _domain2, recorder, emit)
-                    if _alt_ans.get("status") == "ok" and _alt_ans.get("content"):
-                        alt = _alt_ans
-                        router_core.record_usage(tenant_id, _alt_ans["tokens_in"] + _alt_ans["tokens_out"],
-                                                 _alt_ans["cost"])
-            if alt:
-                # 左右随机：避免位置偏好污染采纳数据（终端用户偏爱左侧/A 的倾向）
-                opts = [{"model_id": final["model_id"], "content": final["content"]},
-                        {"model_id": alt["model_id"], "content": alt["content"]}]
-                random.shuffle(opts)
-                for _i, _o in enumerate(opts):
-                    _o["key"] = "AB"[_i]
-                ab_test = {"group_id": trace_id, "feedback_endpoint": "/v1/feedback", "options": opts}
-                # 落库 AB 标记：/v1/feedback 只认真实出过双答案的请求（防拿历史 trace 刷偏好污染飞轮）
-                decision["ab_test"] = {"models": [o["model_id"] for o in ab_test["options"]],
-                                       "contents": {o["model_id"]: (o["content"] or "")[:500] for o in ab_test["options"]}}
-                _c = db.get_conn()
-                _c.execute("UPDATE route_decisions SET decision=? WHERE trace_id=?", (db.j(decision), trace_id))
-                _c.commit()
-
-    # v6.0：随机探索与线上运行期间，query 自动落池（聚类定版的原料；轻去重、限长）
-    if mode == "auto" and final.get("content") and 2 <= len(text) <= 500:
-        _cq = db.get_conn()
-        if not _cq.execute("SELECT 1 FROM bank_queries WHERE query_text=? AND source='collected'", (text,)).fetchone():
-            _qid = "col-" + db.new_id()[:8]
-            _cq.execute(
-                "INSERT INTO bank_queries (query_id, tenant_id, embedding, text_ref, query_text, domain_tags, "
-                "created_at, ttl_days, source) VALUES (?,?,?,?,?,?,?,?,?)",
-                (_qid, tenant_id, db.j(embeddings.embed(text)), f"vault://collected/{_qid}", text,
-                 db.j([mockmodels.classify_theme(text)]), db.now_ts(), 365, "collected"))
-            _cq.commit()
-
     components = []
 
     # 呈现型：模型显式返回结构化数据 → 按映射表渲染；失败降级纯文本（§2.5 降级链）
@@ -284,7 +234,6 @@ async def _handle_turn(body: dict, emit):
         "step": "final", "trace_id": trace_id, "turn_id": turn_id,
         "request_id": trace_id,
         "content": final["content"], "components": components,
-        "ab_test": ab_test,
         "applied": {"aggregate": agg_req, "aggregation_used": decision["switch_result"] == "aggregated",
                     "override_allowed": not agg_override_denied,
                     "policy_id": policy.get("policy_id")},
@@ -292,8 +241,8 @@ async def _handle_turn(body: dict, emit):
             "mode": decision.get("mode", "auto"),
             "switch_result": decision["switch_result"],
             "route_layer": decision.get("route_layer"),
-            "dimension": decision.get("dimension"),
-            "ab_sampled": bool(ab_test),
+            "dimensions": decision.get("dimensions") or [],
+            "dim_scores": decision.get("dim_scores") or {},
             "aggregate_override": agg_req if agg_req != "auto" else None,
             "aggregate_override_denied": agg_override_denied,
             "final_model": decision["final_model_or_aggregator"],
@@ -1104,10 +1053,6 @@ async def delete_policy(policy_id: str):
         return JSONResponse({"error": "默认策略不能删除"}, status_code=409)
     conn.execute("DELETE FROM policies WHERE policy_id=?", (policy_id,))
     conn.commit()
-    gen = db.dj(_get_setting("policy_profile_gen"), {}) or {}
-    if policy_id in gen:
-        gen.pop(policy_id, None)
-        _set_setting("policy_profile_gen", db.j(gen))
     db.audit("demo-admin", "policy_delete", {"policy_id": policy_id, "name": row["name"]})
     return {"ok": True}
 
@@ -1188,15 +1133,8 @@ async def update_policy(policy_id: str, request: Request):
                                                 "explore_ratio": body.get("explore_ratio", row["explore_ratio"]),
                                                 "budget_cap": body.get("budget_cap")}), db.now_ts()))
     conn.commit()
-    # 参数变了 = 旧路由效果作废：撤掉该策略的「已生成」章，避免线上口径与展示口径静默混用（用户质疑 Q16）
-    _gen = db.dj(_get_setting("policy_profile_gen"), {}) or {}
-    stale_cleared = False
-    if policy_id in _gen:
-        _gen.pop(policy_id)
-        _set_setting("policy_profile_gen", db.j(_gen))
-        stale_cleared = True
     db.audit("demo-admin", "policy_update", {"policy_id": policy_id, "version": new_version})
-    return {"ok": True, "version": new_version, "warning": warning, "profile_stale": stale_cleared}
+    return {"ok": True, "version": new_version, "warning": warning}
 
 
 @app.get("/v1/policies/{policy_id}/history")
@@ -1241,152 +1179,22 @@ def _set_setting(key, val):
     conn.commit()
 
 
-@app.get("/api/settings/ab-sampling")
-def get_ab_sampling():
-    try:
-        rate = float(_get_setting("ab_sampling_rate") or 0.2)
-    except (TypeError, ValueError):
-        rate = 0.2
-    return {"rate": rate}
+# ============ 智能路由模型（硬依赖：未配置时线上请求直连兜底） ============
+
+@app.get("/api/settings/router-model")
+def get_router_model_setting():
+    return {"router": router_core.get_router_model()}
 
 
-@app.post("/api/settings/ab-sampling")
-async def set_ab_sampling(request: Request):
-    """AB 采样率：多大比例的请求出 A/B 双答案让终端用户选（数据飞轮的进料阀门）。"""
-    body = await request.json()
-    try:
-        rate = float(body.get("rate"))
-    except (TypeError, ValueError):
-        return JSONResponse({"error": "采样率需为 0-1 之间的数字"}, status_code=422)
-    if not (0.0 <= rate <= 1.0):
-        return JSONResponse({"error": "采样率需在 0-1 之间"}, status_code=422)
-    _set_setting("ab_sampling_rate", str(rate))
-    db.audit("demo-admin", "ab_sampling_set", {"rate": rate})
-    return {"ok": True, "rate": rate}
-
-
-@app.post("/v1/feedback")
-async def submit_feedback(request: Request):
-    """偏好回流端口：客户端把终端用户在 A/B 双答案里的采纳结果回传。
-    request_id 即路由响应里返回的 request_id；chosen_model_id 为被采纳回答的模型。"""
-    body = await request.json()
-    rid = (body.get("request_id") or "").strip()
-    chosen = (body.get("chosen_model_id") or "").strip()
-    if not rid or not chosen:
-        return JSONResponse({"error": "缺少 request_id 或 chosen_model_id"}, status_code=422)
-    conn = db.get_conn()
-    if conn.execute("SELECT 1 FROM ab_feedback WHERE trace_id=?", (rid,)).fetchone():
-        return JSONResponse({"error": "该请求的偏好已回传过"}, status_code=409)
-    drow = conn.execute("SELECT decision FROM route_decisions WHERE trace_id=?", (rid,)).fetchone()
-    trow = conn.execute("SELECT query_text FROM traces WHERE trace_id=?", (rid,)).fetchone()
-    if not drow or not trow:
-        return JSONResponse({"error": "request_id 不存在"}, status_code=404)
-    decision = db.dj(drow["decision"], {}) or {}
-    ab_models = (decision.get("ab_test") or {}).get("models") or []
-    if not ab_models:
-        return JSONResponse({"error": "该请求没有出过 AB 双答案，不能回传偏好"}, status_code=422)
-    if chosen not in ab_models:
-        return JSONResponse({"error": "chosen_model_id 不在该次 AB 双答案里"}, status_code=422)
-    losers = sorted(m for m in ab_models if m != chosen)
-    qtext = trow["query_text"] or ""
-    dim = decision.get("dimension") or mockmodels.classify_dimension(qtext)
-    chosen_content = ((decision.get("ab_test") or {}).get("contents") or {}).get(chosen, "")
-    conn.execute(
-        "INSERT INTO ab_feedback (fb_id, trace_id, query_text, dimension, winner, losers, source, ts, chosen_content) "
-        "VALUES (?,?,?,?,?,?,?,?,?)",
-        (db.new_id(), rid, qtext, dim, chosen, db.j(losers), "api", db.now_ts(), chosen_content[:500]))
-    conn.commit()
-    total = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback").fetchone()["c"]
-    db.audit("api", "ab_feedback", {"request_id": rid, "winner": chosen, "dimension": dim})
-    return {"ok": True, "flywheel_total": total}
-
-
-@app.get("/v1/feedback/pending")
-def feedback_pending(since: float = 0, limit: int = Query(200, ge=1, le=1000)):
-    """回流数据接口：未入版本的偏好数据，供导入动作与外部数据管道拉取（增量传 since）。"""
-    conn = db.get_conn()
-    rows = conn.execute(
-        "SELECT fb_id, ts, query_text, dimension, winner, losers, chosen_content, source FROM ab_feedback "
-        "WHERE imported_version IS NULL AND ts>? ORDER BY ts LIMIT ?", (since, limit)).fetchall()
-    out = [{"fb_id": r["fb_id"], "ts": r["ts"], "query": r["query_text"], "dimension": r["dimension"],
-            "winner": r["winner"], "losers": db.dj(r["losers"], []) or [],
-            "chosen_content": r["chosen_content"] or "", "source": r["source"]} for r in rows]
-    total = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE imported_version IS NULL").fetchone()["c"]
-    return {"pending": out, "total_pending": total}
-
-
-EVOLVE_MIN_FEEDBACK = 20  # 飞轮展示口径沿用（v6 起真正的门槛是 CLUSTER_MIN_QUERIES）
-
-
-@app.get("/api/flywheel")
-def flywheel_stats(days: int = Query(None, ge=1, le=90), limit: int = Query(20, ge=1, le=100)):
-    """数据飞轮总览：回流量 / 各模型胜率 / 采样率 / 画像演化版本。"""
-    conn = db.get_conn()
-    total = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback").fetchone()["c"]
-    last7 = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE ts>?",
-                         (db.now_ts() - 7 * 86400,)).fetchone()["c"]
-    wins, losses = {}, {}
-    dims = {}
-    for r in conn.execute("SELECT dimension, winner, losers FROM ab_feedback").fetchall():
-        wins[r["winner"]] = wins.get(r["winner"], 0) + 1
-        for l in db.dj(r["losers"], []) or []:
-            losses[l] = losses.get(l, 0) + 1
-        d = r["dimension"] or "general"
-        dims[d] = dims.get(d, 0) + 1
-    names = {r["model_id"]: r["display_name"] for r in conn.execute("SELECT model_id, display_name FROM models")}
-    win_rates = []
-    for mid in set(wins) | set(losses):
-        w, l = wins.get(mid, 0), losses.get(mid, 0)
-        win_rates.append({"model_id": mid, "name": names.get(mid, mid), "wins": w,
-                          "total": w + l, "rate": round(w / (w + l), 3) if (w + l) else None})
-    win_rates.sort(key=lambda x: -(x["rate"] or 0))
-    try:
-        rate = float(_get_setting("ab_sampling_rate") or 0.2)
-    except (TypeError, ValueError):
-        rate = 0.2
-    active_v = router_core.active_dataset_version()
-    pending = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE imported_version IS NULL").fetchone()["c"]
-    imported = total - pending
-    recent = []
-    _since = db.now_ts() - days * 86400 if days else 0
-    for r in conn.execute("SELECT ts, query_text, dimension, winner, losers, imported_version FROM ab_feedback "
-                          "WHERE ts>? ORDER BY ts DESC LIMIT ?", (_since, limit)).fetchall():
-        losers = db.dj(r["losers"], []) or []
-        recent.append({"ts": r["ts"], "query": r["query_text"] or "", "dimension": r["dimension"],
-                       "winner": r["winner"], "winner_name": names.get(r["winner"], r["winner"]),
-                       "losers": losers, "loser_names": [names.get(l, l) for l in losers],
-                       "imported_version": r["imported_version"]})
-    return {"total": total, "last7d": last7, "dimensions": dims, "win_rates": win_rates,
-            "sampling_rate": rate, "min_required": EVOLVE_MIN_FEEDBACK,
-            "pending": pending, "imported": imported, "dataset_version": active_v,
-            "recent": recent}
-
-
-CLUSTER_MIN_QUERIES = 500  # 第一次聚类定版的 Query 池门槛（用户拍板）
-ADOPT_SMOOTH_K = 20        # 采纳权重平滑常数：w_adopt = n_ab / (n_ab + K)，样本越多采纳越主导
-
-_cluster_task = {"status": "idle", "done": 0, "total": 0}
-_pgen_task = {"status": "idle", "done": 0, "total": 0}
-_evolve_task = _cluster_task  # 兼容旧引用
-
-
-# ============ Judge 模型（画像打分裁判，随真实 query 方案回归） ============
-
-@app.get("/api/settings/judge-model")
-def get_judge_model():
-    info = db.dj(_get_setting("judge_model_info"), None)
-    return {"judge": info if (info and info.get("model_id")) else None}
-
-
-@app.post("/api/settings/judge-model")
-async def set_judge_model(request: Request):
-    """Judge 模型独立接入（不进业务模型池）：画像生成时对各模型回放答案打分。传空 model_id 为移除。"""
+@app.post("/api/settings/router-model")
+async def set_router_model(request: Request):
+    """智能路由模型独立接入：每次请求由它判定相关 benchmark 维度。传空 model_id 为移除。"""
     body = await request.json()
     mid = (body.get("model_id") or "").strip()
     if not mid:
-        _set_setting("judge_model_info", "")
-        db.audit("demo-admin", "judge_model_set", {"model_id": "(移除)"})
-        return {"ok": True, "judge": None}
+        _set_setting("router_model_info", "")
+        db.audit("demo-admin", "router_model_set", {"model_id": "(移除)"})
+        return {"ok": True, "router": None}
     import re as _re3
     if not body.get("display_name"):
         return JSONResponse({"error": "请填写显示名"}, status_code=422)
@@ -1398,249 +1206,82 @@ async def set_judge_model(request: Request):
         return JSONResponse({"error": "凭证需为 vault:// 引用（密钥不明文入库）"}, status_code=422)
     info = {"model_id": mid, "display_name": body["display_name"].strip(),
             "endpoint": body["endpoint"].strip(), "credential_ref": body["credential_ref"].strip()}
-    _set_setting("judge_model_info", db.j(info))
-    db.audit("demo-admin", "judge_model_set", {"model_id": mid, "display_name": info["display_name"]})
-    return {"ok": True, "judge": info}
+    _set_setting("router_model_info", db.j(info))
+    db.audit("demo-admin", "router_model_set", {"model_id": mid, "display_name": info["display_name"]})
+    return {"ok": True, "router": info}
 
 
-# ============ 数据集总览 / 聚类定版 / 版本级画像 ============
+# ============ 模型画像 = Benchmark 分数表 + 成本（静态配置，即改即生效） ============
 
-@app.get("/api/dataset/overview")
-def dataset_overview():
-    """数据集页一屏所需：Query 池状态、定版门槛、版本与簇快照、画像状态与成本预估、judge。"""
+@app.get("/api/benchmark")
+def get_benchmark():
+    """画像原始表：维度定义 + 各模型分数（手动修正覆盖榜单快照，null=缺失、平均时跳过）。"""
+    dims, scores, meta = router_core.get_bench_profile()
     conn = db.get_conn()
-    av = router_core.active_dataset_version()
-    pool_new = conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE dataset_version IS NULL "
-                            "AND source IN ('collected','reflow')").fetchone()["c"]
-    pool_total = conn.execute("SELECT COUNT(*) AS c FROM bank_queries "
-                              "WHERE source IN ('collected','reflow')").fetchone()["c"]
-    recent = []
-    for r in conn.execute("SELECT query_id, query_text, domain_tags, source, created_at, dataset_version "
-                          "FROM bank_queries WHERE source IN ('collected','reflow') "
-                          "ORDER BY created_at DESC LIMIT 15").fetchall():
-        recent.append({"query_id": r["query_id"], "query": r["query_text"],
-                       "theme": (db.dj(r["domain_tags"], []) or ["other"])[0],
-                       "source": r["source"], "ts": r["created_at"], "dataset_version": r["dataset_version"]})
-    versions = [dict(r) for r in conn.execute("SELECT * FROM dataset_versions ORDER BY version DESC").fetchall()]
-    clusters = (db.dj(_get_setting(f"dataset_clusters_v{av}"), None) or {}).get("clusters") if av else None
-    matrix = db.dj(_get_setting(f"profile_matrix_v{av}"), None) if av else None
-    judge = db.dj(_get_setting("judge_model_info"), None) or None
-    n_models = conn.execute("SELECT COUNT(*) AS c FROM models WHERE status='active'").fetchone()["c"]
-    n_reps = sum(len(c.get("rep_ids") or []) for c in (clusters or []))
-    est_calls = n_reps * n_models
-    theme_names = {k: v["label"] for k, v in mockmodels.QUERY_THEMES.items()}
-    theme_names["other"] = "其他 / 长尾"
-    latest_pv = 0
-    for vrow in versions:
-        if db.dj(_get_setting(f"profile_matrix_v{vrow['version']}"), None):
-            latest_pv = max(latest_pv, vrow["version"])
-    return {"pool_total": pool_total, "pool_new": pool_new, "threshold": CLUSTER_MIN_QUERIES,
-            "latest_profile_version": latest_pv,
-            "can_cluster": pool_new >= CLUSTER_MIN_QUERIES if av == 0 else pool_new > 0,
-            "recent": recent, "versions": versions, "active": av,
-            "clusters": clusters, "theme_names": theme_names,
-            "profile": {"generated": bool(matrix), "ts": matrix.get("ts") if matrix else None,
-                        "judge_name": (matrix or {}).get("judge_name"),
-                        "estimate": {"calls": est_calls, "cost": round(est_calls * 0.0032, 4)}},
-            "judge": judge if (judge and judge.get("model_id")) else None,
-            "cluster_task": _cluster_task, "pgen_task": _pgen_task}
+    models = [{"model_id": r["model_id"], "display_name": r["display_name"],
+               "price_input": r["price_input"], "price_output": r["price_output"]}
+              for r in conn.execute("SELECT model_id, display_name, price_input, price_output "
+                                    "FROM models WHERE status='active'")]
+    return {"dims": dims, "scores": scores, "models": models,
+            "asof": meta["asof"], "source": meta["source"], "overrides": meta["overrides"],
+            "router": router_core.get_router_model()}
 
 
-@app.post("/api/dataset/cluster")
-async def dataset_cluster():
-    """聚类定版：把未定版的 Query 池重新聚类（含历史已定版数据一起全量重聚），
-    AI 总结每簇标签与摘要，保存为新数据集版本并切为生效。首版门槛 500 条。"""
-    if _cluster_task["status"] == "running" or _pgen_task["status"] == "running":
-        return JSONResponse({"error": "已有任务进行中"}, status_code=409)
+@app.post("/api/benchmark/score")
+async def set_benchmark_score(request: Request):
+    """手动修正单格分数（自有部署 / 微调模型无公开分时补录；传 null 标记缺失）。业务校准的人工入口。"""
+    body = await request.json()
+    mid = (body.get("model_id") or "").strip()
+    dim = (body.get("dim") or "").strip()
+    if dim not in {d["key"] for d in mockmodels.BENCH_DIMS}:
+        return JSONResponse({"error": "未知维度"}, status_code=422)
     conn = db.get_conn()
-    av = router_core.active_dataset_version()
-    pool_new = conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE dataset_version IS NULL "
-                            "AND source IN ('collected','reflow')").fetchone()["c"]
-    if av == 0 and pool_new < CLUSTER_MIN_QUERIES:
-        return JSONResponse({"error": f"问题池不足 {CLUSTER_MIN_QUERIES} 条（当前 {pool_new} 条），继续随机探索收集"},
-                            status_code=409)
-    if av > 0 and pool_new == 0:
-        return JSONResponse({"error": "上次生成数据集后没有新增问题，暂不需要重新归类"}, status_code=409)
-    total = conn.execute("SELECT COUNT(*) AS c FROM bank_queries WHERE source IN ('collected','reflow')").fetchone()["c"]
-    _cluster_task.update({"status": "running", "done": 0, "total": max(1, total)})
-    asyncio.create_task(_run_cluster())
-    return {"task": _cluster_task}
+    if not conn.execute("SELECT 1 FROM models WHERE model_id=?", (mid,)).fetchone():
+        return JSONResponse({"error": "模型不存在"}, status_code=404)
+    score = body.get("score", "missing")
+    if score is not None:
+        try:
+            score = float(score)
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "分数需为 0-100 的数字，或 null 标记缺失"}, status_code=422)
+        if not (0 <= score <= 100):
+            return JSONResponse({"error": "分数需在 0-100 之间"}, status_code=422)
+    overrides = db.dj(_get_setting("benchmark_overrides"), {}) or {}
+    overrides.setdefault(mid, {})[dim] = score
+    _set_setting("benchmark_overrides", db.j(overrides))
+    db.audit("demo-admin", "benchmark_score_set", {"model_id": mid, "dim": dim, "score": score})
+    return {"ok": True}
 
 
-@app.get("/api/dataset/cluster/status")
-def dataset_cluster_status():
-    return {"task": _cluster_task}
+@app.post("/api/benchmark/score/reset")
+async def reset_benchmark_score(request: Request):
+    """撤销单格手动修正，恢复榜单快照值。"""
+    body = await request.json()
+    mid, dim = (body.get("model_id") or "").strip(), (body.get("dim") or "").strip()
+    overrides = db.dj(_get_setting("benchmark_overrides"), {}) or {}
+    if mid in overrides and dim in overrides[mid]:
+        overrides[mid].pop(dim)
+        if not overrides[mid]:
+            overrides.pop(mid)
+        _set_setting("benchmark_overrides", db.j(overrides))
+        db.audit("demo-admin", "benchmark_score_reset", {"model_id": mid, "dim": dim})
+    return {"ok": True}
 
 
-async def _run_cluster():
-    try:
-        await _run_cluster_inner()
-    except Exception as e:
-        _cluster_task["status"] = "failed"
-        _cluster_task["error"] = str(e)[:200]
-        db.audit("system", "dataset_cluster_failed", {"error": str(e)[:200]})
-
-
-async def _run_cluster_inner():
-    conn = db.get_conn()
-    new_version = (conn.execute("SELECT MAX(version) AS v FROM dataset_versions").fetchone()["v"] or 0) + 1
-    rows = [dict(r) for r in conn.execute(
-        "SELECT query_id, query_text, domain_tags FROM bank_queries "
-        "WHERE source IN ('collected','reflow') ORDER BY created_at").fetchall()]
-    import random as _rnd
-    clusters = {}
-    for i, r in enumerate(rows):
-        _cluster_task["done"] = i + 1
-        if i % 40 == 0:
-            await asyncio.sleep(0.05)
-        theme = (db.dj(r["domain_tags"], []) or ["other"])[0]
-        if theme not in mockmodels.QUERY_THEMES:
-            theme = "other"
-        clusters.setdefault(theme, []).append(r)
-        conn.execute("UPDATE bank_queries SET dataset_version=? WHERE query_id=? AND dataset_version IS NULL",
-                     (new_version, r["query_id"]))
-    # AB 采纳随定版归账（按主题口径参与该版本画像）
-    conn.execute("UPDATE ab_feedback SET imported_version=? WHERE imported_version IS NULL", (new_version,))
-    out = []
-    rng = _rnd.Random(new_version)
-    for theme, items in sorted(clusters.items(), key=lambda x: -len(x[1])):
-        cfg = mockmodels.QUERY_THEMES.get(theme, {"label": "其他 / 长尾", "keywords": [], "summary": "未归入主类的长尾问题"})
-        reps = [it["query_id"] for it in rng.sample(items, min(8, len(items)))]
-        out.append({"key": theme, "label": cfg["label"], "summary": cfg.get("summary", ""),
-                    "keywords": cfg.get("keywords", []), "size": len(items), "rep_ids": reps,
-                    "sample": items[0]["query_text"][:24]})
-    _set_setting(f"dataset_clusters_v{new_version}", db.j({"version": new_version, "ts": db.now_ts(), "clusters": out}))
-    n_ab = conn.execute("SELECT COUNT(*) AS c FROM ab_feedback WHERE imported_version=?", (new_version,)).fetchone()["c"]
-    conn.execute("UPDATE dataset_versions SET active=0")
-    conn.execute("INSERT INTO dataset_versions (version, ts, note, cold_count, reflow_count, active) VALUES (?,?,?,?,?,1)",
-                 (new_version, db.now_ts(), f"归类生成：{len(rows)} 条问题，{len(out)} 个分类", len(rows), n_ab))
-    conn.commit()
-    _cluster_task["status"] = "completed"
-    _cluster_task["version"] = new_version
-    db.audit("demo-admin", "dataset_cluster", {"version": new_version, "queries": len(rows), "clusters": len(out)})
-
-
-@app.post("/api/profile/generate")
-async def profile_generate():
-    """生成模型画像（版本级一次全量）：每簇抽代表 query，所有在线模型同题回放作答，
-    Judge 同题打分；融合簇内 AB 采纳率（权重随样本量自适应），得到 簇 × 模型 分数矩阵。"""
-    if _pgen_task["status"] == "running" or _cluster_task["status"] == "running":
-        return JSONResponse({"error": "已有任务进行中"}, status_code=409)
-    av = router_core.active_dataset_version()
-    if av <= 0:
-        return JSONResponse({"error": "还没有数据集：先攒够问题再归类生成数据集"}, status_code=409)
-    judge = db.dj(_get_setting("judge_model_info"), None)
-    if not (judge and judge.get("model_id")):
-        return JSONResponse({"error": "未配置 Judge 模型：画像打分需要它，请先在数据集页配置"}, status_code=409)
-    clusters = (db.dj(_get_setting(f"dataset_clusters_v{av}"), None) or {}).get("clusters") or []
-    models = router_core.get_active_models()
-    total = max(1, sum(len(c.get("rep_ids") or []) for c in clusters) * len(models))
-    _pgen_task.update({"status": "running", "done": 0, "total": total, "version": av})
-    asyncio.create_task(_run_pgen(av, judge))
-    return {"task": _pgen_task}
-
-
-@app.get("/api/profile/generate/status")
-def profile_generate_status():
-    return {"task": _pgen_task}
-
-
-async def _run_pgen(version: int, judge: dict):
-    try:
-        await _run_pgen_inner(version, judge)
-    except Exception as e:
-        _pgen_task["status"] = "failed"
-        _pgen_task["error"] = str(e)[:200]
-        db.audit("system", "profile_generate_failed", {"error": str(e)[:200]})
-
-
-async def _run_pgen_inner(version: int, judge: dict):
-    conn = db.get_conn()
-    clusters = (db.dj(_get_setting(f"dataset_clusters_v{version}"), None) or {}).get("clusters") or []
-    models = router_core.get_active_models()
-    import random as _rnd
-    out = []
-    done = 0
-    for c in clusters:
-        pkey = mockmodels.QUERY_THEMES.get(c["key"], {}).get("profile_key", "general")
-        reps = []
-        for qid in c.get("rep_ids") or []:
-            r = conn.execute("SELECT query_id, query_text FROM bank_queries WHERE query_id=?", (qid,)).fetchone()
-            if r:
-                reps.append(dict(r))
-        # AB 采纳：该簇（主题）内、已归账的偏好
-        wins, losses = {}, {}
-        for r in conn.execute("SELECT winner, losers FROM ab_feedback WHERE dimension=? "
-                              "AND imported_version IS NOT NULL AND imported_version<=?", (c["key"], version)).fetchall():
-            wins[r["winner"]] = wins.get(r["winner"], 0) + 1
-            for l in db.dj(r["losers"], []) or []:
-                losses[l] = losses.get(l, 0) + 1
-        cell = {}
-        for m in models:
-            scores = []
-            for rq in reps:
-                done += 1
-                _pgen_task["done"] = done
-                if done % 6 == 0:
-                    await asyncio.sleep(0.05)
-                # 回放作答 + Judge 打分（演示模拟：以模型主题画像为真值，叠加评审噪声）
-                correct = mockmodels.is_correct(m["model_id"], m["profile"], rq["query_text"], pkey)
-                noise = (_rnd.Random("j" + m["model_id"] + rq["query_id"]).random() - 0.5) * 0.16
-                score = max(0.0, min(1.0, (0.86 if correct else 0.30) + noise))
-                scores.append(score)
-                content, _ = mockmodels.gen_structured(rq["query_text"], pkey, correct)
-                conn.execute(
-                    "INSERT OR REPLACE INTO bank_responses (query_id, model_id, response_embedding, completion_tokens, "
-                    "label_value, label_confidence, label_source, label_kind, created_at, updated_at) "
-                    "VALUES (?,?,?,?,?,0.7,'llm_judge','capability',?,?)",
-                    (rq["query_id"], m["model_id"], db.j(embeddings.embed(content)),
-                     max(30, int(len(content) * 1.5)), round(score, 3), db.now_ts(), db.now_ts()))
-            judge_avg = round(sum(scores) / len(scores), 3) if scores else None
-            w, l = wins.get(m["model_id"], 0), losses.get(m["model_id"], 0)
-            n_ab = w + l
-            adopt = round(w / n_ab, 3) if n_ab else None
-            w_adopt = round(n_ab / (n_ab + ADOPT_SMOOTH_K), 3)
-            if judge_avg is None and adopt is None:
-                combined = None
-            elif adopt is None:
-                combined = judge_avg
-            elif judge_avg is None:
-                combined = adopt
-            else:
-                combined = round((1 - w_adopt) * judge_avg + w_adopt * adopt, 3)
-            cell[m["model_id"]] = {"judge": judge_avg, "n_judge": len(scores),
-                                   "adopt": adopt, "n_ab": n_ab, "w_adopt": w_adopt, "combined": combined}
-        out.append({"key": c["key"], "label": c["label"], "size": c["size"], "models": cell})
-    _set_setting(f"profile_matrix_v{version}", db.j({
-        "version": version, "ts": db.now_ts(), "judge_name": judge.get("display_name") or judge.get("model_id"),
-        "adopt_smooth_k": ADOPT_SMOOTH_K, "clusters": out}))
-    conn.commit()
-    _pgen_task["status"] = "completed"
-    db.audit("demo-admin", "profile_generate", {"version": version, "clusters": len(out),
-                                                "models": len(models), "judge": judge.get("model_id")})
-
-
-@app.get("/api/profile/matrix")
-def profile_matrix(version: int = None):
-    """画像原始矩阵（未做策略换算）：Judge 分 / 采纳率 / 样本量 / 自适应权重 / 融合效果分。
-    可查任意历史版本（数据可管理：画像随版本留档、可对比、可导出）。"""
-    av = router_core.active_dataset_version()
-    v = version or av
-    if v <= 0:
-        return JSONResponse({"error": "还没有数据集版本"}, status_code=404)
-    matrix = db.dj(_get_setting(f"profile_matrix_v{v}"), None)
-    if not matrix:
-        return JSONResponse({"error": f"数据集 v{v} 还没有生成画像"}, status_code=404)
-    return {"active_version": av, **matrix}
+@app.post("/api/benchmark/refresh")
+async def refresh_benchmark():
+    """刷新榜单快照（演示：更新快照日期；生产为拉取各榜单最新分数）。手动修正保留不被覆盖。"""
+    _set_setting("benchmark_asof", time.strftime("%Y-%m"))
+    db.audit("demo-admin", "benchmark_refresh", {"asof": time.strftime("%Y-%m")})
+    return {"ok": True, "asof": time.strftime("%Y-%m")}
 
 
 @app.get("/api/profile")
 def routing_profile(alpha: float = Query(0.7, ge=0.0, le=1.0), policy_id: str = None):
-    """路由效果（版本级画像 + 策略 α 即时换算）：效果分 = Judge 分 × (1-w) + 采纳率 × w（w 随 AB 样本自适应）；
-    综合分 = α × 效果分 + (1-α) × 省钱分（单价归一）。"""
+    """路由效果（benchmark 画像 + 策略 α 即时换算）：每行一个维度，
+    综合分 = α × (维度分/100) + (1-α) × 省钱分（单价归一）；缺失分数的格不参与。"""
     conn = db.get_conn()
-    av = router_core.active_dataset_version()
-    matrix = db.dj(_get_setting(f"profile_matrix_v{av}"), None) if av else None
+    dims, scores, meta = router_core.get_bench_profile()
     models = {r["model_id"]: dict(r) for r in conn.execute(
         "SELECT model_id, display_name, price_input, price_output, is_default FROM models WHERE status='active'")}
     pol = None
@@ -1652,110 +1293,35 @@ def routing_profile(alpha: float = Query(0.7, ge=0.0, le=1.0), policy_id: str = 
             if wl:
                 models = {k: v for k, v in models.items() if k in wl}
             alpha = (db.dj(pol.get("params"), {}) or {}).get("alpha", alpha)
-    if not matrix or not models:
-        return {"version": av, "generated": False, "clusters": [], "alpha": alpha,
-                "models": {mid: m["display_name"] for mid, m in models.items()}}
+    if not models:
+        return {"generated": True, "clusters": [], "alpha": alpha, "models": {}, "asof": meta["asof"]}
     prices = {mid: m["price_input"] + m["price_output"] for mid, m in models.items()}
     inv = {mid: 1.0 / max(0.01, p) for mid, p in prices.items()}
     lo, hi = min(inv.values()), max(inv.values())
     eff = {mid: round((v - lo) / (hi - lo), 3) if hi > lo else 0.5 for mid, v in inv.items()}
-    clusters = []
-    for c in matrix.get("clusters") or []:
-        scores = {}
+    rows = []
+    for d in dims:
+        cell = {}
         for mid in models:
-            cell = (c.get("models") or {}).get(mid)
-            perf = cell.get("combined") if cell else None
+            raw = scores.get(mid, {}).get(d["key"])
+            perf = round(raw / 100.0, 3) if raw is not None else None
             combined = round(alpha * perf + (1 - alpha) * eff[mid], 3) if perf is not None else None
-            scores[mid] = {"perf": perf, "eff": eff[mid], "combined": combined,
-                           "judge": cell.get("judge") if cell else None,
-                           "n_judge": cell.get("n_judge") if cell else 0,
-                           "adopt": cell.get("adopt") if cell else None,
-                           "n_ab": cell.get("n_ab") if cell else 0,
-                           "w_adopt": cell.get("w_adopt") if cell else 0}
-        valid = {m: s["combined"] for m, s in scores.items() if s["combined"] is not None}
+            cell[mid] = {"perf": perf, "eff": eff[mid], "combined": combined, "raw": raw,
+                         "override": d["key"] in (meta["overrides"].get(mid) or {})}
+        valid = {m: s["combined"] for m, s in cell.items() if s["combined"] is not None}
         best = max(valid, key=valid.get) if valid else None
         agg_with = None
         allow_agg = pol.get("allow_aggregation") if pol else 1
         if allow_agg and len(valid) >= 2:
-            ranked2 = sorted(valid.items(), key=lambda x: -x[1])
+            r2 = sorted(valid.items(), key=lambda x: -x[1])
             t_val = (db.dj(pol.get("params"), {}) or {}).get("t", 0.8) if pol else 0.8
-            if ranked2[0][1] - ranked2[1][1] < max(0.02, (1 - float(t_val)) * 0.3):
-                agg_with = ranked2[1][0]
-        clusters.append({"domain": c["key"], "label": c["label"], "queries": c["size"],
-                         "scores": scores, "best": best, "agg_with": agg_with})
-    return {"version": av, "generated": True, "ts": matrix.get("ts"),
-            "judge_name": matrix.get("judge_name"), "alpha": alpha,
-            "clusters": clusters, "models": {mid: m["display_name"] for mid, m in models.items()}}
-
-
-
-# ============ 数据集版本：列表 / 回滚 ============
-
-@app.get("/api/dataset/pool")
-def dataset_pool(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
-                 theme: str = None, source: str = None):
-    """Query 池完整列表（分页 / 按主题与来源筛选）：数据可管理——不止最近 15 条。"""
-    conn = db.get_conn()
-    conds, args = ["source IN ('collected','reflow')"], []
-    if source in ("collected", "reflow"):
-        conds = [f"source='{source}'"]
-    if theme:
-        conds.append("domain_tags LIKE ?")
-        args.append(f'%"{theme}"%')
-    where = " AND ".join(conds)
-    total = conn.execute(f"SELECT COUNT(*) AS c FROM bank_queries WHERE {where}", args).fetchone()["c"]
-    rows = conn.execute(
-        f"SELECT query_id, query_text, domain_tags, source, created_at, dataset_version "
-        f"FROM bank_queries WHERE {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
-        (*args, limit, offset)).fetchall()
-    out = [{"query_id": r["query_id"], "query": r["query_text"],
-            "theme": (db.dj(r["domain_tags"], []) or ["other"])[0],
-            "source": r["source"], "ts": r["created_at"], "dataset_version": r["dataset_version"]}
-           for r in rows]
-    return {"items": out, "total": total, "limit": limit, "offset": offset}
-
-
-@app.get("/api/dataset/versions")
-def get_dataset_versions():
-    conn = db.get_conn()
-    rows = [dict(r) for r in conn.execute("SELECT * FROM dataset_versions ORDER BY version DESC").fetchall()]
-    return {"versions": rows, "active": router_core.active_dataset_version()}
-
-
-@app.post("/api/dataset/rollback")
-async def dataset_rollback(request: Request):
-    """回滚数据集版本：迭代效果不好时切回旧版本——该版本之后导入的回流数据即退出路由与统计，
-    数据保留不删除，可再切回来。切换后各策略路由效果需重新生成。"""
-    body = await request.json()
-    try:
-        target = int(body.get("version"))
-    except (TypeError, ValueError):
-        return JSONResponse({"error": "缺少目标版本号"}, status_code=422)
-    conn = db.get_conn()
-    if not conn.execute("SELECT 1 FROM dataset_versions WHERE version=?", (target,)).fetchone():
-        return JSONResponse({"error": "版本不存在"}, status_code=404)
-    if target == router_core.active_dataset_version():
-        return JSONResponse({"error": "已是当前生效版本"}, status_code=409)
-    conn.execute("UPDATE dataset_versions SET active=0")
-    conn.execute("UPDATE dataset_versions SET active=1 WHERE version=?", (target,))
-    _set_setting("policy_profile_gen", db.j({}))
-    conn.commit()
-    db.audit("demo-admin", "dataset_rollback", {"to_version": target})
-    return {"ok": True, "active": target}
-
-
-@app.post("/api/dataset/query/delete")
-async def bank_question_delete(request: Request):
-    body = await request.json()
-    qid = (body.get("query_id") or "").strip()
-    conn = db.get_conn()
-    row = conn.execute("SELECT query_id FROM bank_queries WHERE query_id=?", (qid,)).fetchone()
-    if not row:
-        return JSONResponse({"error": "题目不存在"}, status_code=404)
-    _delete_bank_queries(conn, [qid])
-    conn.commit()
-    db.audit("demo-admin", "bank_question_delete", {"query_id": qid})
-    return {"ok": True}
+            if r2[0][1] - r2[1][1] < max(0.02, (1 - float(t_val)) * 0.3):
+                agg_with = r2[1][0]
+        rows.append({"domain": d["key"], "label": d["label"], "bench": d["bench"],
+                     "scores": cell, "best": best, "agg_with": agg_with})
+    return {"generated": True, "asof": meta["asof"], "alpha": alpha, "clusters": rows,
+            "models": {mid: m["display_name"] for mid, m in models.items()},
+            "router": router_core.get_router_model()}
 
 
 @app.get("/api/export/traces.csv")

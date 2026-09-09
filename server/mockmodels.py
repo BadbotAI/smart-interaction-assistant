@@ -371,3 +371,58 @@ def classify_theme(text: str) -> str:
         if s > score:
             best, score = theme, s
     return best if score > 0 else "other"
+
+# ---------- v7.0 Benchmark 维度画像（智能路由方案） ----------
+# 画像 = 公开 benchmark 分数表 + 成本；智能路由模型判 query 相关维度，取平均分路由。
+BENCH_DIMS = [
+    {"key": "knowledge", "label": "通用知识", "bench": "MMLU", "desc": "常识与领域知识问答"},
+    {"key": "math", "label": "数学推理", "bench": "GSM8K", "desc": "计算、推理与数量分析"},
+    {"key": "coding", "label": "代码生成", "bench": "HumanEval", "desc": "代码编写与调试"},
+    {"key": "writing", "label": "长文写作", "bench": "WritingBench", "desc": "公文、邮件、总结等商务写作"},
+    {"key": "instruct", "label": "指令遵循", "bench": "IFEval", "desc": "格式、字数、步骤等约束的遵循"},
+    {"key": "chinese", "label": "中文理解", "bench": "C-Eval", "desc": "中文语义、改写与翻译"},
+    {"key": "multimodal", "label": "多模态理解", "bench": "MMMU", "desc": "图像、截图、扫描件理解"},
+]
+
+BENCH_DIM_KEYWORDS = {
+    "math": ["计算", "利息", "毛利", "百分", "求解", "多少", "利率", "环比", "同比", "配载", "折算"],
+    "coding": ["SQL", "sql", "代码", "脚本", "接口", "报错", "正则", "函数", "调试", "同步失败"],
+    "writing": ["写一", "起草", "润色", "通知", "邮件", "总结", "函", "纪要", "汇报", "文案"],
+    "chinese": ["翻译", "成语", "文言", "改写", "理解这段", "润色这段", "什么意思"],
+    "instruct": ["按格式", "列表输出", "JSON", "表格输出", "分步骤", "字数", "按模板", "逐条"],
+    "multimodal": ["图片", "图像", "截图", "照片", "识别图", "看图", "音频", "语音", "视频", "扫描件"],
+    "knowledge": ["是什么", "为什么", "区别", "解释", "介绍", "怎么看", "要点", "要求", "流程"],
+}
+
+
+def classify_bench_dims(text: str):
+    """智能路由模型判维的演示实现：返回 query 相关的 benchmark 维度（可多个，最多 2 个）。
+    生产环境替换为真实小模型调用（结构化输出维度列表）。"""
+    hits = []
+    for dim, words in BENCH_DIM_KEYWORDS.items():
+        s = sum(1 for w in words if w in text)
+        if s:
+            hits.append((s, dim))
+    hits.sort(key=lambda x: -x[0])
+    dims = [d for _, d in hits[:2]]
+    if "multimodal" in [d for _, d in hits] and "multimodal" not in dims:
+        dims = ["multimodal"] + dims[:1]
+    if not dims:
+        dims = ["knowledge"]
+    return dims
+
+
+# 榜单快照种子（0-100；None=该模型此维度无公开分，平均时跳过）。asof 为快照日期。
+BENCH_SNAPSHOT = {
+    "asof": "2026-08",
+    "source": "公开榜单汇总（MMLU / GSM8K / HumanEval / WritingBench / IFEval / C-Eval / MMMU）",
+    "scores": {
+        "swift-4b":   {"knowledge": 58, "math": 31, "coding": 34, "writing": 47, "instruct": 55, "chinese": 62, "multimodal": None},
+        "atlas-72b":  {"knowledge": 79, "math": 63, "coding": 67, "writing": 74, "instruct": 78, "chinese": 81, "multimodal": 74},
+        "sage-r1":    {"knowledge": 80, "math": 93, "coding": 86, "writing": 69, "instruct": 74, "chinese": 72, "multimodal": None},
+        "harbor-13b": {"knowledge": 64, "math": 49, "coding": 55, "writing": 60, "instruct": 66, "chinese": 70, "multimodal": None},
+        "lexi-34b":   {"knowledge": 71, "math": 50, "coding": 52, "writing": 87, "instruct": 80, "chinese": 88, "multimodal": None},
+        "nova-x":     {"knowledge": 90, "math": 87, "coding": 89, "writing": 90, "instruct": 88, "chinese": 85, "multimodal": 91},
+    },
+}
+

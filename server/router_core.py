@@ -1,8 +1,9 @@
-"""JiSi 路由核心（开发文档 §3）。
+"""路由核心（v7 智能路由方案）。
 
-在线五步 + 快车道 + 探索预算 + 配额 + 双层 bank（公共底座 / 租户增量）。
-超参全部来自 RoutePolicy，论文默认值见 seed.py。
-标签衰减：按 created_at 指数衰减，半衰期默认 180 天（TBD-07 临时值）。
+画像 = 公开 benchmark 分数表 + 成本（静态配置，即改即生效）；
+每次请求由智能路由模型判定相关 benchmark 维度（可多个），
+候选模型取这些维度的平均分 × 成本-效果权重（α）路由；分数接近时聚合定稿。
+硬规则（多模态 / 闲聊）前置；智能路由模型未配置时降级为兜底直连（硬依赖）。
 """
 import asyncio
 import hashlib
@@ -68,129 +69,6 @@ def resolve_policy(tenant_id: str, scene: str, session_id: str):
     return None
 
 
-def active_dataset_version() -> int:
-    """当前生效数据集版本；0 = 还没聚类定版（冷启动随机探索期）。"""
-    row = db.get_conn().execute("SELECT version FROM dataset_versions WHERE active=1").fetchone()
-    return row["version"] if row else 0
-
-
-def load_bank(tenant_id: str):
-    """加载路由支撑集：只吃已聚类定版的数据（未定版的 Query 池不参与路由；回滚即退出）。"""
-    conn = db.get_conn()
-    av = active_dataset_version()
-    if av <= 0:
-        return []
-    queries = conn.execute(
-        "SELECT * FROM bank_queries WHERE (tenant_id IS NULL OR tenant_id=?) "
-        "AND (source IS NULL OR source != 'reflow_staged') "
-        "AND dataset_version IS NOT NULL AND dataset_version <= ?", (tenant_id, av)
-    ).fetchall()
-    qids = [q["query_id"] for q in queries]
-    responses = {}
-    if qids:
-        placeholders = ",".join("?" * len(qids))
-        for r in conn.execute(f"SELECT * FROM bank_responses WHERE query_id IN ({placeholders})", qids).fetchall():
-            responses.setdefault(r["query_id"], {})[r["model_id"]] = dict(r)
-    items = []
-    for q in queries:
-        items.append({
-            "query_id": q["query_id"],
-            "tenant_layer": q["tenant_id"] is not None,
-            "embedding": db.dj(q["embedding"], []),
-            "created_at": q["created_at"],
-            "responses": responses.get(q["query_id"], {}),
-        })
-    return items
-
-
-def support_set(bank_items, query_emb, n_base: int, gamma: float):
-    """Step 1：s_i >= gamma * (第 N_base 高的相似度)。"""
-    scored = []
-    for it in bank_items:
-        s = embeddings.cosine(query_emb, it["embedding"])
-        if s > 0:
-            scored.append((s, it))
-    scored.sort(key=lambda x: -x[0])
-    if not scored:
-        return []
-    kth = scored[min(n_base, len(scored)) - 1][0]
-    threshold = gamma * kth
-    return [(s, it) for s, it in scored if s >= threshold][: n_base * 3]
-
-
-def coarse_scores(support, model_ids, tenant_weight: float):
-    """Step 2：g = v·s，v 为 [0,1] 加权标签（label_value × label_confidence × 时间衰减）。
-    双层 bank 分层计算后按 tenant_weight 合并。"""
-    def layer_score(layer_items):
-        g = {}
-        for mid in model_ids:
-            num, den = 0.0, 0.0
-            for s, it in layer_items:
-                resp = it["responses"].get(mid)
-                if not resp or resp["label_value"] is None:
-                    continue
-                eff = resp["label_value"] * (resp["label_confidence"] or 0.5) * _decay(resp["created_at"])
-                num += s * eff
-                den += s
-            g[mid] = num / den if den > 0 else None
-        return g
-
-    pub = layer_score([x for x in support if not x[1]["tenant_layer"]])
-    ten = layer_score([x for x in support if x[1]["tenant_layer"]])
-    merged = {}
-    for mid in model_ids:
-        gp, gt = pub.get(mid), ten.get(mid)
-        if gp is None and gt is None:
-            merged[mid] = 0.0
-        elif gt is None:
-            merged[mid] = gp
-        elif gp is None:
-            merged[mid] = gt
-        else:
-            merged[mid] = (1 - tenant_weight) * gp + tenant_weight * gt
-    return merged
-
-
-def tenant_bank_weight(tenant_id: str) -> float:
-    """租户标签越多权重越高；启用阈值 500 条（TBD-05 临时值）。"""
-    conn = db.get_conn()
-    n = conn.execute(
-        "SELECT COUNT(*) AS c FROM bank_responses br JOIN bank_queries bq ON br.query_id=bq.query_id "
-        "WHERE bq.tenant_id=?", (tenant_id,)
-    ).fetchone()["c"]
-    if n <= 0:
-        return 0.0
-    return min(0.7, 0.2 + 0.5 * min(1.0, n / 500.0))
-
-
-def fine_scores(support, answers, eps, sigma, delta, beta, k):
-    """Step 4：s_flt = ε·K·s + σ·s_res + δ·s_cost，保留前 β 比例，得 g_f。"""
-    g_f = {}
-    for ans in answers:
-        mid = ans["model_id"]
-        resp_emb = embeddings.embed(ans["content"] or "")
-        rescored = []
-        for s, it in support:
-            hist = it["responses"].get(mid)
-            if not hist:
-                continue
-            s_res = embeddings.cosine(resp_emb, db.dj(hist.get("response_embedding"), []))
-            c_now, c_hist = ans["tokens_out"] + 1, (hist.get("completion_tokens") or 0) + 1
-            s_cost = 1.0 / (1.0 + abs(math.log(c_now / c_hist)))
-            s_flt = eps * k * s + sigma * s_res + delta * s_cost
-            eff = (hist["label_value"] or 0) * (hist["label_confidence"] or 0.5) * _decay(hist["created_at"])
-            rescored.append((s_flt, s, eff))
-        if not rescored:
-            g_f[mid] = 0.0
-            continue
-        rescored.sort(key=lambda x: -x[0])
-        kept = rescored[: max(1, int(len(rescored) * beta))]
-        num = sum(s * eff for _, s, eff in kept)
-        den = sum(s for _, s, _ in kept)
-        g_f[mid] = num / den if den > 0 else 0.0
-    return g_f
-
-
 def check_quota(tenant_id: str, budget_cap: dict):
     conn = db.get_conn()
     day = time.strftime("%Y-%m-%d")
@@ -217,41 +95,90 @@ DEFAULT_PARAMS = {"K": 3, "N_base": 50, "beta": 0.5, "gamma": 0.95,
                   "eps": 0.5, "sigma": 0.3, "delta": 0.2, "t": 0.8, "max_agg_tokens": 13000}
 
 
+def get_bench_profile():
+    """有效画像分 = 手动修正（kv benchmark_overrides）覆盖榜单快照。返回 (dims, scores, meta)。"""
+    conn = db.get_conn()
+    row = conn.execute("SELECT v FROM kv_settings WHERE k='benchmark_overrides'").fetchone()
+    overrides = db.dj(row["v"], {}) if row else {}
+    row2 = conn.execute("SELECT v FROM kv_settings WHERE k='benchmark_asof'").fetchone()
+    asof = row2["v"] if row2 else mockmodels.BENCH_SNAPSHOT["asof"]
+    scores = {}
+    for mid, per in mockmodels.BENCH_SNAPSHOT["scores"].items():
+        scores[mid] = dict(per)
+    for mid, per in (overrides or {}).items():
+        scores.setdefault(mid, {})
+        for d, v in per.items():
+            scores[mid][d] = v
+    return mockmodels.BENCH_DIMS, scores, {"asof": asof, "source": mockmodels.BENCH_SNAPSHOT["source"],
+                                            "overrides": overrides}
+
+
+def get_router_model():
+    row = db.get_conn().execute("SELECT v FROM kv_settings WHERE k='router_model_info'").fetchone()
+    info = db.dj(row["v"], None) if row else None
+    return info if (info and info.get("model_id")) else None
+
+
+def score_models(models, dims, alpha):
+    """按判定维度取平均分（缺失跳过），融合成本：combined = α × perf + (1-α) × 省钱分。"""
+    _, scores, _ = get_bench_profile()
+    prices = {m["model_id"]: (m["price_input"] or 0) + (m["price_output"] or 0) for m in models}
+    inv = {mid: 1.0 / max(0.01, p) for mid, p in prices.items()}
+    lo, hi = min(inv.values()), max(inv.values())
+    eff = {mid: (v - lo) / (hi - lo) if hi > lo else 0.5 for mid, v in inv.items()}
+    out = {}
+    for m in models:
+        mid = m["model_id"]
+        vals = [scores.get(mid, {}).get(d) for d in dims]
+        vals = [v for v in vals if v is not None]
+        if not vals:
+            continue  # 判定维度上全无分数：本次不可选
+        perf = sum(vals) / len(vals) / 100.0
+        out[mid] = {"perf": round(perf, 3), "eff": round(eff[mid], 3),
+                    "combined": round(alpha * perf + (1 - alpha) * eff[mid], 3)}
+    return out
+
+
 async def run_route(req: dict, recorder, emit):
-    """执行一次完整路由。emit(event_dict) 为过程事件回调（SSE / flow.reasoning 数据源）。
-    返回 final dict。"""
+    """执行一次路由。emit(event_dict) 为过程事件回调。返回 final dict。"""
     t_start = time.time()
     query = req["query"]
     tenant_id = req["tenant_id"]
     policy = req["policy"]
-    mode = req.get("mode") or "auto"          # auto=智能路由 / manual=手动选模型 / multi=多模型回答+单模型总结
+    mode = req.get("mode") or "auto"          # auto=智能路由 / manual=指定模型 / multi=多模型+总结
     params = {**DEFAULT_PARAMS, **db.dj(policy.get("params"), {})}
-    K = int(params["K"])
-    if policy.get("force_agg"):
-        K = max(K, 2)  # 请求级 aggregate=on：至少两路候选才聚得起来
-    domain = mockmodels.classify_domain(query)
-    # 三层路由（v5.0）：先判能力维度——multimodal/chat 走硬规则层，其余进维度匹配层
-    dimension = mockmodels.classify_dimension(query)  # 硬规则判定用（multimodal / chat）
-    req["_route"] = {"layer": "dimension", "dimension": mockmodels.classify_theme(query)}
+    alpha = float(params.get("alpha", 0.7))
+    domain = mockmodels.classify_domain(query)          # 回答内容生成用
+    dimension = mockmodels.classify_dimension(query)    # 硬规则判定用（multimodal / chat）
+    req["_route"] = {"layer": "dims", "dims": []}
 
     whitelist = db.dj(policy.get("model_whitelist"), []) or None
     models = get_active_models(whitelist=whitelist)
     if not models:
         return {"error": "no_active_models"}
-    model_ids = [m["model_id"] for m in models]
     by_id = {m["model_id"]: m for m in models}
     default_model = get_default_model(models)
-    # 策略级兜底：参数里明确指定的 fallback_model 优先（独立于候选白名单）；失效时退回平台默认兜底
     _fb_id = params.get("fallback_model")
     if _fb_id:
         _fb = next((m for m in get_active_models() if m["model_id"] == _fb_id), None)
         if _fb:
             default_model = _fb
 
-    # 手动模式：管理员/用户显式指定模型，不走路由决策；故障时切默认兜底模型
+    async def fallback_direct(reason_text, layer):
+        req["_route"]["layer"] = layer
+        await emit({"step": "degrade" if layer == "else" else "rule", "text": reason_text})
+        recorder.span("route_score", {"layer": layer, "fallback": default_model["model_id"]})
+        ans = await _call_with_timeout(default_model, query, domain, recorder, emit)
+        if ans["status"] != "ok":
+            return await _finalize(req, recorder, emit, None, "failed", [ans], {}, {},
+                                   [default_model["model_id"]], default_model["model_id"], False, t_start, [],
+                                   error="all_models_failed")
+        return await _finalize(req, recorder, emit, ans, "fallback", [ans], {}, {},
+                               [default_model["model_id"]], default_model["model_id"], False, t_start, [])
+
+    # 手动模式：显式指定模型，不走智能路由；故障切兜底
     if mode == "manual":
-        target_id = req.get("manual_model")
-        target = by_id.get(target_id) or default_model
+        target = by_id.get(req.get("manual_model")) or default_model
         recorder.span("route_score", {"mode": "manual", "target": target["model_id"]})
         await emit({"step": "manual", "text": f"手动指定模型：{target['display_name']}"})
         ans = await _call_with_timeout(target, query, domain, recorder, emit)
@@ -267,212 +194,125 @@ async def run_route(req: dict, recorder, emit):
         return await _finalize(req, recorder, emit, ans, "manual", [ans], {}, {},
                                [target["model_id"]], target["model_id"], False, t_start, [])
 
-    # —— 第 1 层 · 硬规则：多模态等功能性需求直接按能力分流，不进打分 ——
+    # —— 第 1 层 · 硬规则：多模态按能力过滤；闲聊轻量直答 ——
+    chat_rule = False
     if dimension == "multimodal":
         req["_route"]["layer"] = "rule"
         mm = [m for m in models if (m["capabilities"] or {}).get("vision")]
         if mm:
             models = mm
-            model_ids = [m["model_id"] for m in models]
             by_id = {m["model_id"]: m for m in models}
-            await emit({"step": "rule", "text": f"硬规则命中：多模态请求，仅在 {len(mm)} 个支持多模态的模型中路由"})
+            await emit({"step": "rule", "text": f"硬规则命中：多模态请求，仅在 {len(mm)} 个支持图像的模型中路由"})
         else:
-            req["_route"]["layer"] = "else"
-            _cap_note = "" if (default_model["capabilities"] or {}).get("vision") \
-                else "（兜底模型不具备多模态能力，将按文字尽力回答并说明限制）"
-            await emit({"step": "rule", "text": f"硬规则命中：多模态请求，但候选中没有支持多模态的模型，切兜底 {default_model['display_name']}{_cap_note}"})
-            recorder.span("route_score", {"layer": "else", "reason": "no_multimodal_candidate",
-                                          "fallback": default_model["model_id"]})
-            ans = await _call_with_timeout(default_model, query, domain, recorder, emit)
-            if ans["status"] != "ok":
-                return await _finalize(req, recorder, emit, None, "failed", [ans], {}, {},
-                                       [default_model["model_id"]], default_model["model_id"], False, t_start, [],
-                                       error="all_models_failed")
-            return await _finalize(req, recorder, emit, ans, "fallback", [ans], {}, {},
-                                   [default_model["model_id"]], default_model["model_id"], False, t_start, [])
+            _cap = "" if (default_model["capabilities"] or {}).get("vision")                 else "（兜底模型不具备多模态能力，将按文字尽力回答并说明限制）"
+            return await fallback_direct(f"硬规则命中：多模态请求，但候选中没有支持图像的模型，切兜底 {default_model['display_name']}{_cap}", "else")
     elif dimension == "chat":
-        req["_route"]["layer"] = "rule"  # 闲聊硬规则：轻量直答（由下方快车道承接执行）
+        chat_rule = True
+        req["_route"]["layer"] = "rule"
         await emit({"step": "rule", "text": "硬规则命中：日常闲聊，轻量直答"})
 
-    # Step 1: embedding + support set
+    # —— 智能路由模型（硬依赖）：未配置则不做智能路由，兜底直连 ——
+    router_model = get_router_model()
+    if not router_model:
+        return await fallback_direct(
+            f"未配置智能路由模型：无法判定问题相关维度，本次直连兜底 {default_model['display_name']}（请在「模型画像」页配置）",
+            "no_router")
+
+    # —— 第 2 层 · 智能判维：路由模型判定相关 benchmark 维度（可多个），取平均分 ——
     t0 = time.time()
-    q_emb = embeddings.embed(query)
-    recorder.span("embed", {"dim": embeddings.DIM}, int((time.time() - t0) * 1000))
-    await emit({"step": "embed", "text": "生成问题向量"})
+    dims = mockmodels.classify_bench_dims(query)
+    if dimension == "multimodal" and "multimodal" not in dims:
+        dims = ["multimodal"] + dims[:1]
+    await asyncio.sleep(0.12 * mockmodels.SIM_SPEED)  # 模拟判维一跳
+    judge_ms = int((time.time() - t0) * 1000) + 140
+    dim_labels = [next((d["label"] for d in mockmodels.BENCH_DIMS if d["key"] == k), k) for k in dims]
+    req["_route"]["layer"] = "rule" if req["_route"]["layer"] == "rule" else "dims"
+    req["_route"]["dims"] = dims
+    recorder.span("router_judge", {"router_model": router_model["model_id"], "dims": dims}, judge_ms)
+    await emit({"step": "dims", "text": f"智能路由模型 {router_model.get('display_name') or router_model['model_id']} 判定："
+                                        f"相关维度「{'、'.join(dim_labels)}」（{judge_ms}ms · ¥0.0001）", "dims": dims})
 
-    bank = load_bank(tenant_id)
-    support = support_set(bank, q_emb, int(params["N_base"]), float(params["gamma"]))
-    theme_name = mockmodels.QUERY_THEMES.get(req["_route"]["dimension"], {}).get("label") \
-        or ("其他 / 长尾" if req["_route"]["dimension"] == "other" else req["_route"]["dimension"])
-    if bank:
-        await emit({"step": "support",
-                    "text": f"第 2 层 · 分类匹配：归入「{theme_name}」，命中 {len(support)} 条相似问题",
-                    "count": len(support)})
+    scored = score_models(models, dims, alpha)
+    if not scored:
+        return await fallback_direct("候选模型在判定维度上均无画像分数，切兜底直连", "else")
+    ranked = sorted(scored.items(), key=lambda x: -x[1]["combined"])
+    await emit({"step": "coarse", "text": "取各模型在这些维度的平均分，融合成本得到综合分",
+                "scores": {mid: s["combined"] for mid, s in ranked},
+                "candidates": [mid for mid, _ in ranked[:2]]})
+    recorder.span("route_score", {"dims": dims, "alpha": alpha,
+                                  "scores": {mid: s for mid, s in list(scored.items())[:8]}})
 
-    # —— 冷启动 · 随机探索期：还没聚类定版（无路由支撑数据）时，均匀随机分配模型直答，
-    #    一边收集 query 一边由 AB 采样收采纳；硬规则层（多模态/闲聊）仍在其前生效 ——
-    if not bank and mode != "multi":
-        req["_route"]["layer"] = "explore"
-        target = random.choice(models)
-        await emit({"step": "explore", "text": f"冷启动随机探索：本次随机分配 {target['display_name']} 作答（各模型均匀分流，收集数据）"})
-        recorder.span("route_score", {"layer": "explore", "target": target["model_id"]})
-        ans = await _call_with_timeout(target, query, domain, recorder, emit)
+    top1_id, top1 = ranked[0]
+    gap = top1["combined"] - ranked[1][1]["combined"] if len(ranked) >= 2 else 1.0
+    force_agg = bool(policy.get("force_agg"))
+    allow_agg = bool(policy.get("allow_aggregation")) or force_agg
+    t_val = float(params.get("t", 0.8))
+    agg_gap = max(0.02, (1 - t_val) * 0.3)
+
+    do_agg = False
+    if mode == "multi":
+        do_agg = True
+        kept_ids = [mid for mid, _ in ranked]
+    elif force_agg and len(ranked) >= 2 and not chat_rule:
+        do_agg = True
+        kept_ids = [mid for mid, _ in ranked[:2]]
+    elif (not chat_rule) and allow_agg and len(ranked) >= 2 and gap <= agg_gap:
+        do_agg = True
+        kept_ids = [mid for mid, _ in ranked[:2]]
+
+    g = {mid: s["combined"] for mid, s in scored.items()}
+    req["_route"]["dim_scores"] = {mid: s for mid, s in scored.items()}
+
+    if not do_agg:
+        await emit({"step": "fastlane", "text": f"{by_id[top1_id]['display_name']} 综合分领先，直接作答"})
+        ans = await _call_with_timeout(by_id[top1_id], query, domain, recorder, emit)
         if ans["status"] != "ok":
-            fb2 = default_model if default_model and default_model["model_id"] != target["model_id"] \
-                else next((m for m in models if m["model_id"] != target["model_id"]), None)
+            fb2 = default_model if default_model and default_model["model_id"] != top1_id                 else next((by_id[mid] for mid, _ in ranked[1:2]), None)
             if fb2:
-                await emit({"step": "degrade", "text": f"{target['model_id']} 异常，切换 {fb2['display_name']}"})
+                await emit({"step": "degrade", "text": f"{top1_id} 异常，切换 {fb2['display_name']}"})
+                recorder.span("route_switch", {"reason": "primary_failed", "fallback": fb2["model_id"]}, status="degraded")
                 ans = await _call_with_timeout(fb2, query, domain, recorder, emit)
         if ans["status"] != "ok":
-            return await _finalize(req, recorder, emit, None, "failed", [ans], {}, {},
-                                   [target["model_id"]], target["model_id"], False, t_start, [],
-                                   error="all_models_failed")
-        return await _finalize(req, recorder, emit, ans, "explore", [ans], {}, {},
-                               [target["model_id"]], target["model_id"], True, t_start, [])
+            return await _finalize(req, recorder, emit, None, "failed", [ans], g, {},
+                                   [top1_id], top1_id, False, t_start, [], error="all_models_failed")
+        return await _finalize(req, recorder, emit, ans, "fastlane", [ans], g, {},
+                               [top1_id], top1_id, False, t_start, [])
 
-    # —— 第 3 层 · else 兜底：不属于任何维度（无相似基准题）时兜底模型直连 ——
-    if not support and mode != "multi":
-        req["_route"]["layer"] = "else"
-        await emit({"step": "else", "text": f"未命中任何维度基准题，走 else 兜底：{default_model['display_name']} 直连"})
-        recorder.span("route_score", {"layer": "else", "reason": "no_support", "fallback": default_model["model_id"]})
-        ans = await _call_with_timeout(default_model, query, domain, recorder, emit)
-        if ans["status"] != "ok":
-            return await _finalize(req, recorder, emit, None, "failed", [ans], {}, {},
-                                   [default_model["model_id"]], default_model["model_id"], False, t_start, [],
-                                   error="all_models_failed")
-        return await _finalize(req, recorder, emit, ans, "fallback", [ans], {}, {},
-                               [default_model["model_id"]], default_model["model_id"], False, t_start, [])
-
-    # Step 2: 粗粒度分数
-    w_t = tenant_bank_weight(tenant_id)
-    g = coarse_scores(support, model_ids, w_t)
-    ranked = sorted(g.items(), key=lambda x: -x[1])
-    aggregator_id = ranked[0][0] if ranked else model_ids[0]
-    # 策略可显式指定聚合器模型（需在线）
-    _cfg_agg = params.get("aggregator_model")
-    if _cfg_agg and _cfg_agg in g:
-        aggregator_id = _cfg_agg
-    candidates = [mid for mid, _ in ranked[:K]]
-    recorder.span("route_score", {
-        "support_count": len(support), "tenant_weight": round(w_t, 3),
-        "support_sample": [{"query_id": it["query_id"], "sim": round(s, 4)} for s, it in support[:8]],
-        "coarse_scores": {k2: round(v, 4) for k2, v in g.items()},
-        "candidates": candidates, "aggregator": aggregator_id, "domain": domain,
-    })
-    await emit({"step": "coarse", "text": "计算各模型在该分类的画像得分",
-                "scores": {k2: round(v, 3) for k2, v in ranked}, "candidates": candidates})
-
-    # 探索预算（§3.6）：强制随机打散候选
-    is_explore = False
-    if random.random() < float(policy.get("explore_ratio") or 0):
-        is_explore = True
-        candidates = random.sample(model_ids, min(K, len(model_ids)))
-        await emit({"step": "explore", "text": "本次为探索流量，随机选择候选模型", "candidates": candidates})
-
-    # 快车道判定（§3.3 落差二）。多模型模式强制并发+聚合，不走快车道
-    fastlane = False
-    if mode != "multi" and not policy.get("force_agg"):
-        if policy.get("latency_tier") == "fast" or not policy.get("allow_aggregation"):
-            fastlane = True
-        elif len(ranked) >= 2 and not is_explore:
-            top1, top2 = ranked[0][1], ranked[1][1]
-            if (top1 - top2 > FAST_GAP and top1 > 0.5) or top1 > FAST_ABS or dimension == "chat":
-                fastlane = True
-
-    if fastlane:
-        target = candidates[0] if candidates else model_ids[0]
-        await emit({"step": "fastlane", "text": f"快车道命中，直接调用 {by_id[target]['display_name']}", "model": target})
-        ans = await _call_with_timeout(by_id[target], query, domain, recorder, emit)
-        if ans["status"] != "ok":
-            fallback = (default_model if default_model and default_model["model_id"] != target
-                        else next((m for m in models if m["model_id"] != target), by_id[target]))
-            await emit({"step": "degrade", "text": f"{target} 超时，切换默认兜底模型 {fallback['model_id']}"})
-            recorder.span("route_switch", {"reason": "primary_timeout", "fallback": fallback["model_id"]}, status="degraded")
-            ans = await _call_with_timeout(fallback, query, domain, recorder, emit)
-            if ans["status"] != "ok":
-                return _finalize(req, recorder, emit, None, "failed", [ans], g, {}, candidates,
-                                 aggregator_id, is_explore, t_start, support, error="all_models_failed")
-        return await _finalize(req, recorder, emit, ans, "fastlane", [ans], g, {}, candidates,
-                               aggregator_id, is_explore, t_start, support)
-
-    # Step 3: 并发调用 K 个候选
-    await emit({"step": "calling", "text": f"并发询问 {len(candidates)} 个候选模型",
-                "models": [{"id": c, "name": by_id[c]["display_name"]} for c in candidates]})
-    tasks = [_call_with_timeout(by_id[c], query, domain, recorder, emit) for c in candidates]
+    # 聚合：并发作答 → 聚合模型总结定稿
+    await emit({"step": "calling", "text": f"综合分接近：{len(kept_ids)} 个候选并发作答",
+                "models": [{"id": c, "name": by_id[c]["display_name"]} for c in kept_ids]})
+    tasks = [_call_with_timeout(by_id[c], query, domain, recorder, emit) for c in kept_ids]
     answers = [a for a in await asyncio.gather(*tasks) if a["status"] == "ok"]
     if not answers:
-        # 兜底不重入：刚失败过的候选（含在候选列表里的兜底模型本身）不再调第二次，防循环重试（用户质疑 Q14）
-        failed_ids = set(candidates)
-        fallback = default_model if default_model and default_model["model_id"] not in failed_ids else None
-        if not fallback:
-            fallback = next((m for m in get_active_models() if m["model_id"] not in failed_ids), None)
-        if not fallback:
-            await emit({"step": "degrade", "text": "全部候选失败，且没有未参与本轮的可用模型，本次请求终止"})
-            recorder.span("route_switch", {"reason": "all_candidates_failed_no_fallback"}, status="degraded")
+        failed_ids = set(kept_ids)
+        fb3 = default_model if default_model and default_model["model_id"] not in failed_ids             else next((m for m in get_active_models() if m["model_id"] not in failed_ids), None)
+        if not fb3:
             return await _finalize(req, recorder, emit, None, "failed",
                                    [{"model_id": c, "status": "timeout", "content": None, "latency_ms": 0,
                                      "tokens_in": 0, "tokens_out": 0, "tokens_thinking": 0, "cost": 0.0}
-                                    for c in candidates][:1], g, {}, candidates, aggregator_id,
-                                   is_explore, t_start, support, error="all_models_failed")
-        recorder.span("route_switch", {"reason": "all_candidates_failed",
-                                       "fallback": fallback["model_id"]}, status="degraded")
-        _note = "" if (default_model and fallback["model_id"] == default_model["model_id"]) \
-            else "（默认兜底也在失败候选中，改用未参与本轮的模型）"
-        await emit({"step": "degrade", "text": f"全部候选超时，降级到兜底模型 {fallback['model_id']}{_note}"})
-        ans = await _call_with_timeout(fallback, query, domain, recorder, emit)
+                                    for c in kept_ids][:1], g, {}, kept_ids, top1_id, False, t_start, [],
+                                   error="all_models_failed")
+        await emit({"step": "degrade", "text": f"全部候选超时，降级到兜底模型 {fb3['model_id']}"})
+        recorder.span("route_switch", {"reason": "all_candidates_failed", "fallback": fb3["model_id"]}, status="degraded")
+        ans = await _call_with_timeout(fb3, query, domain, recorder, emit)
         result = "degraded" if ans["status"] == "ok" else "failed"
         return await _finalize(req, recorder, emit, ans if ans["status"] == "ok" else None, result,
-                               [ans], g, {}, candidates, aggregator_id, is_explore, t_start, support,
+                               [ans], g, {}, kept_ids, top1_id, False, t_start, [],
                                error=None if ans["status"] == "ok" else "all_models_failed")
-
-    # Step 4: 混合相似度细粒度分数
-    g_f = fine_scores(support, answers, float(params["eps"]), float(params["sigma"]),
-                      float(params["delta"]), float(params["beta"]), K)
-    await emit({"step": "fine", "text": "结合回答内容与消耗重估各候选",
-                "scores": {k2: round(v, 3) for k2, v in sorted(g_f.items(), key=lambda x: -x[1])}})
-
-    # Step 5: 自适应开关。多模型模式保留全部回答强制聚合（用户显式要求多模型+总结）
-    max_gf = max(g_f.values()) if g_f else 0.0
-    t_thresh = float(params["t"])
-    if mode == "multi":
-        kept = list(answers)
-    else:
-        kept = [a for a in answers if g_f.get(a["model_id"], 0) >= t_thresh * max_gf]
-        # 请求级 aggregate=on：终端用户点了聚合，细排后也至少保留两份去聚合
-        if policy.get("force_agg") and len(answers) >= 2 and len(kept) < 2:
-            kept = sorted(answers, key=lambda a: -g_f.get(a["model_id"], 0))[:2]
-    pruned = [a["model_id"] for a in answers if a not in kept]
-    if len(kept) > 1 and sum(a["tokens_out"] for a in kept) > int(params["max_agg_tokens"]):
-        kept = sorted(kept, key=lambda a: -g_f.get(a["model_id"], 0))[:2]  # aggregatee 截断
-    _max_routes = int(params.get("max_agg_routes") or 0)
-    if _max_routes >= 2:
-        kept = sorted(kept, key=lambda a: -g_f.get(a["model_id"], 0))[:_max_routes]
-    recorder.span("route_switch", {
-        "fine_scores": {k2: round(v, 4) for k2, v in g_f.items()},
-        "threshold": round(t_thresh * max_gf, 4), "pruned": pruned,
-        "result": "routed" if len(kept) == 1 else "aggregated",
-    })
-
-    if len(kept) == 1:
-        best = kept[0]
-        await emit({"step": "switch", "text": f"细粒度评估后单模型胜出：{by_id[best['model_id']]['display_name']}，剪掉 {len(pruned)} 个",
-                    "result": "routed", "pruned": pruned})
-        return await _finalize(req, recorder, emit, best, "routed", answers, g, g_f, candidates,
-                               aggregator_id, is_explore, t_start, support)
-
-    # 聚合
-    await emit({"step": "switch", "text": f"保留 {len(kept)} 份回答，交给聚合模型 {by_id[aggregator_id]['display_name']} 总结定稿",
-                "result": "aggregated", "pruned": pruned})
+    if len(answers) == 1:
+        ans = answers[0]
+        return await _finalize(req, recorder, emit, ans, "routed", answers, g, {},
+                               kept_ids, top1_id, False, t_start, [])
+    aggregator_id = params.get("aggregator_model") if params.get("aggregator_model") in by_id else top1_id
+    await emit({"step": "switch", "text": f"保留 {len(answers)} 份回答，交给聚合模型 {by_id[aggregator_id]['display_name']} 总结定稿",
+                "result": "aggregated"})
     t0 = time.time()
-    agg = mockmodels.aggregate_answers(by_id[aggregator_id], query, domain, kept)
+    agg = mockmodels.aggregate_answers(by_id[aggregator_id], query, domain, answers)
     await asyncio.sleep(agg["latency_ms"] * mockmodels.SIM_SPEED / 1000.0)
-    recorder.span("aggregate", {
-        "aggregator": aggregator_id, "input_tokens": agg["tokens_in"],
-        "aggregatees": [a["model_id"] for a in kept],
-        "truncated": len(kept) < len([a for a in answers if g_f.get(a["model_id"], 0) >= t_thresh * max_gf]),
-    }, int((time.time() - t0) * 1000))
-    return await _finalize(req, recorder, emit, agg, "aggregated", answers, g, g_f, candidates,
-                           aggregator_id, is_explore, t_start, support, kept=kept)
+    recorder.span("aggregate", {"aggregator": aggregator_id, "input_tokens": agg["tokens_in"],
+                                "aggregatees": [a["model_id"] for a in answers]}, int((time.time() - t0) * 1000))
+    return await _finalize(req, recorder, emit, agg, "aggregated", answers, g, {},
+                           kept_ids, aggregator_id, False, t_start, [], kept=answers)
 
 
 async def _call_with_timeout(model: dict, query: str, domain: str, recorder, emit):
@@ -521,7 +361,8 @@ async def _finalize(req, recorder, emit, final_ans, switch_result, all_answers, 
         "final_model_or_aggregator": final_ans["model_id"] if final_ans else None,
         "is_explore": is_explore, "total_cost": total_cost, "total_latency_ms": total_latency,
         "route_layer": (req.get("_route") or {}).get("layer"),
-        "dimension": (req.get("_route") or {}).get("dimension"),
+        "dimensions": (req.get("_route") or {}).get("dims") or [],
+        "dim_scores": (req.get("_route") or {}).get("dim_scores") or {},
     }
     conn = db.get_conn()
     conn.execute(

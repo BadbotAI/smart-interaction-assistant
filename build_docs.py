@@ -26,9 +26,7 @@ def snapshot():
     keys = ["/api/apikeys", "/api/products", "/api/audit?limit=100", "/api/brands", "/api/brands/active", "/api/cards",
             "/api/dashboard/insights?days=30", "/api/dashboard/overview?days=30",
             "/api/dashboard/questions?days=30", "/api/profile",
-            "/api/templates", "/api/flywheel", "/api/settings/ab-sampling",
-            "/api/dataset/overview", "/api/dataset/versions", "/api/settings/judge-model",
-            "/api/dataset/cluster/status", "/api/profile/generate/status",
+            "/api/templates", "/api/benchmark", "/api/settings/router-model",
             "/api/traces?limit=30", "/v1/models", "/v1/policies"]
 
     def get(p):

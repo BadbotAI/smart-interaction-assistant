@@ -4,44 +4,54 @@
   const realFetch = window.fetch.bind(window);
   const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
 
-  // v6 会话状态机：配 Judge → 聚类定版 → 生成画像（静态站可走完整动线）
-  const v6 = { judge: null, version: 0, generated: false, deletedQ: new Set() };
+  // v7 会话状态机：配置智能路由模型 → benchmark 成绩表（点格修正）→ 判维路由（静态站可走完整动线）
+  const v7 = { router: null, overrides: {}, asof: null };
   const deadCards = new Set(); // 静态站会话内删除/下线的配置
   const prodLocal = { created: [], updated: {}, deleted: new Set() }; // 会话内产品操作
-  const flyLocal = { rate: null, evolution: null, extraFb: 0, importedVersion: null, activeOverride: null }; // 数据飞轮会话内状态
   // 模型操作会话内状态：设默认兜底 / 启停 / 思考开关 / 编辑 / 删除（否则快照回读=界面无反应）
   const modelLocal = { defaultId: null, status: {}, thinking: {}, updated: {}, deleted: new Set() };
-  function dimOf(text) {
-    if (/图片|图像|截图|照片|音频|语音|视频|看图|扫描/.test(text)) return "multimodal";
-    if (/你好|谢谢|在吗|你是谁|早上好/.test(text)) return "chat";
-    if (/SQL|接口|报错|脚本|系统|同步/i.test(text)) return "tech";
-    if (/毛利|报表|同比|环比|汇总|分析/.test(text)) return "analytics";
-    if (/合同|条款|合规|关税|清关|资质/.test(text)) return "compliance";
-    if (/写一|起草|润色|通知|邮件|总结/.test(text)) return "writing";
-    if (/行情|运价|价格|指数|涨|跌/.test(text)) return "market";
-    if (/货|物流|延误|取件|赔付|催/.test(text)) return "logistics";
-    return "other";
-  }
-  const THEME_CN = { logistics: "物流服务与异常", market: "价格与行情", compliance: "合同与合规",
-    analytics: "经营分析与报表", writing: "公文与写作", tech: "系统与技术", other: "其他 / 长尾",
-    chat: "日常闲聊", multimodal: "多模态" };
-  const CLUSTER_STUB = [
-    { key: "tech", label: "系统与技术", summary: "系统对接、SQL 查询、接口报错等技术类问题", keywords: ["接口", "SQL", "报错", "系统"], size: 91 },
-    { key: "writing", label: "公文与写作", summary: "通知、邮件、总结、函件等商务写作类需求", keywords: ["通知", "邮件", "总结", "函件"], size: 88 },
-    { key: "analytics", label: "经营分析与报表", summary: "经营数据分析、报表汇总、利润核算类问题", keywords: ["报表", "毛利", "同比", "汇总"], size: 86 },
-    { key: "compliance", label: "合同与合规", summary: "合同条款审查、出口合规、关税申报类问题", keywords: ["合同", "条款", "合规", "关税"], size: 82 },
-    { key: "market", label: "价格与行情", summary: "运价与商品行情研判、价格指数走势类问题", keywords: ["运价", "行情", "涨跌", "指数"], size: 81 },
-    { key: "logistics", label: "物流服务与异常", summary: "查件、延误、取件改约、破损赔付等售后服务类问题", keywords: ["物流跟踪", "延误", "取件", "赔付"], size: 80 },
-  ];
-  // 演示画像：judge 分 × 采纳融合后的效果分（每簇每模型）
-  const MATRIX_STUB = {
-    tech: { "sage-r1": [0.84, 0.67, 6], "nova-x": [0.80, null, 0], "atlas-72b": [0.66, 1.0, 2], "swift-4b": [0.36, 0.2, 1], "harbor-13b": [0.52, null, 0], "lexi-34b": [0.49, null, 0] },
-    writing: { "lexi-34b": [0.86, 0.71, 7], "nova-x": [0.85, 0.5, 4], "atlas-72b": [0.72, 1.0, 3], "swift-4b": [0.44, null, 0], "harbor-13b": [0.58, null, 0], "sage-r1": [0.68, null, 0] },
-    analytics: { "sage-r1": [0.9, 0.71, 7], "nova-x": [0.84, 0.58, 5], "atlas-72b": [0.74, null, 0], "swift-4b": [0.4, null, 0], "harbor-13b": [0.55, null, 0], "lexi-34b": [0.62, null, 0] },
-    compliance: { "lexi-34b": [0.9, 0.6, 5], "nova-x": [0.85, null, 0], "atlas-72b": [0.72, 0.5, 2], "sage-r1": [0.8, null, 0], "swift-4b": [0.37, null, 0], "harbor-13b": [0.52, null, 0] },
-    market: { "sage-r1": [0.88, 0.6, 5], "nova-x": [0.84, 0.5, 4], "atlas-72b": [0.75, null, 0], "swift-4b": [0.41, null, 0], "harbor-13b": [0.58, null, 0], "lexi-34b": [0.56, null, 0] },
-    logistics: { "harbor-13b": [0.86, 0.62, 8], "atlas-72b": [0.74, 0.55, 4], "nova-x": [0.82, null, 0], "swift-4b": [0.55, 0.4, 2], "sage-r1": [0.66, null, 0], "lexi-34b": [0.6, null, 0] },
+  // 判维演示实现：与服务端 classify_bench_dims 同规则（关键词判定，最多 2 维，multimodal 优先）
+  const DIM_KEYWORDS = {
+    math: ["计算", "利息", "毛利", "百分", "求解", "多少", "利率", "环比", "同比", "配载", "折算"],
+    coding: ["SQL", "sql", "代码", "脚本", "接口", "报错", "正则", "函数", "调试", "同步失败"],
+    writing: ["写一", "起草", "润色", "通知", "邮件", "总结", "函", "纪要", "汇报", "文案"],
+    chinese: ["翻译", "成语", "文言", "改写", "理解这段", "润色这段", "什么意思"],
+    instruct: ["按格式", "列表输出", "JSON", "表格输出", "分步骤", "字数", "按模板", "逐条"],
+    multimodal: ["图片", "图像", "截图", "照片", "识别图", "看图", "音频", "语音", "视频", "扫描件"],
+    knowledge: ["是什么", "为什么", "区别", "解释", "介绍", "怎么看", "要点", "要求", "流程"],
   };
+  const CHAT_WORDS = ["你好", "谢谢", "在吗", "你是谁", "早上好"];
+  function classifyDims(text) {
+    const hits = [];
+    Object.keys(DIM_KEYWORDS).forEach(d => {
+      const s = DIM_KEYWORDS[d].reduce((n, w) => n + (text.includes(w) ? 1 : 0), 0);
+      if (s) hits.push([s, d]);
+    });
+    hits.sort((a, b) => b[0] - a[0]);
+    let dims = hits.slice(0, 2).map(h => h[1]);
+    if (hits.some(h => h[1] === "multimodal") && !dims.includes("multimodal")) dims = ["multimodal", ...dims.slice(0, 1)];
+    return dims.length ? dims : ["knowledge"];
+  }
+  const DIM_CN = { knowledge: "通用知识", math: "数学推理", coding: "代码生成", writing: "长文写作",
+    instruct: "指令遵循", chinese: "中文理解", multimodal: "多模态理解" };
+  function benchState() {
+    const base = JSON.parse(JSON.stringify(D["/api/benchmark"] || { dims: [], scores: {}, models: [], overrides: {},
+      asof: "2026-08", source: "公开榜单汇总" }));
+    Object.keys(v7.overrides).forEach(mid => {
+      base.scores[mid] = { ...(base.scores[mid] || {}) };
+      base.overrides[mid] = { ...(base.overrides[mid] || {}) };
+      Object.keys(v7.overrides[mid]).forEach(d => {
+        if (v7.overrides[mid][d] === "__reset__") { delete base.overrides[mid][d]; return; }
+        base.scores[mid][d] = v7.overrides[mid][d];
+        base.overrides[mid][d] = v7.overrides[mid][d];
+      });
+    });
+    base.models = (base.models || []).filter(m => !modelLocal.deleted.has(m.model_id))
+      .map(m => ({ ...m, ...(modelLocal.updated[m.model_id] || {}) }));
+    if (v7.asof) base.asof = v7.asof;
+    base.router = v7.router;
+    return base;
+  }
   function getMock(pn, full) {
     if (pn === "/api/products") {
       const base = JSON.parse(JSON.stringify(D[pn] || { products: [] }));
@@ -55,105 +65,43 @@
       base.cards = (base.cards || []).filter(c => !deadCards.has(c.card_id));
       return base;
     }
-    if (pn === "/api/dataset/overview") {
-      const base = JSON.parse(JSON.stringify(D[pn] || { pool_total: 508, pool_new: 508, threshold: 500,
-        recent: [], versions: [], active: 0, clusters: null, theme_names: THEME_CN,
-        profile: { generated: false, estimate: { calls: 288, cost: 0.92 } }, judge: null }));
-      base.judge = v6.judge;
-      base.cluster_task = { status: "idle" }; base.pgen_task = { status: "idle" };
-      base.recent = (base.recent || []).filter(r => !v6.deletedQ.has(r.query_id));
-      if (v6.version) {
-        base.active = 1;
-        base.pool_new = 0;
-        base.can_cluster = false;
-        base.clusters = CLUSTER_STUB;
-        base.versions = [{ version: 1, ts: Date.now() / 1000, note: `聚类定版：${base.pool_total} 条 query，6 个簇`,
-          cold_count: base.pool_total, reflow_count: 62, active: 1 }];
-        base.recent.forEach(r => { r.dataset_version = 1; });
-        base.profile = { generated: v6.generated, ts: v6.generated ? Date.now() / 1000 : null,
-          judge_name: v6.judge ? v6.judge.display_name : null, estimate: { calls: 288, cost: 0.92 } };
-      } else {
-        base.can_cluster = base.pool_new >= base.threshold;
-      }
-      return base;
+    if (pn === "/api/benchmark") {
+      return benchState();
     }
-    if (pn === "/api/dataset/pool") {
-      const ov = getMock("/api/dataset/overview");
-      return { items: ov.recent || [], total: ov.pool_total || 0, limit: 50, offset: 0 };
-    }
-    if (pn === "/api/profile/matrix") {
-      if (!v6.generated) return { error: "还没有生成画像" };
-      const prof = getMock("/api/profile", "/api/profile");
-      return { active_version: 1, version: 1, ts: Date.now() / 1000,
-        judge_name: v6.judge ? v6.judge.display_name : "Judge", adopt_smooth_k: 20,
-        clusters: (prof.clusters || []).map(c => ({ key: c.domain, label: c.label, size: c.queries,
-          models: c.scores })) };
-    }
-    if (pn === "/api/dataset/versions") {
-      const ov = getMock("/api/dataset/overview");
-      return { versions: ov.versions, active: ov.active };
-    }
-    if (pn === "/api/dataset/cluster/status") {
-      return { task: v6.version ? { status: "completed", done: 508, total: 508, version: 1 } : { status: "idle" } };
-    }
-    if (pn === "/api/profile/generate/status") {
-      return { task: v6.generated ? { status: "completed", done: 288, total: 288, version: 1 } : { status: "idle" } };
-    }
-    if (pn === "/api/settings/judge-model") {
-      return { judge: v6.judge };
+    if (pn === "/api/settings/router-model") {
+      return { router: v7.router };
     }
     if (pn === "/api/profile") {
-      const models = (((D["/v1/models"] || {}).models) || []).filter(m => m.status === "active" && !modelLocal.deleted.has(m.model_id));
-      const names = {}; const prices = {};
-      models.forEach(m => { names[m.model_id] = m.display_name; prices[m.model_id] = (m.price_input || 0) + (m.price_output || 0); });
-      if (!v6.generated) return { version: v6.version, generated: false, clusters: [], alpha: 0.7, models: names };
+      const bm = benchState();
+      const models = bm.models.filter(m => modelLocal.status[m.model_id] !== "disabled");
+      const names = {};
+      models.forEach(m => { names[m.model_id] = m.display_name; });
       const q2 = new URLSearchParams((full || "").split("?")[1] || "");
       const pid = q2.get("policy_id");
       const pol = (((D["/v1/policies"] || {}).policies) || []).find(p => p.policy_id === pid);
       const alpha = pol ? ((pol.params || {}).alpha ?? 0.7) : 0.7;
       const inv = {}; let lo = Infinity, hi = -Infinity;
-      Object.keys(prices).forEach(mid => { inv[mid] = 1 / Math.max(0.01, prices[mid]); lo = Math.min(lo, inv[mid]); hi = Math.max(hi, inv[mid]); });
+      models.forEach(m => { const v = 1 / Math.max(0.01, (m.price_input || 0) + (m.price_output || 0));
+        inv[m.model_id] = v; lo = Math.min(lo, v); hi = Math.max(hi, v); });
       const eff = {}; Object.keys(inv).forEach(mid => { eff[mid] = hi > lo ? Math.round((inv[mid] - lo) / (hi - lo) * 1000) / 1000 : 0.5; });
-      const clusters = CLUSTER_STUB.map(c => {
+      const clusters = (bm.dims || []).map(d => {
         const scores = {};
-        Object.keys(names).forEach(mid => {
-          const cell = (MATRIX_STUB[c.key] || {})[mid];
-          const judge = cell ? cell[0] : 0.5, adopt = cell ? cell[1] : null, nAb = cell ? cell[2] : 0;
-          const w = Math.round(nAb / (nAb + 20) * 1000) / 1000;
-          const perf = adopt == null ? judge : Math.round(((1 - w) * judge + w * adopt) * 1000) / 1000;
-          const combined = Math.round((alpha * perf + (1 - alpha) * eff[mid]) * 1000) / 1000;
-          scores[mid] = { perf, eff: eff[mid], combined, judge, n_judge: 8, adopt, n_ab: nAb, w_adopt: w };
+        models.forEach(m => {
+          const raw = (bm.scores[m.model_id] || {})[d.key];
+          const perf = raw == null ? null : Math.round(raw / 100 * 1000) / 1000;
+          const combined = perf == null ? null : Math.round((alpha * perf + (1 - alpha) * eff[m.model_id]) * 1000) / 1000;
+          scores[m.model_id] = { perf, eff: eff[m.model_id], combined, raw,
+            override: d.key in ((bm.overrides || {})[m.model_id] || {}) };
         });
         const valid = Object.entries(scores).filter(([, s]) => s.combined != null);
         valid.sort((a, b) => b[1].combined - a[1].combined);
         const best = valid.length ? valid[0][0] : null;
+        const t = pol ? ((pol.params || {}).t ?? 0.8) : 0.8;
         const aggWith = (pol ? pol.allow_aggregation : 1) && valid.length >= 2 &&
-          valid[0][1].combined - valid[1][1].combined < 0.06 ? valid[1][0] : null;
-        return { domain: c.key, label: c.label, queries: c.size, scores, best, agg_with: aggWith };
+          valid[0][1].combined - valid[1][1].combined < Math.max(0.02, (1 - t) * 0.3) ? valid[1][0] : null;
+        return { domain: d.key, label: d.label, bench: d.bench, scores, best, agg_with: aggWith };
       });
-      return { version: 1, generated: true, ts: Date.now() / 1000,
-        judge_name: v6.judge ? v6.judge.display_name : "Judge", alpha, clusters, models: names };
-    }
-    if (pn === "/api/settings/ab-sampling") {
-      const base = D[pn] || { rate: 0.2 };
-      return { rate: flyLocal.rate != null ? flyLocal.rate : base.rate };
-    }
-    if (pn === "/api/flywheel") {
-      const base = JSON.parse(JSON.stringify(D[pn] || { total: 62, last7d: 62, dimensions: {}, win_rates: [],
-        sampling_rate: 0.2, min_required: 20, pending: 62, imported: 0, dataset_version: 0, recent: [] }));
-      base.total += flyLocal.extraFb; base.last7d += flyLocal.extraFb;
-      if (flyLocal.rate != null) base.sampling_rate = flyLocal.rate;
-      base.dataset_version = v6.version;
-      if (v6.version) {
-        base.pending = flyLocal.extraFb; base.imported = base.total - flyLocal.extraFb;
-        (base.recent || []).forEach(r => { r.imported_version = 1; });
-      } else { base.pending = base.total; base.imported = 0; }
-      return base;
-    }
-    if (pn === "/v1/feedback/pending") {
-      const base = D["/api/flywheel"] || { total: 62 };
-      const n = v6.version ? flyLocal.extraFb : (base.total || 62) + flyLocal.extraFb;
-      return { pending: [], total_pending: n };
+      return { generated: true, asof: bm.asof, alpha, clusters, models: names, router: v7.router };
     }
     if (pn === "/v1/models") {
       const base = JSON.parse(JSON.stringify(D[pn] || { models: [] }));
@@ -216,39 +164,42 @@
     }
     if (pn === "/api/scenarios/rewrite-trigger") return { trigger_description: (body && body.text || "") + "（演示：静态站不做真实 AI 改写）", examples: [] };
     if (pn === "/api/cards") return { card: { card_id: "demo-" + Math.random().toString(36).slice(2, 8), version: 0, status: "draft", ...(body || {}) } };
-    if (pn === "/api/settings/ab-sampling") {
-      const r = Number(body && body.rate);
-      if (!(r >= 0 && r <= 1)) return { error: "采样率需在 0-1 之间" };
-      flyLocal.rate = r;
-      return { ok: true, rate: r };
-    }
-    if (pn === "/v1/feedback") {
-      flyLocal.extraFb += 1;
-      const base = D["/api/flywheel"] || { total: 62 };
-      return { ok: true, flywheel_total: (base.total || 62) + flyLocal.extraFb };
-    }
-    if (pn === "/api/settings/judge-model") {
+    if (pn === "/api/settings/router-model") {
       const mid = (body && body.model_id || "").trim();
-      if (!mid) { v6.judge = null; return { ok: true, judge: null }; }
+      if (!mid) { v7.router = null; return { ok: true, router: null }; }
       if (!(body && body.display_name)) return { error: "请填写显示名" };
-      v6.judge = { model_id: mid, display_name: body.display_name };
-      return { ok: true, judge: v6.judge };
+      if (!/^[a-z0-9][a-z0-9-]{1,23}$/.test(mid)) return { error: "模型 ID 需为 2-24 位小写字母、数字或短横线" };
+      v7.router = { model_id: mid, display_name: body.display_name,
+        endpoint: (body && body.endpoint) || "", credential_ref: (body && body.credential_ref) || "" };
+      return { ok: true, router: v7.router };
     }
-    if (pn === "/api/dataset/cluster") {
-      if (v6.version) return { error: "上次定版后没有新增 query，暂不需要重新聚类" };
-      v6.version = 1;
-      return { task: { status: "running", done: 0, total: 508 } };
+    if (pn === "/api/benchmark/score") {
+      const mid = (body && body.model_id || "").trim(), dim = (body && body.dim || "").trim();
+      const dims = ((D["/api/benchmark"] || {}).dims || []).map(d => d.key);
+      if (!dims.includes(dim)) return { error: "未知维度" };
+      let score = body ? body.score : undefined;
+      if (score !== null) {
+        score = Number(score);
+        if (!Number.isFinite(score)) return { error: "分数需为 0-100 的数字，或 null 标记缺失" };
+        if (score < 0 || score > 100) return { error: "分数需在 0-100 之间" };
+      }
+      v7.overrides[mid] = { ...(v7.overrides[mid] || {}) };
+      v7.overrides[mid][dim] = score;
+      return { ok: true };
     }
-    if (pn === "/api/profile/generate") {
-      if (!v6.version) return { error: "还没有数据集版本：先攒够 Query 再聚类定版" };
-      if (!v6.judge) return { error: "未配置 Judge 模型：画像打分需要它，请先在数据集页配置" };
-      v6.generated = true;
-      return { task: { status: "running", done: 0, total: 288 } };
+    if (pn === "/api/benchmark/score/reset") {
+      const mid = (body && body.model_id || "").trim(), dim = (body && body.dim || "").trim();
+      if (v7.overrides[mid]) v7.overrides[mid][dim] = "__reset__";
+      const baseOv = ((D["/api/benchmark"] || {}).overrides || {})[mid] || {};
+      if (dim in baseOv) { v7.overrides[mid] = { ...(v7.overrides[mid] || {}) }; v7.overrides[mid][dim] = "__reset__"; }
+      else if (v7.overrides[mid]) delete v7.overrides[mid][dim];
+      return { ok: true };
     }
-    if (pn === "/api/dataset/rollback") {
-      return { error: "已是当前生效版本" };
+    if (pn === "/api/benchmark/refresh") {
+      const d2 = new Date();
+      v7.asof = d2.getFullYear() + "-" + String(d2.getMonth() + 1).padStart(2, "0");
+      return { ok: true, asof: v7.asof };
     }
-    if (pn === "/api/dataset/query/delete") { if (body && body.query_id) v6.deletedQ.add(body.query_id); return { ok: true }; }
     if (pn === "/api/products") {
       const name = (body && body.name || "").trim();
       if (!name || name.length > 15) return { error: "产品名称必填，1-15 字" };
@@ -357,7 +308,7 @@
         { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
           content: "收到，已按你的选择继续跟进：" + ((body.card_context || {}).summary || "") + "",
           decision_summary: { mode: "auto", switch_result: "fastlane", final_model: "swift-4b", candidates: ["swift-4b"],
-            route_layer: "dimension", dimension: "qa",
+            route_layer: "dims", dimensions: ["knowledge"],
             total_cost: 0.0002, total_latency_ms: 380,
             policy: { policy_id: "policy-global-balanced", name: "全局均衡", latency_tier: "balanced", K: 3 } },
           usage: { cost: 0.0002, tokens: 180 } },
@@ -383,123 +334,128 @@
 
   function sseRouteDemo(body) {
     const text = (body && body.text) || "";
-    // v6：还没生成画像 → 冷启动随机探索（各模型均匀分流直答）
-    if (!v6.generated) {
-      const models = (((D["/v1/models"] || {}).models) || []).filter(m => m.status === "active" && !modelLocal.deleted.has(m.model_id));
-      const pick = models[Math.floor(Math.random() * Math.max(1, models.length))] || { model_id: "swift-4b", display_name: "迅答 Swift-4B" };
-      return sseStream([
-        { step: "explore", text: `冷启动随机探索：本次随机分配 ${pick.display_name} 作答（各模型均匀分流，收集数据）` },
-        { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
-          content: "（随机探索期示例回答）围绕这个问题，可以从现状、约束与可行动作三个层面展开分析。",
-          decision_summary: { mode: "auto", switch_result: "explore", final_model: pick.model_id, candidates: [pick.model_id],
-            route_layer: "explore", dimension: dimOf(text), is_explore: true,
-            total_cost: 0.0004, total_latency_ms: 520,
-            model_calls: [{ model_id: pick.model_id, tokens_in: 90, tokens_out: 150, tokens_thinking: 0, cost: 0.0004, latency_ms: 520 }],
-            policy: { policy_id: "policy-global-balanced", name: "全局均衡", allow_aggregation: 1, alpha: 0.7 } },
-          usage: { cost: 0.0004, tokens: 240 } },
-      ], 420);
-    }
     const pid = body && body.policy_id;
     const pol = (((D["/v1/policies"] || {}).policies) || []).find(p => p.policy_id === pid);
     const polMeta = pol ? { policy_id: pol.policy_id, name: pol.name, latency_tier: pol.latency_tier,
       allow_aggregation: pol.allow_aggregation, K: (pol.params || {}).K || 3, alpha: (pol.params || {}).alpha ?? 0.7 }
       : { policy_id: "policy-global-balanced", name: "全局均衡", latency_tier: "balanced", allow_aggregation: 1, K: 3, alpha: 0.7 };
-    const dim = dimOf(text);
-    const DIM_CN = THEME_CN;
-    // 第 1 层 · 硬规则：多模态直接按能力分流
-    if (dim === "multimodal") {
+
+    // 硬依赖：未配置智能路由模型 → 直连兜底
+    if (!v7.router) {
       return sseStream([
-        { step: "rule", text: "第 1 层 · 硬规则命中：多模态请求，仅在 2 个支持多模态的模型中路由" },
-        { step: "coarse", text: "计算多模态模型在该维度的基准成绩",
-          scores: { "nova-x": 0.92, "atlas-72b": 0.78 }, candidates: ["nova-x"] },
-        { step: "fastlane", text: "曜极 Nova-X 显著领先，直接作答" },
+        { step: "rule", text: "未配置智能路由模型：无法判定问题相关维度，本次直连兜底 衡岳 Atlas-72B（请在「模型画像」页配置）" },
         { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
-          content: "已识别图像内容：箱号 TEMU1203987，箱体完好无明显破损。",
-          decision_summary: { mode: "auto", switch_result: "fastlane", final_model: "nova-x", candidates: ["nova-x", "atlas-72b"],
-            route_layer: "rule", dimension: "multimodal",
-            total_cost: 0.0031, total_latency_ms: 900,
-            model_calls: [{ model_id: "nova-x", tokens_in: 140, tokens_out: 120, tokens_thinking: 0, cost: 0.0031, latency_ms: 900 }],
+          content: "（兜底直连示例回答）围绕这个问题，可以从现状、约束与可行动作三个层面展开分析。",
+          decision_summary: { mode: "auto", switch_result: "fallback", final_model: "atlas-72b", candidates: ["atlas-72b"],
+            route_layer: "no_router", dimensions: [], total_cost: 0.0005, total_latency_ms: 640,
+            model_calls: [{ model_id: "atlas-72b", tokens_in: 90, tokens_out: 160, tokens_thinking: 0, cost: 0.0005, latency_ms: 640 }],
             policy: polMeta },
-          usage: { cost: 0.0031, tokens: 260 } },
-      ], 400);
+          usage: { cost: 0.0005, tokens: 250 } },
+      ], 420);
     }
-    if (dim === "chat") {
+
+    // 硬规则：日常闲聊轻量直答（问候且无其他维度命中、文本短）
+    const otherHit = Object.keys(DIM_KEYWORDS).some(d => DIM_KEYWORDS[d].some(w => text.includes(w)));
+    if (CHAT_WORDS.some(w => text.includes(w)) && !otherHit && text.length <= 12) {
       return sseStream([
         { step: "rule", text: "第 1 层 · 硬规则命中：日常闲聊，轻量直答" },
         { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
           content: "你好，我是本平台的智能助手，可以协助你做分析、写作、代码等多类问题。",
           decision_summary: { mode: "auto", switch_result: "fastlane", final_model: "swift-4b", candidates: ["swift-4b"],
-            route_layer: "rule", dimension: "chat",
+            route_layer: "rule", dimensions: ["knowledge"],
             total_cost: 0.0001, total_latency_ms: 320,
             model_calls: [{ model_id: "swift-4b", tokens_in: 30, tokens_out: 60, tokens_thinking: 0, cost: 0.0001, latency_ms: 320 }],
             policy: polMeta },
           usage: { cost: 0.0001, tokens: 90 } },
       ], 400);
     }
+
+    const dims = classifyDims(text);
+    const isMM = dims.includes("multimodal");
+    const bm = benchState();
+    let models = bm.models.filter(m => modelLocal.status[m.model_id] !== "disabled");
+    const steps = [];
+    if (isMM) {
+      models = models.filter(m => (m.capabilities || {}).vision);
+      steps.push({ step: "rule", text: `第 1 层 · 硬规则命中：多模态请求，仅在 ${models.length} 个支持图像的模型中路由` });
+    }
+    const rname = v7.router.display_name || v7.router.model_id;
+    steps.push({ step: "dims", text: `智能路由模型 ${rname} 判定：相关维度「${dims.map(d => DIM_CN[d] || d).join("、")}」（180ms · ¥0.0001）`, dims });
+
+    // 综合分：判定维度平均成绩 × 权重 + 省钱分 ×（1 - 权重）
+    const inv = {}; let lo = Infinity, hi = -Infinity;
+    models.forEach(m => { const v = 1 / Math.max(0.01, (m.price_input || 0) + (m.price_output || 0));
+      inv[m.model_id] = v; lo = Math.min(lo, v); hi = Math.max(hi, v); });
+    const alpha = polMeta.alpha;
+    const ranked = [];
+    models.forEach(m => {
+      const vals = dims.map(d => (bm.scores[m.model_id] || {})[d]).filter(v => v != null);
+      if (!vals.length) return;
+      const perf = vals.reduce((a, b) => a + b, 0) / vals.length / 100;
+      const eff = hi > lo ? (inv[m.model_id] - lo) / (hi - lo) : 0.5;
+      ranked.push([m.model_id, Math.round((alpha * perf + (1 - alpha) * eff) * 1000) / 1000, m.display_name]);
+    });
+    ranked.sort((a, b) => b[1] - a[1]);
+    if (!ranked.length) {
+      steps.push({ step: "rule", text: "候选模型在判定维度上均无成绩，切兜底直连" });
+      steps.push({ step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
+        content: "（兜底直连示例回答）已按通用能力尽力作答。",
+        decision_summary: { mode: "auto", switch_result: "fallback", final_model: "atlas-72b", candidates: ["atlas-72b"],
+          route_layer: "else", dimensions: dims, total_cost: 0.0005, total_latency_ms: 640,
+          model_calls: [{ model_id: "atlas-72b", tokens_in: 90, tokens_out: 140, tokens_thinking: 0, cost: 0.0005, latency_ms: 640 }],
+          policy: polMeta },
+        usage: { cost: 0.0005, tokens: 230 } });
+      return sseStream(steps, 420);
+    }
+    const scoreMap = {};
+    ranked.forEach(r => { scoreMap[r[0]] = r[1]; });
+    steps.push({ step: "coarse", text: "取各模型在这些维度的平均分，融合成本得到综合分", scores: scoreMap });
+
     const aggReq = (body && body.aggregate) || "auto";
     const overrideDenied = aggReq === "on" && pol && ((pol.params || {}).allow_agg_override === 0);
-    if (aggReq === "on" && pol && !pol.allow_aggregation && !overrideDenied) {
-      return sseRouteDemoAgg({ ...polMeta, _override: "on" }, dim, DIM_CN[dim] || dim);
-    }
-    if ((pol && !pol.allow_aggregation) || aggReq === "off" || overrideDenied) {
-      return sseStream([
-        { step: "support", text: `第 2 层 · 维度匹配：判定为「${DIM_CN[dim] || dim}」，命中 42 条相似基准题` },
-        { step: "coarse", text: "计算各模型在该维度的基准成绩",
-          scores: { "swift-4b": 0.71, "harbor-13b": 0.62, "atlas-72b": 0.58, "sage-r1": 0.44 },
-          candidates: ["swift-4b"] },
-        { step: "fastlane", text: "策略仅单模型：最高分 迅答 Swift-4B 直接作答" },
-        { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
-          content: "结论先行：整体趋势上行，建议优先关注供给端节奏，必要时再拆分区域看结构差异。",
-          decision_summary: { mode: "auto", switch_result: "fastlane", final_model: "swift-4b", candidates: ["swift-4b"],
-            route_layer: "dimension", dimension: dim,
-            aggregate_override: aggReq !== "auto" ? aggReq : null, aggregate_override_denied: overrideDenied,
-            total_cost: 0.0002, total_latency_ms: 410,
-            model_calls: [{ model_id: "swift-4b", tokens_in: 120, tokens_out: 190, tokens_thinking: 0, cost: 0.0002, latency_ms: 410 }],
-            policy: polMeta },
-          usage: { cost: 0.0002, tokens: 310 } },
-      ], 400);
-    }
-    return sseRouteDemoAgg({ ...polMeta, _override: aggReq !== "auto" ? aggReq : null }, dim, DIM_CN[dim] || dim);
-  }
+    const t = pol ? ((pol.params || {}).t ?? 0.8) : 0.8;
+    const gapClose = ranked.length >= 2 && ranked[0][1] - ranked[1][1] < Math.max(0.02, (1 - t) * 0.3);
+    const canAgg = (pol ? pol.allow_aggregation : 1) && aggReq !== "off" && !overrideDenied;
+    const forceAgg = aggReq === "on" && !overrideDenied && ranked.length >= 2;
+    const doAgg = ranked.length >= 2 && canAgg && (gapClose || forceAgg);
+    const top = ranked[0];
 
-  function sseRouteDemoAgg(polMeta, dim, dimName) {
-    const steps = [
-      { step: "support", text: `第 2 层 · 维度匹配：判定为「${dimName || "通用问答"}」，命中 42 条相似基准题` },
-      { step: "coarse", text: "计算各模型在该维度的基准成绩",
-        scores: { "sage-r1": 0.72, "nova-x": 0.70, "atlas-72b": 0.69, "swift-4b": 0.68, "harbor-13b": 0.56 },
-        candidates: ["sage-r1", "nova-x", "atlas-72b"] },
-      { step: "parallel", text: "3 路候选模型并发作答" },
-      { step: "switch", text: "细排：两份回答得分接近，保留 2 份交给聚合模型 沉思 Sage-R1 总结定稿" },
-      { step: "final", trace_id: "demo-trace", turn_id: "demo-turn",
-        content: "近八周价格整体呈上行趋势，最新值较期初上涨约 22%。建议关注供需两端的边际变化与港口库存去化速度。",
-        components: [{ schema_version: "1.0.0", render_id: "demo-pref", component_type: "feedback.preference",
-          semantic_category: "evaluate", trigger_source: "system_injected", card_ref: null,
-          params: { candidates: [
-            { model_id: "sage-r1", alias: "候选1", content: "近八周价格上行，涨幅 22%，动力来自供给收缩。" },
-            { model_id: "nova-x", alias: "候选2", content: "价格中枢上移，建议关注库存与需求端边际变化。" }] } }],
-        decision_summary: { mode: "auto", switch_result: "aggregated", final_model: "sage-r1",
-          candidates: ["sage-r1", "nova-x", "atlas-72b"], aggregator: "sage-r1", is_explore: false,
-          route_layer: "dimension", dimension: dim || "qa",
-          aggregate_override: polMeta._override || null, aggregate_override_denied: false,
-          total_cost: 0.0083, total_latency_ms: 1240,
-          model_calls: [
-            { model_id: "sage-r1", tokens_in: 120, tokens_out: 260, tokens_thinking: 80, cost: 0.0041, latency_ms: 980 },
-            { model_id: "nova-x", tokens_in: 120, tokens_out: 210, tokens_thinking: 0, cost: 0.0035, latency_ms: 860 },
-            { model_id: "atlas-72b", tokens_in: 120, tokens_out: 150, tokens_thinking: 0, cost: 0.0007, latency_ms: 640 }],
+    if (!doAgg) {
+      steps.push({ step: "fastlane", text: `${top[2]} 综合分领先，直接作答` });
+      steps.push({ step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
+        content: isMM ? "已识别图像内容：箱号 TEMU1203987，箱体完好无明显破损。"
+          : "结论先行：整体趋势上行，建议优先关注供给端节奏，必要时再拆分区域看结构差异。",
+        decision_summary: { mode: "auto", switch_result: "fastlane", final_model: top[0], candidates: [top[0]],
+          route_layer: isMM ? "rule" : "dims", dimensions: dims,
+          aggregate_override: aggReq !== "auto" ? aggReq : null, aggregate_override_denied: overrideDenied,
+          total_cost: 0.0021, total_latency_ms: 780,
+          model_calls: [{ model_id: top[0], tokens_in: 120, tokens_out: 190, tokens_thinking: 0, cost: 0.0021, latency_ms: 780 }],
           policy: polMeta },
-        usage: { cost: 0.0083, tokens: 1060 }, route_context: { policy_id: "policy-global-balanced" } },
-    ];
-    const enc = new TextEncoder();
-    const stream = new ReadableStream({
-      start(c) {
-        let i = 0;
-        const t = setInterval(() => {
-          if (i >= steps.length) { clearInterval(t); c.close(); return; }
-          c.enqueue(enc.encode("data:" + JSON.stringify(steps[i++]) + "\n\n"));
-        }, 420);
-      },
-    });
-    return new Response(stream, { status: 200 });
+        usage: { cost: 0.0021, tokens: 310 } });
+      return sseStream(steps, 400);
+    }
+    const second = ranked[1];
+    steps.push({ step: "calling", text: forceAgg && !gapClose ? "请求要求聚合：2 个候选并发作答" : "综合分接近：2 个候选并发作答",
+      models: [{ id: top[0], name: top[2] }, { id: second[0], name: second[2] }] });
+    steps.push({ step: "switch", text: `保留 2 份回答，交给聚合模型 ${top[2]} 总结定稿`, result: "aggregated" });
+    steps.push({ step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
+      content: "综合 2 个候选模型的回答并交叉验证：近八周价格整体呈上行趋势，建议关注供需两端的边际变化。",
+      components: [{ schema_version: "1.0.0", render_id: "demo-pref", component_type: "feedback.preference",
+        semantic_category: "evaluate", trigger_source: "system_injected", card_ref: null,
+        params: { candidates: [
+          { model_id: top[0], alias: "候选1", content: "近八周价格上行，涨幅 22%，动力来自供给收缩。" },
+          { model_id: second[0], alias: "候选2", content: "价格中枢上移，建议关注库存与需求端边际变化。" }] } }],
+      decision_summary: { mode: "auto", switch_result: "aggregated", final_model: top[0],
+        candidates: [top[0], second[0]], aggregator: top[0],
+        route_layer: isMM ? "rule" : "dims", dimensions: dims,
+        aggregate_override: aggReq !== "auto" ? aggReq : null, aggregate_override_denied: false,
+        total_cost: 0.0083, total_latency_ms: 1240,
+        model_calls: [
+          { model_id: top[0], tokens_in: 120, tokens_out: 260, tokens_thinking: 0, cost: 0.0047, latency_ms: 980 },
+          { model_id: second[0], tokens_in: 120, tokens_out: 210, tokens_thinking: 0, cost: 0.0036, latency_ms: 860 }],
+        policy: polMeta },
+      usage: { cost: 0.0083, tokens: 1060 } });
+    return sseStream(steps, 420);
   }
 
   window.fetch = function (url, opts = {}) {
