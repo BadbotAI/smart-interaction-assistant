@@ -140,5 +140,12 @@ if (pub) {
   assert(false, "快照中应有已上线卡片");
 }
 
+// 10) AI 改写触发条件：任意输入都应产出完整结构（曾是敷衍拼接 + 字段错位）
+r = await post("/api/scenarios/rewrite-trigger", { description: "用户想催快递的时候" });
+assert(/^当用户想催快递时触发本配置/.test(r.trigger_description), "改写应输出规范触发描述: " + r.trigger_description);
+assert((r.trigger_examples || []).length === 3, "应生成 3 条示例问法");
+r = await post("/api/scenarios/rewrite-trigger", { description: "s d f g" });
+assert(r.trigger_description.includes("s d f g") && (r.trigger_examples || []).length === 3, "乱输入也应结构完整");
+
 console.log(failures === 0 ? "MOCK SMOKE: ALL PASS" : `MOCK SMOKE: ${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

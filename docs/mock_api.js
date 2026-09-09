@@ -176,7 +176,21 @@
       const t = (D["/api/templates"] || { templates: [] }).templates.slice(0, 3);
       return { suggestions: t.map(x => ({ component_type: x.component_type, name: x.name, reason: "按场景匹配推荐" })) };
     }
-    if (pn === "/api/scenarios/rewrite-trigger") return { trigger_description: (body && body.text || "") + "（演示：静态站不做真实 AI 改写）", examples: [] };
+    if (pn === "/api/scenarios/rewrite-trigger") {
+      // 与服务端 cards.rewrite_trigger 同规则：口语描述 → 规范触发描述 + 3 条示例问法（任意输入都产出完整结构）
+      let core = ((body && body.description) || (body && body.text) || "").trim().replace(/[。，,.]+$/, "");
+      if (!core) return { trigger_description: "", trigger_examples: [] };
+      for (const pre of ["当用户", "用户", "当", "如果", "客户"]) {
+        if (core.startsWith(pre)) { core = core.slice(pre.length); break; }
+      }
+      for (const suf of ["的时候", "的情况下", "时"]) {
+        if (core.endsWith(suf)) { core = core.slice(0, -suf.length); break; }
+      }
+      return {
+        trigger_description: `当用户${core}时触发本配置。适用于该场景下的咨询、求助与处理请求；不适用于普通闲聊或与此无关的问题。触发后按本配置的信息与交互组件引导用户。`,
+        trigger_examples: [`${core}，怎么处理`, `我遇到了${core}的情况`, `关于${core}想咨询一下`],
+      };
+    }
     if (pn === "/api/cards") return { card: { card_id: "demo-" + Math.random().toString(36).slice(2, 8), version: 0, status: "draft", ...(body || {}) } };
     if (pn === "/api/settings/router-model") {
       const mid = (body && body.model_id || "").trim();
