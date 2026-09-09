@@ -330,3 +330,28 @@ node tests/mock_smoke.mjs 全过；py_compile + node --check；GET 全端点扫�
 - 第二批（P2 顺手修）：T15-5 explore 残留清理；T15-6 空态；T15-7 文案统一；T15-8 mock 一致化。
 - 回归方式：py_compile + node --check（全部内嵌脚本）；curl 实测（未配置闲聊 rule 直答不再 no_router、配置后闲聊 0 次 dims、swift-4b 2% 模拟超时命中时降级链正常接管、省钱优先 aggregate=on denied=true、复合判维 math+writing 不回归）；全 GET 端点运行时扫描 non-200=none；`node tests/mock_smoke.mjs` 28 断言 ALL PASS；audit 页截图确认新映射中文渲染。
 - 过程教训：外部 sqlite3 直写 WAL 模式下会被服务端 checkpoint 覆盖——改库一律走 API 或停服后写。
+
+---
+
+# Tricky 审查 · 第十六批（2026-09-09，用户触发的 API 接入线 PM 专审）
+
+- 范围：API Key 接入全链路（文档 / 生命周期 / 校验 / 配置持久化）+ 画像页黑盒感
+- 触发：用户三点反馈（聚合开关下缺 API 说明 / 全站无接入文档 / 刷新榜单快照黑盒）+ PM 视角主动排查
+
+## 问题清单
+
+| 编号 | 关卡 | 级别 | 问题（含失败场景） | 建议 | 状态 |
+|---|---|---|---|---|---|
+| T16-1 | D- | P0 | **种子策略与模型每次重启回滚出厂**：seed_policies / seed_models 用 INSERT OR REPLACE 且 run_all 每次启动执行——管理员改的候选、权重、聚合硬约束、模型单价、多模态开关、停用状态全部静默丢失（Tricky15 设置的省钱优先硬约束即被此 bug 抹掉，本轮截图目检发现开关状态异常才暴露；此前所有验证都在改完立即验证的窗口内，从未跨重启检查） | 改 INSERT OR IGNORE（新库插入、老库不覆盖）；跨重启回归纳入验证清单 | 已修 |
+| T16-2 | S- | P1 | **无效 API Key 静默回落默认策略照常计费**：Key 拼错 / 已重置 / 策略停用时，请求悄悄按默认策略执行——调用方毫无感知，计费与归因全错，Key 重置形同虚设 | 明确拒绝：final 事件 error=invalid_api_key + 引导文案，不再回落 | 已修 |
+| T16-3 | L- | P1 | **API Key 无生命周期管理**：Key 泄露 / 人员变动无处置手段（Key 由 policy_id 无盐派生，无法作废） | 派生加盐（kv policy_key_salt，盐 0 兼容现有 Key）；新增 POST /v1/policies/{id}/reset-key + 策略卡「更多 → 重置 API Key」（确认三要素 + 新 Key 一次性弹窗）+ 审计 | 已修 |
+| T16-4 | C- | P1 | **全站无接入文档**（用户点名）：Key 发出去了，对接开发只有藏在策略抽屉里的折叠块，无法独立完成对接 | 新增「接入文档」页（导航配置组）：快速开始 curl / 请求参数表 / SSE 事件表 / final 字段表 / 聚合与成本约束 / Key 治理与稳态，逐块可复制 | 已修 |
+| T16-5 | C- | P2 | 聚合覆盖开关下缺 API 说明（用户点名）：管理员不知道「响应终端用户的聚合选择」对应调用方的什么行为 | 开关下补 aggregate 参数说明 + applied.override_allowed 口径 + 接入文档链接 | 已修 |
+| T16-6 | C- | P2 | 刷新榜单快照黑盒（用户点名）：不知道刷新的是哪些榜单 | 确认框列出七个维度的引用榜单清单 + 当前快照日期 | 已修 |
+| T16-7 | D- | P2 | 策略卡摘要与抽屉读取的 params 依赖 /v1/policies 列表，硬约束等配置无版本一致性校验；策略并发写仍 last-write-wins | 记账（与 T15-10 同类） | 记账 |
+| T16-8 | L- | P2 | Key 无按环境区分（测试/生产同一把）；用量统计按租户无按 Key 维度 | 记账：生产化需求 | 记账 |
+
+## 整改记录
+
+- 回归方式：Key 生命周期 curl 全链路（现有 Key 盐 0 不变 → 重置得新 Key → 旧 Key 调用 error=invalid_api_key → 新 Key 按对应策略路由）；配置持久化跨两次重启验证（策略 override=0 与模型单价均保留）；接入文档页与策略抽屉截图目检；mock 增 reset-key 会话态，smoke 增至 30 断言 ALL PASS。
+- 教训：**幂等验证必须含跨重启回归**——「改完立即验证通过」不等于持久化正确；种子函数一律 INSERT OR IGNORE / 存在守卫，禁止 OR REPLACE。

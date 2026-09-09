@@ -99,10 +99,17 @@ async def _handle_turn(body: dict, emit):
     # 对外接入：api_key 即策略凭证，用户产品带 Key 调用即绑定对应策略（无需感知策略 ID）
     if body.get("api_key"):
         _touch_api_key(body["api_key"])
+        _hit = None
         for _r in db.get_conn().execute("SELECT policy_id FROM policies WHERE enabled=1").fetchall():
             if _policy_api_key(_r["policy_id"]) == body["api_key"]:
-                body["policy_id"] = _r["policy_id"]
+                _hit = _r["policy_id"]
                 break
+        if not _hit:
+            # Key 无效（拼错 / 已被重置 / 策略停用）：明确报错，不静默回落默认策略——否则计费与归因全错、调用方毫无感知
+            await emit({"step": "final", "trace_id": trace_id, "error": "invalid_api_key",
+                        "content": "API Key 无效或已被重置：请在「路由策略」页复制当前 Key 并更新调用方配置。"})
+            return
+        body["policy_id"] = _hit
     # 测试抽屉可显式指定调度策略（仅限已启用策略）
     if body.get("policy_id"):
         _row = db.get_conn().execute("SELECT * FROM policies WHERE policy_id=? AND enabled=1",
@@ -767,7 +774,24 @@ def _touch_api_key(api_key: str):
 
 def _policy_api_key(policy_id: str) -> str:
     import hashlib as _h
-    return "sk-route-" + _h.md5(("route-key:" + policy_id).encode()).hexdigest()[:16]
+    salts = db.dj(_get_setting("policy_key_salt"), {}) or {}
+    n = int(salts.get(policy_id, 0))
+    seed_s = "route-key:" + policy_id + ("" if n == 0 else f":{n}")
+    return "sk-route-" + _h.md5(seed_s.encode()).hexdigest()[:16]
+
+
+@app.post("/v1/policies/{policy_id}/reset-key")
+async def reset_policy_key(policy_id: str):
+    """重置策略 API Key：旧 Key 立即失效（无效 Key 的调用被明确拒绝，不再静默回落默认策略）。"""
+    conn = db.get_conn()
+    row = conn.execute("SELECT name FROM policies WHERE policy_id=?", (policy_id,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    salts = db.dj(_get_setting("policy_key_salt"), {}) or {}
+    salts[policy_id] = int(salts.get(policy_id, 0)) + 1
+    _set_setting("policy_key_salt", db.j(salts))
+    db.audit("demo-admin", "policy_key_reset", {"policy_id": policy_id, "name": row["name"]})
+    return {"ok": True, "api_key": _policy_api_key(policy_id)}
 
 
 @app.post("/v1/models/{model_id}/thinking")

@@ -22,7 +22,7 @@
 UI.nav("router");
 const { el } = UI;
 // 走查：板块入口只保留左侧导航一处，页内不再放横向 tab（按 #hash 渲染）
-const SECTION_NAMES = { models: "模型接入", dispatch: "路由策略", profile: "模型画像" };
+const SECTION_NAMES = { models: "模型接入", dispatch: "路由策略", profile: "模型画像", apidoc: "接入文档" };
 let activeTab = "models";
 
 let pollTimer = null;
@@ -428,6 +428,10 @@ function policyForm(init, actives, policyId, apiKey) {
         UI.help("你的产品可以在界面上让用户自选「多模型聚合回答」（请求带 aggregate 参数进来）。开启＝按用户的选择执行；关闭＝忽略用户选择、始终按上面的聚合开关来——需要严格控制成本时建议关闭")]),
       UI.toggle({ checked: st.allow_override, label: st.allow_override ? "按用户选择执行" : "忽略用户选择",
         onChange: (v) => { st.allow_override = v; return true; } }),
+      el("div", { class: "muted", style: "font-size:var(--font-caption);margin-top:6px" }, [
+        "调用方在请求里传 aggregate=on/off 即为用户的聚合选择；关闭本开关后 on 会被拒绝，响应 applied.override_allowed=false。完整口径见",
+        el("a", { href: "/web/router.html#apidoc", onclick: (e) => { e.preventDefault(); document.querySelector(".drawer-mask .close-btn")?.click(); location.hash = "apidoc"; } }, ["「接入文档」"]),
+      ]),
     ]),
   ]);
   return { node, st, nameIn, nameErr };
@@ -517,6 +521,24 @@ async function renderPolicies(container, policies, actives) {
           { label: "复制", onClick: async () => {
             try { const r = await UI.api(`/v1/policies/${p.policy_id}/duplicate`, { method: "POST" }); UI.toast(`已复制为「${r.name}」`); renderDispatch(); }
             catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
+          } },
+          { label: "重置 API Key", danger: true, onClick: async () => {
+            const ok = await UI.confirm("重置 API Key",
+              `为「${p.name}」生成新的 API Key：旧 Key 立即失效，仍在使用旧 Key 的调用会被明确拒绝——请在重置后立刻把新 Key 更新到你的调用方配置。适用于 Key 泄露或人员变动。`,
+              { okText: "重置", danger: true });
+            if (!ok) return;
+            try {
+              const r = await UI.api(`/v1/policies/${p.policy_id}/reset-key`, { method: "POST" });
+              const km = UI.modal("新的 API Key", el("div", {}, [
+                el("div", { class: "muted", style: "margin-bottom:10px" }, ["旧 Key 已失效。请立即复制新 Key 并更新到调用方配置："]),
+                el("button", { class: "key-chip", style: "width:100%;justify-content:space-between",
+                  onclick: () => { navigator.clipboard.writeText(r.api_key); UI.toast("已复制新 Key"); } },
+                  [el("span", { class: "num" }, [r.api_key]), UI.icon("copy", 12)]),
+                el("div", { style: "display:flex;justify-content:flex-end;margin-top:14px" }, [
+                  el("button", { class: "btn primary", onclick: () => { km.remove(); renderDispatch(); } }, ["我已保存"]),
+                ]),
+              ]));
+            } catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
           } },
           !isDefault ? { label: "删除", danger: true, onClick: async () => {
             const ok = await UI.confirm("删除策略", `删除「${p.name}」后，使用它接入 Key 的调用将回落到默认策略。`, { okText: "删除", danger: true });
@@ -724,8 +746,9 @@ async function renderProfile() {
 
   // Benchmark 得分表（可点格修正）
   const refreshBtn = el("button", { class: "btn small", onclick: async (e) => {
+    const benchList = (bm.dims || []).map(d => `${d.label} ${d.bench}`).join(" · ");
     const ok = await UI.confirm("刷新榜单快照",
-      "拉取各 benchmark 榜单的最新得分并更新快照日期；手动修正过的格保留、不被覆盖。", { okText: "刷新" });
+      `将拉取以下公开榜单的最新得分并更新快照日期（当前快照 ${bm.asof}）：${benchList}。手动修正过的格保留、不被覆盖。`, { okText: "刷新" });
     if (!ok) return;
     await UI.withBusy(e.currentTarget, async () => {
       try { const r = await UI.api("/api/benchmark/refresh", { method: "POST" }); UI.toast(`榜单快照已更新至 ${r.asof}`); renderProfile(); }
@@ -802,6 +825,106 @@ async function renderProfile() {
   } catch (e2) { await loadTable(null); }
 }
 
+// ================= 接入文档（对接开发视角的完整口径） =================
+
+function docCard(title, children) {
+  return el("div", { class: "card", style: "margin-bottom:12px" }, [
+    el("div", { style: "font-weight:600;font-size:var(--font-title);margin-bottom:8px" }, [title]),
+    ...children,
+  ]);
+}
+function docPre(text) {
+  const pre = el("pre", { class: "num", style: "margin:0;background:var(--bg-sunken);border-radius:8px;padding:10px 12px;" +
+    "font-size:var(--font-caption);line-height:1.6;white-space:pre-wrap;overflow-x:auto" }, [text]);
+  return el("div", {}, [pre,
+    el("div", { style: "display:flex;justify-content:flex-end;margin-top:6px" }, [
+      el("button", { class: "btn small ghost", onclick: () => { navigator.clipboard.writeText(text); UI.toast("已复制"); } },
+        [UI.icon("copy", 12), "复制"]),
+    ])]);
+}
+function docTable(heads, rows) {
+  return el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
+    el("thead", {}, [el("tr", {}, heads.map((h, i) => el("th", { class: i === heads.length - 1 ? "w-main" : "" }, [h])))]),
+    el("tbody", {}, rows.map(r => el("tr", {}, r.map((c, i) => el("td", { class: i === 0 ? "num" : (i === r.length - 1 ? "w-main" : "") },
+      [typeof c === "string" ? c : c]))))),
+  ])]);
+}
+
+async function renderApiDocPage() {
+  const box = content();
+  box.innerHTML = "";
+  const curl = [
+    'curl -N https://api.example.com/v1/route \\',
+    '  -H "Content-Type: application/json" \\',
+    "  -d '{",
+    '    "api_key": "sk-route-****",',
+    '    "text": "帮我算下这单的毛利率再写一段分析",',
+    '    "aggregate": "auto",',
+    '    "session_id": "sess-001",',
+    '    "user_id": "user-001"',
+    "  }'",
+  ].join("\n");
+  box.appendChild(el("div", { class: "muted", style: "margin:4px 0 12px" },
+    ["面向对接开发：一条路由策略 = 一个 API Key，带 Key 调用即按对应策略路由。以下为完整请求 / 返回口径，每块可复制。演示环境地址以实际部署为准。"]));
+
+  box.appendChild(docCard("1 · 快速开始", [
+    el("div", { class: "muted", style: "margin-bottom:10px" },
+      ["第一步：在「路由策略」页复制策略卡上的 API Key；第二步：POST /v1/route 发起对话（SSE 流式返回）；第三步：逐行解析 data: 事件，final 事件即最终回答。"]),
+    docPre(curl),
+  ]));
+
+  box.appendChild(docCard("2 · 请求参数", [
+    docTable(["字段", "必填", "说明"], [
+      ["api_key", "是", "策略凭证，形如 sk-route-****。Key 无效或已被重置时请求被明确拒绝（final 事件 error=invalid_api_key），不会回落到其他策略"],
+      ["text", "是", "用户的问题原文"],
+      ["aggregate", "否", "按次覆盖聚合开关：auto 跟随策略默认 / on 强制聚合 / off 关闭聚合。策略关闭「响应终端用户的聚合选择」时 on 会被拒绝"],
+      ["session_id", "否", "会话标识，用于多轮上下文与会话级统计"],
+      ["user_id", "否", "终端用户标识，用于配额与行为统计"],
+    ]),
+  ]));
+
+  box.appendChild(docCard("3 · 流式事件（SSE）", [
+    el("div", { class: "muted", style: "margin-bottom:10px" }, ["响应为 text/event-stream，每行一个 JSON 事件，按 step 字段区分："]),
+    docTable(["step", "含义"], [
+      ["rule", "硬规则层命中：多模态按能力过滤 / 日常闲聊轻量直答 / 未配置智能路由模型时的兜底说明"],
+      ["dims", "智能路由模型判定的相关 benchmark 维度（dims 数组），附判维耗时与成本"],
+      ["coarse", "候选综合分：判定维度平均得分 × 成本-效果权重的排序结果（scores）"],
+      ["fastlane", "综合分领先，单模型直接作答"],
+      ["calling", "综合分接近或请求强制聚合：多候选并发作答（models 数组）"],
+      ["model_done", "某个候选模型返回（model / status / latency_ms）"],
+      ["switch", "聚合定稿：保留的回答交给聚合模型总结（result=aggregated）"],
+      ["degrade", "候选异常，切换兜底模型"],
+      ["final", "最终结果：content 正文 + request_id + applied + decision_summary；出错时带 error 字段"],
+    ]),
+  ]));
+
+  box.appendChild(docCard("4 · final 事件字段", [
+    docTable(["字段", "说明"], [
+      ["content", "回答正文"],
+      ["request_id", "本次请求编号，问题排查与对账用"],
+      ["applied", "本次实际生效口径：{ aggregate, aggregation_used, override_allowed, policy_id }。配额降级、硬约束拒绝等都会如实反映在这里"],
+      ["decision_summary", "路由决策摘要：route_layer 命中层级（rule / dims / no_router / else）、dimensions 判定维度列表、candidates 候选、aggregator 聚合模型、model_calls 逐模型成本"],
+      ["usage", "本次消耗：{ cost, tokens }"],
+      ["error", "仅出错时出现：invalid_api_key（Key 无效或已重置）/ all_models_failed（候选与兜底均不可用）等"],
+    ]),
+  ]));
+
+  box.appendChild(docCard("5 · 聚合参数与成本约束", [
+    el("div", { class: "muted" }, [
+      "aggregate=on 会并发多个模型再聚合定稿，成本约为单模型的 2-3 倍：策略管理员可在「参数配置 → 响应终端用户的聚合选择」关闭覆盖权，此时 on 被拒绝并返回 applied.override_allowed=false，按策略默认执行。配额超限时系统自动降级（撤销强制聚合、切换快速档），同样以 applied 为准——调用方应始终读取 applied 而不是假设请求参数已生效。",
+    ]),
+  ]));
+
+  box.appendChild(docCard("6 · Key 治理与稳态", [
+    docTable(["场景", "行为与建议"], [
+      ["Key 泄露 / 人员变动", "策略卡「更多 → 重置 API Key」：旧 Key 立即失效，新 Key 弹窗展示一次，请立即更新调用方配置"],
+      ["Key 无效或已重置", "请求被明确拒绝（final.error=invalid_api_key），不会静默回落其他策略——收到该错误应停止重试并检查 Key 配置"],
+      ["未配置智能路由模型", "请求直连兜底模型作答，decision_summary.route_layer=no_router；管理员应尽快在「模型画像」页完成配置"],
+      ["候选模型异常", "自动切换兜底直连；兜底也失败时 final.error=all_models_failed，明确报错不做循环重试，建议调用方指数退避后重试"],
+    ]),
+  ]));
+}
+
 async function renderDispatch() {
   const box = content();
   box.innerHTML = "";
@@ -856,7 +979,7 @@ async function renderDispatch() {
   renderPolicies(listBox, policies, actives);
 
 }
-const RENDER = { models: renderModels, dispatch: renderDispatch, profile: renderProfile };
+const RENDER = { models: renderModels, dispatch: renderDispatch, profile: renderProfile, apidoc: renderApiDocPage };
 // 走查深链：?register=1 直接打开添加模型；?policy=1 打开第一条策略的参数抽屉
 setTimeout(async () => {
   const q = new URLSearchParams(location.search);

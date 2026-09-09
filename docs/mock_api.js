@@ -5,7 +5,7 @@
   const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
 
   // v7 会话状态机：配置智能路由模型 → benchmark 得分表（点格修正）→ 判维路由（静态站可走完整动线）
-  const v7 = { router: null, overrides: {}, asof: null };
+  const v7 = { router: null, overrides: {}, asof: null, keys: {} };
   const deadCards = new Set(); // 静态站会话内删除/下线的配置
   const prodLocal = { created: [], updated: {}, deleted: new Set() }; // 会话内产品操作
   // 模型操作会话内状态：设默认兜底 / 启停 / 思考开关 / 编辑 / 删除（否则快照回读=界面无反应）
@@ -116,6 +116,11 @@
       });
       return base;
     }
+    if (pn === "/v1/policies") {
+      const base = JSON.parse(JSON.stringify(D[pn] || { policies: [] }));
+      (base.policies || []).forEach(p => { if (v7.keys[p.policy_id]) p.api_key = v7.keys[p.policy_id]; });
+      return base;
+    }
     if (D[pn] !== undefined) return D[pn];
     const m = pn.match(/^\/api\/cards\/([^/]+)$/);
     if (m && D["/api/cards"]) {
@@ -223,6 +228,12 @@
     }
     if (/^\/api\/cards\/[^/]+\/delete$/.test(pn)) { deadCards.add(pn.split("/")[3]); return { ok: true }; }
     if (pn === "/v1/policies") return { policy_id: "policy-demo-" + Math.random().toString(36).slice(2, 8), api_key: "sk-route-demo0000" };
+    if (/^\/v1\/policies\/[^/]+\/reset-key$/.test(pn)) {
+      const pid = pn.split("/")[3];
+      const nk = "sk-route-" + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 8);
+      v7.keys[pid] = nk;
+      return { ok: true, api_key: nk };
+    }
     if (/^\/v1\/policies\/[^/]+\/duplicate$/.test(pn)) return { policy_id: "policy-demo-" + Math.random().toString(36).slice(2, 8), name: "策略 副本" };
     if (/^\/v1\/policies\/[^/]+$/.test(pn)) return { ok: true, version: 2 };
     {

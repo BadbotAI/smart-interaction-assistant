@@ -41,7 +41,7 @@ def seed_models():
     conn = db.get_conn()
     for m in mockmodels.MODEL_POOL:
         conn.execute(
-            "INSERT OR REPLACE INTO models (model_id, display_name, provider, endpoint, credential_ref, "
+            "INSERT OR IGNORE INTO models (model_id, display_name, provider, endpoint, credential_ref, "
             "price_input, price_output, capabilities, status, bank_coverage, latency_ms_base, profile, "
             "deploy_type, gpu_count) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (m["model_id"], m["display_name"], m["provider"], m["endpoint"], m["credential_ref"],
@@ -75,12 +75,12 @@ def seed_policies():
     ]
     for r in rows:
         conn.execute(
-            "INSERT OR REPLACE INTO policies (policy_id, name, scope, tenant_id, scene, params, latency_tier, "
+            "INSERT OR IGNORE INTO policies (policy_id, name, scope, tenant_id, scene, params, latency_tier, "
             "allow_aggregation, explore_ratio, model_whitelist, budget_cap, enabled, ab_group, ab_split, version) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)",
             (r[0], r[1], r[2], r[3], r[4], db.j(r[5]), r[6], r[7], r[8], db.j(r[9]), db.j(r[10]), r[11], r[12], r[13]))
         conn.execute(
-            "INSERT OR REPLACE INTO policy_history (policy_id, version, snapshot, ts) VALUES (?,1,?,?)",
+            "INSERT OR IGNORE INTO policy_history (policy_id, version, snapshot, ts) VALUES (?,1,?,?)",
             (r[0], db.j({"params": r[5], "latency_tier": r[6], "explore_ratio": r[8]}), db.now_ts()))
     conn.commit()
 

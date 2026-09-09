@@ -110,6 +110,14 @@ assert(!bm.models.find(m => m.model_id === "swift-4b"), "删除模型应从成�
 prof = await api("/api/profile");
 assert(!("swift-4b" in prof.clusters[0].scores), "效果表应随删除联动");
 
+// 7.5) 重置策略 API Key：新 Key 生效且列表反映
+const polsBefore = (await api("/v1/policies")).policies;
+const oldKey = polsBefore.find(x => x.policy_id === "policy-global-balanced").api_key;
+r = await post("/v1/policies/policy-global-balanced/reset-key");
+assert(r.ok && r.api_key && r.api_key !== oldKey, "重置应返回不同的新 Key");
+const polsAfter = (await api("/v1/policies")).policies;
+assert(polsAfter.find(x => x.policy_id === "policy-global-balanced").api_key === r.api_key, "策略列表应反映新 Key");
+
 // 8) 移除路由模型：恢复 no_router 兜底
 r = await post("/api/settings/router-model", { model_id: "" });
 assert(r.ok && r.router === null, "移除路由模型");
