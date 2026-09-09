@@ -191,8 +191,8 @@ function registerDialog() {
           vision: !!st.vision,
           capabilities: { tool_call: true, streaming: true } } });
         UI.toast(st.deploy_type === "self_hosted"
-          ? "模型已添加，成本已按卡数估算。回填评测集后上线"
-          : "模型已添加。可在列表「编辑」里补充官网单价，回填评测集后上线");
+          ? "模型已添加并生效，成本已按卡数估算；benchmark 成绩缺失时在「模型画像」页补录"
+          : "模型已添加并生效。可在列表「编辑」里补充官网单价，benchmark 成绩缺失时在「模型画像」页补录");
         mask.remove(); renderModels();
       } catch (e2) { err.textContent = e2.data?.error || e2.message; }
     }, "校验中……");
@@ -541,7 +541,7 @@ function shortPolicyId(pid) {
   return String(parseInt(hex, 16) % 1000000).padStart(6, "0");
 }
 
-// ================= 数据集（问题池 → 归类生成版本 → 版本级画像）=================
+// ================= 模型画像（成绩表 → 判维路由 → 效果换算）=================
 // ================= 模型画像（v7：benchmark 成绩表 + 成本；智能路由模型判维） =================
 
 // 智能路由模型接入弹窗（硬依赖：未配置时线上请求一律直连兜底，不做智能路由）
@@ -619,7 +619,7 @@ function scoreCellDialog(model, dim, cell, onDone) {
         const v = inp.value.trim();
         if (v === "") { save(null); return; }
         const n = Number(v);
-        if (!Number.isFinite(n) || n < 0 || n > 100) { err.textContent = "分数需为 0-100 的数字，或留空标记缺失"; return; }
+        if (!Number.isFinite(n) || n < 0 || n > 100) { err.textContent = "成绩需为 0-100 的数字，或留空标记缺失"; return; }
         save(n);
       } }, ["保存"]),
     ]),
@@ -731,7 +731,13 @@ async function renderProfile() {
     ]),
     el("div", { class: "muted", style: "margin-bottom:10px" },
       ["点击任意格可修正成绩或标记缺失（自有部署 / 微调模型无公开分时手动补录）；修正即改即生效，带下划线的格为手动修正值"]),
-    el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
+    !(bm.models || []).length
+      ? el("div", { class: "empty-state" }, [
+          el("div", { class: "empty-title" }, ["还没有在线模型"]),
+          el("div", {}, ["先在「模型接入」启用至少一个模型，成绩表与路由效果会自动出现"]),
+          el("a", { class: "btn primary", style: "margin-top:12px", href: "/web/router.html#models" }, ["接入模型"]),
+        ])
+      :     el("div", { style: "overflow-x:auto" }, [el("table", { class: "data" }, [
       el("thead", {}, [el("tr", {}, [
         el("th", {}, ["模型"]), el("th", {}, ["单价（入/出 ¥/M）"]),
         ...bm.dims.map(dimTh),

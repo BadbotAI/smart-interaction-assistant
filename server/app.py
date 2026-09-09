@@ -190,12 +190,10 @@ async def _handle_turn(body: dict, emit):
         req["policy"]["allow_aggregation"] = 0
     if mode == "multi":
         req["policy"]["allow_aggregation"] = 1
-        req["policy"]["explore_ratio"] = 0
     if degrade_by_quota:
         req["policy"]["latency_tier"] = "fast"
         req["policy"]["allow_aggregation"] = 0
         req["policy"].pop("force_agg", None)  # 配额降级优先于请求级 aggregate=on，否则预算帽可被绕过
-        req["policy"]["explore_ratio"] = 0
         req["mode"] = "auto" if mode == "multi" else req["mode"]
 
     result = await router_core.run_route(req, recorder, emit)
@@ -248,7 +246,6 @@ async def _handle_turn(body: dict, emit):
             "final_model": decision["final_model_or_aggregator"],
             "candidates": decision["candidate_models"],
             "aggregator": decision.get("aggregator_model"),
-            "is_explore": decision["is_explore"],
             "total_cost": decision["total_cost"],
             "total_latency_ms": decision["total_latency_ms"],
             "model_calls": decision.get("model_calls") or [],
@@ -256,7 +253,6 @@ async def _handle_turn(body: dict, emit):
                 "policy_id": policy.get("policy_id"),
                 "name": policy.get("name"),
                 "latency_tier": policy.get("latency_tier"),
-                "explore_ratio": policy.get("explore_ratio"),
                 "allow_aggregation": policy.get("allow_aggregation"),
                 "K": (db.dj(policy.get("params"), {}) if isinstance(policy.get("params"), str)
                       else (policy.get("params") or {})).get("K"),
@@ -1211,7 +1207,7 @@ async def set_router_model(request: Request):
     return {"ok": True, "router": info}
 
 
-# ============ 模型画像 = Benchmark 分数表 + 成本（静态配置，即改即生效） ============
+# ============ 模型画像 = Benchmark 成绩表 + 成本（静态配置，即改即生效） ============
 
 @app.get("/api/benchmark")
 def get_benchmark():
@@ -1243,9 +1239,9 @@ async def set_benchmark_score(request: Request):
         try:
             score = float(score)
         except (TypeError, ValueError):
-            return JSONResponse({"error": "分数需为 0-100 的数字，或 null 标记缺失"}, status_code=422)
+            return JSONResponse({"error": "成绩需为 0-100 的数字，或 null 标记缺失"}, status_code=422)
         if not (0 <= score <= 100):
-            return JSONResponse({"error": "分数需在 0-100 之间"}, status_code=422)
+            return JSONResponse({"error": "成绩需在 0-100 之间"}, status_code=422)
     overrides = db.dj(_get_setting("benchmark_overrides"), {}) or {}
     overrides.setdefault(mid, {})[dim] = score
     _set_setting("benchmark_overrides", db.j(overrides))

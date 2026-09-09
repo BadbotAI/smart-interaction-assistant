@@ -292,6 +292,8 @@ window.TestChat = (function () {
             ? "未配置智能路由模型：无法判定相关维度，直连兜底模型（在「模型画像」页配置后恢复智能路由）"
             : d.route_layer === "else"
             ? "判定维度全部缺分或候选异常，走 else 兜底直连"
+            : d.route_layer === "rule" && !(d.dimensions || []).length
+            ? "硬规则命中日常闲聊：最便宜的在线模型轻量直答，不判维、不聚合"
             : (d.dimensions || []).includes("multimodal")
             ? "硬规则命中多模态请求，只在支持图像的模型中按判定维度的成绩选择"
             : {

@@ -195,7 +195,6 @@ async def run_route(req: dict, recorder, emit):
                                [target["model_id"]], target["model_id"], False, t_start, [])
 
     # —— 第 1 层 · 硬规则：多模态按能力过滤；闲聊轻量直答 ——
-    chat_rule = False
     if dimension == "multimodal":
         req["_route"]["layer"] = "rule"
         mm = [m for m in models if (m["capabilities"] or {}).get("vision")]
@@ -207,9 +206,23 @@ async def run_route(req: dict, recorder, emit):
             _cap = "" if (default_model["capabilities"] or {}).get("vision")                 else "（兜底模型不具备多模态能力，将按文字尽力回答并说明限制）"
             return await fallback_direct(f"硬规则命中：多模态请求，但候选中没有支持图像的模型，切兜底 {default_model['display_name']}{_cap}", "else")
     elif dimension == "chat":
-        chat_rule = True
+        # 硬规则第 1 层：闲聊不判维、不聚合——最便宜的在线模型直答，未配置路由模型也可用
         req["_route"]["layer"] = "rule"
-        await emit({"step": "rule", "text": "硬规则命中：日常闲聊，轻量直答"})
+        cheap = min(models, key=lambda m: (m["price_input"] or 0) + (m["price_output"] or 0))
+        await emit({"step": "rule", "text": f"硬规则命中：日常闲聊，轻量模型 {cheap['display_name']} 直答（不判维、不聚合）"})
+        recorder.span("route_score", {"mode": "chat_lane", "target": cheap["model_id"]})
+        ans = await _call_with_timeout(cheap, query, domain, recorder, emit)
+        if ans["status"] != "ok" and default_model and default_model["model_id"] != cheap["model_id"]:
+            await emit({"step": "degrade", "text": f"{cheap['model_id']} 异常，切换默认兜底模型 {default_model['model_id']}"})
+            recorder.span("route_switch", {"reason": "chat_lane_failed",
+                                           "fallback": default_model["model_id"]}, status="degraded")
+            ans = await _call_with_timeout(default_model, query, domain, recorder, emit)
+        if ans["status"] != "ok":
+            return await _finalize(req, recorder, emit, None, "failed", [ans], {}, {},
+                                   [cheap["model_id"]], cheap["model_id"], False, t_start, [],
+                                   error="all_models_failed")
+        return await _finalize(req, recorder, emit, ans, "fastlane", [ans], {}, {},
+                               [cheap["model_id"]], None, False, t_start, [])
 
     # —— 智能路由模型（硬依赖）：未配置则不做智能路由，兜底直连 ——
     router_model = get_router_model()
@@ -253,10 +266,10 @@ async def run_route(req: dict, recorder, emit):
     if mode == "multi":
         do_agg = True
         kept_ids = [mid for mid, _ in ranked]
-    elif force_agg and len(ranked) >= 2 and not chat_rule:
+    elif force_agg and len(ranked) >= 2:
         do_agg = True
         kept_ids = [mid for mid, _ in ranked[:2]]
-    elif (not chat_rule) and allow_agg and len(ranked) >= 2 and gap <= agg_gap:
+    elif allow_agg and len(ranked) >= 2 and gap <= agg_gap:
         do_agg = True
         kept_ids = [mid for mid, _ in ranked[:2]]
 

@@ -299,3 +299,34 @@ node tests/mock_smoke.mjs 全过；py_compile + node --check；GET 全端点扫�
 | W2 | P2 | 仅 1 条新增问题也可生成新版本，版本易被琐碎增量灌水 | 重归类确认弹窗在新增 <50 条时提示「收益有限，建议积累更多」（不设硬门槛，保留管理员自由） |
 
 旅程其余环节（守卫拒绝语、AB 复用与补调、回滚后画像恢复、迭代闭环）自测通过。
+
+---
+
+# Tricky 审查 · 第十五批（2026-09-09，v7.0 智能路由方案功能逻辑专审）
+
+- 范围：v7.0 全量（router_core 三层路由 / benchmark 画像端点 / 模型画像页 / 决策层 / 看板 / mock 状态机 / 审计）；八关流程，重点第 1（承诺-实现）、2（接口渗透）、4（冷启动）、5（文案）关
+- 上轮遗留复查：T14 各项已随 v7 下线或仍在 P2 记账；v6 记账项中问题池频控 / AB 平局 / 回流采样率偏差随飞轮下线不再适用
+
+## 问题清单
+
+| 编号 | 关卡 | 级别 | 问题（含失败场景） | 建议 | 状态 |
+|---|---|---|---|---|---|
+| T15-1 | L- | P0 | 闲聊硬规则名存实亡：chat 命中后仍撞智能路由模型硬依赖——未配置时先 emit「日常闲聊，轻量直答」紧接着「未配置…直连兜底 Atlas-72B」，自相矛盾且闲聊用最贵兜底；已配置时闲聊也付判维一跳 + benchmark 打分，「轻量直答」承诺未兑现 | chat 分支改为最便宜在线模型直答（不判维、不聚合、不依赖路由模型），失败走既有降级链 | 已修 |
+| T15-2 | O- | P1 | 审计动作缺 v7 中文映射：router_model_set / benchmark_score_set / benchmark_score_reset / benchmark_refresh / migrate_bench_v7 在操作日志显示英文原名，值班无法一眼读懂 | ACTION_NAMES 补 5 项映射 | 已修 |
+| T15-3 | L- | P1 | 模型添加成功 toast 仍说「回填评测集后上线」——入池评测 v6 已废、v7 接入即生效，承诺与实现相悖，新手会去找不存在的评测入口 | 文案改「已添加并生效；benchmark 成绩缺失时在模型画像页补录」 | 已修 |
+| T15-4 | L- | P1 | 「省钱优先」策略（仅单模型）默认允许调用方 aggregate=on 翻转为聚合，单次成本翻倍——省钱档的成本承诺可被终端用户击穿 | 种子策略 allow_agg_override 置 0（经 PUT params 合并写入），实测 aggregate=on 被拒（denied=true） | 已修 |
+| T15-5 | D- | P2 | explore 残留：_handle_turn 两处死赋值 explore_ratio=0、decision_summary.is_explore 恒 false、policy.explore_ratio 回传——v7 无探索概念，字段误导 API 消费方 | 全部删除（route_context.is_explore 保留兼容历史 trace 读取） | 已修 |
+| T15-6 | U- | P2 | 模型画像页零模型冷启动：benchmark 成绩表在无在线模型时渲染空表体、无空态与引导，新租户断链 | 加空态卡 +「接入模型」引导按钮 | 已修 |
+| T15-7 | C- | P2 | 「成绩 / 分数」混用：成绩表页面用「成绩」，服务端与弹窗错误提示用「分数」 | 用户可见错误文案统一为「成绩」（server / 弹窗 / mock 三处同步） | 已修 |
+| T15-8 | R- | P2 | mock 与服务端闲聊行为不一致：mock 的 chat 检查在 no_router 之后（未配置时闲聊也兜底）、dimensions 给了 ["knowledge"] | mock chat 前置于硬依赖检查、dimensions 改空、文案对齐服务端；smoke 加 2 条闲聊断言 | 已修 |
+| T15-9 | L- | P2 | 接口形状不一致：allow_agg_override 在创建策略走顶层字段、更新策略走 params 合并——同一字段两个位置，对接方易踩坑（本轮审查自己即踩中：顶层 PUT 被静默忽略） | 记账：统一到 params 或双端点都收顶层字段；短期在 API 说明块标注 | 记账 |
+| T15-10 | D- | P2 | benchmark_overrides 并发修正 last-write-wins（读-改-写非原子），两人同时改不同格可能丢一格；删除模型后 overrides 残留，同 ID 重接会带旧修正 | 记账：与策略并发写同类，生产需行级写或版本冲突检测；删除模型时顺带清 overrides | 记账 |
+| T15-11 | L- | P2 | multi 模式（多模型+择优）在未配置路由模型时被 no_router 拦截、静默降为单模型兜底——决策层有说明，但「多模型」选择项未兑现 | 记账：multi 可考虑绕过判维直接全候选并发；或在测试页选 multi 且未配置时前置提示 | 记账 |
+| T15-12 | O- | P2 | 判维演示实现（关键词规则）与生产（真实小模型）行为差异未在界面声明；判维仅取前 2 维为硬编码 | 记账：画像规则折叠块可补一句演示口径；生产化时维度数做参数 | 记账 |
+
+## 整改记录
+
+- 第一批（P0/P1，当场修）：T15-1 闲聊直答重写（router_core chat 分支 + chat_rule 死代码清理 + testchat 推导文案 + mock 同步）；T15-2 审计映射；T15-3 toast 文案；T15-4 省钱优先硬约束。
+- 第二批（P2 顺手修）：T15-5 explore 残留清理；T15-6 空态；T15-7 文案统一；T15-8 mock 一致化。
+- 回归方式：py_compile + node --check（全部内嵌脚本）；curl 实测（未配置闲聊 rule 直答不再 no_router、配置后闲聊 0 次 dims、swift-4b 2% 模拟超时命中时降级链正常接管、省钱优先 aggregate=on denied=true、复合判维 math+writing 不回归）；全 GET 端点运行时扫描 non-200=none；`node tests/mock_smoke.mjs` 28 断言 ALL PASS；audit 页截图确认新映射中文渲染。
+- 过程教训：外部 sqlite3 直写 WAL 模式下会被服务端 checkpoint 覆盖——改库一律走 API 或停服后写。

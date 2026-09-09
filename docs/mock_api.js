@@ -180,8 +180,8 @@
       let score = body ? body.score : undefined;
       if (score !== null) {
         score = Number(score);
-        if (!Number.isFinite(score)) return { error: "分数需为 0-100 的数字，或 null 标记缺失" };
-        if (score < 0 || score > 100) return { error: "分数需在 0-100 之间" };
+        if (!Number.isFinite(score)) return { error: "成绩需为 0-100 的数字，或 null 标记缺失" };
+        if (score < 0 || score > 100) return { error: "成绩需在 0-100 之间" };
       }
       v7.overrides[mid] = { ...(v7.overrides[mid] || {}) };
       v7.overrides[mid][dim] = score;
@@ -340,6 +340,22 @@
       allow_aggregation: pol.allow_aggregation, K: (pol.params || {}).K || 3, alpha: (pol.params || {}).alpha ?? 0.7 }
       : { policy_id: "policy-global-balanced", name: "全局均衡", latency_tier: "balanced", allow_aggregation: 1, K: 3, alpha: 0.7 };
 
+    // 硬规则第 1 层：闲聊不判维、不聚合，最便宜模型直答（未配置路由模型也可用，先于硬依赖检查）
+    const otherHit = Object.keys(DIM_KEYWORDS).some(d => DIM_KEYWORDS[d].some(w => text.includes(w)));
+    if (CHAT_WORDS.some(w => text.includes(w)) && !otherHit && text.length <= 12) {
+      return sseStream([
+        { step: "rule", text: "硬规则命中：日常闲聊，轻量模型 迅答 Swift-4B 直答（不判维、不聚合）" },
+        { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
+          content: "你好，我是本平台的智能助手，可以协助你做分析、写作、代码等多类问题。",
+          decision_summary: { mode: "auto", switch_result: "fastlane", final_model: "swift-4b", candidates: ["swift-4b"],
+            route_layer: "rule", dimensions: [],
+            total_cost: 0.0001, total_latency_ms: 320,
+            model_calls: [{ model_id: "swift-4b", tokens_in: 30, tokens_out: 60, tokens_thinking: 0, cost: 0.0001, latency_ms: 320 }],
+            policy: polMeta },
+          usage: { cost: 0.0001, tokens: 90 } },
+      ], 400);
+    }
+
     // 硬依赖：未配置智能路由模型 → 直连兜底
     if (!v7.router) {
       return sseStream([
@@ -352,22 +368,6 @@
             policy: polMeta },
           usage: { cost: 0.0005, tokens: 250 } },
       ], 420);
-    }
-
-    // 硬规则：日常闲聊轻量直答（问候且无其他维度命中、文本短）
-    const otherHit = Object.keys(DIM_KEYWORDS).some(d => DIM_KEYWORDS[d].some(w => text.includes(w)));
-    if (CHAT_WORDS.some(w => text.includes(w)) && !otherHit && text.length <= 12) {
-      return sseStream([
-        { step: "rule", text: "第 1 层 · 硬规则命中：日常闲聊，轻量直答" },
-        { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
-          content: "你好，我是本平台的智能助手，可以协助你做分析、写作、代码等多类问题。",
-          decision_summary: { mode: "auto", switch_result: "fastlane", final_model: "swift-4b", candidates: ["swift-4b"],
-            route_layer: "rule", dimensions: ["knowledge"],
-            total_cost: 0.0001, total_latency_ms: 320,
-            model_calls: [{ model_id: "swift-4b", tokens_in: 30, tokens_out: 60, tokens_thinking: 0, cost: 0.0001, latency_ms: 320 }],
-            policy: polMeta },
-          usage: { cost: 0.0001, tokens: 90 } },
-      ], 400);
     }
 
     const dims = classifyDims(text);

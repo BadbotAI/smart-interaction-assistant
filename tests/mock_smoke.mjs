@@ -42,10 +42,14 @@ let prof = await api("/api/profile?policy_id=policy-scene-fast");
 assert(prof.generated === true && prof.clusters.length === 7, "画像常绿：7 个维度行");
 assert(prof.alpha === 0.25, "省钱优先 α 应为 0.25，实际 " + prof.alpha);
 
-// 2) 未配置路由模型：路由应 no_router 兜底
+// 2) 未配置路由模型：路由应 no_router 兜底；闲聊硬规则不受硬依赖影响
 let evts = await sse({ text: "起草一份复工通知", policy_id: "policy-global-balanced" });
 let fin = finalOf(evts);
 assert(fin.decision_summary && fin.decision_summary.route_layer === "no_router", "未配置应 no_router 兜底: " + JSON.stringify(fin.decision_summary || {}));
+evts = await sse({ text: "你好，在吗", policy_id: "policy-global-balanced" });
+fin = finalOf(evts);
+assert(fin.decision_summary.route_layer === "rule" && !(fin.decision_summary.dimensions || []).length,
+  "闲聊应硬规则直答（未配置路由模型也不兜底）: " + JSON.stringify(fin.decision_summary));
 
 // 3) 配置智能路由模型（含校验）
 let r = await post("/api/settings/router-model", { model_id: "pilot-2b" });
