@@ -568,7 +568,7 @@ TEMPLATE_LIBRARY = [
     # 选择类
     {"component_type": "select.single", "name": "文本选择器", "desc": "文本选项中做选择；配置里可切换单选 / 多选，样式可选列表 / 胶囊 / 输入框浮现",
      "keywords": ["选择", "哪个", "选一个", "单选", "多选", "哪些", "倾向", "勾选"],
-     "default_config": {"options": ["开专票", "开普票"], "recommended_default": "开普票"}},
+     "default_config": {"options": ["方案 A · 时效优先", "方案 B · 成本优先"], "recommended_default": "方案 A · 时效优先"}},
     {"component_type": "select.card", "name": "卡片选择器", "desc": "带图片、标题与文案的卡片式选择，适合方案 / 套餐类",
      "keywords": ["方案", "套餐", "版本", "对比图"],
      "default_config": {"options": ["海运直达", "海铁联运"], "option_meta": {"海运直达": {"desc": "35 天 · 成本低，适合不赶时间"}, "海铁联运": {"desc": "26 天 · 快 9 天，成本略高"}}}},

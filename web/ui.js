@@ -254,7 +254,7 @@ window.UI = (function () {
       if (!products || !products.length) return;
       const saved = localStorage.getItem("sia_product");
       let cur = products.find(p => p.product_id === saved) || products[0];
-      const HUES = [["#1DA1F2", "#6E4BD8"], ["#0FA968", "#1D7FBF"], ["#FF6B4A", "#D97706"],
+      const HUES = [["#3E63DD", "#8E4EC6"], ["#0FA968", "#1D7FBF"], ["#FF6B4A", "#D97706"],
                     ["#4F5BD5", "#D9569B"], ["#D97706", "#B85C38"], ["#334155", "#5B7A9D"]];
       const hueOf = (name) => { let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return HUES[h % HUES.length]; };
       const avatar = (name, size) => {

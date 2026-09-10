@@ -132,11 +132,13 @@ function styleSummary(c) {
   const so = c.style_overrides || {};
   const parts = [];
   if (so["color.primary"]) parts.push("主色 " + so["color.primary"]);
-  if (so.radius) parts.push({ none: "直角", sm: "小倒角", md: "标准倒角", lg: "大倒角", full: "全圆" }[so.radius] || so.radius);
+  const isNum = (v) => Number.isFinite(Number(v));
+  if (so.radius != null) parts.push(isNum(so.radius) ? `倒角${so.radius}px` : ({ none: "直角", sm: "小倒角", md: "标准倒角", lg: "大倒角", full: "全圆" }[so.radius] || so.radius));
+  if (so.height != null && isNum(so.height)) parts.push(`高度${so.height}px`);
   if (so.height) parts.push({ compact: "紧凑高度", regular: "标准高度", large: "宽大高度" }[so.height]);
-  if (so.spacing) parts.push({ compact: "紧凑", regular: "标准", loose: "宽松" }[so.spacing] + "密度");
+  if (so.spacing != null) parts.push(isNum(so.spacing) ? `间距${so.spacing}px` : ({ compact: "紧凑", regular: "标准", loose: "宽松" }[so.spacing] || "") + "密度");
   if (so.shadow) parts.push("阴影" + ({ none: "无", sm: "轻", md: "中", lg: "重" }[so.shadow] || ""));
-  if (so.font_scale) parts.push("字号" + ({ "-1": "小一档", "1": "大一档", "2": "大两档" }[so.font_scale] || ""));
+  if (so.font_scale != null) parts.push(Number(so.font_scale) >= 10 ? `字号${so.font_scale}px` : "字号" + ({ "-1": "小一档", "1": "大一档", "2": "大两档" }[so.font_scale] || ""));
   const disp = ((c.field_bindings || {}).config || {}).display;
   if (disp === "card") parts.push("卡片样式");
   return parts.length ? parts.join(" · ") : "品牌默认";
@@ -995,6 +997,38 @@ async function openEditor(cardId, prefill, initStep) {
       return el("div", { class: "sty-section" }, [
         el("div", { class: "sty-label" }, [label, hint ? UI.help(hint) : null]), row]);
     }
+    // 旧档位数据 → 数值 px（进入样式设计器即迁移，保存后落数值）
+    const MIGRATE = {
+      radius: { none: 0, sm: 8, md: 16, lg: 22, full: 28 },
+      height: { compact: 32, regular: 40, large: 48 },
+      spacing: { compact: 10, regular: 16, loose: 22 },
+      font_scale: { "-1": 12, "1": 15, "2": 16 },
+    };
+    Object.entries(MIGRATE).forEach(([k, m]) => { if (so[k] in m) so[k] = m[so[k]]; });
+
+    // 数值属性行：滑块 + 数字输入 + 重置（未覆盖 = 跟随品牌，滑块停在品牌默认位、半透明）
+    function numRow(key, label, min, max, brandVal, hint) {
+      const range = el("input", { type: "range", min: String(min), max: String(max), step: "1", class: "sl-range" });
+      const num = el("input", { type: "number", min: String(min), max: String(max), class: "sl-num num", placeholder: "品牌" });
+      const clear = el("button", { class: "btn small ghost", type: "button", title: "清除覆盖，跟随品牌风格" }, ["重置"]);
+      const fill = (v) => range.style.setProperty("--fill", ((v - min) / (max - min) * 100) + "%");
+      const sync = () => {
+        const has = so[key] != null && so[key] !== "";
+        const v = has ? Number(so[key]) : brandVal;
+        range.value = String(v); num.value = has ? String(v) : "";
+        fill(v); range.classList.toggle("unset", !has); clear.hidden = !has;
+      };
+      const setV = (v) => { so[key] = Math.max(min, Math.min(max, Math.round(Number(v) || 0))); sync(); upd(); };
+      range.oninput = () => setV(range.value);
+      num.onchange = () => { if (num.value === "") { delete so[key]; sync(); upd(); } else setV(num.value); };
+      clear.onclick = () => { delete so[key]; sync(); upd(); };
+      sync();
+      return el("div", { class: "sty-section" }, [
+        el("div", { class: "sty-label" }, [label, hint ? UI.help(hint) : null]),
+        el("div", { class: "sl-row" }, [el("div", { class: "sl-wrap" }, [range]), num,
+          el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["px"]), clear]),
+      ]);
+    }
     const radiusDemo = v => el("i", { class: "sty-radius-demo",
       style: `border-top-left-radius:${{ "": "10px", none: "0", sm: "5px", md: "10px", lg: "14px", full: "18px" }[v]}` });
     const heightDemo = v => el("i", { class: "sty-h-demo", style: `height:${{ "": "18px", compact: "13px", regular: "18px", large: "24px" }[v]}` });
@@ -1007,12 +1041,12 @@ async function openEditor(cardId, prefill, initStep) {
 
     box.appendChild(colorRow("color.primary", "主色（按钮 / 选中态）"));
     box.appendChild(colorRow("color.accent", "强调色（hover / 高亮）"));
-    box.appendChild(cardsRow("radius", "倒角", [["", "品牌"], ["none", "直角"], ["sm", "小"], ["md", "标准"], ["lg", "大"], ["full", "全圆"]], radiusDemo));
+    box.appendChild(numRow("radius", "倒角", 0, 28, 16, "组件卡片圆角；控件圆角按比例跟随"));
     if (!PRESENT_TYPES.includes(state.component_type))
-      box.appendChild(cardsRow("height", "控件高度", [["", "品牌"], ["compact", "紧凑 32"], ["regular", "标准 40"], ["large", "宽大 48"]], heightDemo));
-    box.appendChild(cardsRow("spacing", "密度", [["", "品牌"], ["compact", "紧凑"], ["regular", "标准"], ["loose", "宽松"]], densityDemo, "组件内边距与行距的整体缩放"));
+      box.appendChild(numRow("height", "控件高度", 28, 56, 40, "选项行 / 按钮等可点控件的高度"));
+    box.appendChild(numRow("spacing", "间距", 8, 24, 16, "组件卡片内边距，同时影响行距节奏"));
     box.appendChild(cardsRow("shadow", "阴影", [["", "品牌"], ["none", "无"], ["sm", "轻"], ["md", "中"], ["lg", "重"]], shadowDemo));
-    box.appendChild(cardsRow("font_scale", "字号", [["", "品牌"], ["-1", "小一档"], ["1", "大一档"], ["2", "大两档"]], fontDemo));
+    box.appendChild(numRow("font_scale", "字号", 12, 16, 13, "组件内正文字号"));
 
     // 选择类：展现变体（可视化两卡）
     if (["select.single", "select.multi", "select.card"].includes(state.component_type)) {

@@ -73,7 +73,7 @@ window.Brand = (function () {
 
   function chartPalette() {
     return (current && current.chart) || {
-      categorical: ["#1DA1F2", "#17B890", "#F2C14E", "#2ECC71", "#E0446E", "#6E4BD8", "#B97A17", "#E5484D"],
+      categorical: ["#3E63DD", "#0FA3A3", "#8E4EC6", "#EE7712", "#D6409F", "#30A46C", "#D6970A", "#E5484D"],
       sequential: ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"],
       grid: "#e1e0d9", axis: "#c3c2b7",
     };

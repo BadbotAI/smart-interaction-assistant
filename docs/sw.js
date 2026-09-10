@@ -1,5 +1,5 @@
 // 构建号变了旧缓存整体作废；哈希资源 cache-first（等于不可变），HTML network-first 保证更新可达
-const BUILD = "a00b2f0c";
+const BUILD = "5b7790b8";
 const CACHE = "sia-" + BUILD;
 self.addEventListener("install", (e) => { self.skipWaiting(); });
 self.addEventListener("activate", (e) => {

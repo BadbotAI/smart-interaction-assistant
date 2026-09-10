@@ -91,7 +91,7 @@ let previewFile = "brand-tokens.default.json";   // 当前预览中的风格
 // ---------- 组件示例（真实场景数据） ----------
 const SCENES = {
   "select.single": { name: "文本选择器", q: "有哪些处理方式可以选？", reply: "为你找到以下可选方式。", prompt: "请选择处理方式",
-    config: { options: ["专票", "普票"], recommended_default: "普票" } },
+    config: { options: ["方案 A · 时效优先", "方案 B · 成本优先"], recommended_default: "方案 A · 时效优先" } },
   "select.card": { name: "卡片选择器", q: "帮我选个运输方案", reply: "两个方案供你选择：", prompt: "选择运输方案",
     config: { options: ["海运直达", "海铁联运"], recommended_default: "海运直达",
       option_meta: { "海运直达": { desc: "35 天 · 成本低" }, "海铁联运": { desc: "26 天 · 快 9 天" } } } },

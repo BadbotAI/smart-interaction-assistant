@@ -56,10 +56,17 @@ window.Components = (function () {
     const set = (k, v) => { if (v) node.style.setProperty(k, v); };
     set("--primary", so["color.primary"]);
     set("--brand-accent", so["color.accent"]);
-    if (OV_RADIUS[so.radius]) { set("--radius-card", OV_RADIUS[so.radius][0]); set("--radius-control", OV_RADIUS[so.radius][1]); }
-    set("--card-pad", OV_PAD[so.spacing]);
-    set("--font-base", OV_FONT[so.font_scale]);
-    set("--control-height", OV_HEIGHT[so.height]);
+    // v2.4：数值型覆盖（px，样式设计器滑块输出）优先；旧档位 key 继续兼容
+    const px = (v, min) => { const n = Number(v); return Number.isFinite(n) && n >= (min ?? 0) ? n : null; };
+    const rN = px(so.radius);
+    if (rN != null) { set("--radius-card", rN + "px"); set("--radius-control", Math.max(2, Math.round(rN * 0.75)) + "px"); }
+    else if (OV_RADIUS[so.radius]) { set("--radius-card", OV_RADIUS[so.radius][0]); set("--radius-control", OV_RADIUS[so.radius][1]); }
+    const pN = px(so.spacing);
+    set("--card-pad", pN != null ? pN + "px" : OV_PAD[so.spacing]);
+    const fN = px(so.font_scale, 10);   // ≥10 视为 px；更小是旧档位（"-1"/"1"/"2"）
+    set("--font-base", fN != null ? fN + "px" : OV_FONT[so.font_scale]);
+    const hN = px(so.height, 10);
+    set("--control-height", hN != null ? hN + "px" : OV_HEIGHT[so.height]);
     set("--brand-shadow", OV_SHADOW[so.shadow]);
   }
 
