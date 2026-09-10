@@ -59,7 +59,7 @@
   <div class="grid cols-4" id="kpiRow" style="margin-bottom:14px"></div>
 
   <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
-    <input type="text" id="searchInput" placeholder="搜索配置名称、触发条件" style="width:340px;min-width:220px" aria-label="搜索配置">
+    <input type="text" id="searchInput" placeholder="搜索组件名称、说明" style="width:340px;min-width:220px" aria-label="搜索配置">
     <button class="btn" id="searchBtn" style="height:36px;padding:0 18px">搜索</button>
     <span class="muted" id="listCount"></span>
   </div>
@@ -90,7 +90,7 @@ const STATUS_CHIP = {
   draft: ["草稿", "gray"], published: ["已上线", "blue"],
   offline: ["已下线", "coral"], archived: ["历史版本", "gray"], deleted: ["已删除", "red"],
 };
-const FIELD_LABEL = { name: "配置名称", trigger_description: "触发条件描述", trigger_examples: "示例问法",
+const FIELD_LABEL = { name: "组件名称", description: "组件说明", trigger_description: "触发条件描述", trigger_examples: "示例问法",
   component_type: "交互组件", "text_templates.prompt": "交互提问文案", "text_templates.reply": "信息内容",
   options: "交互选项", fields: "采集字段", webhook: "Webhook 地址" };
 const SELECT_TYPES = ["select.single", "select.multi", "select.card", "matrix.compare+select"];
@@ -228,35 +228,42 @@ function embedDialog(c) {
 
 let curProduct = sessionStorage.getItem("wb_product") || null;
 
-function mcpSnippetFor(p) {
+function sdkSnippetFor(p) {
+  const origin = location.origin;
   return [
-    `// MCP UI 接入「${p.name}」：把本产品的接入点加进你的 MCP 客户端配置`,
-    `{`,
-    `  "mcpServers": {`,
-    `    "sia-${p.product_id}": {`,
-    `      "url": "https://your-domain/v1/mcp",`,
-    `      "headers": { "Authorization": "Bearer ${p.mcp_key}" }`,
-    `    }`,
-    `  }`,
-    `}`,
+    `// 「${p.name}」SDK 接入（v2 组件注册制 · 仅 Web 端）`,
+    `// 配置在出包时固化：平台上修改组件或风格后，需重新拉取注册表并重新部署前端`,
+    ``,
+    `// 第 1 步 · 后端：拉取组件注册表，作为工具声明给你的大模型`,
+    `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`,
+    `// 返回 components[]：每个组件的说明 + params_schema + 提交回传结构`,
+    `// 模型决定出组件时返回 { component_id, params }`,
+    ``,
+    `// 第 2 步 · 前端：引入 SDK（JS + CSS，样式含本产品的品牌风格 token）`,
+    `<link rel="stylesheet" href="${origin}/web/sia.css">`,
+    `<script src="${origin}/web/sia.js" data-key="${p.mcp_key}" defer><\/script>`,
+    ``,
+    `// 第 3 步 · 渲染与回传：把模型返回的组件调用交给 SDK`,
+    `SIA.render(container, { component_id: "…", params: { … } })`,
+    `// 交互类组件用户点「提交」时自动按 submit 结构回传；展示类组件直接渲染、无提交`,
   ].join("\n");
 }
 
 function mcpDrawer(p) {
-  const code = mcpSnippetFor(p);
-  UI.drawer("MCP 配置", el("div", {}, [
+  const code = sdkSnippetFor(p);
+  UI.drawer("接入配置（SDK）", el("div", {}, [
     el("div", { class: "muted", style: "margin-bottom:12px" },
-      [`「${p.name}」通过 MCP UI 对接：客户端连上接入点后，产品绑定的 ${p.card_ids.length} 个组件即可在对话中渲染，并自动应用产品的品牌风格。`]),
+      [`「${p.name}」通过 SDK 接入（仅 Web 端）：后端拉组件注册表声明给大模型，前端引 JS + CSS 渲染；产品绑定的 ${p.card_ids.length} 个组件按品牌风格渲染，交互提交自动回传。配置在出包时固化，修改后需重新部署。`]),
     el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [
-      el("span", { class: "label-text", style: "margin:0" }, ["接入配置"]),
+      el("span", { class: "label-text", style: "margin:0" }, ["接入配置（三步）"]),
       el("div", { style: "flex:1" }),
-      el("button", { class: "btn small primary", onclick: () => { navigator.clipboard.writeText(code); UI.toast("已复制 MCP 接入配置"); } }, [UI.icon("copy", 13), "复制"]),
+      el("button", { class: "btn small primary", onclick: () => { navigator.clipboard.writeText(code); UI.toast("已复制 SDK 接入配置"); } }, [UI.icon("copy", 13), "复制"]),
     ]),
-    el("pre", { class: "code", style: "max-height:280px;overflow:auto" }, [code]),
+    el("pre", { class: "code", style: "max-height:320px;overflow:auto" }, [code]),
     el("div", { class: "muted", style: "margin-top:12px;line-height:1.8" }, [
-      "1. 把上面的配置贴进你产品的 MCP 客户端（如桌面助手 / Agent 框架）。", el("br"),
-      "2. 连接成功后，客户端会拿到该产品的组件清单与触发条件。", el("br"),
-      "3. 对话命中触发条件时组件直接渲染在你的产品里，交互数据自动回流看板。",
+      "1. 后端拉取注册表：组件像工具一样声明给你的大模型，何时出、填什么由模型决定。", el("br"),
+      "2. 前端引入 SDK 与样式：模型返回的组件调用交给 SDK 按品牌风格渲染。", el("br"),
+      "3. 交互类组件提交自动回传，数据回流平台看板（展示类无提交）。",
     ]),
   ]));
 }
@@ -309,7 +316,7 @@ function renderProductCover(products, brands, unboundCount) {
     ]),
     el("div", { style: "flex:1" }),
     el("label", { class: "pc-field" }, [el("span", { class: "muted" }, ["品牌风格"]), brandSel]),
-    el("button", { class: "btn small", onclick: () => mcpDrawer(p) }, [UI.icon("link", 13), "MCP 配置"]),
+    el("button", { class: "btn small", onclick: () => mcpDrawer(p) }, [UI.icon("link", 13), "接入配置"]),
   ]));
 }
 
@@ -390,7 +397,7 @@ function buildCardRow(c) {
 
           ...cardAnomalies(c, eff).map(x => el("span", { class: "chip red", title: x.title }, [x.label])),
         ]),
-        el("div", { class: "cr-line2", title: c.trigger_description }, ["触发：" + (c.trigger_description || "（未填写）")]),
+        el("div", { class: "cr-line2", title: c.description }, ["说明：" + (c.description || "（未填写）")]),
         el("div", { class: "cr-line3 muted" }, [
           el("span", {}, ["创建 " + UI.fmtTs(c.created_at)]),
           (() => { const st = statsByCard[c.card_id]; return st ? el("span", { title: "近 30 天：组件触发 / 用户提交" }, [`触发 ${st.rendered} · 提交 ${st.submitted}`]) : null; })(),
@@ -502,35 +509,43 @@ let templateLibrary = null;
 
 // 组件的一句话场景介绍（选组件步用，不写配置细节）
 const WIZ_DESC = {
-  "select.single": "让用户在几个文字选项里做选择",
-  "select.card": "方案、套餐等需要图文展示的选择",
-  "rank.priority": "让用户把诉求按重要程度排序",
-  "matrix.compare+select": "多个候选按几项指标对比后选定",
-  "scale.likert": "满意度、意愿等打分类反馈",
-  "form.structured": "表单式一次收集多个字段，如订单号、电话",
-  "guide.steps": "把操作流程拆成分步说明，翻页阅读记完成率",
-  "slider.range": "预算、数量等在区间内取一个数",
-  "input.followup": "留言、备注等一段自由文字",
-  "picker.datetime": "约提货、约上门等选一个日期",
-  "picker.timerange": "取件、配送等选一段起止时间",
-  "picker.location": "把配置好的仓库 / 门店地址推给用户确认",
-  "upload.file": "报关单、合同等 PDF / Excel 单据",
-  "upload.image": "破损拍照、回单等图片凭证",
-  "commerce.order": "保价、加固等增值服务与商品直接下单",
-  "entry.link": "专区、活动、服务页的通栏跳转入口",
+  "select.single": "单选表单：选项可预置，也可留空由模型按对话动态给出",
+  "select.multi": "多选表单：勾选多项后提交",
+  "select.card": "卡片样式的选择表单，适合方案对比",
+  "form.structured": "属性定死的信息表单，如联系人、联系方式",
+  "control.confirm": "高风险动作的确认卡：确认 / 取消",
+  "feedback.binary": "对回答的赞 / 踩评价，可分维度",
+  "feedback.preference": "多个候选回答让用户择优",
+  "table": "展示类：模型把结构化数据渲染成表格",
+  "chart.line": "展示类：模型把数列渲染成折线 / 柱状图",
 };
+// v2 组件模板（交互 5 + 展示 2）：与注册集一致，业务解耦
+const V2_TEMPLATES = [
+  { component_type: "select.single", name: "选择表单", default_config: {} },
+  { component_type: "form.structured", name: "信息表单", default_config: { fields: [
+      { key: "contact_name", label: "联系人", required: true }, { key: "contact_phone", label: "联系方式", required: true }] } },
+  { component_type: "control.confirm", name: "操作确认", default_config: {} },
+  { component_type: "feedback.binary", name: "赞踩反馈", default_config: { dimensions: [
+      { key: "accuracy", label: "答得准确吗" }, { key: "helpful", label: "对你有帮助吗" }] } },
+  { component_type: "feedback.preference", name: "偏好选择", default_config: {} },
+  { component_type: "table", name: "表格（展示）", default_config: {} },
+  { component_type: "chart.line", name: "图表（展示）", default_config: {} },
+];
+const PRESENT_TYPES = ["table", "chart.line", "chart.bar"];
+const NO_CONTENT_TYPES = ["feedback.preference", "table", "chart.line", "chart.bar"];
+
 
 const STEP_DEFS = [
   { key: "pick", label: "选择组件" },
-  { key: "trigger", label: "交互配置" },
+  { key: "trigger", label: "基本信息" },
   { key: "comp", label: "设计内容" },
-  { key: "confirm", label: "数据收集" },
-  { key: "done", label: "获取嵌入代码" },
+  { key: "confirm", label: "数据与 schema" },
+  { key: "done", label: "获取接入信息" },
 ];
 // 每步负责校验的字段（下一步前只拦本步的错）
 const STEP_FIELDS = {
   pick: ["component_type"],
-  trigger: ["name", "trigger_description", "trigger_examples"],
+  trigger: ["name", "description"],
   comp: ["component_type", "question", "reply_text", "options", "dimensions", "fields",
     "slider_min", "slider_max", "recommended_default", "likert_scale", "placeholder", "submit"],
   confirm: ["webhook"],
@@ -565,8 +580,10 @@ async function openEditor(cardId, prefill, initStep) {
   const state = restore?.form || {
     scene: prefill?.description || "",
     name: card?.name || "",
-    trigger_description: card?.trigger_description || (prefill?.description || ""),
+    description: card?.description || (prefill?.description || ""),
+    trigger_description: card?.trigger_description || "",
     trigger_examples: card?.trigger_examples || [],
+    styleOv: { ...(card?.style_overrides || {}) },
     reply_text: card?.text_templates?.reply || "",
     question: card?.text_templates?.prompt || (prefill?.prompt || ""),
     component_type: card?.component_type || (prefill?.component_type || ""),
@@ -577,7 +594,8 @@ async function openEditor(cardId, prefill, initStep) {
       price: (cfg.option_meta || {})[o]?.price ?? "", price_original: (cfg.option_meta || {})[o]?.price_original ?? "",
       sales: (cfg.option_meta || {})[o]?.sales ?? "", tags: ((cfg.option_meta || {})[o]?.tags || []).join("，") })),
     recommended_default: cfg.recommended_default || "",
-    dimensions: (cfg.dimensions || []).join("\n"),
+    dimensions: (cfg.dimensions || []).filter(d => typeof d === "string").join("\n"),
+    fbDims: (cfg.dimensions || []).filter(d => d && typeof d === "object").map(d => d.label || d.key),
     matrixValues: (cfg.values || []).map(row => [...row]),
     likert_left: cfg.likert?.left || "非常不满意",
     likert_right: cfg.likert?.right || "非常满意",
@@ -598,7 +616,10 @@ async function openEditor(cardId, prefill, initStep) {
   if (!Array.isArray(state.fieldRows)) state.fieldRows = [];
   if (!Array.isArray(state.guideSteps)) state.guideSteps = [];
   if (!Array.isArray(state.optionRows)) state.optionRows = [];
+  if (!Array.isArray(state.fbDims)) state.fbDims = [];
   if (state.scene === undefined) state.scene = "";
+  if (state.description === undefined) state.description = "";
+  if (!state.styleOv || typeof state.styleOv !== "object") state.styleOv = {};
 
   const isNew = !card;
   let clientCardId = card?.card_id || crypto.randomUUID();
@@ -812,9 +833,7 @@ async function openEditor(cardId, prefill, initStep) {
       const rec = Object.fromEntries(sugs.map((s2, i) => [s2.component_type, { s: s2, top: i === 0 }]));
       gridBox.innerHTML = "";
       // 有推荐时推荐卡置顶（已选组件时也一眼可见），组内保持原顺序
-      const list = sugs.length
-        ? [...templateLibrary].sort((a2, b2) => ((rec[b2.component_type] ? 1 : 0) - (rec[a2.component_type] ? 1 : 0)))
-        : templateLibrary;
+      const list = V2_TEMPLATES;
       list.forEach(t => {
         const selAny = state.component_type === t.component_type ||
           (t.component_type === "select.single" && state.component_type === "select.multi");
@@ -867,65 +886,46 @@ async function openEditor(cardId, prefill, initStep) {
       el("span", { class: "label-text req" }, ["选择组件"]),
       el("div", { class: "tpl-scroll" }, [gridBox]),
     ]));
-    box.appendChild(el("div", { style: "margin-top:16px" }, [
-      el("div", { style: "font-size:var(--font-small);color:var(--text-secondary);margin-bottom:8px" }, [
-        "不确定选哪个？点一个业务场景，自动推荐组件", UI.help("点选场景后会在上方高亮推荐的组件，并作为下一步触发条件的初稿；再点一次取消")]),
-      tagBox,
-    ]));
+    box.appendChild(el("div", { class: "muted", style: "margin-top:12px" },
+      ["v2 组件与业务解耦：何时出现由大模型按「组件说明」判断，无需配置触发条件"]));
     drawGrid();
-    drawTags();
     return box;
   }
 
-  // ---------- 第 2 步：触发条件 ----------
+  // ---------- 第 2 步：基本信息（v2：触发条件下线，组件说明是模型判断何时用它的依据） ----------
   function stepTrigger() {
     const box = el("div", {});
-    // 业务场景（第 1 步）自动带入触发条件初稿
-    if (!state.trigger_description.trim() && state.scene.trim()) state.trigger_description = state.scene.trim();
-    const trigTa = textarea("trigger_description", 3, { placeholder: "什么情况下触发，口语即可。例如：用户反馈货物延误或丢失（1-200 字）", maxlength: "200" });
-    async function runRewrite() {
-      const desc = state.trigger_description.trim();
-      if (!desc) { UI.toast("请先写一句触发条件描述", true); trigTa.focus(); return; }
-      wandBtn.disabled = true; wandBtn.classList.add("busy");
-      try {
-        const r = await UI.api("/api/scenarios/rewrite-trigger", { method: "POST", body: { description: desc } });
-        pendingRewrite = { text: r.trigger_description, examples: (r.trigger_examples || []).slice(0, 10) };
-        rebuild();
-      } catch (err) { UI.toast("AI 改写失败：" + err.message, true); }
-      finally { wandBtn.disabled = false; wandBtn.classList.remove("busy"); }
-    }
+    const descTa = textarea("description", 4, { placeholder: "写清楚这个组件适用于什么情况——大模型靠这段说明判断何时使用它。\n例如：需要用户在若干候选中做单项选择时使用：处理方式、方案、时间段等。", maxlength: "256" });
     const wandBtn = el("button", { class: "btn small", type: "button",
-      title: "AI 改写为规范触发描述并生成示例问法（先预览，采用才生效）",
-      onclick: runRewrite }, [UI.icon("sparkles", 14), "AI 改写"]);
+      title: "AI 改写为规范的组件说明（先预览，采用才生效）",
+      onclick: async () => {
+        const desc = state.description.trim();
+        if (!desc) { UI.toast("请先写一句组件说明", true); descTa.focus(); return; }
+        wandBtn.disabled = true; wandBtn.classList.add("busy");
+        try {
+          const r = await UI.api("/api/scenarios/rewrite-trigger", { method: "POST", body: { description: desc } });
+          pendingRewrite = { text: r.trigger_description, examples: [] };
+          rebuild();
+        } catch (err) { UI.toast("AI 改写失败：" + err.message, true); }
+        finally { wandBtn.disabled = false; wandBtn.classList.remove("busy"); }
+      } }, [UI.icon("sparkles", 14), "AI 改写"]);
     const rewriteCard = !pendingRewrite ? null : el("div", { class: "ai-suggest" }, [
       el("div", { class: "head" }, [
         el("span", { class: "chip ai" }, ["AI 改写建议"]),
         el("div", { style: "flex:1" }),
+        el("button", { class: "btn small", type: "button", onclick: () => { pendingRewrite = null; rebuild(); } }, ["不用"]),
         el("button", { class: "btn small primary", type: "button", onclick: () => {
-          state.trigger_description = pendingRewrite.text;
-          const fresh = pendingRewrite.examples.filter(x => !state.trigger_examples.includes(x));
-          state.trigger_examples = [...state.trigger_examples, ...fresh].slice(0, 10);
-          pendingRewrite = null; autosave(); rebuild();
-          UI.toast(fresh.length ? `已采用，补充 ${fresh.length} 条示例问法` : "已采用");
+          state.description = pendingRewrite.text; pendingRewrite = null; autosave(); rebuild();
         } }, ["采用"]),
-        el("button", { class: "btn small", type: "button", onclick: () => runRewrite() }, ["重试"]),
-        UI.iconBtn("x", "放弃", () => { pendingRewrite = null; rebuild(); }),
       ]),
-      el("div", { class: "sug-text" }, [pendingRewrite.text]),
-      pendingRewrite.examples.length ? el("div", { style: "display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" }, [
-        el("span", { class: "muted" }, ["示例问法"]),
-        ...pendingRewrite.examples.map(x => el("span", { class: "chip gray" }, [x])),
-      ]) : null,
+      el("div", { class: "body" }, [pendingRewrite.text]),
     ]);
-    const trigWrap = el("div", { class: "input-wrap ta ta-mid" }, [trigTa, el("span", { class: "input-action" }, [wandBtn])]);
-    const examplesInput = UI.tagInput({ values: state.trigger_examples, max: 10, placeholder: "用户可能怎么问，回车添加（最多 10 条）",
-      onChange: (vals) => { state.trigger_examples = vals; autosave(); } });
-
+    const descWrap = el("div", { class: "input-wrap ta ta-mid" }, [descTa, el("span", { class: "input-action" }, [wandBtn])]);
     box.appendChild(el("div", { class: "editor-section" }, [
-      field("name", "配置名称", input("name", { placeholder: "例如：物流异常处理（1-15 字）", maxlength: "15" }), null, true),
-      field("trigger_description", "触发条件", trigWrap, null, true),
+      field("name", "组件名称", input("name", { placeholder: "例如：通用选择（1-15 字）", maxlength: "15" }), null, true),
+      field("description", "组件说明", descWrap,
+        "注册给大模型的使用说明：什么情况下用它。说明写得越清楚，模型出组件越准", true),
       rewriteCard,
-      field("trigger_examples", "示例问法", examplesInput),
     ]));
     return box;
   }
@@ -1154,7 +1154,7 @@ async function openEditor(cardId, prefill, initStep) {
     const tplCt = state.component_type === "select.multi" ? "select.single" : state.component_type;
     const ctSel = el("select", { ...(card ? { disabled: "" } : {}) }, [
       ...(!state.component_type ? [el("option", { value: "" }, ["请选择组件"])] : []),
-      ...templateLibrary.map(t => el("option", { value: t.component_type, ...(t.component_type === tplCt ? { selected: "" } : {}) }, [t.name])),
+      ...V2_TEMPLATES.map(t => el("option", { value: t.component_type, ...(t.component_type === tplCt ? { selected: "" } : {}) }, [t.name])),
     ]);
     ctSel.onchange = () => { applyTemplate(ctSel.value); autosave(); rebuild(); };
     const ctErr = el("div", { class: "field-error" });
@@ -1193,9 +1193,16 @@ async function openEditor(cardId, prefill, initStep) {
         seg,
       ]));
     }
-    box.appendChild(field("question", "提问", input("question", { class: "q-input", placeholder: "组件标题，例如：请选择处理方式", maxlength: "80" }), null, true));
-    box.appendChild(field("reply_text", "说明文案",
-      textarea("reply_text", 2, { placeholder: "组件上方先说的话，选填。例如：很抱歉给你带来不便，我们已记录该异常" })));
+    if (!PRESENT_TYPES.includes(state.component_type)) {
+      box.appendChild(field("question", "提问（兜底文案）", input("question", { class: "q-input", placeholder: "组件标题；运行时模型可用 params.prompt 覆盖", maxlength: "80" }), null, true));
+      box.appendChild(field("reply_text", "说明文案",
+        textarea("reply_text", 2, { placeholder: "组件上方先说的话，选填" })));
+    } else {
+      box.appendChild(el("div", { class: "info-strip" }, [
+        el("span", { class: "chip gray" }, ["展示类"]),
+        el("span", { class: "muted" }, ["无内容可配：标题与数据由模型运行时按参数 schema 填入，随回答直接渲染，无提交按钮"]),
+      ]));
+    }
     const ct = state.component_type;
     if (ct) {
       const contentFields = [];
@@ -1276,7 +1283,15 @@ async function openEditor(cardId, prefill, initStep) {
         ]));
       }
       if (ct === "commerce.order" && !card && state.submit === "提交") state.submit = "下单";
-      if (!["suggest.followup", "entry.link"].includes(ct)) contentFields.push(el("div", { class: "form-grid" }, [
+      if (ct === "feedback.binary") contentFields.push((() => {
+        const ta3 = textarea("fb_dims", 2, { placeholder: "答得准确吗\n对你有帮助吗" });
+        ta3.value = (state.fbDims || []).join("\n");
+        ta3.oninput = () => { state.fbDims = ta3.value.split("\n").map(x => x.trim()).filter(Boolean); autosave(); };
+        return field("fb_dims", "评价维度（每行一个）", ta3, "留空则为单一的赞 / 踩");
+      })());
+      if (ct === "feedback.preference") contentFields.push(el("div", { class: "muted", style: "margin-top:2px" },
+        ["候选回答由模型运行时给出（params.candidates，2-4 份）；此处只需配置名称与说明"]));
+      if (!["suggest.followup", "entry.link", ...PRESENT_TYPES].includes(ct)) contentFields.push(el("div", { class: "form-grid" }, [
         field("submit", "按钮文案", input("submit", { maxlength: "8" }), "默认「提交」，最多 8 字，直接显示为当前值"),
       ]));
       else if (ct === "suggest.followup") contentFields.push(el("div", { class: "muted", style: "margin-top:2px" },
@@ -1285,7 +1300,43 @@ async function openEditor(cardId, prefill, initStep) {
         ["每个入口配「跳转链接」直达专区 / 服务页；「提问」留空则不显示标题，横条紧跟在回答下方"]));
       box.appendChild(el("div", { style: "margin-top:4px" }, contentFields));
     }
+    box.appendChild(styleOverrideBlock());
     return box;
+  }
+
+  // ---------- 组件级样式覆盖（v2 两层风格体系第二层：只开语义化覆盖口，空 = 跟随品牌） ----------
+  function styleOverrideBlock() {
+    const so = state.styleOv;
+    const selRow = (key, label, opts, hint) => {
+      const s2 = el("select", {}, [el("option", { value: "" }, ["跟随品牌"]),
+        ...opts.map(([v, n]) => el("option", { value: v, ...(so[key] === v ? { selected: "" } : {}) }, [n]))]);
+      s2.onchange = () => { if (s2.value) so[key] = s2.value; else delete so[key]; autosave(); renderPreview(); };
+      return el("label", { class: "field" }, [el("span", { class: "label-text" }, [label, hint ? UI.help(hint) : null]), s2]);
+    };
+    const colorRow = (key, label) => {
+      const cur = so[key] || "";
+      const ci = el("input", { type: "color", value: cur || "#1DA1F2", style: "width:44px;height:30px;padding:2px" });
+      ci.oninput = () => { so[key] = ci.value; autosave(); renderPreview(); rebuildStyleTag(); };
+      const clear = el("button", { class: "btn small ghost", type: "button", hidden: !cur,
+        onclick: () => { delete so[key]; autosave(); renderPreview(); rebuild(); } }, ["恢复品牌色"]);
+      const tag = el("span", { class: "muted num" }, [cur || "跟随品牌"]);
+      function rebuildStyleTag() { tag.textContent = so[key] || "跟随品牌"; clear.hidden = !so[key]; }
+      return el("label", { class: "field" }, [el("span", { class: "label-text" }, [label]),
+        el("div", { style: "display:flex;align-items:center;gap:8px" }, [ci, tag, clear])]);
+    };
+    const body = el("div", { class: "form-grid", style: "margin-top:8px", hidden: !Object.keys(so).length }, [
+      selRow("height", "控件高度", [["compact", "紧凑 32"], ["regular", "标准 40"], ["large", "宽大 48"]]),
+      selRow("radius", "倒角", [["none", "直角"], ["sm", "小"], ["md", "标准"], ["lg", "大"], ["full", "全圆"]]),
+      selRow("spacing", "密度", [["compact", "紧凑"], ["regular", "标准"], ["loose", "宽松"]]),
+      selRow("shadow", "阴影", [["none", "无"], ["sm", "轻"], ["md", "中"], ["lg", "重"]]),
+      selRow("font_scale", "字号档", [["-1", "小一档"], ["1", "大一档"], ["2", "大两档"]]),
+      colorRow("color.primary", "主色覆盖"),
+      colorRow("color.accent", "强调色覆盖"),
+    ]);
+    const btn = el("button", { class: "btn small ghost", type: "button", onclick: () => {
+      body.hidden = !body.hidden; btn.classList.toggle("active", !body.hidden);
+    } }, ["样式覆盖（在品牌风格基础上微调）", UI.icon("chevron", 13)]);
+    return el("div", { class: "editor-section", style: "margin-top:12px" }, [btn, body]);
   }
 
   // ---------- 第 4 步：数据收集（基础信息回顾 + 回收设置） ----------
@@ -1320,12 +1371,9 @@ async function openEditor(cardId, prefill, initStep) {
     ]);
     box.appendChild(el("div", { class: "editor-section" }, [
       el("div", { class: "sec-head" }, ["基础信息"]),
-      infoCard("触发信息", "trigger", [
-        ["配置名称", state.name.trim()],
-        ["触发条件", state.trigger_description.trim()],
-        ["示例问法", state.trigger_examples.length
-          ? [el("span", { class: "chips" }, state.trigger_examples.slice(0, 5).map(x => el("span", { class: "chip gray" }, [x])))]
-          : null],
+      infoCard("基本信息", "trigger", [
+        ["组件名称", state.name.trim()],
+        ["组件说明", state.description.trim()],
       ]),
       infoCard("组件内容", "comp", [
         ["交互组件", (tpl.name || UI.ctName(state.component_type) || "")
@@ -1336,6 +1384,39 @@ async function openEditor(cardId, prefill, initStep) {
       ]),
     ]));
 
+    // 数据 schema 展现：注册给大模型的参数 schema 与提交回传结构（对接契约）
+    const schemaBox = el("div", { class: "editor-section" }, [
+      el("div", { class: "sec-head" }, ["数据 schema（注册给大模型的）"]),
+      el("div", { class: "muted" }, ["加载中……"]),
+    ]);
+    (async () => {
+      try {
+        const r = await UI.api("/api/components/schema-preview", { method: "POST",
+          body: { component_type: state.component_type, config: collectPayload().field_bindings.config } });
+        schemaBox.innerHTML = "";
+        schemaBox.appendChild(el("div", { class: "sec-head" }, ["数据 schema（注册给大模型的）"]));
+        schemaBox.appendChild(el("div", { class: "muted", style: "margin-bottom:8px" },
+          ["params_schema = 模型调用时要填的参数；fixed = 平台定死模型不可改；submit = 用户提交后回传给 agent 的结构"]));
+        const mk = (t2, o2) => o2 && Object.keys(o2).length ? el("div", { style: "margin-bottom:8px" }, [
+          el("div", { class: "muted", style: "font-weight:600;margin-bottom:2px" }, [t2]),
+          el("pre", { class: "code", style: "max-height:200px;overflow:auto" }, [JSON.stringify(o2, null, 2)]),
+        ]) : null;
+        schemaBox.appendChild(mk("params_schema", r.params_schema));
+        const fx = mk("fixed（平台定死）", r.fixed);
+        if (fx) schemaBox.appendChild(fx);
+        const sb = mk("submit（提交回传）", r.submit_schema);
+        if (sb) schemaBox.appendChild(sb);
+      } catch (e2) { schemaBox.appendChild(el("div", { class: "field-error" }, ["schema 预览加载失败：" + e2.message])); }
+    })();
+    box.appendChild(schemaBox);
+
+    if (PRESENT_TYPES.includes(state.component_type)) {
+      box.appendChild(el("div", { class: "editor-section" }, [
+        el("div", { class: "sec-head" }, ["数据收集"]),
+        el("div", { class: "muted" }, ["展示类组件无提交，不产生回收数据；渲染次数计入看板曝光统计"]),
+      ]));
+      return box;
+    }
     const webhookIn = input("webhook", { type: "url", placeholder: "https://your-service.example.com/hooks/interaction" });
     box.appendChild(el("div", { class: "editor-section" }, [
       el("div", { class: "sec-head" }, ["数据收集"]),
@@ -1580,13 +1661,16 @@ async function openEditor(cardId, prefill, initStep) {
         .map(st => ({ title: st.title.trim(), body: st.body.trim() }));
     const templates = { prompt: question || "请选择", submit: state.submit.trim() || "提交" };
     if (state.reply_text.trim()) templates.reply = state.reply_text.trim();
+    if (state.component_type === "feedback.binary" && (state.fbDims || []).length)
+      config.dimensions = state.fbDims.map((label, i) => ({ key: "dim_" + (i + 1), label }));
     return {
       card_id: clientCardId,
       name: state.name.trim(),
-      description: (state.reply_text.trim() || question).slice(0, 256),
+      description: state.description.trim().slice(0, 256),
       component_type: state.component_type,
-      trigger_description: state.trigger_description.trim() || question,
+      trigger_description: state.trigger_description.trim(),
       trigger_examples: state.trigger_examples.slice(0, 10),
+      style_overrides: state.styleOv,
       model_invokable: true,
       echo_results: !!state.echo_results,
       option_source: { type: "static", values: options },
@@ -1606,13 +1690,16 @@ async function openEditor(cardId, prefill, initStep) {
     const errs = [];
     if (!state.name.trim()) errs.push({ field: "name", message: "请填写配置名称" });
     else if (state.name.trim().length > 15) errs.push({ field: "name", message: "配置名称不能超过 15 字" });
-    if (!state.trigger_description.trim()) errs.push({ field: "trigger_description", message: "请填写触发条件" });
-    else if (state.trigger_description.trim().length > 200) errs.push({ field: "trigger_description", message: "触发条件不能超过 200 字" });
-    if (!state.component_type) errs.push({ field: "component_type", message: "请选择一个交互组件" });
-    if (!state.question.trim() && state.component_type !== "entry.link") errs.push({ field: "question", message: "请填写交互提问文案" });
+    if (!state.description.trim()) errs.push({ field: "description", message: "请填写组件说明：大模型靠它判断何时使用本组件" });
+    else if (state.description.trim().length > 256) errs.push({ field: "description", message: "组件说明不能超过 256 字" });
+    if (!state.component_type) errs.push({ field: "component_type", message: "请选择一个组件" });
+    if (!state.question.trim() && !PRESENT_TYPES.includes(state.component_type) && state.component_type !== "entry.link")
+      errs.push({ field: "question", message: "请填写提问兜底文案" });
     const ct = state.component_type;
     const opts = getOptions();
-    if ((SELECT_TYPES.includes(ct) || ct === "suggest.followup") && opts.length < 2) errs.push({ field: "options", message: "至少 2 个选项" });
+    // v2：选择表单选项留空 = 模型动态给出；预置则至少 2 个
+    if (SELECT_TYPES.includes(ct) && opts.length === 1) errs.push({ field: "options", message: "预置选项至少 2 个；全部留空表示由模型动态给出" });
+    if (ct === "suggest.followup" && opts.length < 2) errs.push({ field: "options", message: "至少 2 个选项" });
     if (SELECT_TYPES.includes(ct) && new Set(opts).size !== opts.length) errs.push({ field: "options", message: "选项有重复" });
     if (SELECT_TYPES.includes(ct) && state.optionRows.some(r => (r.api || "").trim() && !/^https:\/\/[^\s]+$/.test(r.api.trim())))
       errs.push({ field: "options", message: "跳转链接必须是 https:// 开头的完整 URL" });

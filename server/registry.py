@@ -166,3 +166,19 @@ def build_registry(product: dict) -> dict:
                  "前端 SDK 按 component_id 渲染并在提交时回传 submit_schema 结构。展示类组件无提交。",
         "components": comps,
     }
+
+
+def build_catalog() -> list:
+    """组件库目录：7 类泛化组件模板（无实例语境下的 schema 示例，供组件库页展示与新建选型）。"""
+    ct_of = {"select": "select.single", "form": "form.structured", "confirm": "control.confirm",
+             "feedback": "feedback.binary", "preference": "feedback.preference",
+             "table": "table", "chart": "chart.line"}
+    out = []
+    for v2, meta in V2_META.items():
+        stub = {"component_type": ct_of[v2], "field_bindings": {"config": {}}}
+        out.append({"type": v2, "label": meta["label"], "desc": meta["desc"],
+                    "interactive": meta["interactive"],
+                    "params_schema": params_schema_for(stub),
+                    "submit_schema": submit_schema_for(stub),
+                    "component_types": [ct for ct, t in V2_TYPE_MAP.items() if t == v2]})
+    return out

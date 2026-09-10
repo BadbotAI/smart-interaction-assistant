@@ -691,6 +691,23 @@ def product_registry(product_id: str, key: str = None):
     return registry.build_registry(dict(row))
 
 
+@app.post("/api/components/schema-preview")
+async def components_schema_preview(request: Request):
+    """编辑器的数据 schema 预览：按当前配置实时生成注册 schema（与正式注册表同源）。"""
+    body = await request.json()
+    stub = {"component_type": body.get("component_type") or "",
+            "field_bindings": {"config": body.get("config") or {}}}
+    return {"params_schema": registry.params_schema_for(stub),
+            "fixed": registry.fixed_config_for(stub),
+            "submit_schema": registry.submit_schema_for(stub)}
+
+
+@app.get("/api/components/catalog")
+def components_catalog():
+    """v2 组件库目录：交互 5 + 展示 2，含参数 schema 与提交结构（数据 schema 展现）。"""
+    return {"catalog": registry.build_catalog()}
+
+
 @app.get("/api/products")
 def list_products():
     conn = db.get_conn()
