@@ -355,3 +355,32 @@ node tests/mock_smoke.mjs 全过；py_compile + node --check；GET 全端点扫�
 
 - 回归方式：Key 生命周期 curl 全链路（现有 Key 盐 0 不变 → 重置得新 Key → 旧 Key 调用 error=invalid_api_key → 新 Key 按对应策略路由）；配置持久化跨两次重启验证（策略 override=0 与模型单价均保留）；接入文档页与策略抽屉截图目检；mock 增 reset-key 会话态，smoke 增至 30 断言 ALL PASS。
 - 教训：**幂等验证必须含跨重启回归**——「改完立即验证通过」不等于持久化正确；种子函数一律 INSERT OR IGNORE / 存在守卫，禁止 OR REPLACE。
+
+---
+
+# Tricky 审查 · 第十八批（2026-09-10，v2.1/v2.2 大改动专审）
+
+- 范围：极简编辑器 / 样式设计器 / 组件库详情 / 模拟器 / Figma 级品牌编辑器 / 新配色 / 产品切换器 / 多产品种子 / Key 重置 / sia.css 端点 / 注册表版本戳 / 首页 / 组件视觉两轮
+
+## 问题清单
+
+| 编号 | 关卡 | 级别 | 问题（含失败场景） | 建议 | 状态 |
+|---|---|---|---|---|---|
+| T18-1 | S- | P0 | **产品 brand_file 无校验可路径注入**：PUT /api/products 接受 `../../server/app.py` 入库——实测被接受且打坏该产品品牌（渲染空样式）；若指向任意合法 JSON 文件即可将其内容注入 SDK CSS 分发 | update_product 校验（basename 一致 + .json 后缀 + 文件真实存在）；sia.css 端点 basename 兜底；被打坏产品数据修复 | 已修 |
+| T18-2 | L- | P1 | **编辑已有风格不回填真实 token**：THEME_PRESETS 重构后编辑任何风格都显示墨蓝预设值而非该风格实际颜色，保存即静默覆盖 | existing 时加载该风格文件并回填 light/dark/chart 与形状选项 | 已修 |
+| T18-3 | L- | P1 | 「明暗双份」半兑现：color_dark 只存不发——SDK CSS 无暗色输出 | sia.css 端点输出 `@media (prefers-color-scheme: dark)` 块（有 color_dark 才输出），curl 实测双份齐全 | 已修 |
+| T18-4 | O- | P2 | 审计缺 product_key_reset / migrate_assistant_v21 / migrate_products_v22 中文映射 | 补映射 | 已修 |
+| T18-5 | C- | P2 | 组件详情页头部按钮无「已启用」态（卡片有、详情没有） | 对齐 | 已修 |
+| T18-6 | R- | P2 | 静态站产品 Key 重置无 mock：点击后弹窗显示 undefined | mock 补 reset-key | 已修 |
+| T18-7 | C- | P2 | 「新建组件风格」入口文案啰嗦（走查 7.4 遗留） | 改「六套预设起步，逐 token 细调」 | 已修 |
+| T18-8 | D- | P2 | tokens.js / 平台预览端未消费 color_dark（预览深色靠编辑器手动合成）；组件 SDK 暗色跟随宿主已兑现，平台内暗色预览链路待 Stage2 | 记账 | 记账 |
+
+## 用户随批反馈（并入整改）
+
+- 预设色板「太花花绿绿」：预设卡撤状态色，只摆主色 / 强调色 / 面色三块（克制的企业观感）
+- 主题预设收敛为单行当前主题 +「更换主题」展开选择（Figma 式样式选择器形态）
+
+## 整改记录
+
+- 回归：路径注入复测 422；被打坏产品数据修复（1 行）；sia.css 明暗双块 curl 实测；编辑回填逻辑语法与页面渲染检查；全内嵌脚本 node --check；截图目检预设收敛与折线图横轴修复。
+- 教训：**文件名字段一律 basename + 存在性校验**（brand_file 与当年 vault 凭证同类：接口层是主战场）；大重构（THEME_PRESETS）必须回归「编辑旧数据」路径，不只验证新建。

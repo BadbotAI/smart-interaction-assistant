@@ -132,7 +132,9 @@ function renderDetail(t) {
     el("span", { class: "chip " + (t.interactive ? "blue" : "gray") }, [t.interactive ? "交互 · 有提交" : "展示 · 无提交"]),
     el("span", { class: "muted num" }, [t.component_types[0]]),
     el("div", { style: "flex:1" }),
-    el("a", { class: "btn primary", href: "/web/cards.html?new=1&ct=" + encodeURIComponent(t.component_types[0]) }, ["从模板创建"]),
+    liveIdOf(t)
+      ? el("a", { class: "btn", href: "/web/cards.html?edit=" + encodeURIComponent(liveIdOf(t)) }, ["已启用 · 编辑样式"])
+      : el("a", { class: "btn primary", href: "/web/cards.html?new=1&ct=" + encodeURIComponent(t.component_types[0]) }, ["从模板创建"]),
   ]));
   box.appendChild(el("div", { class: "muted", style: "margin:0 0 14px;max-width:62em" }, [t.desc]));
   box.appendChild(el("div", { class: "lib-detail-grid" }, [

@@ -252,6 +252,9 @@
       if (c) Object.assign(c, body || {});
       return { ok: true };
     }
+    if (/^\/api\/products\/[^/]+\/reset-key$/.test(pn)) {
+      return { ok: true, mcp_key: "sk-mcp-" + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 8) };
+    }
     if (/^\/api\/products\/[^/]+\/delete$/.test(pn)) {
       const pid = pn.split("/")[3];
       prodLocal.deleted.add(pid);

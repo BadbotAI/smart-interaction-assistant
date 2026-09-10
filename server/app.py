@@ -711,7 +711,8 @@ def product_sia_css(product_id: str, key: str = None):
     if not key or key != _mcp_key(product_id):
         return JSONResponse({"error": "invalid_key"}, status_code=401)
     import json as _json
-    brand_path = os.path.join(os.path.dirname(__file__), "..", "docs", "brand", row["brand_file"] or "brand-tokens.default.json")
+    _bf = os.path.basename(row["brand_file"] or "brand-tokens.default.json")
+    brand_path = os.path.join(os.path.dirname(__file__), "..", "docs", "brand", _bf)
     try:
         tk = _json.load(open(brand_path, encoding="utf-8"))
     except Exception:
@@ -732,8 +733,19 @@ def product_sia_css(product_id: str, key: str = None):
         "--brand-shadow": tk.get("shadow"),
     }
     decls = "".join(f"{k}:{v};" for k, v in css_vars.items() if v)
+    dk = tk.get("color_dark") or {}
+    dark_vars = {
+        "--primary": dk.get("primary"), "--primary-weak": dk.get("primary_weak"),
+        "--brand-accent": dk.get("accent"), "--brand-ring": dk.get("ring"),
+        "--bg-page": dk.get("bg_page"), "--bg-surface": dk.get("bg_surface"),
+        "--text-primary": dk.get("text_primary"), "--text-secondary": dk.get("text_secondary"),
+        "--text-muted": dk.get("text_muted"), "--border": dk.get("border"),
+        "--success": dk.get("success"), "--warning": dk.get("warning"), "--danger": dk.get("danger"),
+    }
+    dark_decls = "".join(f"{k}:{v};" for k, v in dark_vars.items() if v)
+    dark_block = ("@media (prefers-color-scheme: dark){.brand-scope{%s}}\n" % dark_decls) if dark_decls else ""
     body = ("/* Smart Interaction SDK CSS — 产品「%s」的品牌风格 token（出包固化：平台改风格后需重新拉取部署） */\n"
-            ".brand-scope{%s}\nsia-card{display:block;}\n") % (row["name"], decls)
+            ".brand-scope{%s}\n%ssia-card{display:block;}\n") % (row["name"], decls, dark_block)
     return PlainTextResponse(body, media_type="text/css")
 
 
@@ -821,6 +833,13 @@ async def update_product(product_id: str, request: Request):
         card_ids = db.j([c for c in card_ids if isinstance(c, str) and c in valid])
     else:
         card_ids = row["card_ids"]
+    # brand_file 只允许品牌目录内的文件名（防路径注入；必须真实存在）
+    _bf = body.get("brand_file")
+    if _bf is not None:
+        import os as _os
+        if _os.path.basename(str(_bf)) != str(_bf) or not str(_bf).endswith(".json") or not _os.path.exists(
+                _os.path.join(_os.path.dirname(__file__), "..", "docs", "brand", str(_bf))):
+            return JSONResponse({"error": "品牌风格文件不合法"}, status_code=422)
     conn.execute("UPDATE products SET name=?, brand_file=?, card_ids=? WHERE product_id=?",
                  (name, brand_file, card_ids, product_id))
     conn.commit()

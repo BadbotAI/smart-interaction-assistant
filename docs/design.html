@@ -75,8 +75,8 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=781cc6d8"></script>
-<script src="./mock_api.js?v=d77c3e42"></script>
+<script src="./mock_data.js?v=26758949"></script>
+<script src="./mock_api.js?v=0c2f1aa6"></script>
 <script src="./tokens.js?v=64d83daa"></script>
 <script src="./ui.js?v=4ff0befd"></script>
 <script src="./components.js?v=5fcad9f4"></script>
@@ -315,18 +315,44 @@ function brandDialog(existing, onClose) {
   const err = el("div", { class: "field-error" });
 
   // —— 预设选择（整套起步） ——
-  const palGrid = el("div", { class: "pal-grid" });
+  // 预设选择：默认只展示当前主题（克制），点「更换」展开全部；色块只摆主色系（不摆状态色，避免花绿）
+  const palGrid = el("div", {});
+  let palOpen = false;
+  function presetSwatch(pz) {
+    const c0 = editMode === "dark" ? pz.dark : pz.light;
+    return el("span", { style: "display:inline-flex;gap:4px" },
+      [c0.primary, c0.accent, c0.bg_surface].map(cx =>
+        el("i", { style: `width:18px;height:18px;border-radius:6px;border:1px solid var(--border);background:${cx}` })));
+  }
   function drawPals() {
     palGrid.innerHTML = "";
+    const cur = THEME_PRESETS[opts.preset];
+    if (!palOpen) {
+      palGrid.appendChild(el("div", { style: "display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:10px;padding:10px 14px;background:#fff" }, [
+        presetSwatch(cur),
+        el("span", { style: "font-weight:600" }, [cur.name]),
+        el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["当前主题预设"]),
+        el("div", { style: "flex:1" }),
+        el("button", { class: "btn small ghost", type: "button", onclick: () => { palOpen = true; drawPals(); } }, ["更换主题"]),
+      ]));
+      return;
+    }
+    const grid2 = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:8px" });
     THEME_PRESETS.forEach((pz, i) => {
-      const c0 = editMode === "dark" ? pz.dark : pz.light;
-      palGrid.appendChild(el("button", { type: "button",
-        class: "pal-card" + (opts.preset === i ? " on" : "") + (editMode === "dark" ? " dark" : ""), title: pz.name + "（点击应用整套，之后可逐项微调）",
-        onclick: () => { opts.preset = i; loadPreset(i); drawPals(); drawTokens(); applyPreview(); } }, [
-        el("div", { class: "pal-name" }, [pz.name]),
-        el("div", { class: "pal-row" }, [c0.primary, c0.primary_weak, c0.accent, c0.success, c0.danger, c0.bg_page].map(cx => el("i", { style: `background:${cx}` }))),
+      grid2.appendChild(el("button", { type: "button",
+        style: "display:flex;align-items:center;gap:10px;border:1.5px solid " + (opts.preset === i ? "var(--primary)" : "var(--border)") +
+               ";border-radius:10px;padding:10px 12px;background:#fff;cursor:pointer" + (opts.preset === i ? ";box-shadow:0 0 0 2px var(--primary-weak)" : ""),
+        title: pz.name + "（应用整套，之后可逐项微调）",
+        onclick: () => { opts.preset = i; loadPreset(i); palOpen = false; drawPals(); drawTokens(); applyPreview(); } }, [
+        presetSwatch(pz),
+        el("span", { style: "font-weight:600;flex:1;text-align:left" }, [pz.name]),
+        opts.preset === i ? UI.icon("check", 14) : null,
       ]));
     });
+    palGrid.appendChild(grid2);
+    palGrid.appendChild(el("div", { style: "display:flex;justify-content:flex-end;margin-top:6px" }, [
+      el("button", { class: "btn small ghost", type: "button", onclick: () => { palOpen = false; drawPals(); } }, ["收起"]),
+    ]));
   }
   drawPals();
 
@@ -509,8 +535,27 @@ function brandDialog(existing, onClose) {
 
   // 初始化：取默认 token 作底；编辑时回填（有 _options 走选项模式，否则代码模式）
   (async () => {
-    try { baseTokens = await (await fetch("./brand/brand-tokens.default.json")).json(); }
+    try { baseTokens = await (await fetch("./brand/" + (existing ? existing.file : "brand-tokens.default.json"))).json(); }
     catch (e) { baseTokens = { color: {}, chart: {} }; }
+    if (existing && baseTokens.color) {
+      // 编辑已有风格：回填它的真实 token（不是预设默认值）
+      const KEYS = ["primary", "primary_weak", "accent", "ring", "bg_page", "bg_surface", "border",
+                    "text_primary", "text_secondary", "text_muted", "success", "warning", "danger"];
+      KEYS.forEach(k => { if (baseTokens.color[k]) tok.light[k] = baseTokens.color[k]; });
+      const dkSrc = baseTokens.color_dark || {};
+      KEYS.forEach(k => { if (dkSrc[k]) tok.dark[k] = dkSrc[k]; });
+      const cc = ((baseTokens.chart || {}).categorical || []).slice(0, 5);
+      cc.forEach((cx, i2) => { if (cx) tok.chart[i2] = cx; });
+      const oo = baseTokens._options || {};
+      if (oo.radius != null) opts.radius = oo.radius;
+      if (oo.font != null) opts.font = oo.font;
+      if (oo.weight != null) opts.weight = oo.weight;
+      if (oo.size != null) opts.size = oo.size;
+      if (oo.shadow != null) opts.shadow = oo.shadow;
+      if (oo.density != null) opts.density = oo.density;
+      drawPals(); drawTokens(); drawFsCards(); drawSegs();
+      radIn.value = String(opts.radius); radLab.textContent = RADII[opts.radius][0]; radFill();
+    }
     if (existing) {
       try {
         const t = await (await fetch("./brand/" + existing.file)).json();
@@ -576,7 +621,7 @@ function renderBrands() {
   // 新增入口：列表末尾一张虚线卡，点击弹出导入编辑（保存后成为正式卡片）
   const addCard = el("div", { class: "brand-card add-card", role: "button", tabindex: "0" }, [
     el("div", { class: "bname" }, [UI.icon("plus", 14), "新增组件风格"]),
-    el("div", { class: "bsub" }, ["全选项定义：配色 / 明暗 / 圆角 / 字体 / 阴影 / 密度"]),
+    el("div", { class: "bsub" }, ["六套预设起步，逐 token 细调"]),
   ]);
   const openAdd = () => brandDialog(null);
   addCard.onclick = openAdd;

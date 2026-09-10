@@ -38,8 +38,8 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=781cc6d8"></script>
-<script src="./mock_api.js?v=d77c3e42"></script>
+<script src="./mock_data.js?v=26758949"></script>
+<script src="./mock_api.js?v=0c2f1aa6"></script>
 <script src="./tokens.js?v=64d83daa"></script>
 <script src="./ui.js?v=4ff0befd"></script>
 <script src="./components.js?v=5fcad9f4"></script>
@@ -136,7 +136,9 @@ function renderDetail(t) {
     el("span", { class: "chip " + (t.interactive ? "blue" : "gray") }, [t.interactive ? "交互 · 有提交" : "展示 · 无提交"]),
     el("span", { class: "muted num" }, [t.component_types[0]]),
     el("div", { style: "flex:1" }),
-    el("a", { class: "btn primary", href: "./cards.html?new=1&ct=" + encodeURIComponent(t.component_types[0]) }, ["从模板创建"]),
+    liveIdOf(t)
+      ? el("a", { class: "btn", href: "./cards.html?edit=" + encodeURIComponent(liveIdOf(t)) }, ["已启用 · 编辑样式"])
+      : el("a", { class: "btn primary", href: "./cards.html?new=1&ct=" + encodeURIComponent(t.component_types[0]) }, ["从模板创建"]),
   ]));
   box.appendChild(el("div", { class: "muted", style: "margin:0 0 14px;max-width:62em" }, [t.desc]));
   box.appendChild(el("div", { class: "lib-detail-grid" }, [
