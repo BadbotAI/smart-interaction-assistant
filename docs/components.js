@@ -1232,16 +1232,19 @@ window.Components = (function () {
   function rConfirm(env, ctx) {
     const p = env.params;
     return compCard([
-      el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px" }, [
+      el("div", { style: "display:flex;align-items:center;gap:8px" }, [
         el("span", { class: "chip red" }, ["高风险"]),
-        el("span", { style: "font-weight:600" }, [p.title || "操作确认"]),
+        el("span", { style: "font-weight:700" }, [p.title || p.prompt || "操作确认"]),
       ]),
-      el("div", { class: "secondary" }, [p.action_desc || ""]),
-      el("div", { style: "margin-top:10px;display:flex;gap:8px" }, [
+      p.prompt && p.title ? el("div", { class: "secondary" }, [p.prompt]) : null,
+      (p.action_desc || p.summary) ? el("div", { class: "secondary", style: "background:var(--bg-surface);border-radius:var(--radius-control,8px);padding:8px 12px" },
+        [p.action_desc || p.summary]) : null,
+      el("div", { style: "margin-top:12px;display:flex;gap:10px;align-items:center" }, [
         el("button", { class: "btn primary", onclick: (e) => { disableSiblings(e); ctx.onControl("confirm", env); } }, [p.confirm_label || "确认执行"]),
-        el("button", { class: "btn", onclick: (e) => { disableSiblings(e); ctx.onControl("cancel", env); } }, [p.cancel_label || "取消"]),
+        el("button", { class: "btn ghost", onclick: (e) => { disableSiblings(e); ctx.onControl("cancel", env); } }, [p.cancel_label || "取消"]),
+        el("span", { class: "muted", style: "font-size:var(--font-caption);margin-left:auto" }, ["此操作需明确确认"]),
       ]),
-    ]);
+    ], "confirm-risk");
   }
 
   function disableSiblings(e) {

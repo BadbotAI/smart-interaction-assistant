@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>产品及风格管理 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=37b05866">
+<link rel="stylesheet" href="./shared.css?v=ff94d4e9">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
@@ -31,6 +31,17 @@
   .demo-card .head .name { font-weight: 700; font-size: var(--font-base); }
   .demo-card .mock-area { flex: 1; display: flex; flex-direction: column; }
   .demo-card .mock-area .chat-mock { flex: 1; }
+  /* Figma 级 token 编辑行 */
+  .tok-group { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; background: #fff; }
+  .tok-group summary { cursor: pointer; padding: 9px 14px; font-weight: 600; font-size: var(--font-small); color: var(--text-secondary); user-select: none; }
+  .tok-group[open] summary { border-bottom: 1px solid var(--border); }
+  .tok-rows { padding: 6px 10px 10px; }
+  .tok-row { display: flex; align-items: center; gap: 10px; padding: 4px 4px; border-radius: 8px; }
+  .tok-row:hover { background: var(--bg-surface); }
+  .tok-chip { width: 26px; height: 26px; padding: 1px; border: 1px solid var(--border); border-radius: 7px; cursor: pointer; flex: none; }
+  .tok-name { font-size: var(--font-small); min-width: 64px; }
+  .tok-key { font-size: 11px; color: var(--text-muted); flex: 1; }
+  .tok-hex { width: 86px; font-family: var(--font-mono, monospace); font-size: 12px; padding: 4px 8px; text-transform: uppercase; }
 </style>
 </head>
 <body class="has-side">
@@ -64,11 +75,11 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=da065544"></script>
+<script src="./mock_data.js?v=781cc6d8"></script>
 <script src="./mock_api.js?v=d77c3e42"></script>
 <script src="./tokens.js?v=64d83daa"></script>
-<script src="./ui.js?v=e7af6724"></script>
-<script src="./components.js?v=655b4577"></script>
+<script src="./ui.js?v=0612028c"></script>
+<script src="./components.js?v=71415c71"></script>
 <script>
 // 深链直开编辑器时，先行标记以免生效风格覆盖预览
 if (new URLSearchParams(location.search).get("new")) window._editingStyle = true;
@@ -83,7 +94,7 @@ let previewFile = "brand-tokens.default.json";   // 当前预览中的风格
 
 // ---------- 组件示例（真实场景数据） ----------
 const SCENES = {
-  "select.single": { name: "文本选择器", q: "我要开发票", reply: "好的，请确认发票类型。", prompt: "开哪种发票？",
+  "select.single": { name: "文本选择器", q: "有哪些处理方式可以选？", reply: "为你找到以下可选方式。", prompt: "请选择处理方式",
     config: { options: ["专票", "普票"], recommended_default: "普票" } },
   "select.card": { name: "卡片选择器", q: "帮我选个运输方案", reply: "两个方案供你选择：", prompt: "选择运输方案",
     config: { options: ["海运直达", "海铁联运"], recommended_default: "海运直达",
@@ -149,26 +160,38 @@ const TRACK_ENV = { schema_version: "1.0.0", render_id: "ds-track", component_ty
       { time: "", text: "到达目的地网点，安排派送", state: "todo" },
     ] } };
 let demoCt = "select.single";
+// v2.2：多组件同屏预览——一次看全代表性组件在当前风格下的效果（交互 3 + 展示 3）
+const DEMO_GRID = [
+  ["select.single", { component_type: "select.single", semantic_category: "collect",
+    params: { prompt: "请选择处理方式", options: ["方案 A · 时效优先", "方案 B · 成本优先", "方案 C · 均衡"], submit_label: "确认" } }],
+  ["control.confirm", { component_type: "control.confirm", semantic_category: "control",
+    params: { prompt: "确认取消本次订单？该操作不可撤销。", summary: "取消后已支付金额将原路退回" } }],
+  ["form.structured", { component_type: "form.structured", semantic_category: "collect",
+    params: { prompt: "请补充以下信息", fields: [{ key: "n", label: "联系人", required: true }, { key: "p", label: "联系方式", required: true }], submit_label: "提交" } }],
+  ["chart.line", { component_type: "chart.line", semantic_category: "present",
+    params: { title: "近半年走势", categories: ["4月", "5月", "6月", "7月", "8月", "9月"], series: [{ name: "金额", values: [122, 165, 148, 161, 178, 190] }] } }],
+  ["chart.pie", { component_type: "chart.pie", semantic_category: "present",
+    params: { title: "构成占比", slices: [{ label: "华东", value: 42 }, { label: "华南", value: 27 }, { label: "其他", value: 31 }] } }],
+  ["metric.card", { component_type: "metric.card", semantic_category: "present",
+    params: { label: "本月累计金额", value: "1,286", unit: "万元", delta: "4.2%" } }],
+];
 function renderDemos() {
   const boxOne = document.getElementById("demoOne");
   boxOne.innerHTML = "";
-  let node, sc;
-  if (demoCt === "track.map") {
-    sc = { q: "帮我查一下这票货到哪了", reply: "这票货正在干线运输，预计后天送达：" };
-    try { node = Components.render(TRACK_ENV, previewCtx); } catch (e) { node = el("div", { class: "muted" }, ["暂不支持预览"]); }
-  } else {
-    sc = SCENES[demoCt];
-    try { node = Components.render(buildEnvelope(demoCt, sc.config, sc.prompt), previewCtx); }
-    catch (e) { node = el("div", { class: "muted" }, ["暂不支持预览"]); }
-  }
-  boxOne.appendChild(UI.chatMock({ question: sc.q, reply: sc.reply, node, prompt: demoCt === "track.map" ? "" : (sc.prompt || "") }));
+  const grid2 = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start" });
+  DEMO_GRID.forEach(([ct, envBase]) => {
+    let node;
+    try {
+      node = Components.render({ schema_version: "1.0.0", render_id: "brand-pv-" + ct,
+        trigger_source: "brand_preview", card_ref: null, ...envBase }, previewCtx);
+    } catch (e) { node = el("div", { class: "muted" }, ["暂不支持预览"]); }
+    grid2.appendChild(el("div", { class: "brand-scope" }, [node]));
+  });
+  boxOne.appendChild(grid2);
 }
 function mountDemoControls() {
-  document.getElementById("compSelMount").appendChild(UI.fancySelect({
-    value: demoCt, width: "170px",
-    options: [...Object.entries(SCENES).map(([ct, sc]) => [ct, sc.name]), ["track.map", "物流轨迹卡"]],
-    onChange: (v) => { demoCt = v; renderDemos(); },
-  }));
+  const m = document.getElementById("compSelMount");
+  if (m) m.appendChild(el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["同屏预览 6 类代表组件"]));
 }
 
 // ---------- 导入 / 编辑品牌风格：弹窗建卡片（名称 + 风格代码），创建后出现在列表，可编辑 / 删除 ----------
@@ -176,18 +199,70 @@ function brandDialog(existing, onClose) {
   const grid = document.getElementById("brandGrid");
   const host = document.getElementById("styleEditor");
   // 成套色盘：主色 / 浅主色(浅色模式) / 深主色底(深色模式) / 成功 / 警告 / 危险
-  // 成套语义 token 预设：主色 / 浅弱底(光) / 深弱底(暗) / 成功 / 警告 / 危险 / 强调色 accent
-  const PALETTES = [
-    ["晴空蓝", "#1DA1F2", "#E9F1FB", "#12293D", "#17A673", "#B97A17", "#E5484D", "#6E4BD8"],
-    ["靛夜紫", "#4F5BD5", "#EBEDFB", "#1B2040", "#17A673", "#B97A17", "#E5484D", "#D9569B"],
-    ["翡翠绿", "#0FA968", "#E4F5EF", "#0D2B20", "#0FA968", "#B97A17", "#E5484D", "#1D7FBF"],
-    ["珊瑚橙", "#FF6B4A", "#FFEDE8", "#3A1810", "#17A673", "#B97A17", "#E5484D", "#B85C38"],
-    ["琥珀金", "#D97706", "#FBF0DE", "#33210A", "#17A673", "#D97706", "#E5484D", "#8C5A2B"],
-    ["石墨黑", "#334155", "#E8ECF1", "#0E1420", "#17A673", "#B97A17", "#E5484D", "#5B7A9D"],
+  // ================= Figma 级 token 体系：整套预设起步 + 逐 token 细颗粒度编辑 + 明暗双模式 =================
+  // 每套预设 = 明暗两份完整语义色板 + 图表序列色；选中预设后任意 token 可单独改。
+  const THEME_PRESETS = [
+    { name: "晴空蓝", light: { primary: "#1DA1F2", primary_weak: "#E9F1FB", accent: "#6E4BD8", ring: "#1DA1F2",
+        bg_page: "#FFFFFF", bg_surface: "#F7F8F8", border: "#E1EAF1",
+        text_primary: "#0F1B26", text_secondary: "#43596B", text_muted: "#71828F",
+        success: "#17A673", warning: "#B97A17", danger: "#E5484D" },
+      dark: { primary: "#4DB6F5", primary_weak: "#12293D", accent: "#9B85E8", ring: "#4DB6F5",
+        bg_page: "#0F1620", bg_surface: "#19222E", border: "#2B3948",
+        text_primary: "#F2F6FA", text_secondary: "#A9B8C7", text_muted: "#71828F",
+        success: "#2FBE8B", warning: "#D69A3F", danger: "#F0656A" },
+      chart: ["#1DA1F2", "#17B890", "#F2C14E", "#E0446E", "#6E4BD8"] },
+    { name: "靛夜紫", light: { primary: "#4F5BD5", primary_weak: "#EBEDFB", accent: "#D9569B", ring: "#4F5BD5",
+        bg_page: "#FFFFFF", bg_surface: "#F7F7FB", border: "#E3E4F0",
+        text_primary: "#171A2E", text_secondary: "#4A4F6E", text_muted: "#7B7F99",
+        success: "#17A673", warning: "#B97A17", danger: "#E5484D" },
+      dark: { primary: "#7B85E8", primary_weak: "#1B2040", accent: "#E88BBB", ring: "#7B85E8",
+        bg_page: "#11131F", bg_surface: "#1A1D2E", border: "#2C3050",
+        text_primary: "#F0F1FA", text_secondary: "#A8ACCB", text_muted: "#73779A",
+        success: "#2FBE8B", warning: "#D69A3F", danger: "#F0656A" },
+      chart: ["#4F5BD5", "#D9569B", "#17B890", "#F2C14E", "#5B8DEF"] },
+    { name: "翡翠绿", light: { primary: "#0FA968", primary_weak: "#E4F5EF", accent: "#1D7FBF", ring: "#0FA968",
+        bg_page: "#FFFFFF", bg_surface: "#F5FAF8", border: "#DCEAE4",
+        text_primary: "#10241B", text_secondary: "#3F5C50", text_muted: "#6E877C",
+        success: "#0FA968", warning: "#B97A17", danger: "#E5484D" },
+      dark: { primary: "#34C98A", primary_weak: "#0D2B20", accent: "#4AA3DC", ring: "#34C98A",
+        bg_page: "#0E1714", bg_surface: "#16211D", border: "#28382F",
+        text_primary: "#EDF7F2", text_secondary: "#A2BDB1", text_muted: "#6E877C",
+        success: "#34C98A", warning: "#D69A3F", danger: "#F0656A" },
+      chart: ["#0FA968", "#1D7FBF", "#F2C14E", "#E0446E", "#17B890"] },
+    { name: "珊瑚橙", light: { primary: "#FF6B4A", primary_weak: "#FFEDE8", accent: "#B85C38", ring: "#FF6B4A",
+        bg_page: "#FFFFFF", bg_surface: "#FBF7F5", border: "#F0E2DC",
+        text_primary: "#2B1810", text_secondary: "#6B4A3C", text_muted: "#9A7C6E",
+        success: "#17A673", warning: "#B97A17", danger: "#D03B3B" },
+      dark: { primary: "#FF8A6E", primary_weak: "#3A1810", accent: "#D08A64", ring: "#FF8A6E",
+        bg_page: "#1A110D", bg_surface: "#241813", border: "#3D2A21",
+        text_primary: "#FAF0EC", text_secondary: "#CBA79A", text_muted: "#9A7C6E",
+        success: "#2FBE8B", warning: "#D69A3F", danger: "#F0656A" },
+      chart: ["#FF6B4A", "#B85C38", "#17B890", "#F2C14E", "#6E4BD8"] },
+    { name: "琥珀金", light: { primary: "#D97706", primary_weak: "#FBF0DE", accent: "#8C5A2B", ring: "#D97706",
+        bg_page: "#FFFFFF", bg_surface: "#FBF8F2", border: "#EDE3D2",
+        text_primary: "#26190A", text_secondary: "#5D4A30", text_muted: "#8C7A5F",
+        success: "#17A673", warning: "#D97706", danger: "#E5484D" },
+      dark: { primary: "#F09A2E", primary_weak: "#33210A", accent: "#C08A50", ring: "#F09A2E",
+        bg_page: "#171207", bg_surface: "#221A0E", border: "#3B2F1B",
+        text_primary: "#FAF4EA", text_secondary: "#CBB48A", text_muted: "#8C7A5F",
+        success: "#2FBE8B", warning: "#F09A2E", danger: "#F0656A" },
+      chart: ["#D97706", "#8C5A2B", "#17B890", "#1DA1F2", "#E0446E"] },
+    { name: "石墨黑", light: { primary: "#334155", primary_weak: "#E8ECF1", accent: "#5B7A9D", ring: "#334155",
+        bg_page: "#FFFFFF", bg_surface: "#F6F7F9", border: "#E2E6EB",
+        text_primary: "#101623", text_secondary: "#46536B", text_muted: "#7A8598",
+        success: "#17A673", warning: "#B97A17", danger: "#E5484D" },
+      dark: { primary: "#93A5C0", primary_weak: "#0E1420", accent: "#7E9AB8", ring: "#93A5C0",
+        bg_page: "#0D1117", bg_surface: "#161B23", border: "#2A3140",
+        text_primary: "#EFF2F7", text_secondary: "#A9B4C6", text_muted: "#7A8598",
+        success: "#2FBE8B", warning: "#D69A3F", danger: "#F0656A" },
+      chart: ["#334155", "#5B7A9D", "#17B890", "#F2C14E", "#E0446E"] },
   ];
-  const SHADOWS = [["无", "none"], ["轻", "0 1px 3px rgba(15,27,38,.08)"], ["中", "0 4px 12px rgba(15,27,38,.12)"], ["重", "0 8px 24px rgba(15,27,38,.18)"]];
-  const DENSITIES = [["紧凑", "compact"], ["标准", "regular"], ["宽松", "loose"]];
-  const MODES2 = [["light", "浅色"], ["dark", "深色"]];
+  const COLOR_GROUPS = [
+    ["品牌色", [["primary", "主色"], ["primary_weak", "主色弱底"], ["accent", "强调色"], ["ring", "焦点环"]]],
+    ["界面色", [["bg_page", "画布底色"], ["bg_surface", "卡片面"], ["border", "描边"]]],
+    ["文字色", [["text_primary", "正文"], ["text_secondary", "次级"], ["text_muted", "辅助"]]],
+    ["状态色", [["success", "成功"], ["warning", "警告"], ["danger", "危险"]]],
+  ];
   const RADII = [["直角", 2, 2], ["轻微", 8, 6], ["标准", 16, 12], ["圆润", 22, 16], ["全圆", 28, 22]];
   const FONTS = [
     ["现代黑体", '-apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif'],
@@ -197,72 +272,127 @@ function brandDialog(existing, onClose) {
   ];
   const WEIGHTS = [["常规", "400"], ["中等", "500"], ["半粗", "600"]];
   const SIZES = [["12px", "12px"], ["13px", "13px"], ["14px", "14px"], ["15px", "15px"]];
+  const SHADOWS = [["无", "none"], ["轻", "0 1px 3px rgba(15,27,38,.08)"], ["中", "0 4px 12px rgba(15,27,38,.12)"], ["重", "0 8px 24px rgba(15,27,38,.18)"]];
+  const DENSITIES = [["紧凑", "compact"], ["标准", "regular"], ["宽松", "loose"]];
+
   const q0 = new URLSearchParams(location.search);
-  const opts = { palette: Number(q0.get("c")) || 0, mode: q0.get("m") === "dark" ? 1 : 0,
-    radius: q0.get("r") != null ? Number(q0.get("r")) : 2, font: 0, weight: 0, size: 1, shadow: 1, density: 1 };
-  let mode = "options";
+  const opts = { preset: Number(q0.get("c")) || 0, radius: q0.get("r") != null ? Number(q0.get("r")) : 2,
+    font: 0, weight: 0, size: 1, shadow: 1, density: 1 };
+  let editMode = "light";                 // 当前编辑的明暗模式
+  // token 状态：明暗两套 + 图表序列（预设整套填充；之后任意 token 可单独细调）
+  let tok = null;
+  function loadPreset(i) {
+    const pz = THEME_PRESETS[i];
+    tok = { light: { ...pz.light }, dark: { ...pz.dark }, chart: [...pz.chart] };
+  }
+  loadPreset(opts.preset);
   let baseTokens = null;
 
   function buildTokens() {
     const t = JSON.parse(JSON.stringify(baseTokens));
-    const [, primary, weakL, weakD, ok, warn, danger, accent] = PALETTES[opts.palette];
-    const dark = opts.mode === 1;
     const [, rc, rk] = RADII[opts.radius];
-    // v2 语义 token（对齐 background/foreground 配对 + accent/ring 体系）：明暗双份由 mode 决定生成
-    t.color = { ...t.color,
-      primary, primary_weak: dark ? weakD : weakL,
-      accent, ring: primary,
-      success: ok, warning: warn, danger,
-      bg_page: dark ? "#0F1620" : "#FFFFFF",
-      bg_surface: dark ? "#19222E" : "#F7F8F8",
-      text_primary: dark ? "#F2F6FA" : "#0F1B26",
-      text_secondary: dark ? "#A9B8C7" : "#43596B",
-      text_muted: dark ? "#71828F" : "#71828F",
-      border: dark ? "#2B3948" : "#E1EAF1" };
+    t.color = { ...t.color, ...tok.light };
+    t.color_dark = { ...tok.dark };       // 明暗双份：SDK 出包与预览按模式取
     t.radius = { ...(t.radius || {}), card: rc + "px", control: rk + "px", chip: "999px" };
     t.font = { ...(t.font || {}), family: FONTS[opts.font][1], weight_base: WEIGHTS[opts.weight][1], size_base: SIZES[opts.size][1] };
     t.shadow = SHADOWS[opts.shadow][1];
     t.density = DENSITIES[opts.density][1];
-    t.chart = { ...(t.chart || {}), categorical: [primary, ...((t.chart || {}).categorical || []).slice(1)] };
+    t.chart = { ...(t.chart || {}), categorical: [...tok.chart, ...((t.chart || {}).categorical || []).slice(5)] };
     t._options = { ...opts };
     return t;
   }
-
-  const applyPreview = () => { try { Brand.apply(buildTokens()); renderDemos(); } catch (e) {} };
+  const applyPreview = () => {
+    try {
+      const t = buildTokens();
+      if (editMode === "dark") t.color = { ...t.color, ...t.color_dark };
+      Brand.apply(t); renderDemos();
+    } catch (e) {}
+  };
 
   const nameIn = el("input", { type: "text", maxlength: "20", value: existing?.brand_name || "", placeholder: "例如：远洋港航品牌风格" });
   const nameErr = el("div", { class: "field-error" });
   nameIn.oninput = () => nameErr.textContent = "";
   const err = el("div", { class: "field-error" });
-  // 选项面板
+
+  // —— 预设选择（整套起步） ——
   const palGrid = el("div", { class: "pal-grid" });
   function drawPals() {
-    const dark = opts.mode === 1;
     palGrid.innerHTML = "";
-    PALETTES.forEach(([nm, p, wl, wd, ok, warn, dg], i) => {
+    THEME_PRESETS.forEach((pz, i) => {
+      const c0 = editMode === "dark" ? pz.dark : pz.light;
       palGrid.appendChild(el("button", { type: "button",
-        class: "pal-card" + (opts.palette === i ? " on" : "") + (dark ? " dark" : ""), title: nm,
-        onclick: () => { opts.palette = i; drawPals(); applyPreview(); } }, [
-        el("div", { class: "pal-name" }, [nm]),
-        el("div", { class: "pal-row" }, [p, dark ? wd : wl, ok, warn, dg, dark ? "#0F1620" : "#F1F5F9"].map(c => el("i", { style: `background:${c}` }))),
+        class: "pal-card" + (opts.preset === i ? " on" : "") + (editMode === "dark" ? " dark" : ""), title: pz.name + "（点击应用整套，之后可逐项微调）",
+        onclick: () => { opts.preset = i; loadPreset(i); drawPals(); drawTokens(); applyPreview(); } }, [
+        el("div", { class: "pal-name" }, [pz.name]),
+        el("div", { class: "pal-row" }, [c0.primary, c0.primary_weak, c0.accent, c0.success, c0.danger, c0.bg_page].map(cx => el("i", { style: `background:${cx}` }))),
       ]));
     });
   }
   drawPals();
-  const modeToggle = UI.toggle({ checked: opts.mode === 1, label: opts.mode === 1 ? "深色" : "浅色",
-    onChange: (v) => { opts.mode = v ? 1 : 0;
-      const lab = modeToggle.parentElement && modeToggle.parentElement.querySelector(".tgl-label");
-      drawPals(); applyPreview();
-      return true; } });
-  const modeWrap = el("div", { style: "display:flex;align-items:center;gap:6px" }, [modeToggle]);
-  // 圆角刻度滑块（刻度点无文案）
+
+  // —— 明暗模式 tab（编辑与预览联动） ——
+  const modeSeg = el("div", { class: "segmented" });
+  function drawModeSeg() {
+    modeSeg.innerHTML = "";
+    [["light", "浅色模式"], ["dark", "深色模式"]].forEach(([k, nm]) => modeSeg.appendChild(el("button", {
+      type: "button", class: "seg" + (editMode === k ? " active" : ""),
+      onclick: () => { editMode = k; drawModeSeg(); drawPals(); drawTokens(); applyPreview(); } }, [nm])));
+  }
+  drawModeSeg();
+
+  // —— 逐 token 细颗粒度编辑（Figma 式：分组 · 色块 + HEX 双向同步） ——
+  const tokenPanel = el("div", {});
+  function drawTokens() {
+    tokenPanel.innerHTML = "";
+    const cur = tok[editMode];
+    COLOR_GROUPS.forEach(([gname, items]) => {
+      const rows = el("div", { class: "tok-rows" });
+      items.forEach(([key, label]) => {
+        const val = cur[key] || "#000000";
+        const ci = el("input", { type: "color", value: /^#([0-9a-f]{6})$/i.test(val) ? val : "#000000", class: "tok-chip", title: label });
+        const hex = el("input", { type: "text", value: val, class: "tok-hex", spellcheck: "false", maxlength: "7" });
+        ci.oninput = () => { cur[key] = ci.value; hex.value = ci.value; applyPreview(); };
+        hex.onchange = () => {
+          let v = hex.value.trim();
+          if (/^[0-9a-f]{6}$/i.test(v)) v = "#" + v;
+          if (/^#[0-9a-f]{6}$/i.test(v)) { cur[key] = v; ci.value = v; applyPreview(); }
+          else { hex.value = cur[key]; UI.toast("请输入合法 HEX 色值，如 #1DA1F2", true); }
+        };
+        rows.appendChild(el("div", { class: "tok-row" }, [ci,
+          el("span", { class: "tok-name" }, [label]),
+          el("span", { class: "tok-key num" }, [key]), hex]));
+      });
+      tokenPanel.appendChild(el("details", { class: "tok-group", ...(gname === "品牌色" ? { open: "" } : {}) }, [
+        el("summary", {}, [gname]), rows]));
+    });
+    // 图表序列色（明暗共用）
+    const rows = el("div", { class: "tok-rows" });
+    tok.chart.forEach((cx, i) => {
+      const ci = el("input", { type: "color", value: cx, class: "tok-chip" });
+      const hex = el("input", { type: "text", value: cx, class: "tok-hex", spellcheck: "false", maxlength: "7" });
+      ci.oninput = () => { tok.chart[i] = ci.value; hex.value = ci.value; applyPreview(); };
+      hex.onchange = () => {
+        let v = hex.value.trim();
+        if (/^[0-9a-f]{6}$/i.test(v)) v = "#" + v;
+        if (/^#[0-9a-f]{6}$/i.test(v)) { tok.chart[i] = v; ci.value = v; applyPreview(); }
+        else hex.value = tok.chart[i];
+      };
+      rows.appendChild(el("div", { class: "tok-row" }, [ci,
+        el("span", { class: "tok-name" }, ["序列 " + (i + 1)]),
+        el("span", { class: "tok-key num" }, ["chart-" + (i + 1)]), hex]));
+    });
+    tokenPanel.appendChild(el("details", { class: "tok-group" }, [
+      el("summary", {}, ["图表序列色（展示类组件用）"]), rows]));
+  }
+  drawTokens();
+
+  // —— 圆角 / 字体 / 字重 / 字号 / 阴影 / 密度（沿用可视化控件） ——
   const radLab = el("span", { class: "rad-lab" }, [RADII[opts.radius][0]]);
   const radIn = el("input", { type: "range", min: "0", max: String(RADII.length - 1), step: "1", value: String(opts.radius) });
   const radFill = () => radIn.style.setProperty("--fill", (Number(radIn.value) / (RADII.length - 1) * 100) + "%");
   radFill();
   radIn.oninput = () => { opts.radius = Number(radIn.value); radLab.textContent = RADII[opts.radius][0]; radFill(); applyPreview(); };
   const radTicks = el("div", { class: "rad-ticks" }, RADII.map(() => el("span", {})));
-  // 字重 / 字号：预览卡片
   const wBox = el("div", { class: "fs-cards" });
   const sBox = el("div", { class: "fs-cards" });
   function drawFsCards() {
@@ -281,7 +411,6 @@ function brandDialog(existing, onClose) {
     ])));
   }
   drawFsCards();
-  // v2：阴影与密度档（语义 token，全选项定义）
   const shadowSeg = el("div", { class: "segmented" });
   const densSeg = el("div", { class: "segmented" });
   function drawSegs() {
@@ -294,15 +423,26 @@ function brandDialog(existing, onClose) {
       onclick: () => { opts.density = i; drawSegs(); applyPreview(); } }, [nm])));
   }
   drawSegs();
+
+  function segRowFonts() {
+    const box = el("div", { class: "segmented" });
+    FONTS.forEach((it, i) => box.appendChild(el("button", { type: "button", class: "seg" + (opts.font === i ? " active" : ""),
+      onclick: () => { opts.font = i; box.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === i)); applyPreview(); } },
+      [it[0]])));
+    return box;
+  }
   const optPanel = el("div", {}, [
     el("div", { class: "field" }, [
       el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:6px" }, [
-        el("span", { class: "label-text", style: "margin:0" }, ["配色方案"]),
+        el("span", { class: "label-text", style: "margin:0" }, ["主题预设",
+          UI.help("整套语义 token 起步（含明暗两份色板与图表序列色）；选中后任意 token 可在下方逐项微调")]),
         el("div", { style: "flex:1" }),
-        modeWrap,
+        modeSeg,
       ]),
       palGrid,
     ]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["颜色 token",
+      UI.help("Figma 式细颗粒度：每个语义 token 独立可改（色块或 HEX），当前编辑" + "模式随上方明暗切换")]), tokenPanel]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["圆角"]),
       el("div", { class: "rad-row" }, [el("div", { class: "rad-track-wrap" }, [radIn, radTicks]), radLab])]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["字体"]), segRowFonts()]),
@@ -315,14 +455,6 @@ function brandDialog(existing, onClose) {
         UI.help("组件内边距与行距的整体缩放：紧凑 / 标准 / 宽松")]), densSeg]),
     ]),
   ]);
-  function segRowFonts() {
-    const box = el("div", { class: "segmented" });
-    FONTS.forEach((it, i) => box.appendChild(el("button", { type: "button", class: "seg" + (opts.font === i ? " active" : ""),
-      onclick: () => { opts.font = i; box.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === i)); applyPreview(); } },
-      [it[0]])));
-    return box;
-  }
-  // 代码面板
   // v2：品牌风格只走选项定义（代码导入下线）
   const modeTabs = el("div", {});
 
@@ -347,7 +479,8 @@ function brandDialog(existing, onClose) {
         if (!name) { nameErr.textContent = "请填写风格名称"; nameIn.focus(); return; }
         const tokens = buildTokens();
         tokens.brand_name = name;
-        let bid = existing ? existing.brand_id : ((tokens.brand_id || "").trim() || "brand-" + Math.random().toString(36).slice(2, 6));
+        // 新建一律生成新 id：baseTokens 克隆自当前预览品牌，其 brand_id（如 default）绝不能继承——否则覆盖既有风格
+        let bid = existing ? existing.brand_id : "brand-" + Math.random().toString(36).slice(2, 8);
         if (!existing && brands.find(b => b.brand_id === bid)) bid = bid + "-" + Math.random().toString(36).slice(2, 5);
         await UI.withBusy(e.currentTarget, async () => {
           try {
@@ -450,6 +583,8 @@ function renderBrands() {
   addCard.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAdd(); } };
   grid.appendChild(addCard);
 }
+
+function usedByCount(file) { return (products || []).filter(p => p.brand_file === file).length; }
 
 async function previewBrand(b) {
   try {

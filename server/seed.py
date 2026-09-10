@@ -895,6 +895,37 @@ def migrate_assistant_v2():
     return True
 
 
+def migrate_products_v22():
+    """v2.2：多产品种子——不同产品定位（供应链 / 生产力 / 财务），演示按产品切换组件集与品牌。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT v FROM kv_settings WHERE k='v22_products'").fetchone():
+        return False
+    pub = [r["card_id"] for r in conn.execute(
+        "SELECT card_id FROM cards WHERE status='published' ORDER BY created_at").fetchall()]
+    interact = [r["card_id"] for r in conn.execute(
+        "SELECT card_id FROM cards WHERE status='published' AND semantic_category IN ('collect','control','evaluate')").fetchall()]
+    present = [r["card_id"] for r in conn.execute(
+        "SELECT card_id FROM cards WHERE status='published' AND semantic_category='present'").fetchall()]
+    brands = ["brand-tokens.default.json", "brand-tokens.harbor.json"]
+    have = {r["name"] for r in conn.execute("SELECT name FROM products").fetchall()}
+    rows = [
+        ("链运宝 App", brands[1 % len(brands)], pub),                      # 供应链物流工具：全组件
+        ("智会纪要", brands[0], present + interact[:2]),                    # 生产力工具：偏展示 + 少量交互
+        ("财税小助", brands[0], interact[:4] + present[:3]),                # 财务 SaaS：表单/确认为主
+    ]
+    n = 0
+    for name, bf, ids in rows:
+        if name in have:
+            continue
+        conn.execute("INSERT INTO products (product_id, name, brand_file, card_ids, created_at) VALUES (?,?,?,?,?)",
+                     ("prod-" + db.new_id()[:8], name, bf, db.j(ids), db.now_ts()))
+        n += 1
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('v22_products', '1')")
+    conn.commit()
+    db.audit("system", "migrate_products_v22", {"seeded": n})
+    return True
+
+
 def run_all():
     db.init_db()
     seed_models()
@@ -910,6 +941,7 @@ def run_all():
     migrate_model_name_v71()
     migrate_assistant_v2()
     migrate_assistant_v21()
+    migrate_products_v22()
     n_bank = 0
     n_fb = seed_ab_feedback()
     n_hist = seed_history()

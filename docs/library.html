@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件库 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=37b05866">
+<link rel="stylesheet" href="./shared.css?v=ff94d4e9">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   .tpl-card { display: flex; flex-direction: column; gap: 8px; }
@@ -31,18 +31,18 @@
 <div class="page">
   <div class="page-head" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
     <div class="page-title">组件库</div>
-    <span class="muted">平台提供的泛化组件模板：与业务解耦，注册给大模型后由模型决定何时使用</span>
+    <span class="muted">平台提供的泛化组件模板：与业务解耦，注册给大模型后由模型决定何时使用；接入方式见「产品与接入」</span>
     <div style="flex:1"></div>
   </div>
   <div id="libBody"></div>
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=da065544"></script>
+<script src="./mock_data.js?v=781cc6d8"></script>
 <script src="./mock_api.js?v=d77c3e42"></script>
 <script src="./tokens.js?v=64d83daa"></script>
-<script src="./ui.js?v=e7af6724"></script>
-<script src="./components.js?v=655b4577"></script>
+<script src="./ui.js?v=0612028c"></script>
+<script src="./components.js?v=71415c71"></script>
 <script>
 UI.nav("library");
 const { el } = UI;
@@ -74,6 +74,18 @@ const DEMO_PARAMS = {
   steps: { component_type: "steps", params: { title: "操作指引", steps: ["填写申请信息", "上传相关凭证", "等待审核", "查收处理结果"], current_index: 1 } },
 };
 
+let __cards = [];
+function liveInstOf(t) {
+  return __cards.find(c => c.status === "published" && (t.component_types.includes(c.component_type)
+    || (t.type === "select" && String(c.component_type).startsWith("select."))
+    || (t.type === "trend" && c.component_type === "chart.line")
+    || (t.type === "bar" && c.component_type === "chart.bar")
+    || (t.type === "pie" && c.component_type === "chart.pie")
+    || (t.type === "metric" && c.component_type === "metric.card")));
+}
+function liveIdOf(t) { const c = liveInstOf(t); return c ? c.card_id : null; }
+function liveNameOf(t) { const c = liveInstOf(t); return c ? c.name : null; }
+
 const previewCtx = { sendEvent: () => {}, onCollectSubmit: () => UI.toast("示例预览：提交不生效"), onControl: () => {}, titleInBubble: true };
 
 function tplCard(t) {
@@ -91,7 +103,10 @@ function tplCard(t) {
         onclick: () => { location.hash = "d-" + t.type; } }, [t.label]),
       el("span", { class: "chip " + (t.interactive ? "blue" : "gray") }, [t.interactive ? "交互 · 有提交" : "展示 · 无提交"]),
       el("div", { style: "flex:1" }),
-      el("a", { class: "btn small primary", href: "./cards.html?new=1&ct=" + encodeURIComponent(t.component_types[0]) }, ["从模板创建"]),
+      liveIdOf(t)
+        ? el("a", { class: "btn small", href: "./cards.html?edit=" + encodeURIComponent(liveIdOf(t)),
+            title: "当前产品已启用该组件（" + (liveNameOf(t) || "") + "），去编辑样式" }, ["已启用 · 编辑样式"])
+        : el("a", { class: "btn small primary", href: "./cards.html?new=1&ct=" + encodeURIComponent(t.component_types[0]) }, ["从模板创建"]),
     ]),
     el("div", { class: "tpl-desc" }, [t.desc]),
     previewBox,
@@ -133,7 +148,8 @@ function renderDetail(t) {
         secTitle("提交回传结构", "用户点提交后回传给 agent 的数据"), pre(t.submit_schema)]) : null,
       el("div", { class: "card" }, [
         secTitle("示例调用", "模型返回的组件调用长这样，前端交给 SIA.render 渲染"),
-        pre({ component_id: "<实例 ID，见注册表>", params: demo.params })]),
+        pre({ component_id: liveIdOf(t) || "<实例 ID：从模板创建后生成>", params: demo.params }),
+        liveIdOf(t) ? el("div", { class: "muted", style: "margin-top:6px" }, ["component_id 已填入当前产品「" + (liveNameOf(t) || "") + "」实例，可直接复制使用"]) : null]),
     ]),
   ]));
 }
@@ -142,7 +158,11 @@ let catalogCache = null;
 let libTab = location.hash === "#present" ? "present" : "interact";
 async function boot() {
   const box = document.getElementById("libBody");
-  if (!catalogCache) { UI.loading(box); catalogCache = (await UI.api("/api/components/catalog")).catalog; }
+  if (!catalogCache) {
+    UI.loading(box);
+    catalogCache = (await UI.api("/api/components/catalog")).catalog;
+    try { __cards = ((await UI.api("/api/cards")).cards) || []; } catch (e) {}
+  }
   const dm = (location.hash || "").match(/^#d-([a-z]+)$/);
   if (dm) {
     const t = catalogCache.find(x => x.type === dm[1]);

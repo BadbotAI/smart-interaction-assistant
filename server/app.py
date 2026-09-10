@@ -680,7 +680,62 @@ def list_models():
 
 def _mcp_key(product_id: str) -> str:
     import hashlib as _h
-    return "sk-mcp-" + _h.md5(("mcp-key:" + product_id).encode()).hexdigest()[:16]
+    salts = db.dj(_get_setting("product_key_salt"), {}) or {}
+    n = int(salts.get(product_id, 0))
+    seed_s = "mcp:" + product_id + ("" if n == 0 else f":{n}")
+    return "sk-mcp-" + _h.md5(seed_s.encode()).hexdigest()[:18]
+
+
+@app.post("/api/products/{product_id}/reset-key")
+async def reset_product_key(product_id: str):
+    """重置产品接入 Key：旧 Key 立即失效（注册表与信封接口都将拒绝）。"""
+    conn = db.get_conn()
+    row = conn.execute("SELECT name FROM products WHERE product_id=?", (product_id,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    salts = db.dj(_get_setting("product_key_salt"), {}) or {}
+    salts[product_id] = int(salts.get(product_id, 0)) + 1
+    _set_setting("product_key_salt", db.j(salts))
+    db.audit("demo-admin", "product_key_reset", {"product_id": product_id, "name": row["name"]})
+    return {"ok": True, "mcp_key": _mcp_key(product_id)}
+
+
+@app.get("/v1/products/{product_id}/sia.css")
+def product_sia_css(product_id: str, key: str = None):
+    """SDK 三件套之 CSS：按产品品牌风格 token 实时生成（兑现「品牌风格出包固化」）。"""
+    from fastapi.responses import PlainTextResponse
+    conn = db.get_conn()
+    row = conn.execute("SELECT * FROM products WHERE product_id=?", (product_id,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "product_not_found"}, status_code=404)
+    if not key or key != _mcp_key(product_id):
+        return JSONResponse({"error": "invalid_key"}, status_code=401)
+    import json as _json
+    brand_path = os.path.join(os.path.dirname(__file__), "..", "docs", "brand", row["brand_file"] or "brand-tokens.default.json")
+    try:
+        tk = _json.load(open(brand_path, encoding="utf-8"))
+    except Exception:
+        tk = {}
+    col = tk.get("color", {})
+    rad = tk.get("radius", {})
+    fnt = tk.get("font", {})
+    css_vars = {
+        "--primary": col.get("primary"), "--primary-weak": col.get("primary_weak"),
+        "--brand-accent": col.get("accent") or col.get("primary"), "--brand-ring": col.get("ring") or col.get("primary"),
+        "--bg-page": col.get("bg_page"), "--bg-surface": col.get("bg_surface"),
+        "--text-primary": col.get("text_primary"), "--text-secondary": col.get("text_secondary"),
+        "--text-muted": col.get("text_muted"), "--border": col.get("border"),
+        "--success": col.get("success"), "--warning": col.get("warning"), "--danger": col.get("danger"),
+        "--radius-card": rad.get("card"), "--radius-control": rad.get("control"),
+        "--font-family": fnt.get("family"), "--font-base": fnt.get("size_base"),
+        "--font-weight-base": fnt.get("weight_base"),
+        "--brand-shadow": tk.get("shadow"),
+    }
+    decls = "".join(f"{k}:{v};" for k, v in css_vars.items() if v)
+    body = ("/* Smart Interaction SDK CSS — 产品「%s」的品牌风格 token（出包固化：平台改风格后需重新拉取部署） */\n"
+            ".brand-scope{%s}\nsia-card{display:block;}\n") % (row["name"], decls)
+    return PlainTextResponse(body, media_type="text/css")
+
 
 
 def _product_row(r):

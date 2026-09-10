@@ -211,12 +211,14 @@ window.UI = (function () {
     ia: {
       name: "智能交互平台", home: "./index.html", productSwitcher: true,
       groups: [
+        // 排序按用户动线：组件库（了解与起点）→ 工作台（日常主阵地）→ 品牌风格（样式是产品重点）
+        // → 产品与接入（SDK 出口）→ 组件测试（渲染与契约验证）→ 数据（Stage2）
         { title: "智能交互", items: [
-          ["cards", "组件工作台", "./cards.html", "board"],
           ["library", "组件库", "./library.html", "grid"],
-          ["products", "产品管理", "./products.html", "link"],
+          ["cards", "组件工作台", "./cards.html", "board"],
           ["design", "品牌风格", "./design.html", "palette"],
-          ["playground:comp", "智能交互测试", "./playground.html#comp", "chat"],
+          ["products", "产品与接入", "./products.html", "link"],
+          ["playground:comp", "组件测试", "./playground.html#comp", "play"],
           ["dashboard:survey", "交互数据（v1 不做）", "./dashboard.html#survey", "chart"],
         ] },
       ],
@@ -296,8 +298,11 @@ window.UI = (function () {
         return a;
       })(),
     ]);
+    // 切换器所有页面常显（位置稳定不跳动）；组件库 / 品牌风格等产品无关页也保留，只作为上下文提示
     if (plat.productSwitcher) {
-      const swHost = el("div", { style: "padding:0 12px" });
+      const swHost = el("div", { style: "padding:0 12px" }, [
+        el("div", { style: "font-size:11px;color:var(--text-muted);letter-spacing:.05em;margin:2px 2px 4px" }, ["当前产品"]),
+      ]);
       side.appendChild(swHost);
       mountProductSwitcher(swHost);
     }

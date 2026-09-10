@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
-<title>产品及风格管理 · 智能交互平台</title>
+<title>产品与接入 · 智能交互平台</title>
 <link rel="stylesheet" href="/web/shared.css">
 </head>
 <body>
 <div class="page">
   <div class="page-head" style="display:flex;align-items:center;gap:12px">
-    <div class="page-title">产品及风格管理</div>
+    <div class="page-title">产品与接入</div>
     <div style="flex:1"></div>
     <button class="btn primary" id="newBtn"></button>
   </div>
@@ -43,7 +43,7 @@ function sdkSnippet(p) {
     `// 模型决定出组件时返回 { component_id, params }`,
     ``,
     `// 第 2 步 · 前端：引入 SDK（JS + CSS，样式含本产品的品牌风格 token）`,
-    `<link rel="stylesheet" href="${origin}/web/sia.css">`,
+    `<link rel="stylesheet" href="${origin}/v1/products/${p.product_id}/sia.css?key=${p.mcp_key}">`,
     `<script src="${origin}/web/sia.js" data-key="${p.mcp_key}" defer><\/script>`,
     ``,
     `// 第 3 步 · 渲染与回传：把模型返回的组件调用交给 SDK`,
@@ -91,6 +91,24 @@ function configProduct(p) {
         [p.mcp_key.slice(0, 12) + "…"]),
       el("div", { style: "flex:1" }),
       el("button", { class: "btn small", onclick: () => { navigator.clipboard.writeText(sdkSnippet(p)); UI.toast("已复制 SDK 接入配置（三步）"); } }, [UI.icon("copy", 13), "复制接入配置"]),
+      el("button", { class: "btn small danger-text", onclick: async () => {
+        const ok = await UI.confirm("重置产品接入 Key",
+          `为「${p.name}」生成新 Key：旧 Key 立即失效，agent 后端与前端 SDK 都会开始报错，需更新配置并重新出包。适用于 Key 泄露或人员变动。`,
+          { okText: "重置", danger: true });
+        if (!ok) return;
+        try {
+          const r = await UI.api(`/api/products/${p.product_id}/reset-key`, { method: "POST" });
+          const km = UI.modal("新的产品接入 Key", el("div", {}, [
+            el("div", { class: "muted", style: "margin-bottom:10px" }, ["旧 Key 已失效。请更新 agent 后端与前端 SDK 配置并重新出包："]),
+            el("button", { class: "key-chip", style: "width:100%;justify-content:space-between",
+              onclick: () => { navigator.clipboard.writeText(r.mcp_key); UI.toast("已复制新 Key"); } },
+              [el("span", { class: "num" }, [r.mcp_key]), UI.icon("copy", 12)]),
+            el("div", { style: "display:flex;justify-content:flex-end;margin-top:14px" }, [
+              el("button", { class: "btn primary", onclick: () => { km.remove(); location.reload(); } }, ["我已保存"]),
+            ]),
+          ]));
+        } catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
+      } }, ["重置 Key"]),
     ]),
 
   ]);

@@ -202,8 +202,13 @@ def build_registry(product: dict) -> dict:
             "fixed": fixed_config_for(card),
             "submit_schema": submit_schema_for(card),
         })
+    import hashlib as _h
+    import time as _t
+    body_key = _h.md5(repr(sorted((c["component_id"], c["name"], str(c["params_schema"]), str(c["fixed"])) for c in comps)).encode()).hexdigest()[:10]
     return {
-        "registry_version": "2.0",
+        "registry_version": "2.1",
+        "generated_at": _t.strftime("%Y-%m-%dT%H:%M:%S"),
+        "content_hash": body_key,
         "product_id": product.get("product_id"),
         "product_name": product.get("name"),
         "brand_file": product.get("brand_file"),

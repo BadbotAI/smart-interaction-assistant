@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>测试 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=37b05866">
+<link rel="stylesheet" href="./shared.css?v=ff94d4e9">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 </head>
 <body class="has-side">
@@ -19,16 +19,16 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=da065544"></script>
+<script src="./mock_data.js?v=781cc6d8"></script>
 <script src="./mock_api.js?v=d77c3e42"></script>
 <script src="./tokens.js?v=64d83daa"></script>
-<script src="./ui.js?v=e7af6724"></script>
-<script src="./components.js?v=655b4577"></script>
+<script src="./ui.js?v=0612028c"></script>
+<script src="./components.js?v=71415c71"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
 const { el } = UI;
 const MODES = {
-  comp: { nav: "playground:comp", title: "智能交互测试", seg: "智能交互测试",
+  comp: { nav: "playground:comp", title: "组件测试", seg: "组件测试",
     help: "v2 组件是泛化的：何时出组件由 agent 侧的大模型决定，平台测不了也不该测模型行为。平台侧要验证的是「渲染与契约」——组件在各种模型参数下长什么样、样式对不对、参数异常时降级是否成立、提交回传的数据结构是否符合 schema。这里就是做这件事的：模拟模型给参数，直接看渲染与回传。" },
   model: { nav: "playground:model", title: "模型路由测试", seg: "模型路由测试",
     help: "验证路由怎么选模型：切换不同路由策略问同一个问题，每次回答展示完整过程与成本。" },
@@ -114,8 +114,21 @@ async function bootSimulator() {
     style: "width:100%;font-family:var(--font-mono, monospace);font-size:12.5px;line-height:1.6" });
   const setDemo = () => { ta.value = JSON.stringify(SIM_DEMO[cur.component_type] || {}, null, 2); };
   setDemo();
-  const renderBox = el("div", { class: "card", style: "min-height:280px" });
+  const renderBox = el("div", { class: "card", style: "min-height:280px;background:var(--bg-sunken)" });
   const payloadBox = el("div", {});
+  const contractBox = el("div", {});
+  async function drawContract() {
+    contractBox.innerHTML = "";
+    try {
+      const r = await UI.api("/api/components/schema-preview", { method: "POST",
+        body: { component_type: cur.component_type, config: ((cur.field_bindings || {}).config) || {} } });
+      if (r.submit_schema) contractBox.appendChild(el("div", { class: "card", style: "margin-top:12px" }, [
+        el("div", { style: "font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:6px" },
+          ["提交回传契约", UI.help("交互类组件用户点提交后，按此结构回传给 agent；下方点提交可看真实 payload")]),
+        el("pre", { class: "code", style: "margin:0;max-height:160px;overflow:auto" }, [JSON.stringify(r.submit_schema, null, 2)]),
+      ]));
+    } catch (e) {}
+  }
   const errLine = el("div", { class: "field-error", style: "margin-top:6px" });
 
   function doRender() {
@@ -151,7 +164,7 @@ async function bootSimulator() {
 
   const instSel = UI.fancySelect({ value: cur.card_id, width: "240px",
     options: live.map(c => [c.card_id, c.name + "（" + (UI.ctName(c.component_type) || c.component_type) + "）"]),
-    onChange: (v) => { cur = live.find(c => c.card_id === v); setDemo(); doRender(); } });
+    onChange: (v) => { cur = live.find(c => c.card_id === v); setDemo(); doRender(); drawContract(); } });
   const edgeBtns = el("div", { style: "display:flex;gap:6px;flex-wrap:wrap" },
     Object.entries(SIM_EDGE).map(([nm, fn]) => el("button", { class: "btn small ghost", onclick: () => {
       let base; try { base = JSON.parse(ta.value || "{}"); } catch (e) { base = SIM_DEMO[cur.component_type] || {}; }
@@ -172,7 +185,12 @@ async function bootSimulator() {
       el("div", { style: "display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap" }, [
         el("span", { class: "muted", style: "flex:none" }, ["边界用例"]), edgeBtns,
       ]),
-      el("div", { style: "display:flex;justify-content:flex-end;margin-top:12px" }, [
+      el("div", { style: "display:flex;justify-content:flex-end;gap:8px;margin-top:12px" }, [
+        el("button", { class: "btn", onclick: () => {
+          let params2; try { params2 = JSON.parse(ta.value || "{}"); } catch (e) { UI.toast("参数不是合法 JSON", true); return; }
+          navigator.clipboard.writeText(JSON.stringify({ component_id: cur.card_id, params: params2 }, null, 2));
+          UI.toast("已复制完整组件调用（component_id + params），可直接交给 agent 开发");
+        } }, [UI.icon("copy", 13), "复制调用"]),
         el("button", { class: "btn primary", onclick: doRender }, ["渲染"]),
       ]),
     ]),
@@ -181,10 +199,11 @@ async function bootSimulator() {
         el("span", { class: "section-title", style: "margin:0" }, ["渲染结果"]),
         el("span", { class: "muted" }, ["含实例样式覆盖与产品品牌风格；交互类点提交看回传"]),
       ]),
-      renderBox, payloadBox,
+      renderBox, contractBox, payloadBox,
     ]),
   ]));
   doRender();
+  drawContract();
 }
 
 async function boot() {
