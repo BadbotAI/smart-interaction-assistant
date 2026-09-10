@@ -384,3 +384,17 @@ node tests/mock_smoke.mjs 全过；py_compile + node --check；GET 全端点扫�
 
 - 回归：路径注入复测 422；被打坏产品数据修复（1 行）；sia.css 明暗双块 curl 实测；编辑回填逻辑语法与页面渲染检查；全内嵌脚本 node --check；截图目检预设收敛与折线图横轴修复。
 - 教训：**文件名字段一律 basename + 存在性校验**（brand_file 与当年 vault 凭证同类：接口层是主战场）；大重构（THEME_PRESETS）必须回归「编辑旧数据」路径，不只验证新建。
+
+## 第十九批（2026-09-10 · 样式数值化 / 产品瘦身 / 品牌 mock 之后）
+
+| # | 级别 | 问题 | 修复 |
+|---|------|------|------|
+| T19-1 | P1 流程 | 品牌 mock（上一轮的根因修复）没有冒烟断言，下次改 mock 可能无声回退 | mock_smoke 补品牌全链路断言：保存/列表出现/文件 fetch 预览/删除移除/默认品牌拒覆盖 |
+| T19-2 | P1 越权 | /v1/embed/envelope 只验「key 是任意产品的合法 key」，产品 A 的 Key 可拉产品 B 的组件配置（含文案与样式） | 鉴权到具体产品：key 解析出所属产品，card 不在其 card_ids 内返回 403；实测财税 key 拉官网组件 403、自有组件 200 |
+| T19-3 | P2 | 渲染端 px() 对 null/空串返回 0：style_overrides.radius=null 会被渲染成 0px 直角而非跟随品牌 | px() 先排除 null/""；服务端值域校验同步把 null 挡在写入前（422） |
+| T19-6 | P2 | style_overrides 只校验 key 白名单、值不限：radius 9999、color.primary 注入串都能入库 | 服务端值域校验：数值 px 域（radius 0-28 / height 28-56 / spacing 8-24 / font_scale 12-16）+ 旧档位枚举兼容 + shadow 枚举 + 色值 HEX 正则；实测 radius 999 与 CSS 注入串均 422 |
+| T19-7 | P2 | 删除品牌风格的确认文案承诺「使用它的产品回退默认」，服务端实际不改产品 brand_file（sia.css token 悬空） | delete_brand 同步 UPDATE products 回退 default；实测删除后产品 brand_file 变 brand-tokens.default.json |
+| T19-4 | P3 | 主题重设计后旧亮蓝 #1DA1F2 残留 3 处（toast 示例文案、两个取色器默认值） | 全部换 #3E63DD |
+| T19-5 | P3 | 品牌编辑器 ?r= 深链在圆角改 px 后语义漂移（旧档位索引会被当 px 解释） | r≤4 视为旧档位索引映射到 [2,8,16,22,28] |
+
+附带发现（未改）：validate_card 内新增校验触发了 `_re` 作用域问题（import 在另一函数内），已在本批一并补导入并回归。

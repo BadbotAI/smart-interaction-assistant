@@ -37,6 +37,7 @@ def _norm_opt(o):
 
 
 def validate_card(payload: dict, strict: bool = False) -> list:
+    import re as _re
     errors = []
     name = (payload.get("name") or "").strip()
     if not name:
@@ -70,9 +71,21 @@ def validate_card(payload: dict, strict: bool = False) -> list:
     allowed_tokens = {"height", "radius", "color.primary", "color.accent", "spacing", "shadow", "font_scale",
                       # 旧 token 兼容读取（编辑器已不再写入）
                       "radius.card", "radius.control", "font.size_base", "spacing.card_padding", "density"}
-    for key in style:
+    _legacy = {"radius": {"none", "sm", "md", "lg", "full"}, "height": {"compact", "regular", "large"},
+               "spacing": {"compact", "regular", "loose"}, "font_scale": {"-1", "1", "2"}}
+    _range = {"radius": (0, 28), "height": (28, 56), "spacing": (8, 24), "font_scale": (12, 16)}
+    for key, val in style.items():
         if key not in allowed_tokens:
             errors.append({"field": f"style_overrides.{key}", "message": f"非法样式 token：{key}（仅允许 design token 覆盖，禁止任意 CSS）"})
+        elif key in _range:
+            lo, hi = _range[key]
+            if isinstance(val, bool) or not (
+                (isinstance(val, (int, float)) and lo <= val <= hi) or str(val) in _legacy[key]):
+                errors.append({"field": f"style_overrides.{key}", "message": f"{key} 取值须为 {lo}-{hi} 的数值（px）"})
+        elif key == "shadow" and val not in ("none", "sm", "md", "lg"):
+            errors.append({"field": "style_overrides.shadow", "message": "shadow 取值须为 none / sm / md / lg"})
+        elif key in ("color.primary", "color.accent") and not _re.fullmatch(r"#[0-9a-fA-F]{3,8}", str(val or "").strip()):
+            errors.append({"field": f"style_overrides.{key}", "message": f"{key} 须为合法 HEX 色值"})
     lpm = payload.get("label_polarity_map")
     if lpm and lpm.get("label_kind") not in ("capability", "preference"):
         errors.append({"field": "label_polarity_map.label_kind", "message": "label_kind 必须为 capability 或 preference"})

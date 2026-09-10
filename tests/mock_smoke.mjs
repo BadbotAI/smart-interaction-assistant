@@ -164,5 +164,21 @@ fin = evts.find(e => e.ask_card) || {};
 assert(fin.ask_card && fin.ask_card.component_type.startsWith("select.") && (fin.ask_card.params.options || []).length >= 2,
   "「处理方式」应选出选择表单并动态给选项");
 
+// 8) 品牌风格 mock（曾因 mock 缺失导致「新增风格保存永远无效」——保存 / 列表 / 预览 / 删除全链路断言）
+let br = await api("/api/brands");
+assert((br.brands || []).length >= 2, "内置品牌应至少 2 个");
+const sv = await post("/api/brands", { brand_id: "smoke-b1", brand_name: "冒烟风格", tokens: { color: { primary: "#123456" } } });
+assert(sv.ok && sv.file === "brand-tokens.smoke-b1.json", "品牌保存应返回文件名: " + JSON.stringify(sv));
+br = await api("/api/brands");
+assert(br.brands.some(b => b.brand_name === "冒烟风格"), "保存后列表应出现新风格");
+const bf = await (await window.fetch("/brand/brand-tokens.smoke-b1.json")).json();
+assert(bf.color && bf.color.primary === "#123456", "新风格文件应可 fetch 预览");
+const dupPolicy = await post("/api/brands", { brand_id: "default", brand_name: "x", tokens: {} });
+assert(dupPolicy.error, "覆盖默认品牌应被拒");
+const dv = await post("/api/brands/delete", { file: "brand-tokens.smoke-b1.json" });
+assert(dv.ok, "品牌删除应 ok");
+br = await api("/api/brands");
+assert(!br.brands.some(b => b.brand_id === "smoke-b1"), "删除后列表应移除新风格");
+
 console.log(failures === 0 ? "MOCK SMOKE: ALL PASS" : `MOCK SMOKE: ${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

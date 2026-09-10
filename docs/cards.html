@@ -76,11 +76,11 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=5b11c060"></script>
+<script src="./mock_data.js?v=3962f50e"></script>
 <script src="./mock_api.js?v=4303b36a"></script>
 <script src="./tokens.js?v=5880aad7"></script>
 <script src="./ui.js?v=26105e37"></script>
-<script src="./components.js?v=3f4789ef"></script>
+<script src="./components.js?v=aa9aff84"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
 UI.nav("cards");
@@ -974,7 +974,7 @@ async function openEditor(cardId, prefill, initStep) {
         SWATCHES.forEach(cx => row.appendChild(el("button", { type: "button",
           class: "sty-swatch" + (so[key] === cx ? " on" : ""), style: `background:${cx}`,
           title: cx, onclick: () => { so[key] = cx; draw(); upd(); } })));
-        const ci = el("input", { type: "color", value: so[key] || "#1DA1F2",
+        const ci = el("input", { type: "color", value: so[key] || "#3E63DD",
           style: "width:34px;height:34px;padding:2px;border-radius:10px;border:1.5px solid var(--border);cursor:pointer", title: "自定义" });
         ci.oninput = () => { so[key] = ci.value; draw(); upd(); };
         row.appendChild(ci);
@@ -1511,7 +1511,7 @@ async function openEditor(cardId, prefill, initStep) {
     };
     const colorRow = (key, label) => {
       const cur = so[key] || "";
-      const ci = el("input", { type: "color", value: cur || "#1DA1F2", style: "width:44px;height:30px;padding:2px" });
+      const ci = el("input", { type: "color", value: cur || "#3E63DD", style: "width:44px;height:30px;padding:2px" });
       ci.oninput = () => { so[key] = ci.value; autosave(); renderPreview(); rebuildStyleTag(); };
       const clear = el("button", { class: "btn small ghost", type: "button", hidden: !cur,
         onclick: () => { delete so[key]; autosave(); renderPreview(); rebuild(); } }, ["恢复品牌色"]);

@@ -303,10 +303,13 @@ def embed_envelope(card_id: str, key: str = None):
     """植入 SDK：按配置 ID 获取可渲染的协议信封（sia.js 用）。仅已上线配置可被植入。
     v2：必须携带产品接入 Key（此前完全不校验——任何人可拉任意组件配置）。"""
     conn = db.get_conn()
-    valid = key and any(_mcp_key(r["product_id"]) == key
-                        for r in conn.execute("SELECT product_id FROM products").fetchall())
-    if not valid:
+    # 鉴权到具体产品：key 只能读它自己产品下的组件（此前任意产品 key 可拉全部组件配置）
+    prod = next((r for r in conn.execute("SELECT product_id, card_ids FROM products").fetchall()
+                 if key and _mcp_key(r["product_id"]) == key), None)
+    if not prod:
         return JSONResponse({"error": "invalid_key", "message": "请携带产品接入 Key（产品管理页可复制）"}, status_code=401)
+    if card_id not in db.dj(prod["card_ids"], []):
+        return JSONResponse({"error": "forbidden", "message": "该组件不属于此产品"}, status_code=403)
     card = cards.get_card(card_id)
     if not card:
         return JSONResponse({"error": "配置不存在"}, status_code=404)
@@ -1655,6 +1658,10 @@ async def delete_brand(request: Request):
         # 删除生效中的风格：先回退到默认，再删除
         with open(ACTIVE_BRAND_FILE, "w", encoding="utf-8") as f:
             json.dump({"file": "brand-tokens.default.json"}, f)
+    # 兑现删除确认文案：使用该风格的产品回退到默认风格（否则 sia.css token 悬空）
+    conn = db.get_conn()
+    conn.execute("UPDATE products SET brand_file='brand-tokens.default.json' WHERE brand_file=?", (fn,))
+    conn.commit()
     if os.path.basename(fn) != fn or not fn.startswith("brand-tokens.") or not fn.endswith(".json"):
         return JSONResponse({"error": "非法的风格文件名"}, status_code=422)
     path = os.path.join(BASE, "brand", fn)
