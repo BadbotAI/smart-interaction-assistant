@@ -105,6 +105,8 @@
       });
       return { generated: true, asof: bm.asof, alpha, clusters, models: names, router: v7.router };
     }
+    if (pn === "/api/brands") return { brands: window.__mockBrands() };
+    if (pn === "/api/brands/active") return { file: "brand-tokens.default.json" };
     const regm = pn.match(/^\/v1\/products\/([^/]+)\/registry$/);
     if (regm) {
       // 静态站演示：注册表由组件目录组装（真实环境按产品绑定的组件实例生成）
@@ -262,6 +264,25 @@
       prodLocal.updated[pid] = { ...(prodLocal.updated[pid] || {}), ...(body || {}) };
       const c = prodLocal.created.find(p => p.product_id === pid);
       if (c) Object.assign(c, body || {});
+      return { ok: true };
+    }
+    if (pn === "/api/brands") {
+      const tokens = (body || {}).tokens || {};
+      const bid = String((body || {}).brand_id || tokens.brand_id || "").trim().toLowerCase();
+      const bname = String((body || {}).brand_name || tokens.brand_name || "").trim();
+      if (!/^[a-z0-9][a-z0-9-]{1,23}$/.test(bid)) return { error: "brand_id 需为 2-24 位小写字母、数字或短横线" };
+      if (bid === "default") return { error: "默认品牌不可覆盖，请换一个 brand_id" };
+      if (!bname) return { error: "缺少 brand_name" };
+      const file = "brand-tokens." + bid + ".json";
+      const rec = { file, brand_id: bid, brand_name: bname, tokens: { ...tokens, brand_id: bid, brand_name: bname } };
+      const i = BRAND_EXTRA.findIndex(b => b.brand_id === bid);
+      if (i >= 0) BRAND_EXTRA[i] = rec; else BRAND_EXTRA.push(rec);
+      brandPersist();
+      return { ok: true, file, brand_id: bid, brand_name: bname };
+    }
+    if (pn === "/api/brands/delete") {
+      BRAND_EXTRA = BRAND_EXTRA.filter(b => b.file !== (body || {}).file);
+      brandPersist();
       return { ok: true };
     }
     if (/^\/api\/products\/[^/]+\/reset-key$/.test(pn)) {
@@ -580,6 +601,16 @@
     return sseStream(steps, 420);
   }
 
+  // —— 品牌风格 mock：静态站也能新建 / 编辑 / 删除 / 预览（sessionStorage 会话内持久） ——
+  const BRAND_BUILTIN = [
+    { file: "brand-tokens.default.json", brand_id: "default", brand_name: "默认风格 · 墨蓝" },
+    { file: "brand-tokens.harbor.json", brand_id: "harbor", brand_name: "远洋港航（示例品牌B）" },
+  ];
+  let BRAND_EXTRA = [];
+  try { BRAND_EXTRA = JSON.parse(sessionStorage.getItem("mock_brands") || "[]"); } catch (e) {}
+  const brandPersist = () => { try { sessionStorage.setItem("mock_brands", JSON.stringify(BRAND_EXTRA)); } catch (e) {} };
+  window.__mockBrands = () => [...BRAND_BUILTIN, ...BRAND_EXTRA.map(b => ({ file: b.file, brand_id: b.brand_id, brand_name: b.brand_name }))];
+
   window.fetch = function (url, opts = {}) {
     let u = String(url);
     // 任意形式（完整 URL / 相对路径）归一化成 /api 或 /v1 开头的路径
@@ -591,7 +622,14 @@
       }
     } catch (e) {}
     const isApi = u.startsWith("/api") || u.startsWith("/v1");
-    if (!isApi) return realFetch(url, opts);
+    if (!isApi) {
+      try {
+        const mb = new URL(String(url), location.href).pathname.match(/\/brand\/([^/]+\.json)$/);
+        const hit = mb && BRAND_EXTRA.find(b => b.file === mb[1]);
+        if (hit) return Promise.resolve(json(hit.tokens || {}));
+      } catch (e) {}
+      return realFetch(url, opts);
+    }
     const method = (opts.method || "GET").toUpperCase();
     const pn = u.split("?")[0];
     let body = null;

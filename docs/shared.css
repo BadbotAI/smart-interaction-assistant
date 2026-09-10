@@ -1245,7 +1245,7 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .rad-ticks span { width: 2px; height: 5px; border-radius: 1px; background: var(--border-strong, #C7D3DC); }
 
 .fs-cards { display: flex; gap: 8px; flex-wrap: wrap; }
-.fs-card { width: 62px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-elevated);
+.fs-card { width: 56px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-elevated);
   padding: 7px 4px 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; overflow: hidden; }
 .fs-card:hover { border-color: var(--primary-border); }
 .fs-card.on { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
@@ -1402,3 +1402,16 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .fb-btn.down:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
 .fb-btn.on { background: var(--primary); border-color: var(--primary); color: #fff; }
 .fb-btn.down.on { background: var(--danger); border-color: var(--danger); }
+
+.tok-group summary { display: flex; align-items: center; gap: 8px; }
+.tok-group summary::-webkit-details-marker { display: none; }
+.tok-group summary::before { content: ""; width: 0; height: 0; border-left: 5px solid currentColor;
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent; flex: none;
+  transition: transform var(--dur-fast, .15s); }
+.tok-group[open] summary::before { transform: rotate(90deg); }
+.tok-sum-sw { display: inline-flex; gap: 4px; margin-left: auto; }
+.tok-sum-sw i { width: 16px; height: 16px; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+
+.fs-card .rad-demo { width: 26px; height: 22px; border: 2px solid var(--text-secondary); border-bottom: none;
+  border-right: none; background: transparent; display: block; margin: 2px 0 1px;
+  border-top-left-radius: inherit; }

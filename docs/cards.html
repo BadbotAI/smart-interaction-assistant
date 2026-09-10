@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=603e294c">
+<link rel="stylesheet" href="./shared.css?v=fdd93c25">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -52,7 +52,6 @@
       <div class="page-title">组件工作台</div>
           </div>
     <div style="display:flex;gap:8px">
-      <button class="btn" id="testBtn"></button>
       <button class="btn primary" id="newBtn" style="white-space:nowrap">新建组件实例</button>
     </div>
   </div>
@@ -77,8 +76,8 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=1cfe6b11"></script>
-<script src="./mock_api.js?v=39bf88f4"></script>
+<script src="./mock_data.js?v=72fe884e"></script>
+<script src="./mock_api.js?v=4303b36a"></script>
 <script src="./tokens.js?v=64d83daa"></script>
 <script src="./ui.js?v=2571c57c"></script>
 <script src="./components.js?v=fc7a3e7f"></script>
@@ -86,10 +85,6 @@
 <script>
 UI.nav("cards");
 const { el } = UI;
-const testBtn = document.getElementById("testBtn");
-testBtn.append(UI.icon("play", 14), "测试");
-const openTest = (prefill) => { location.href = "./playground.html" + (prefill ? "?q=" + encodeURIComponent(prefill) : "") + "#comp"; };
-testBtn.onclick = () => openTest();
 
 const STATUS_CHIP = {
   draft: ["草稿", "gray"], published: ["已上线", "blue"],
@@ -477,7 +472,6 @@ function buildCardRow(c) {
 function moreButton(c, eff) {
   // 统一菜单：测试 / 查看数据 / 复制 / 删除（版本历史入口在编辑器步骤条）
   const moreBtn = el("button", { class: "btn small", onclick: () => UI.menu(moreBtn, [
-    { label: "测试", onClick: () => openTest((c.trigger_examples || [])[0] || c.name) },
     { label: "查看数据（看板）", onClick: () => { location.href = "./dashboard.html?card=" + c.card_id + "#survey"; } },
 
     { label: "复制配置 ID", onClick: () => { navigator.clipboard.writeText(c.card_id); UI.toast("已复制配置 ID"); } },
@@ -1640,7 +1634,7 @@ async function openEditor(cardId, prefill, initStep) {
         } }, [UI.icon("copy", 14), "复制"]),
       ]),
       el("pre", { class: "code" }, ["SIA.render(container, " + callDemo + ")"]),
-      el("div", { class: "muted" }, ["参数 schema 与提交回传结构：见「组件库 → 组件详情」或「组件测试」页"]),
+      el("div", { class: "muted" }, ["参数 schema 与提交回传结构：见「组件库 → 组件详情」，或产品配置里的「查看数据 Schema」"]),
     ]));
     box.appendChild(el("div", { class: "muted", style: "margin-top:8px" },
       ["接入三件套（注册表 API + JS + CSS）在「产品与接入」页一键复制；样式修改后需重新出包"]));

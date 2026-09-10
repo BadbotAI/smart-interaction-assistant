@@ -80,6 +80,10 @@ function liveInstOf(t) {
     || (t.type === "metric" && c.component_type === "metric.card")));
 }
 function liveIdOf(t) { const c = liveInstOf(t); return c ? c.card_id : null; }
+function liveCountOf(t) {
+  const types = new Set(t.component_types || []);
+  return (liveCards || []).filter(c => types.has(c.component_type)).length;
+}
 function liveNameOf(t) { const c = liveInstOf(t); return c ? c.name : null; }
 
 const previewCtx = { sendEvent: () => {}, onCollectSubmit: () => UI.toast("示例预览：提交不生效"), onControl: () => {}, titleInBubble: true };
@@ -99,10 +103,9 @@ function tplCard(t) {
         onclick: () => { location.hash = "d-" + t.type; } }, [t.label]),
       el("span", { class: "chip " + (t.interactive ? "blue" : "gray") }, [t.interactive ? "交互 · 有提交" : "展示 · 无提交"]),
       el("div", { style: "flex:1" }),
-      liveIdOf(t)
-        ? el("a", { class: "btn small", href: "/web/cards.html?edit=" + encodeURIComponent(liveIdOf(t)),
-            title: "当前产品已启用该组件（" + (liveNameOf(t) || "") + "），去编辑样式" }, ["已启用 · 编辑样式"])
-        : el("a", { class: "btn small primary", href: "/web/cards.html?new=1&ct=" + encodeURIComponent(t.component_types[0]) }, ["从模板创建"]),
+      liveCountOf(t) ? el("span", { class: "muted", style: "font-size:var(--font-caption)",
+        title: "当前产品基于该模板的实例，可在组件工作台编辑" }, [`已建 ${liveCountOf(t)} 个`]) : null,
+      el("a", { class: "btn small primary", href: "/web/cards.html?new=1&ct=" + encodeURIComponent(t.component_types[0]) }, ["从模板创建"]),
     ]),
     el("div", { class: "tpl-desc" }, [t.desc]),
     previewBox,
@@ -132,9 +135,8 @@ function renderDetail(t) {
     el("span", { class: "chip " + (t.interactive ? "blue" : "gray") }, [t.interactive ? "交互 · 有提交" : "展示 · 无提交"]),
     el("span", { class: "muted num" }, [t.component_types[0]]),
     el("div", { style: "flex:1" }),
-    liveIdOf(t)
-      ? el("a", { class: "btn", href: "/web/cards.html?edit=" + encodeURIComponent(liveIdOf(t)) }, ["已启用 · 编辑样式"])
-      : el("a", { class: "btn primary", href: "/web/cards.html?new=1&ct=" + encodeURIComponent(t.component_types[0]) }, ["从模板创建"]),
+    liveCountOf(t) ? el("span", { class: "muted", style: "font-size:var(--font-caption)" }, [`当前产品已建 ${liveCountOf(t)} 个实例`]) : null,
+    el("a", { class: "btn primary", href: "/web/cards.html?new=1&ct=" + encodeURIComponent(t.component_types[0]) }, ["从模板创建"]),
   ]));
   box.appendChild(el("div", { class: "muted", style: "margin:0 0 14px;max-width:62em" }, [t.desc]));
   box.appendChild(el("div", { class: "lib-detail-grid" }, [

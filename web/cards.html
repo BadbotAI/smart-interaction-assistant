@@ -51,7 +51,6 @@
       <div class="page-title">组件工作台</div>
           </div>
     <div style="display:flex;gap:8px">
-      <button class="btn" id="testBtn"></button>
       <button class="btn primary" id="newBtn" style="white-space:nowrap">新建组件实例</button>
     </div>
   </div>
@@ -82,10 +81,6 @@
 <script>
 UI.nav("cards");
 const { el } = UI;
-const testBtn = document.getElementById("testBtn");
-testBtn.append(UI.icon("play", 14), "测试");
-const openTest = (prefill) => { location.href = "/web/playground.html" + (prefill ? "?q=" + encodeURIComponent(prefill) : "") + "#comp"; };
-testBtn.onclick = () => openTest();
 
 const STATUS_CHIP = {
   draft: ["草稿", "gray"], published: ["已上线", "blue"],
@@ -473,7 +468,6 @@ function buildCardRow(c) {
 function moreButton(c, eff) {
   // 统一菜单：测试 / 查看数据 / 复制 / 删除（版本历史入口在编辑器步骤条）
   const moreBtn = el("button", { class: "btn small", onclick: () => UI.menu(moreBtn, [
-    { label: "测试", onClick: () => openTest((c.trigger_examples || [])[0] || c.name) },
     { label: "查看数据（看板）", onClick: () => { location.href = "/web/dashboard.html?card=" + c.card_id + "#survey"; } },
 
     { label: "复制配置 ID", onClick: () => { navigator.clipboard.writeText(c.card_id); UI.toast("已复制配置 ID"); } },
@@ -1636,7 +1630,7 @@ async function openEditor(cardId, prefill, initStep) {
         } }, [UI.icon("copy", 14), "复制"]),
       ]),
       el("pre", { class: "code" }, ["SIA.render(container, " + callDemo + ")"]),
-      el("div", { class: "muted" }, ["参数 schema 与提交回传结构：见「组件库 → 组件详情」或「组件测试」页"]),
+      el("div", { class: "muted" }, ["参数 schema 与提交回传结构：见「组件库 → 组件详情」，或产品配置里的「查看数据 Schema」"]),
     ]));
     box.appendChild(el("div", { class: "muted", style: "margin-top:8px" },
       ["接入三件套（注册表 API + JS + CSS）在「产品与接入」页一键复制；样式修改后需重新出包"]));
