@@ -213,7 +213,7 @@ window.UI = (function () {
       groups: [
         // 分组按对象：上组围绕「当前产品」（切换器正下方：接入出口与品牌风格），
         // 下组围绕「组件」（模板库与实例工作台，日常主阵地）
-        { title: "产品", items: [
+        { title: "产品", inSwitcher: true, items: [
           ["products", "产品与接入", "./products.html", "link"],
           ["design", "品牌风格", "./design.html", "palette"],
         ] },
@@ -322,13 +322,16 @@ window.UI = (function () {
         return a;
       })(),
     ]);
-    // 切换器所有页面常显（位置稳定不跳动）；组件库 / 品牌风格等产品无关页也保留，只作为上下文提示
+    // 产品区一体化：当前产品切换卡 + 产品级配置入口（接入 / 风格）同一容器，画风统一
+    let prodZone = null;
     if (plat.productSwitcher) {
-      const swHost = el("div", { style: "padding:0 12px" }, [
-        el("div", { style: "font-size:11px;color:var(--text-muted);letter-spacing:.05em;margin:2px 2px 4px" }, ["当前产品"]),
+      prodZone = el("div", { class: "prod-zone" }, [
+        el("div", { class: "prod-zone-label" }, ["当前产品"]),
       ]);
-      side.appendChild(swHost);
-      mountProductSwitcher(swHost);
+      const swSlot = el("div", {});
+      prodZone.appendChild(swSlot);
+      side.appendChild(el("div", { style: "padding:0 12px" }, [prodZone]));
+      mountProductSwitcher(swSlot);
     }
     // 二级项按 #hash 高亮；无 hash 时默认该页第一个二级项
     const isActive = (key) => {
@@ -339,6 +342,12 @@ window.UI = (function () {
       return (location.hash || defHash) === "#" + key.split(":")[1];
     };
     NAV_GROUPS.forEach(g => {
+      if (g.inSwitcher && prodZone) {
+        g.items.forEach(([key, name, href, ic]) => prodZone.appendChild(el("a", {
+          class: "navlink" + (isActive(key) ? " active" : ""), href, "data-key": key,
+        }, [icon(ic, 17), el("span", {}, [name])])));
+        return;
+      }
       const box = el("div", { class: "nav-group" }, [g.title ? el("div", { class: "nav-title" }, [g.title]) : null]);
       g.items.forEach(([key, name, href, ic]) => box.appendChild(el("a", {
         class: "navlink" + (isActive(key) ? " active" : ""), href, "data-key": key,

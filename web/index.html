@@ -61,6 +61,20 @@
   .cs.active .cap { animation: csIn .4s ease-out .2s forwards; }
   .cap b { display: block; color: var(--text-primary); font-size: 13.5px; margin-bottom: 2px; }
   .dots { position: absolute; right: 18px; bottom: 16px; display: flex; gap: 6px; z-index: 2; }
+  .onboard { display: flex; align-items: stretch; gap: 10px; max-width: 900px; margin: 26px auto 0; padding: 0 16px; }
+  .ob-step { flex: 1; display: flex; gap: 12px; align-items: flex-start; text-decoration: none;
+    border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; background: var(--bg-elevated);
+    transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast); }
+  .ob-step:hover { border-color: var(--primary); box-shadow: 0 4px 14px rgba(15, 27, 38, .08); transform: translateY(-1px); }
+  .ob-no { width: 26px; height: 26px; border-radius: 50%; background: var(--primary-weak); color: var(--primary);
+    font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; flex: none;
+    font-variant-numeric: tabular-nums; }
+  .ob-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .ob-body b { font-size: var(--font-base); color: var(--text-primary); }
+  .ob-body i { font-style: normal; font-size: var(--font-caption); color: var(--text-muted); line-height: 1.5; }
+  .ob-arrow { align-self: center; width: 14px; height: 14px; flex: none;
+    border-top: 2px solid var(--border-strong); border-right: 2px solid var(--border-strong); transform: rotate(45deg); }
+  @media (max-width: 900px) { .onboard { flex-direction: column; } .ob-arrow { display: none; } }
   .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--border-strong, #C7D3DC); cursor: pointer; border: 0; padding: 0; transition: width .2s; }
   .dot.on { background: var(--primary); width: 18px; }
   /* ---- 按钮与次链接 ---- */
@@ -148,6 +162,22 @@
         <div class="cap"><b>样式即产品</b>六套主题预设起步，逐 token 细调，组件实例还能再覆盖——设计一次，处处一致</div>
       </div>
       <div class="dots"><button class="dot on" aria-label="case 1"></button><button class="dot" aria-label="case 2"></button><button class="dot" aria-label="case 3"></button><button class="dot" aria-label="case 4"></button><button class="dot" aria-label="case 5"></button></div>
+    </div>
+    <div class="onboard">
+      <a class="ob-step" href="/web/products.html">
+        <span class="ob-no">1</span>
+        <span class="ob-body"><b>建产品，定风格</b><i>新建产品，在「品牌风格」里选一套预设或逐 token 细调</i></span>
+      </a>
+      <span class="ob-arrow" aria-hidden="true"></span>
+      <a class="ob-step" href="/web/library.html">
+        <span class="ob-no">2</span>
+        <span class="ob-body"><b>挑组件，配样式</b><i>从组件库挑模板创建实例，发布后自动加入当前产品</i></span>
+      </a>
+      <span class="ob-arrow" aria-hidden="true"></span>
+      <a class="ob-step" href="/web/products.html">
+        <span class="ob-no">3</span>
+        <span class="ob-body"><b>复制接入，出包</b><i>一个后端 API + 一个前端 JS/CSS + 数据块 Schema</i></span>
+      </a>
     </div>
     <div class="go"><a class="btn primary" href="/web/library.html">进入组件库</a></div>
   </div>

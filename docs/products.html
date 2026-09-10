@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>产品与接入 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=fdd93c25">
+<link rel="stylesheet" href="./shared.css?v=c9aed674">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 </head>
 <body class="has-side">
@@ -26,7 +26,7 @@
 <script src="./mock_data.js?v=72fe884e"></script>
 <script src="./mock_api.js?v=4303b36a"></script>
 <script src="./tokens.js?v=64d83daa"></script>
-<script src="./ui.js?v=2571c57c"></script>
+<script src="./ui.js?v=f4c8399e"></script>
 <script>
 UI.nav("products");
 const { el } = UI;
@@ -43,27 +43,6 @@ function brandName(file) {
   return b ? (b.brand_name || b.file) : file;
 }
 
-function sdkSnippet(p) {
-  const origin = location.origin;
-  return [
-    `// 「${p.name}」SDK 接入（v2 组件注册制 · 仅 Web 端）`,
-    `// 一个产品对应：一个后端 API 接口 + 一个前端 JS/CSS 代码块 + 一份数据块 Schema`,
-    `// 配置在出包时固化：平台上修改组件或风格后，需重新拉取注册表并重新部署前端`,
-    ``,
-    `// 第 1 步 · 后端：拉取组件注册表，作为工具声明给你的大模型`,
-    `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`,
-    `// 返回 components[]：每个组件的 params_schema（喂给模型的工具声明）+ submit_schema（用户提交的回传结构）`,
-    `// 模型决定出组件时返回 { component_id, params }`,
-    ``,
-    `// 第 2 步 · 前端：引入 SDK（JS + CSS，样式含本产品的品牌风格 token）`,
-    `<link rel="stylesheet" href="${origin}/v1/products/${p.product_id}/sia.css?key=${p.mcp_key}">`,
-    `<script src="${origin}/web/sia.js" data-key="${p.mcp_key}" defer><\/script>`,
-    ``,
-    `// 第 3 步 · 渲染与回传：把模型返回的组件调用交给 SDK`,
-    `SIA.render(container, { component_id: "…", params: { … } })`,
-    `// 交互类组件用户点「提交」时自动按 submit 结构回传；展示类组件直接渲染、无提交`,
-  ].join("\n");
-}
 
 // 数据块 Schema：产品与接入方之间的数据契约
 // params_schema 给模型当工具声明（模型据此生成调用参数）；submit_schema 是用户提交后的回传结构（agent 后端据此解析）
@@ -110,19 +89,12 @@ function productForm(init, opts = {}) {
   const brandSel = UI.fancySelect({ value: st.brand_file, width: "100%",
     options: brands.map(b => [b.file, b.brand_name || b.file]),
     onChange: (v) => st.brand_file = v });
-  const wlWrap = UI.tagSelect({
-    selected: [...st.cardIds], placeholder: liveCards.length ? "点击选择组件，可输入搜索" : "还没有已上线组件",
-    options: liveCards.map(c => [c.card_id, c.name]),
-    onChange: (vals) => { st.cardIds = new Set(vals); },
-  });
   const node = el("div", { class: "policy-form" }, [
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["产品名称"]), nameIn, nameErr]),
     el("label", { class: "field" }, [el("span", { class: "label-text" }, ["品牌风格",
-      UI.help("该产品里所有组件渲染时使用的风格；在「品牌风格管理」标签页新建与编辑")]), brandSel]),
-    opts.withCards === false ? null : el("div", { class: "field" }, [
-      el("span", { class: "label-text" }, ["绑定组件", UI.help("这个产品可以触发哪些交互组件；点 × 移除，下拉添加")]),
-      wlWrap,
-    ]),
+      UI.help("该产品里所有组件渲染时使用的风格；在「品牌风格」页新建与编辑")]), brandSel]),
+    el("div", { class: "muted", style: "font-size:var(--font-caption)" },
+      ["组件实例不在此配置：在组件工作台创建并发布时，自动加入当前产品的注册表"]),
   ]);
   return { node, st, nameIn, nameErr };
 }
@@ -130,15 +102,32 @@ function productForm(init, opts = {}) {
 function configProduct(p) {
   const form = productForm(p);
   const err = el("div", { class: "field-error" });
+  const origin = location.origin;
+  const codeBlock = (title, hint, code) => el("div", { class: "sdk-sec" }, [
+    el("div", { class: "sdk-sec-head" }, [
+      el("span", { class: "sdk-sec-title" }, [title]),
+      hint ? el("span", { class: "muted", style: "font-size:var(--font-caption)" }, [hint]) : null,
+      el("div", { style: "flex:1" }),
+      el("button", { class: "btn small iconic", title: "复制这段代码", "aria-label": "复制" + title,
+        onclick: () => { navigator.clipboard.writeText(code); UI.toast("已复制" + title); } }, [UI.icon("copy", 13)]),
+    ]),
+    el("pre", { class: "sdk-code num" }, [code]),
+  ]);
   const access = el("div", { class: "field", style: "margin-top:4px" }, [
-    el("span", { class: "label-text" }, ["SDK 接入"]),
-    el("div", { class: "drawer-meta", style: "margin-bottom:8px" }, [
-      el("span", {}, ["产品接入 Key"]),
+    el("span", { class: "label-text" }, ["SDK 接入",
+      UI.help("每个产品对应：一个后端 API 接口 + 一个前端 JS/CSS 代码块 + 一份数据块 Schema；配置出包时固化，平台修改后需重新拉取部署")]),
+    codeBlock("后端 API 接口", "拉组件注册表，作为工具声明给你的大模型",
+      `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`),
+    codeBlock("前端 JS/CSS 代码块", "引入 SDK，样式含本产品品牌风格 token",
+      `<link rel="stylesheet" href="${origin}/v1/products/${p.product_id}/sia.css?key=${p.mcp_key}">\n<script src="${origin}/web/sia.js" data-key="${p.mcp_key}" defer><\/script>`),
+    codeBlock("渲染调用", "模型返回的组件调用交给 SDK；交互类提交自动按 submit 结构回传",
+      `SIA.render(container, { component_id: "…", params: { … } })`),
+    el("div", { class: "drawer-meta", style: "margin:10px 0 8px;display:flex;align-items:center;gap:10px" }, [
+      el("span", { class: "muted", style: "flex:none" }, ["产品接入 Key"]),
       el("span", { class: "cr-id num", style: "cursor:pointer", title: "点击复制",
         onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制产品接入 Key"); } },
         [p.mcp_key.slice(0, 12) + "…"]),
       el("div", { style: "flex:1" }),
-      el("button", { class: "btn small", onclick: () => { navigator.clipboard.writeText(sdkSnippet(p)); UI.toast("已复制 SDK 接入配置（三步）"); } }, [UI.icon("copy", 13), "复制接入配置"]),
       el("button", { class: "btn small", onclick: () => viewSchemas(p) }, ["查看数据 Schema"]),
       el("button", { class: "btn small danger-text", onclick: async () => {
         const ok = await UI.confirm("重置产品接入 Key",
@@ -169,7 +158,7 @@ function configProduct(p) {
       await UI.withBusy(e.currentTarget, async () => {
         try {
           await UI.api(`/api/products/${p.product_id}`, { method: "PUT", body: {
-            name: form.st.name.trim(), brand_file: form.st.brand_file, card_ids: [...form.st.cardIds] } });
+            name: form.st.name.trim(), brand_file: form.st.brand_file } });
           UI.toast("已保存应用");
           mask.querySelector(".close-btn")?.click();
           load();
@@ -181,7 +170,7 @@ function configProduct(p) {
 }
 
 function newProductDialog() {
-  const form = productForm({}, { withCards: false });
+  const form = productForm({});
   const err = el("div", { class: "field-error" });
   const mask = UI.modal("新建产品", el("div", {}, [form.node, err,
     el("div", { style: "display:flex;justify-content:flex-end;gap:10px;margin-top:12px" }, [
@@ -191,7 +180,7 @@ function newProductDialog() {
         await UI.withBusy(e.currentTarget, async () => {
           try {
             const r = await UI.api("/api/products", { method: "POST", body: {
-              name: form.st.name.trim(), brand_file: form.st.brand_file, card_ids: [...form.st.cardIds] } });
+              name: form.st.name.trim(), brand_file: form.st.brand_file } });
             mask.remove();
             await load();
             const p = products.find(x => x.product_id === r.product_id);
@@ -221,8 +210,7 @@ function draw() {
       el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
         el("span", { style: "font-weight:700;font-size:var(--font-title);width:200px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: p.name }, [p.name]),
         el("div", { style: "flex:1" }),
-        el("button", { class: "btn small iconic", title: "复制 SDK 接入配置", "aria-label": "复制 SDK 接入配置",
-          onclick: () => { navigator.clipboard.writeText(sdkSnippet(p)); UI.toast("已复制 SDK 接入配置（三步）"); } }, [UI.icon("copy", 15)]),
+
         el("button", { class: "btn small", onclick: () => configProduct(p) }, ["产品配置"]),
         (() => { const more = el("button", { class: "btn iconic round", title: "更多", "aria-label": "更多操作",
           onclick: () => { UI.menu(more, [
@@ -246,9 +234,8 @@ function draw() {
         const bound = p.card_ids || [];
         const online = bound.filter(cid => (allCards.find(x => x.card_id === cid) || {}).status === "published").length;
         return el("div", { class: "muted", style: "margin-top:8px" }, [
-          `品牌风格 ${brandName(p.brand_file)} · 绑定组件 ${bound.length} 个` +
-          (bound.length ? `（${online} 个在线）` : "") +
-          (bound.length ? "" : " · 点「产品配置」绑定组件"),
+          `品牌风格 ${brandName(p.brand_file)} · 组件实例 ${bound.length} 个` +
+          (bound.length ? `（${online} 个在线）` : " · 在组件工作台创建，发布后自动加入"),
         ]);
       })(),
     ]));

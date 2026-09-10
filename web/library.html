@@ -81,8 +81,12 @@ function liveInstOf(t) {
 }
 function liveIdOf(t) { const c = liveInstOf(t); return c ? c.card_id : null; }
 function liveCountOf(t) {
-  const types = new Set(t.component_types || []);
-  return (liveCards || []).filter(c => types.has(c.component_type)).length;
+  return __cards.filter(c => c.status === "published" && (t.component_types.includes(c.component_type)
+    || (t.type === "select" && String(c.component_type).startsWith("select."))
+    || (t.type === "trend" && c.component_type === "chart.line")
+    || (t.type === "bar" && c.component_type === "chart.bar")
+    || (t.type === "pie" && c.component_type === "chart.pie")
+    || (t.type === "metric" && c.component_type === "metric.card"))).length;
 }
 function liveNameOf(t) { const c = liveInstOf(t); return c ? c.name : null; }
 

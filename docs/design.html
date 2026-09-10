@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>产品及风格管理 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=fdd93c25">
+<link rel="stylesheet" href="./shared.css?v=c9aed674">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
@@ -55,7 +55,7 @@
           <span style="font-weight:600;flex:none;white-space:nowrap">风格库</span>
         </div>
         <div id="brandGrid" class="brand-list"></div>
-        <div class="muted" id="libCollapsed" hidden style="font-size:var(--font-caption)">编辑组件风格中，风格库已收起</div>
+        <div class="muted" id="libCollapsed" hidden style="font-size:var(--font-caption)">编辑品牌风格中，风格库已收起</div>
       </div>
       <div class="card" id="editorCard" hidden>
         <div id="styleEditor"></div>
@@ -78,7 +78,7 @@
 <script src="./mock_data.js?v=72fe884e"></script>
 <script src="./mock_api.js?v=4303b36a"></script>
 <script src="./tokens.js?v=64d83daa"></script>
-<script src="./ui.js?v=2571c57c"></script>
+<script src="./ui.js?v=f4c8399e"></script>
 <script src="./components.js?v=fc7a3e7f"></script>
 <script>
 // 深链直开编辑器时，先行标记以免生效风格覆盖预览
@@ -263,21 +263,27 @@ function brandDialog(existing, onClose) {
     ["文字色", [["text_primary", "正文"], ["text_secondary", "次级"], ["text_muted", "辅助"]]],
     ["状态色", [["success", "成功"], ["warning", "警告"], ["danger", "危险"]]],
   ];
-  const RADII = [["直角", 2, 2], ["轻微", 8, 6], ["标准", 16, 12], ["圆润", 22, 16], ["全圆", 28, 22]];
+  // 每个字体带自己支持的字重档（宋体 / 楷体等系统字重少，黑体多）
   const FONTS = [
-    ["现代黑体", '-apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif'],
-    ["典雅宋体", '"Songti SC", "STSong", "SimSun", serif'],
-    ["圆润友好", '"Yuanti SC", "PingFang SC", "Microsoft YaHei", sans-serif'],
-    ["极客等宽", '"SF Mono", "JetBrains Mono", Consolas, monospace'],
+    ["现代黑体", '-apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif',
+      [["细", "300"], ["常规", "400"], ["中等", "500"], ["半粗", "600"]]],
+    ["思源黑体", '"Noto Sans SC", "Source Han Sans SC", "PingFang SC", sans-serif',
+      [["常规", "400"], ["中等", "500"], ["半粗", "600"], ["加粗", "700"]]],
+    ["典雅宋体", '"Songti SC", "STSong", "SimSun", serif', [["常规", "400"], ["加粗", "700"]]],
+    ["圆润友好", '"Yuanti SC", "PingFang SC", "Microsoft YaHei", sans-serif', [["常规", "400"], ["中等", "500"]]],
+    ["楷体手写", '"Kaiti SC", "STKaiti", "KaiTi", serif', [["常规", "400"]]],
+    ["极客等宽", '"SF Mono", "JetBrains Mono", Consolas, monospace', [["常规", "400"], ["加粗", "700"]]],
   ];
-  const WEIGHTS = [["常规", "400"], ["中等", "500"], ["半粗", "600"]];
+  const curWeights = () => FONTS[opts.font][2];
   const SIZES = [["12px", "12px"], ["13px", "13px"], ["14px", "14px"], ["15px", "15px"]];
   const SHADOWS = [["无", "none"], ["轻", "0 1px 3px rgba(15,27,38,.08)"], ["中", "0 4px 12px rgba(15,27,38,.12)"], ["重", "0 8px 24px rgba(15,27,38,.18)"]];
   const DENSITIES = [["紧凑", "compact"], ["标准", "regular"], ["宽松", "loose"]];
 
   const q0 = new URLSearchParams(location.search);
-  const opts = { preset: Number(q0.get("c")) || 0, radius: q0.get("r") != null ? Number(q0.get("r")) : 2,
-    font: 0, weight: 0, size: 1, shadow: 1, density: 1 };
+  const RAD_STOPS = [[0, "直角"], [8, "轻微"], [16, "标准"], [22, "圆润"], [28, "全圆"]];
+  const radName = (px) => { let best = RAD_STOPS[0]; RAD_STOPS.forEach(s => { if (Math.abs(s[0] - px) < Math.abs(best[0] - px)) best = s; }); return Math.abs(best[0] - px) <= 2 ? best[1] : px + "px"; };
+  const opts = { preset: Number(q0.get("c")) || 0, radius: q0.get("r") != null ? Number(q0.get("r")) : 16,
+    font: 0, weight: 1, size: 1, shadow: 1, density: 1 };
   let editMode = "light";                 // 当前编辑的明暗模式
   // token 状态：明暗两套 + 图表序列（预设整套填充；之后任意 token 可单独细调）
   let tok = null;
@@ -290,15 +296,18 @@ function brandDialog(existing, onClose) {
 
   function buildTokens() {
     const t = JSON.parse(JSON.stringify(baseTokens));
-    const [, rc, rk] = RADII[opts.radius];
+    const rc = Math.max(0, Math.min(28, Number(opts.radius) || 0));
+    const rk = Math.max(2, Math.round(rc * 0.75));
     t.color = { ...t.color, ...tok.light };
     t.color_dark = { ...tok.dark };       // 明暗双份：SDK 出包与预览按模式取
     t.radius = { ...(t.radius || {}), card: rc + "px", control: rk + "px", chip: "999px" };
-    t.font = { ...(t.font || {}), family: FONTS[opts.font][1], weight_base: WEIGHTS[opts.weight][1], size_base: SIZES[opts.size][1] };
+    const ws = curWeights();
+    const wi = Math.min(opts.weight, ws.length - 1);
+    t.font = { ...(t.font || {}), family: FONTS[opts.font][1], weight_base: ws[wi][1], size_base: SIZES[opts.size][1] };
     t.shadow = SHADOWS[opts.shadow][1];
     t.density = DENSITIES[opts.density][1];
     t.chart = { ...(t.chart || {}), categorical: [...tok.chart, ...((t.chart || {}).categorical || []).slice(5)] };
-    t._options = { ...opts };
+    t._options = { ...opts, radius_unit: "px" };
     return t;
   }
   const applyPreview = () => {
@@ -398,7 +407,7 @@ function brandDialog(existing, onClose) {
       };
       refreshSw();
       grpRefreshers.push(refreshSw);
-      tokenPanel.appendChild(el("details", { class: "tok-group", ...(gname === "品牌色" ? { open: "" } : {}) }, [
+      tokenPanel.appendChild(el("details", { class: "tok-group" }, [
         el("summary", {}, [el("span", {}, [gname]), swRow]), rows]));
     });
     // 图表序列色（明暗共用）
@@ -430,25 +439,54 @@ function brandDialog(existing, onClose) {
   drawTokens();
 
   // —— 圆角 / 字体 / 字重 / 字号 / 阴影 / 密度（沿用可视化控件） ——
-  const radBox = el("div", { class: "fs-cards" });
-  function drawRadCards() {
-    radBox.innerHTML = "";
-    RADII.forEach(([nm, rc], i) => radBox.appendChild(el("button", { type: "button",
-      class: "fs-card" + (opts.radius === i ? " on" : ""),
-      onclick: () => { opts.radius = i; drawRadCards(); applyPreview(); } }, [
-      el("span", { class: "rad-demo", style: `border-radius:${Math.min(rc, 12)}px` }),
-      el("span", { class: "fs-name" }, [nm]),
-    ])));
+  // 圆角：连续滑块（0-28px）+ 档位刻度点按吸附 + 数值输入
+  const radRange = el("input", { type: "range", min: "0", max: "28", step: "1", value: String(opts.radius), class: "sl-range" });
+  const radNum = el("input", { type: "number", min: "0", max: "28", value: String(opts.radius), class: "sl-num num" });
+  const radNameEl = el("span", { class: "sl-lab" }, [radName(opts.radius)]);
+  const radFill = () => radRange.style.setProperty("--fill", (Number(radRange.value) / 28 * 100) + "%");
+  const setRad = (v) => {
+    opts.radius = Math.max(0, Math.min(28, Math.round(Number(v) || 0)));
+    radRange.value = String(opts.radius); radNum.value = String(opts.radius);
+    radNameEl.textContent = radName(opts.radius); radFill(); applyPreview();
+  };
+  radFill();
+  radRange.oninput = () => setRad(radRange.value);
+  radNum.onchange = () => setRad(radNum.value);
+  const radTicks = el("div", { class: "sl-stops" }, RAD_STOPS.map(([v, nm]) =>
+    el("button", { type: "button", class: "sl-stop", style: `left:${v / 28 * 100}%`, title: `${nm} ${v}px`,
+      onclick: () => setRad(v) })));
+  const radBox = el("div", { class: "sl-row" }, [
+    el("div", { class: "sl-wrap" }, [radRange, radTicks]), radNum,
+    el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["px"]), radNameEl]);
+  const syncRad = () => setRad(opts.radius);
+
+  // 通用档位滑块（阴影 / 紧凑度）
+  function stepSlider(labels, getIdx, setIdx) {
+    const lab = el("span", { class: "sl-lab" }, [labels[getIdx()][0]]);
+    const input = el("input", { type: "range", min: "0", max: String(labels.length - 1), step: "1",
+      value: String(getIdx()), class: "sl-range" });
+    const fill = () => input.style.setProperty("--fill", (Number(input.value) / (labels.length - 1) * 100) + "%");
+    fill();
+    input.oninput = () => { setIdx(Number(input.value)); lab.textContent = labels[Number(input.value)][0]; fill(); applyPreview(); };
+    const ticks = el("div", { class: "sl-stops" }, labels.map((x, i) =>
+      el("button", { type: "button", class: "sl-stop", style: `left:${i / (labels.length - 1) * 100}%`, title: x[0],
+        onclick: () => { setIdx(i); input.value = String(i); lab.textContent = x[0]; fill(); applyPreview(); } })));
+    const node = el("div", { class: "sl-row" }, [el("div", { class: "sl-wrap" }, [input, ticks]), lab]);
+    node._sync = () => { input.value = String(getIdx()); lab.textContent = labels[getIdx()][0]; fill(); };
+    return node;
   }
-  drawRadCards();
+  const shadowSl = stepSlider(SHADOWS, () => opts.shadow, (i) => opts.shadow = i);
+  const densSl = stepSlider(DENSITIES, () => opts.density, (i) => opts.density = i);
   const wBox = el("div", { class: "fs-cards" });
   const sBox = el("div", { class: "fs-cards" });
   function drawFsCards() {
     wBox.innerHTML = ""; sBox.innerHTML = "";
-    WEIGHTS.forEach(([nm, w], i) => wBox.appendChild(el("button", { type: "button",
+    const ws = curWeights();
+    if (opts.weight >= ws.length) opts.weight = ws.length - 1;
+    ws.forEach(([nm, w], i) => wBox.appendChild(el("button", { type: "button",
       class: "fs-card" + (opts.weight === i ? " on" : ""),
       onclick: () => { opts.weight = i; drawFsCards(); applyPreview(); } }, [
-      el("span", { class: "fs-demo", style: `font-weight:${w}` }, ["永A"]),
+      el("span", { class: "fs-demo", style: `font-weight:${w};font-family:${FONTS[opts.font][1]}` }, ["永A"]),
       el("span", { class: "fs-name" }, [nm]),
     ])));
     SIZES.forEach(([nm, sz], i) => sBox.appendChild(el("button", { type: "button",
@@ -459,25 +497,15 @@ function brandDialog(existing, onClose) {
     ])));
   }
   drawFsCards();
-  const shadowSeg = el("div", { class: "segmented" });
-  const densSeg = el("div", { class: "segmented" });
-  function drawSegs() {
-    shadowSeg.innerHTML = ""; densSeg.innerHTML = "";
-    SHADOWS.forEach(([nm], i) => shadowSeg.appendChild(el("button", { type: "button",
-      class: "seg" + (opts.shadow === i ? " active" : ""),
-      onclick: () => { opts.shadow = i; drawSegs(); applyPreview(); } }, [nm])));
-    DENSITIES.forEach(([nm], i) => densSeg.appendChild(el("button", { type: "button",
-      class: "seg" + (opts.density === i ? " active" : ""),
-      onclick: () => { opts.density = i; drawSegs(); applyPreview(); } }, [nm])));
-  }
-  drawSegs();
+  function drawSegs() { shadowSl._sync(); densSl._sync(); }
 
-  function segRowFonts() {
-    const box = el("div", { class: "segmented" });
-    FONTS.forEach((it, i) => box.appendChild(el("button", { type: "button", class: "seg" + (opts.font === i ? " active" : ""),
-      onclick: () => { opts.font = i; box.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === i)); applyPreview(); } },
-      [it[0]])));
-    return box;
+  // 字体选择器：选项按各自字体族渲染；切换后字重档跟随该字体刷新
+  let fontSel = null;
+  function mountFontSel() {
+    fontSel = UI.fancySelect({ value: String(opts.font), width: "100%",
+      options: FONTS.map((f, i) => [String(i), f[0]]),
+      onChange: (v) => { opts.font = Number(v); drawFsCards(); applyPreview(); } });
+    return fontSel;
   }
   const optPanel = el("div", {}, [
     el("div", { class: "field" }, [
@@ -491,14 +519,16 @@ function brandDialog(existing, onClose) {
     ]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["颜色 token",
       UI.help("Figma 式细颗粒度：每个语义 token 独立可改（色块或 HEX），当前编辑" + "模式随上方明暗切换")]), tokenPanel]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["圆角"]), radBox]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["字体"]), segRowFonts()]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字重"]), wBox]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["圆角",
+      UI.help("组件卡片的圆角（0-28px）：拖动或输入数值，刻度点是常用档位")]), radBox]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["字体"]), mountFontSel()]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字重",
+      UI.help("档位随所选字体变化：黑体字重多，宋体 / 楷体等只有常规与加粗")]), wBox]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字号"]), sBox]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["阴影",
-      UI.help("组件卡片的投影档位；组件级可再覆盖")]), shadowSeg]),
+      UI.help("组件卡片的投影档位；组件级可再覆盖")]), shadowSl]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["紧凑度",
-      UI.help("组件内边距与行距的整体缩放：紧凑 / 标准 / 宽松")]), densSeg]),
+      UI.help("组件内边距与行距的整体缩放：紧凑 / 标准 / 宽松")]), densSl]),
   ]);
   // v2：品牌风格只走选项定义（代码导入下线）
   const modeTabs = el("div", {});
@@ -514,7 +544,7 @@ function brandDialog(existing, onClose) {
   }
   host.innerHTML = "";
   host.appendChild(el("div", { class: "style-ed" }, [
-    el("div", { style: "font-weight:700;margin-bottom:12px" }, [existing ? `编辑「${existing.brand_name}」` : "新建组件风格"]),
+    el("div", { style: "font-weight:700;margin-bottom:12px" }, [existing ? `编辑「${existing.brand_name}」` : "新建品牌风格"]),
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["风格名称"]), nameIn, nameErr]),
     modeTabs, optPanel, err,
     el("div", { style: "display:flex;justify-content:flex-end;gap:10px;margin-top:14px;border-top:1px solid var(--border);padding-top:12px" }, [
@@ -539,7 +569,18 @@ function brandDialog(existing, onClose) {
             grid.style.display = "";
             window._editingStyle = false;
             renderBrands(); renderDemos();
-            UI.toast(existing ? "风格已更新" : "风格已创建，在「产品管理」里配给产品即可生效");
+            if (existing) UI.toast("风格已更新");
+            else {
+              // 动线闭环：新风格要配给产品才生效，给出直达入口
+              const bm = UI.modal("风格已创建", el("div", {}, [
+                el("div", { class: "muted", style: "margin-bottom:14px" },
+                  [`「${name}」已加入风格库。配给某个产品后，该产品的所有组件即按此风格渲染。`]),
+                el("div", { style: "display:flex;justify-content:flex-end;gap:10px" }, [
+                  el("button", { class: "btn", onclick: () => bm.remove() }, ["留在本页"]),
+                  el("button", { class: "btn primary", onclick: () => { location.href = "./products.html"; } }, ["去绑定产品"]),
+                ]),
+              ]));
+            }
             onClose && onClose();
           } catch (e2) { err.textContent = e2.data?.error || e2.message; }
         }, "保存中……");
@@ -566,26 +607,26 @@ function brandDialog(existing, onClose) {
       const cc = ((baseTokens.chart || {}).categorical || []).slice(0, 5);
       cc.forEach((cx, i2) => { if (cx) tok.chart[i2] = cx; });
       const oo = baseTokens._options || {};
-      if (oo.radius != null) opts.radius = oo.radius;
-      if (oo.font != null) opts.font = oo.font;
+      if (oo.radius != null) opts.radius = oo.radius_unit === "px" ? oo.radius : [2, 8, 16, 22, 28][oo.radius] ?? 16;
+      if (oo.font != null) opts.font = Math.min(oo.font, FONTS.length - 1);
       if (oo.weight != null) opts.weight = oo.weight;
       if (oo.size != null) opts.size = oo.size;
       if (oo.shadow != null) opts.shadow = oo.shadow;
       if (oo.density != null) opts.density = oo.density;
       drawPals(); drawTokens(); drawFsCards(); drawSegs();
-      drawRadCards();
+      syncRad();
+      fontSel && fontSel.setValue && fontSel.setValue(String(opts.font));
     }
     if (existing) {
       try {
         const t = await (await fetch("./brand/" + existing.file)).json();
         if (t._options && t._options.palette !== undefined) {
           Object.assign(opts, t._options);
-          drawPals(); drawFsCards();
-          drawRadCards();
-          optPanel.querySelectorAll(".field").forEach(f => {
-            const lab = f.querySelector(".label-text");
-            if (lab && lab.textContent === "字体") f.querySelectorAll(".seg").forEach((n, j) => n.classList.toggle("active", j === opts.font));
-          });
+          if (t._options.radius_unit !== "px") opts.radius = [2, 8, 16, 22, 28][t._options.radius] ?? 16;
+          opts.font = Math.min(opts.font || 0, FONTS.length - 1);
+          drawPals(); drawFsCards(); drawSegs();
+          syncRad();
+          fontSel && fontSel.setValue && fontSel.setValue(String(opts.font));
           applyPreview();
         } else {
           // 旧代码导入的风格：无选项快照，按默认选项进入编辑（保存后转为选项定义）
@@ -639,7 +680,7 @@ function renderBrands() {
   });
   // 新增入口：列表末尾一张虚线卡，点击弹出导入编辑（保存后成为正式卡片）
   const addCard = el("div", { class: "brand-card add-card", role: "button", tabindex: "0" }, [
-    el("div", { class: "bname" }, [UI.icon("plus", 14), "新增组件风格"]),
+    el("div", { class: "bname" }, [UI.icon("plus", 14), "新增品牌风格"]),
     el("div", { class: "bsub" }, ["六套预设起步，逐 token 细调"]),
   ]);
   const openAdd = () => brandDialog(null);
