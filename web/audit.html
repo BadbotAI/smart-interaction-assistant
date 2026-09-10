@@ -13,6 +13,8 @@
   <div style="display:flex;align-items:center;margin-bottom:10px">
     <span class="muted" id="auditCount"></span>
     <div style="flex:1"></div>
+    <span id="actionSelMount"></span>
+    <input type="text" id="kwInput" placeholder="搜产品 / 组件 / 详情" style="width:200px;height:32px;padding:4px 12px" aria-label="搜索日志">
     <button class="btn small" id="dlBtn"></button>
   </div>
   <div class="card" style="padding:0">
@@ -32,7 +34,7 @@ const ACTION_NAMES = {
   echo_toggle: "切换回显", policy_update: "更新路由规则", policy_rollback: "回滚路由规则",
   model_register: "添加模型", model_status_change: "变更模型状态", model_set_default: "设默认兜底",
   credential_delete: "删除凭证并暂停", export_csv: "导出明细", profile_rebuild: "生成路由效果",
-  brand_activate: "切换组件风格", brand_delete: "删除组件风格", label_review: "标签复核",
+  brand_activate: "切换组件风格", brand_delete: "删除品牌风格", label_review: "标签复核",
   unmask_trace: "解除脱敏",
   policy_create: "新增路由策略", policy_delete: "删除路由策略", policy_duplicate: "复制路由策略",
   scene_add: "添加维度（已下线）", scene_delete: "删除维度（已下线）",
@@ -44,6 +46,7 @@ const ACTION_NAMES = {
   judge_model_set: "配置 Judge 模型",
   migrate_assistant_v2: "升级组件注册制（v2）",
   product_update: "更新产品配置", product_create: "新建产品", product_delete: "删除产品",
+  migrate_products_v23: "升级出包记录列",
   product_key_reset: "重置产品接入 Key",
   migrate_assistant_v21: "升级展示类组件扩容", migrate_products_v22: "补种多产品示例",
   policy_key_reset: "重置策略 API Key",
@@ -56,7 +59,7 @@ const ACTION_NAMES = {
   model_thinking: "切换思考模式", model_rename: "编辑模型", model_delete: "删除模型",
   model_profile_data: "导入画像数据", bank_import: "导入数据集", bank_import_failed: "导入数据集失败",
   bank_eval_pending: "评测回填", bank_staged_commit: "并入回流数据", bank_staged_discard: "移除回流数据",
-  brand_import: "导入组件风格", label_source_toggle: "切换信号源", card_refs_upgrade: "升级配置引用",
+  brand_import: "导入品牌风格", label_source_toggle: "切换信号源", card_refs_upgrade: "升级配置引用",
   ab_create: "创建 AB 实验", ab_stop: "停止 AB 实验",
 };
 
@@ -66,6 +69,14 @@ function fmtDetail(d) {
 }
 
 document.getElementById("dlBtn").append(UI.icon("download", 14), "导出 CSV");
+document.getElementById("actionSelMount").appendChild(UI.fancySelect({
+  value: "", width: "170px",
+  options: [["", "全部动作"], ...Object.entries(ACTION_NAMES).map(([k, v]) => [k, v])],
+  onChange: (v) => { fltAction = v; shown = 50; load(); },
+}));
+document.getElementById("kwInput").oninput = UI.debounce ? UI.debounce(() => {
+  fltKw = document.getElementById("kwInput").value; shown = 50; load();
+}, 250) : ((e) => { fltKw = e.target.value; shown = 50; load(); });
 let allAudit = [];
 document.getElementById("dlBtn").onclick = () => {
   const lines = [["时间", "操作人", "动作", "详情"].join(",")];
@@ -82,14 +93,24 @@ document.getElementById("dlBtn").onclick = () => {
   UI.toast("已导出操作日志");
 };
 let shown = 50;
+let fltAction = "";
+let fltKw = "";
 async function load() {
-  const { audit } = await UI.api("/api/audit?limit=200");
-  allAudit = audit;
-  document.getElementById("auditCount").textContent = `共 ${audit.length} 条（最近 200 条内）`;
+  const { audit: raw } = await UI.api("/api/audit?limit=200");
+  allAudit = raw;
+  const kw = fltKw.trim().toLowerCase();
+  const audit = raw.filter(r =>
+    (!fltAction || r.action === fltAction) &&
+    (!kw || (fmtDetail(r.detail) + " " + (ACTION_NAMES[r.action] || r.action) + " " + (r.actor || "")).toLowerCase().includes(kw)));
+  document.getElementById("auditCount").textContent = (fltAction || kw)
+    ? `命中 ${audit.length} 条 / 共 ${raw.length} 条` : `共 ${raw.length} 条（最近 200 条内）`;
   const box = document.getElementById("auditBox");
   box.innerHTML = "";
   if (!audit.length) {
-    box.appendChild(el("div", { class: "empty-state" }, [
+    box.appendChild(el("div", { class: "empty-state" }, (fltAction || kw) ? [
+      el("div", { class: "empty-title" }, ["没有匹配的记录"]),
+      el("div", {}, ["换个动作类型或关键词再试。"]),
+    ] : [
       el("div", { class: "empty-title" }, ["还没有审计记录"]),
       el("div", {}, ["发布配置、调整策略等关键操作后会出现在这里"]),
     ]));

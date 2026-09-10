@@ -410,6 +410,12 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
             return None, {"message": "配置被以下 Agent 引用，删除将导致运行时降级为纯文本。确认影响后可选择强制删除。",
                           "code": "referenced", "refs": [dict(r) for r in refs]}
         conn.execute("UPDATE cards SET status='deleted', updated_at=? WHERE card_id=?", (db.now_ts(), card_id))
+        # 级联：从所有产品的绑定列表摘除，注册表不再引用已删实例
+        for _r in conn.execute("SELECT product_id, card_ids FROM products").fetchall():
+            _ids = db.dj(_r["card_ids"], [])
+            if card_id in _ids:
+                conn.execute("UPDATE products SET card_ids=? WHERE product_id=?",
+                             (db.j([x for x in _ids if x != card_id]), _r["product_id"]))
         # 历史快照保留，不随卡片删除消失（§2.7）
         conn.commit()
         db.audit(actor, "card_delete", {"card_id": card_id, "force": force, "refs": len(refs)})

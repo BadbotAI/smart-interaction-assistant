@@ -398,12 +398,46 @@ async function loadCards() {
 }
 
 // 单行构建：局部刷新用（状态开关切换后只替换该行，不重建整个列表）
+// —— 批量操作：勾选集合 + 浮动操作条（上线 / 下线选中项） ——
+const batchSel = new Set();
+function batchBar() {
+  let bar = document.getElementById("batchBar");
+  if (!bar) {
+    bar = el("div", { id: "batchBar", class: "batch-bar", hidden: true });
+    document.body.appendChild(bar);
+  }
+  bar.innerHTML = "";
+  if (!batchSel.size) { bar.hidden = true; return; }
+  bar.hidden = false;
+  const run = async (action, label) => {
+    const ids = [...batchSel];
+    let ok = 0, fail = 0;
+    for (const id of ids) {
+      try { await UI.api(`/api/cards/${id}/transition`, { method: "POST", body: { action } }); ok++; }
+      catch (e) { fail++; }
+    }
+    UI.toast(`${label}完成：成功 ${ok} 个${fail ? `，失败 ${fail} 个（状态不允许）` : ""}`, fail > 0);
+    batchSel.clear(); batchBar(); loadCards();
+  };
+  bar.append(
+    el("span", { style: "font-weight:600" }, [`已选 ${batchSel.size} 个`]),
+    el("button", { class: "btn small", onclick: () => run("publish", "批量上线") }, ["批量上线"]),
+    el("button", { class: "btn small", onclick: () => run("offline", "批量下线") }, ["批量下线"]),
+    el("button", { class: "btn small ghost", onclick: () => { batchSel.clear(); batchBar();
+      document.querySelectorAll(".cr-check input").forEach(i => i.checked = false); } }, ["取消选择"]),
+  );
+}
 function buildCardRow(c) {
   {
     const eff = effStatus(c);
     const [label, color] = STATUS_CHIP[eff] || [eff, "gray"];
     const editable = eff !== "published";
+    const chk = el("label", { class: "cr-check", onclick: (e) => e.stopPropagation() }, [
+      el("input", { type: "checkbox", "aria-label": "选择 " + c.name, ...(batchSel.has(c.card_id) ? { checked: "" } : {}),
+        onchange: (e) => { e.target.checked ? batchSel.add(c.card_id) : batchSel.delete(c.card_id); batchBar(); } }),
+    ]);
     return el("div", { class: "row-item card-row", "data-cid": c.card_id }, [
+      chk,
       el("div", { class: "main", style: editable ? "cursor:pointer" : "", title: editable ? "点击编辑" : "上线中不可编辑，先下线",
         onclick: () => { if (editable) openEditor(c.card_id); else UI.toast("已上线的配置不可编辑，请先下线", true); } }, [
         el("div", { class: "cr-line1" }, [
@@ -804,6 +838,16 @@ async function openEditor(cardId, prefill, initStep) {
   }
 
   const previewBox = el("div", {});
+  let pvState = "rest";   // rest | selected | submitted：样式验收要看到交互态
+  let pvSimulating = false;
+  const pvSeg = el("div", { class: "segmented", style: "margin-left:auto" });
+  function drawPvSeg() {
+    pvSeg.innerHTML = "";
+    pvSeg.hidden = PRESENT_TYPES.includes(state.component_type);
+    [["rest", "静态"], ["selected", "选中"], ["submitted", "提交后"]].forEach(([v, nm]) =>
+      pvSeg.appendChild(el("button", { type: "button", class: "seg" + (pvState === v ? " active" : ""),
+        onclick: () => { pvState = v; drawPvSeg(); renderPreview(); } }, [nm])));
+  }
   function previewWithStyle(env) { if (env && Object.keys(state.styleOv || {}).length) env.style_overrides = state.styleOv; return env; }
   function renderPreview() {
     previewBox.innerHTML = "";
@@ -819,13 +863,27 @@ async function openEditor(cardId, prefill, initStep) {
             params: DEMO_PRESENT[state.component_type] || {}, style_overrides: state.styleOv }
         : null;
       node = Components.render(previewWithStyle(pv || buildPreviewEnvelope()), {
-        sendEvent: () => {}, onCollectSubmit: () => UI.toast("预览不产生数据"), onControl: () => {}, userId: "preview", preview: true, titleInBubble: true,
+        sendEvent: () => {}, onCollectSubmit: () => { if (!pvSimulating) UI.toast("预览不产生数据"); },
+        onControl: () => {}, userId: "preview", preview: true, titleInBubble: true,
       });
     } catch (e) { node = el("div", { class: "muted" }, ["暂不支持预览"]); }
     const mock = PREVIEW_SCENES[state.component_type] || {};
     const pv = state.component_type === "entry.link" ? state.question.trim()
       : (state.question.trim() || mock.prompt || "");
     previewBox.appendChild(UI.chatMock({ question: state.trigger_examples[0] || mock.q || "", reply: state.reply_text.trim() || mock.reply || "", node, prompt: pv }));
+    if (pvState !== "rest" && !PRESENT_TYPES.includes(state.component_type)) {
+      // 程序化模拟：走真实交互路径（与用户点击同一逻辑），保证态样式所见即所得
+      pvSimulating = true;
+      try {
+        const first = previewBox.querySelector(".opt-item, .fb-cand, .fb-btn");
+        first && first.click();
+        if (pvState === "submitted") {
+          const sub = [...previewBox.querySelectorAll("button")].find(b =>
+            b.classList.contains("primary") && !b.disabled);
+          sub && sub.click();
+        }
+      } finally { pvSimulating = false; }
+    }
   }
 
   function field(key, label, node, hint, required, extraClass = "") {
@@ -1761,6 +1819,7 @@ async function openEditor(cardId, prefill, initStep) {
     formCol.scrollTop = resetScroll ? 0 : keepScroll;
   }
 
+  drawPvSeg();
   const body = el("div", { class: "ed-body", style: "display:contents" }, [
     stepBar,
     el("div", { class: "ed-split" }, [
@@ -1768,6 +1827,7 @@ async function openEditor(cardId, prefill, initStep) {
       el("div", { class: "ed-preview" }, [
         el("div", { style: "display:flex;align-items:center;gap:4px;margin-bottom:8px" }, [
           el("span", { style: "font-weight:600" }, ["预览"]), UI.help("用户在对话中看到的效果，与线上同一套渲染器；预览中提交不产生数据"),
+          pvSeg,
         ]),
         previewBox,
       ]),

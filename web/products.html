@@ -112,17 +112,21 @@ function configProduct(p) {
   const access = el("div", { class: "field", style: "margin-top:4px" }, [
     el("span", { class: "label-text" }, ["SDK 接入",
       UI.help("每个产品对应：一个后端 API 接口 + 一个前端 JS/CSS 代码块 + 一份数据块 Schema；配置出包时固化，平台修改后需重新拉取部署")]),
-    codeBlock("后端 API 接口", "拉组件注册表，作为工具声明给你的大模型",
+    codeBlock("后端 API 接口", "拉组件注册表，作为工具声明给你的大模型（后端私有 Key，勿放前端）",
       `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`),
-    codeBlock("前端 JS/CSS 代码块", "引入 SDK，样式含本产品品牌风格 token",
-      `<link rel="stylesheet" href="${origin}/v1/products/${p.product_id}/sia.css?key=${p.mcp_key}">\n<script src="${origin}/web/sia.js" data-key="${p.mcp_key}" defer><\/script>`),
+    codeBlock("前端 JS/CSS 代码块", "引入 SDK，样式含本产品品牌风格 token（前端公开 Key，页面可见）",
+      `<link rel="stylesheet" href="${origin}/v1/products/${p.product_id}/sia.css?key=${p.pub_key}">\n<script src="${origin}/web/sia.js" data-key="${p.pub_key}" defer><\/script>`),
     codeBlock("渲染调用", "模型返回的组件调用交给 SDK；交互类提交自动按 submit 结构回传",
       `SIA.render(container, { component_id: "…", params: { … } })`),
-    el("div", { class: "drawer-meta", style: "margin:10px 0 8px;display:flex;align-items:center;gap:10px" }, [
-      el("span", { class: "muted", style: "flex:none" }, ["产品接入 Key"]),
-      el("span", { class: "cr-id num", style: "cursor:pointer", title: "点击复制",
-        onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制产品接入 Key"); } },
+    el("div", { class: "drawer-meta", style: "margin:10px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap" }, [
+      el("span", { class: "muted", style: "flex:none" }, ["后端私有 Key"]),
+      el("span", { class: "cr-id num", style: "cursor:pointer", title: "注册表拉取用，勿放前端；点击复制",
+        onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制后端私有 Key"); } },
         [p.mcp_key.slice(0, 12) + "…"]),
+      el("span", { class: "muted", style: "flex:none" }, ["前端公开 Key"]),
+      el("span", { class: "cr-id num", style: "cursor:pointer", title: "页面里引 CSS/JS 用，泄露不暴露配置；点击复制",
+        onclick: () => { navigator.clipboard.writeText(p.pub_key); UI.toast("已复制前端公开 Key"); } },
+        [(p.pub_key || "").slice(0, 12) + "…"]),
       el("div", { style: "flex:1" }),
       el("button", { class: "btn small", onclick: () => viewSchemas(p) }, ["查看数据 Schema"]),
       el("button", { class: "btn small danger-text", onclick: async () => {
@@ -133,10 +137,15 @@ function configProduct(p) {
         try {
           const r = await UI.api(`/api/products/${p.product_id}/reset-key`, { method: "POST" });
           const km = UI.modal("新的产品接入 Key", el("div", {}, [
-            el("div", { class: "muted", style: "margin-bottom:10px" }, ["旧 Key 已失效。请更新 agent 后端与前端 SDK 配置并重新出包："]),
+            el("div", { class: "muted", style: "margin-bottom:10px" }, ["两把 Key 已同时轮换，旧 Key 立即失效。请更新 agent 后端与前端 SDK 配置并重新出包："]),
+            el("div", { class: "muted", style: "font-size:var(--font-caption);margin-bottom:4px" }, ["后端私有 Key"]),
             el("button", { class: "key-chip", style: "width:100%;justify-content:space-between",
-              onclick: () => { navigator.clipboard.writeText(r.mcp_key); UI.toast("已复制新 Key"); } },
+              onclick: () => { navigator.clipboard.writeText(r.mcp_key); UI.toast("已复制后端私有 Key"); } },
               [el("span", { class: "num" }, [r.mcp_key]), UI.icon("copy", 12)]),
+            el("div", { class: "muted", style: "font-size:var(--font-caption);margin:8px 0 4px" }, ["前端公开 Key"]),
+            el("button", { class: "key-chip", style: "width:100%;justify-content:space-between",
+              onclick: () => { navigator.clipboard.writeText(r.pub_key); UI.toast("已复制前端公开 Key"); } },
+              [el("span", { class: "num" }, [r.pub_key || ""]), UI.icon("copy", 12)]),
             el("div", { style: "display:flex;justify-content:flex-end;margin-top:14px" }, [
               el("button", { class: "btn primary", onclick: () => { km.remove(); location.reload(); } }, ["我已保存"]),
             ]),
@@ -233,6 +242,18 @@ function draw() {
           `品牌风格 ${brandName(p.brand_file)} · 组件实例 ${bound.length} 个` +
           (bound.length ? `（${online} 个在线）` : " · 在组件工作台创建，发布后自动加入"),
         ]);
+      })(),
+      (() => {
+        if (p.stale) {
+          const ago = p.pulled_at ? Math.max(1, Math.round((Date.now() / 1000 - p.pulled_at) / 60)) : null;
+          return el("div", { style: "margin-top:6px;font-size:var(--font-caption);color:var(--warning);display:flex;align-items:center;gap:6px" }, [
+            UI.icon("info", 13),
+            `配置已变更，线上包落后${ago != null ? `（上次拉取注册表在 ${ago < 60 ? ago + " 分钟" : Math.round(ago / 60) + " 小时"}前）` : ""}——请重新拉取注册表并部署前端`,
+          ]);
+        }
+        if (p.pulled_hash === null || p.pulled_hash === undefined) return el("div", { class: "muted", style: "margin-top:6px;font-size:var(--font-caption)" },
+          ["尚未拉取过注册表：按「产品配置」里的后端 API 接口接入即开始跟踪出包状态"]);
+        return null;
       })(),
     ]));
   });

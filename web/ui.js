@@ -263,10 +263,10 @@ window.UI = (function () {
           [String(name).slice(0, 1)]);
       };
       const nameEl = el("span", { class: "np-name" }, [cur.name]);
-      const avaHost = el("span", {}, [avatar(cur.name, 30)]);
-      const btn = el("button", { class: "np-btn", type: "button", title: "切换产品" }, [
+      const avaHost = el("span", { style: "display:inline-flex;flex:none" }, [avatar(cur.name, 22)]);
+      const btn = el("button", { class: "np-btn", type: "button", title: "点击切换产品" }, [
         avaHost,
-        el("span", { class: "np-meta" }, [nameEl, el("span", { class: "np-sub" }, ["点击切换产品"])]),
+        el("span", { class: "np-meta" }, [nameEl]),
         el("span", { class: "fsel-caret" }, [icon("chevron", 13)]),
       ]);
       btn.onclick = () => {
@@ -322,15 +322,15 @@ window.UI = (function () {
         return a;
       })(),
     ]);
-    // 产品区一体化：当前产品切换卡 + 产品级配置入口（接入 / 风格）同一容器，画风统一
+    // 产品组：标准导航组节奏——组标题「当前产品」+ 轻量切换行 + 产品级入口（接入 / 风格）
     let prodZone = null;
     if (plat.productSwitcher) {
-      prodZone = el("div", { class: "prod-zone" }, [
-        el("div", { class: "prod-zone-label" }, ["当前产品"]),
+      prodZone = el("div", { class: "nav-group" }, [
+        el("div", { class: "nav-title" }, ["当前产品"]),
       ]);
       const swSlot = el("div", {});
       prodZone.appendChild(swSlot);
-      side.appendChild(el("div", { style: "padding:0 12px" }, [prodZone]));
+      side.appendChild(prodZone);
       mountProductSwitcher(swSlot);
     }
     // 二级项按 #hash 高亮；无 hash 时默认该页第一个二级项

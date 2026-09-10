@@ -305,7 +305,7 @@ def embed_envelope(card_id: str, key: str = None):
     conn = db.get_conn()
     # 鉴权到具体产品：key 只能读它自己产品下的组件（此前任意产品 key 可拉全部组件配置）
     prod = next((r for r in conn.execute("SELECT product_id, card_ids FROM products").fetchall()
-                 if key and _mcp_key(r["product_id"]) == key), None)
+                 if key and (_pub_key(r["product_id"]) == key or _mcp_key(r["product_id"]) == key)), None)
     if not prod:
         return JSONResponse({"error": "invalid_key", "message": "请携带产品接入 Key（产品管理页可复制）"}, status_code=401)
     if card_id not in db.dj(prod["card_ids"], []):
@@ -689,6 +689,16 @@ def _mcp_key(product_id: str) -> str:
     return "sk-mcp-" + _h.md5(seed_s.encode()).hexdigest()[:18]
 
 
+def _pub_key(product_id: str) -> str:
+    """前端公开 Key：只用于 envelope / sia.css / 事件回传（页面源码可见，泄露不暴露注册表全量配置）。
+    与私有 Key 共用同一份盐：重置一次两把 Key 同时轮换。"""
+    import hashlib as _h
+    salts = db.dj(_get_setting("product_key_salt"), {}) or {}
+    n = int(salts.get(product_id, 0))
+    seed_s = "pub:" + product_id + ("" if n == 0 else f":{n}")
+    return "pk-web-" + _h.md5(seed_s.encode()).hexdigest()[:18]
+
+
 @app.post("/api/products/{product_id}/reset-key")
 async def reset_product_key(product_id: str):
     """重置产品接入 Key：旧 Key 立即失效（注册表与信封接口都将拒绝）。"""
@@ -700,7 +710,7 @@ async def reset_product_key(product_id: str):
     salts[product_id] = int(salts.get(product_id, 0)) + 1
     _set_setting("product_key_salt", db.j(salts))
     db.audit("demo-admin", "product_key_reset", {"product_id": product_id, "name": row["name"]})
-    return {"ok": True, "mcp_key": _mcp_key(product_id)}
+    return {"ok": True, "mcp_key": _mcp_key(product_id), "pub_key": _pub_key(product_id)}
 
 
 @app.get("/v1/products/{product_id}/sia.css")
@@ -711,7 +721,7 @@ def product_sia_css(product_id: str, key: str = None):
     row = conn.execute("SELECT * FROM products WHERE product_id=?", (product_id,)).fetchone()
     if not row:
         return JSONResponse({"error": "product_not_found"}, status_code=404)
-    if not key or key != _mcp_key(product_id):
+    if not key or key not in (_pub_key(product_id), _mcp_key(product_id)):
         return JSONResponse({"error": "invalid_key"}, status_code=401)
     import json as _json
     _bf = os.path.basename(row["brand_file"] or "brand-tokens.default.json")
@@ -754,9 +764,15 @@ def product_sia_css(product_id: str, key: str = None):
 
 
 def _product_row(r):
+    cur_hash = registry.build_registry(dict(r)).get("content_hash")
+    keys = r.keys()
+    pulled_hash = r["pulled_hash"] if "pulled_hash" in keys else None
+    pulled_at = r["pulled_at"] if "pulled_at" in keys else None
     return {"product_id": r["product_id"], "name": r["name"], "brand_file": r["brand_file"],
             "card_ids": db.dj(r["card_ids"], []), "created_at": r["created_at"],
-            "mcp_key": _mcp_key(r["product_id"])}
+            "mcp_key": _mcp_key(r["product_id"]), "pub_key": _pub_key(r["product_id"]),
+            "current_hash": cur_hash, "pulled_hash": pulled_hash, "pulled_at": pulled_at,
+            "stale": bool(pulled_hash) and pulled_hash != cur_hash}
 
 
 @app.get("/v1/products/{product_id}/registry")
@@ -768,8 +784,16 @@ def product_registry(product_id: str, key: str = None):
     if not row:
         return JSONResponse({"error": "product_not_found"}, status_code=404)
     if not key or key != _mcp_key(product_id):
-        return JSONResponse({"error": "invalid_key", "message": "请携带产品接入 Key（接入配置页可复制）"}, status_code=401)
-    return registry.build_registry(dict(row))
+        return JSONResponse({"error": "invalid_key", "message": "请携带后端私有 Key（接入配置页可复制）"}, status_code=401)
+    reg = registry.build_registry(dict(row))
+    # 拉取注册表 ≈ 出包动作：记录指纹，平台据此提示「线上包是否落后」
+    try:
+        conn.execute("UPDATE products SET pulled_hash=?, pulled_at=? WHERE product_id=?",
+                     (reg.get("content_hash"), db.now_ts(), product_id))
+        conn.commit()
+    except Exception:
+        pass
+    return reg
 
 
 @app.post("/api/components/schema-preview")

@@ -105,6 +105,13 @@
       });
       return { generated: true, asof: bm.asof, alpha, clusters, models: names, router: v7.router };
     }
+    if (pn === "/api/products") {
+      const base = D["/api/products"] || { products: [] };
+      return { products: (base.products || []).map(p => ({
+        pub_key: "pk-web-demo" + String(p.product_id || "").slice(-6), current_hash: "demo-hash",
+        pulled_hash: p.pulled_hash === undefined ? "demo-hash" : p.pulled_hash,
+        pulled_at: p.pulled_at === undefined ? Date.now() / 1000 - 3600 : p.pulled_at, stale: false, ...p })) };
+    }
     if (pn === "/api/brands") return { brands: window.__mockBrands() };
     if (pn === "/api/brands/active") return { file: "brand-tokens.default.json" };
     const regm = pn.match(/^\/v1\/products\/([^/]+)\/registry$/);
@@ -286,7 +293,8 @@
       return { ok: true };
     }
     if (/^\/api\/products\/[^/]+\/reset-key$/.test(pn)) {
-      return { ok: true, mcp_key: "sk-mcp-" + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 8) };
+      return { ok: true, mcp_key: "sk-mcp-" + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 8),
+        pub_key: "pk-web-" + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 8) };
     }
     if (/^\/api\/products\/[^/]+\/delete$/.test(pn)) {
       const pid = pn.split("/")[3];

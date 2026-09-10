@@ -46,10 +46,8 @@
     </div>
   </div>
   <div class="panel">
-    <h2>植入点二：显式调用</h2>
-    <div class="tip">v1 遗留（legacy）：配置态唤起 sia('show', cardId)。v2 主推下方注册制调用。</div>
-    <button class="hbtn" id="show-btn">唤起交互组件</button>
-    <div class="tip" style="margin-top:14px"><b>v2 注册制（主推）</b>：agent 后端拉注册表声明给大模型 → 模型返回 { component_id, params } → 前端 SIA.render('#slot', call) 渲染，提交自动回传。</div>
+    <h2>组件调用（v2 注册制）</h2>
+    <div class="tip">agent 后端拉注册表声明给大模型 → 模型返回 { component_id, params } → 前端 SIA.render('#slot', call) 渲染，提交自动回传。页面里只暴露前端公开 Key。</div>
     <button class="hbtn" id="render-btn">模拟模型返回组件调用</button>
     <div id="slot" style="margin-top:14px"></div>
   </div>
@@ -61,7 +59,8 @@
   (async () => {
     try {
       const r = await fetch("/api/products").then(x => x.json());
-      const k = ((r.products || [])[0] || {}).mcp_key;
+      const p0 = (r.products || [])[0] || {};
+      const k = p0.pub_key || p0.mcp_key;
       if (k) sia("init", { key: k });
     } catch (e) {}
   })();
@@ -77,16 +76,17 @@
     } catch (e) {}
   }
   if (!cardId) { document.getElementById("slot").textContent = "没有已上线的配置可演示"; return; }
-  // 植入点一：规则触发（GTM 式）——点击帮助按钮时在其下方渲染组件
-  sia("on", { selector: "#help-btn", event: "click" }, cardId, { mount: ".goods" });
-  // 植入点二：显式调用
-  document.getElementById("show-btn").onclick = () => sia("show", cardId, { mount: "#slot" });
+  // 帮助按钮：演示把组件渲染进商品卡下方（同一 SIA.render 入口）
+  document.getElementById("help-btn").onclick = () => SIA.render(".goods", {
+    component_id: cardId,
+    params: { prompt: "物流遇到什么问题？", options: ["货物延误", "货损理赔", "改派地址"] },
+  });
   // v2 注册制演示：假装大模型判定要出选择组件，并动态给出候选项（params 覆盖组件默认内容）
   document.getElementById("render-btn").onclick = () => SIA.render("#slot", {
     component_id: cardId,
     params: { prompt: "模型按当前对话给出的问题", options: ["方案 A · 时效优先", "方案 B · 成本优先", "方案 C · 均衡"] },
   });
-  if (params.get("auto")) sia("show", cardId, { mount: "#slot" });
+  if (params.get("auto")) document.getElementById("render-btn").click();
 })();
 </script>
 </body>

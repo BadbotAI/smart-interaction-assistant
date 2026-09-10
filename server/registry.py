@@ -181,6 +181,7 @@ def build_registry(product: dict) -> dict:
     conn = db.get_conn()
     card_ids = db.dj(product.get("card_ids"), []) or []
     comps = []
+    style_map = {}
     for cid in card_ids:
         row = conn.execute("SELECT * FROM cards WHERE card_id=?", (cid,)).fetchone()
         if not row:
@@ -192,6 +193,9 @@ def build_registry(product: dict) -> dict:
             continue
         v2 = V2_TYPE_MAP[ct]
         meta = V2_META[v2]
+        _so = db.dj(card.get("style_overrides"), {}) if isinstance(card.get("style_overrides"), str) else (card.get("style_overrides") or {})
+        if _so:
+            style_map[cid] = _so
         comps.append({
             "component_id": card["card_id"],
             "type": v2,
@@ -204,7 +208,9 @@ def build_registry(product: dict) -> dict:
         })
     import hashlib as _h
     import time as _t
-    body_key = _h.md5(repr(sorted((c["component_id"], c["name"], str(c["params_schema"]), str(c["fixed"])) for c in comps)).encode()).hexdigest()[:10]
+    # 指纹覆盖「出包内容」全量：schema / fixed 之外还含组件级样式与产品品牌——任一变化 = 线上包需重新拉取部署
+    body_key = _h.md5(repr((product.get("brand_file"), sorted(style_map.items()),
+        sorted((c["component_id"], c["name"], str(c["params_schema"]), str(c["fixed"])) for c in comps))).encode()).hexdigest()[:10]
     return {
         "registry_version": "2.1",
         "generated_at": _t.strftime("%Y-%m-%dT%H:%M:%S"),

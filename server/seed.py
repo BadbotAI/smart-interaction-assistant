@@ -895,6 +895,17 @@ def migrate_assistant_v2():
     return True
 
 
+def migrate_products_v23():
+    """产品表加出包记录列：pulled_hash / pulled_at（拉注册表时写入，检测线上包是否落后）。"""
+    conn = db.get_conn()
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(products)").fetchall()}
+    if "pulled_hash" not in cols:
+        conn.execute("ALTER TABLE products ADD COLUMN pulled_hash TEXT")
+        conn.execute("ALTER TABLE products ADD COLUMN pulled_at REAL")
+        conn.commit()
+        db.audit("system", "migrate_products_v23", {"note": "出包记录列"})
+
+
 def migrate_products_v22():
     """v2.2：多产品种子——不同产品定位（供应链 / 生产力 / 财务），演示按产品切换组件集与品牌。"""
     conn = db.get_conn()
@@ -942,6 +953,7 @@ def run_all():
     migrate_assistant_v2()
     migrate_assistant_v21()
     migrate_products_v22()
+    migrate_products_v23()
     n_bank = 0
     n_fb = seed_ab_feedback()
     n_hist = seed_history()
