@@ -1233,7 +1233,7 @@ window.Components = (function () {
     const p = env.params;
     return compCard([
       el("div", { style: "display:flex;align-items:center;gap:8px" }, [
-        el("span", { class: "chip red" }, ["高风险"]),
+        el("span", { class: "chip red", style: "flex:none;white-space:nowrap" }, ["高风险"]),
         el("span", { style: "font-weight:700" }, [p.title || p.prompt || "操作确认"]),
       ]),
       p.prompt && p.title ? el("div", { class: "secondary" }, [p.prompt]) : null,

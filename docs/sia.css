@@ -1,17 +1,17 @@
 
 .brand-scope {
-  --brand-primary: #1DA1F2;
-  --brand-primary-weak: #E9F1FB;
-  --brand-accent: #6E4BD8;
-  --brand-ring: #1DA1F2;
+  --brand-primary: #3E63DD;
+  --brand-primary-weak: #EDF2FE;
+  --brand-accent: #8E4EC6;
+  --brand-ring: #3E63DD;
   --brand-bg-page: #FFFFFF;
-  --brand-bg-surface: #F7F8F8;
-  --brand-text-primary: #0F1B26;
-  --brand-text-secondary: #43596B;
-  --brand-text-muted: #71828F;
-  --brand-border: #E1EAF1;
-  --brand-success: #17A673;
-  --brand-warning: #B97A17;
+  --brand-bg-surface: #F9FAFB;
+  --brand-text-primary: #1C2434;
+  --brand-text-secondary: #57627B;
+  --brand-text-muted: #8D96AA;
+  --brand-border: #E4E9F0;
+  --brand-success: #30A46C;
+  --brand-warning: #D6970A;
   --brand-danger: #E5484D;
   --brand-shadow: 0 1px 3px rgba(15, 27, 38, .08);
   --brand-density: regular;
