@@ -15,7 +15,7 @@
     <button class="btn primary" id="newBtn"></button>
   </div>
   <div class="muted" style="margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>一个产品 = 一个品牌风格 + 多个组件 + 一份 SDK 接入配置；风格在左侧「品牌风格」里新建与编辑</span>
+    <span>每个产品对应：一个后端 API 接口 + 一个前端 JS/CSS 代码块 + 一份数据块 Schema；品牌风格在「品牌风格」页新建与编辑</span>
     <a class="btn small ghost" href="/web/embed-demo.html" target="_blank" rel="noopener">SDK 接入演示</a>
   </div>
   <div id="listBox"></div>
@@ -29,6 +29,11 @@ const { el } = UI;
 
 let brands = [], liveCards = [], allCards = [], products = [];
 
+function shortProductId(pid) {
+  const hex = String(pid).replace(/[^0-9a-f]/gi, "").slice(0, 8) || "0";
+  return String(parseInt(hex, 16) % 1000000).padStart(6, "0");
+}
+
 function brandName(file) {
   const b = brands.find(x => x.file === file);
   return b ? (b.brand_name || b.file) : file;
@@ -38,11 +43,12 @@ function sdkSnippet(p) {
   const origin = location.origin;
   return [
     `// 「${p.name}」SDK 接入（v2 组件注册制 · 仅 Web 端）`,
+    `// 一个产品对应：一个后端 API 接口 + 一个前端 JS/CSS 代码块 + 一份数据块 Schema`,
     `// 配置在出包时固化：平台上修改组件或风格后，需重新拉取注册表并重新部署前端`,
     ``,
     `// 第 1 步 · 后端：拉取组件注册表，作为工具声明给你的大模型`,
     `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`,
-    `// 返回 components[]：每个组件的说明 + params_schema + 提交回传结构`,
+    `// 返回 components[]：每个组件的 params_schema（喂给模型的工具声明）+ submit_schema（用户提交的回传结构）`,
     `// 模型决定出组件时返回 { component_id, params }`,
     ``,
     `// 第 2 步 · 前端：引入 SDK（JS + CSS，样式含本产品的品牌风格 token）`,
@@ -53,6 +59,41 @@ function sdkSnippet(p) {
     `SIA.render(container, { component_id: "…", params: { … } })`,
     `// 交互类组件用户点「提交」时自动按 submit 结构回传；展示类组件直接渲染、无提交`,
   ].join("\n");
+}
+
+// 数据块 Schema：产品与接入方之间的数据契约
+// params_schema 给模型当工具声明（模型据此生成调用参数）；submit_schema 是用户提交后的回传结构（agent 后端据此解析）
+async function viewSchemas(p) {
+  let reg;
+  try { reg = await UI.api(`/v1/products/${p.product_id}/registry?key=${p.mcp_key}`); }
+  catch (e) { UI.toast(e.data?.error || e.message, true); return; }
+  const comps = reg.components || [];
+  const blocks = comps.map(c => {
+    const pre1 = el("pre", { class: "schema-pre" }, [JSON.stringify(c.params_schema || {}, null, 2)]);
+    const kids = [
+      el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
+        el("span", { style: "font-weight:600" }, [c.name || c.type]),
+        el("span", { class: "chip" }, [c.interactive ? "交互类" : "展示类"]),
+        el("span", { class: "cr-id num", style: "cursor:pointer", title: "点击复制组件实例 ID",
+          onclick: () => { navigator.clipboard.writeText(c.component_id); UI.toast("已复制组件实例 ID"); } }, [c.component_id]),
+      ]),
+      el("div", { class: "muted", style: "font-size:var(--font-caption);margin:6px 0 4px" }, ["params_schema · 模型调用参数（工具声明）"]),
+      pre1,
+    ];
+    if (c.submit_schema && Object.keys(c.submit_schema).length) {
+      kids.push(el("div", { class: "muted", style: "font-size:var(--font-caption);margin:8px 0 4px" }, ["submit_schema · 用户提交后的回传结构"]));
+      kids.push(el("pre", { class: "schema-pre" }, [JSON.stringify(c.submit_schema, null, 2)]));
+    }
+    return el("div", { style: "border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px" }, kids);
+  });
+  UI.modal(`数据块 Schema · ${p.name}`, el("div", { style: "max-height:64vh;overflow:auto" }, [
+    el("div", { class: "drawer-meta", style: "margin-bottom:10px" }, [
+      el("span", { class: "muted" }, [`注册表版本 ${reg.registry_version} · ${comps.length} 个组件实例`]),
+      el("div", { style: "flex:1" }),
+      el("button", { class: "btn small", onclick: () => { navigator.clipboard.writeText(JSON.stringify(reg, null, 2)); UI.toast("已复制完整注册表 JSON"); } }, [UI.icon("copy", 13), "复制完整注册表"]),
+    ]),
+    comps.length ? el("div", {}, blocks) : el("div", { class: "muted" }, ["该产品还没有绑定组件，先在上方「绑定组件」里添加"]),
+  ]), { width: "640px" });
 }
 
 // 产品表单（新建与配置共用）：名称 / 品牌风格单选 / 组件多选（标签可删）
@@ -94,6 +135,7 @@ function configProduct(p) {
         [p.mcp_key.slice(0, 12) + "…"]),
       el("div", { style: "flex:1" }),
       el("button", { class: "btn small", onclick: () => { navigator.clipboard.writeText(sdkSnippet(p)); UI.toast("已复制 SDK 接入配置（三步）"); } }, [UI.icon("copy", 13), "复制接入配置"]),
+      el("button", { class: "btn small", onclick: () => viewSchemas(p) }, ["查看数据 Schema"]),
       el("button", { class: "btn small danger-text", onclick: async () => {
         const ok = await UI.confirm("重置产品接入 Key",
           `为「${p.name}」生成新 Key：旧 Key 立即失效，agent 后端与前端 SDK 都会开始报错，需更新配置并重新出包。适用于 Key 泄露或人员变动。`,
@@ -189,9 +231,9 @@ function draw() {
           ]); } }, [UI.icon("more", 15)]); return more; })(),
       ]),
       el("div", { style: "display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap" }, [
-        el("button", { class: "key-chip", title: "产品 ID（点击复制）",
-          onclick: () => { navigator.clipboard.writeText(p.product_id); UI.toast("已复制产品 ID"); } },
-          [el("span", { class: "num" }, [p.product_id]), UI.icon("copy", 12)]),
+        el("button", { class: "key-chip", title: "产品 ID（点击复制完整 ID）：" + p.product_id,
+          onclick: () => { navigator.clipboard.writeText(p.product_id); UI.toast("已复制完整产品 ID"); } },
+          [el("span", { class: "num" }, ["ID:" + shortProductId(p.product_id)]), UI.icon("copy", 12)]),
         el("button", { class: "key-chip", title: "产品接入 Key（点击复制完整 Key）",
           onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制产品接入 Key"); } },
           [el("span", { class: "num" }, ["接入 Key = sk-mcp-••••" + p.mcp_key.slice(-4)]), UI.icon("copy", 12)]),
@@ -201,7 +243,7 @@ function draw() {
         const online = bound.filter(cid => (allCards.find(x => x.card_id === cid) || {}).status === "published").length;
         return el("div", { class: "muted", style: "margin-top:8px" }, [
           `品牌风格 ${brandName(p.brand_file)} · 绑定组件 ${bound.length} 个` +
-          (bound.length ? `（${online} 个在线）` : "") + " · MCP UI 对接" +
+          (bound.length ? `（${online} 个在线）` : "") +
           (bound.length ? "" : " · 点「产品配置」绑定组件"),
         ]);
       })(),

@@ -712,7 +712,7 @@ def product_sia_css(product_id: str, key: str = None):
         return JSONResponse({"error": "invalid_key"}, status_code=401)
     import json as _json
     _bf = os.path.basename(row["brand_file"] or "brand-tokens.default.json")
-    brand_path = os.path.join(os.path.dirname(__file__), "..", "docs", "brand", _bf)
+    brand_path = os.path.join(BASE, "brand", _bf)
     try:
         tk = _json.load(open(brand_path, encoding="utf-8"))
     except Exception:
@@ -838,7 +838,7 @@ async def update_product(product_id: str, request: Request):
     if _bf is not None:
         import os as _os
         if _os.path.basename(str(_bf)) != str(_bf) or not str(_bf).endswith(".json") or not _os.path.exists(
-                _os.path.join(_os.path.dirname(__file__), "..", "docs", "brand", str(_bf))):
+                _os.path.join(BASE, "brand", str(_bf))):
             return JSONResponse({"error": "品牌风格文件不合法"}, status_code=422)
     conn.execute("UPDATE products SET name=?, brand_file=?, card_ids=? WHERE product_id=?",
                  (name, brand_file, card_ids, product_id))

@@ -218,8 +218,6 @@ window.UI = (function () {
           ["cards", "组件工作台", "./cards.html", "board"],
           ["design", "品牌风格", "./design.html", "palette"],
           ["products", "产品与接入", "./products.html", "link"],
-          ["playground:comp", "组件测试", "./playground.html#comp", "play"],
-          ["dashboard:survey", "交互数据（v1 不做）", "./dashboard.html#survey", "chart"],
         ] },
       ],
     },
@@ -271,16 +269,28 @@ window.UI = (function () {
       ]);
       btn.onclick = () => {
         document.querySelectorAll(".menu-pop").forEach(n => n.remove());
-        const pop = el("div", { class: "menu-pop np-pop", role: "listbox" });
-        products.forEach(p => pop.appendChild(el("button", {
-          class: "menu-item np-item" + (p.product_id === cur.product_id ? " on" : ""), role: "option",
-          onclick: () => {
-            pop.remove();
-            localStorage.setItem("sia_product", p.product_id);
-            cur = p;
-            location.reload();
-          } }, [avatar(p.name, 24), el("span", { style: "flex:1;text-align:left" }, [p.name]),
-                p.product_id === cur.product_id ? icon("check", 14) : null])));
+        const pop = el("div", { class: "menu-pop np-pop", role: "listbox" }, [
+          el("div", { class: "np-pop-head" }, ["切换产品",
+            el("span", { class: "np-pop-count" }, [products.length + " 个"])]),
+        ]);
+        products.forEach(p => {
+          const on = p.product_id === cur.product_id;
+          pop.appendChild(el("button", {
+            class: "np-card" + (on ? " on" : ""), role: "option",
+            onclick: () => {
+              pop.remove();
+              localStorage.setItem("sia_product", p.product_id);
+              cur = p;
+              location.reload();
+            } }, [
+            avatar(p.name, 34),
+            el("span", { class: "np-card-meta" }, [
+              el("span", { class: "np-card-name" }, [p.name]),
+              el("span", { class: "np-card-sub" }, [(p.card_ids || []).length + " 个组件实例"]),
+            ]),
+            on ? el("span", { class: "np-card-check" }, [icon("check", 15)]) : null,
+          ]));
+        });
         document.body.appendChild(pop);
         const r = btn.getBoundingClientRect();
         pop.style.minWidth = r.width + "px";
@@ -430,6 +440,13 @@ window.UI = (function () {
     return node;
   }
   const INK = () => getComputedStyle(document.documentElement).getPropertyValue("--text-muted").trim() || "#898781";
+  const fmtTick = (v) => {
+    const a = Math.abs(v);
+    if (a < 1e-9) return "0";
+    if (a >= 100) return String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    if (a >= 1) { const r = Math.round(v * 10) / 10; return r % 1 === 0 ? String(r) : r.toFixed(1); }
+    return v.toFixed(2);
+  };
   const GRID = () => Brand.chartPalette().grid || "#e1e0d9";
 
   function chartFrame(w, h) {
@@ -451,10 +468,8 @@ window.UI = (function () {
     for (let g = 0; g <= 3; g++) {
       const gy = padT + g * (h - padT - padB) / 3;
       svg.appendChild(svgEl("line", { x1: padL, y1: gy, x2: w - padR, y2: gy, stroke: GRID(), "stroke-width": 1 }));
-      const val = maxV - g * span / 3;
       const tl = svgEl("text", { x: padL - 6, y: gy + 4, "text-anchor": "end", "font-size": 10, fill: INK() });
-      const v0 = Math.abs(val) < 1e-9 ? 0 : val;
-      tl.textContent = v0 >= 100 ? Math.round(v0) : v0.toFixed(v0 >= 1 ? 1 : 3);
+      tl.textContent = fmtTick(maxV - g * span / 3);
       svg.appendChild(tl);
     }
     labels.forEach((lb, i) => {
@@ -463,12 +478,27 @@ window.UI = (function () {
       tx.textContent = lb;
       svg.appendChild(tx);
     });
+    if (series.length === 1 && series[0].values.length > 1) {
+      // 单系列：主色面积渐变，走势一眼可读
+      const gid = "lg" + Math.random().toString(36).slice(2, 8);
+      const defs = svgEl("defs", {});
+      defs.innerHTML = `<linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">` +
+        `<stop offset="0" stop-color="${pal[0]}" stop-opacity=".16"/>` +
+        `<stop offset="1" stop-color="${pal[0]}" stop-opacity="0"/></linearGradient>`;
+      svg.appendChild(defs);
+      const vs = series[0].values;
+      const d = "M" + vs.map((v, i) => `${x(i)},${y(v)}`).join(" L") +
+        ` L${x(vs.length - 1)},${h - padB} L${x(0)},${h - padB} Z`;
+      svg.appendChild(svgEl("path", { d, fill: `url(#${gid})`, stroke: "none" }));
+    }
     series.forEach((s, si) => {
       const color = pal[si % pal.length];
       const pts = s.values.map((v, i) => `${x(i)},${y(v)}`).join(" ");
-      svg.appendChild(svgEl("polyline", { points: pts, fill: "none", stroke: color, "stroke-width": 2, "stroke-linejoin": "round" }));
+      svg.appendChild(svgEl("polyline", { points: pts, fill: "none", stroke: color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
       s.values.forEach((v, i) => {
-        const c = svgEl("circle", { cx: x(i), cy: y(v), r: 3.5, fill: color, stroke: "var(--bg-surface)", "stroke-width": 2 });
+        const last = i === s.values.length - 1;
+        const c = svgEl("circle", { cx: x(i), cy: y(v), r: last ? 4.5 : 3, fill: last ? color : "var(--bg-elevated)",
+          stroke: last ? "var(--bg-elevated)" : color, "stroke-width": last ? 2 : 1.5 });
         svgTitle(c, `${labels[i]} · ${s.name}: ${v}${unit}`);
         svg.appendChild(c);
       });
@@ -516,8 +546,7 @@ window.UI = (function () {
       const gy = padT + g * (h - padT - padB) / 3;
       svg.appendChild(svgEl("line", { x1: padL, y1: gy, x2: w - padR, y2: gy, stroke: GRID(), "stroke-width": 1 }));
       const tl = svgEl("text", { x: padL - 6, y: gy + 4, "text-anchor": "end", "font-size": 10, fill: INK() });
-      const val = maxV * (1 - g / 3);
-      tl.textContent = val >= 100 ? Math.round(val) : val.toFixed(val >= 1 ? 1 : 3);
+      tl.textContent = fmtTick(maxV * (1 - g / 3));
       svg.appendChild(tl);
     }
     values.forEach((v, i) => {
@@ -529,6 +558,12 @@ window.UI = (function () {
       });
       svgTitle(rect, `${categories[i]}: ${v}${unit}`);
       svg.appendChild(rect);
+      if (values.length <= 12) {
+        const vt = svgEl("text", { x: bx + bw / 2, y: h - padB - bh - 5, "text-anchor": "middle",
+          "font-size": 10, fill: "var(--text-secondary)", style: "font-variant-numeric:tabular-nums" });
+        vt.textContent = fmtTick(v);
+        svg.appendChild(vt);
+      }
       const tx = svgEl("text", { x: bx + bw / 2, y: h - 10, "text-anchor": "middle", "font-size": 10, fill: INK() });
       tx.textContent = String(categories[i]).slice(0, 6);
       svg.appendChild(tx);
@@ -581,6 +616,10 @@ window.UI = (function () {
     // 魔法棒：一根斜杖 + 杖头一颗实心四角星 + 一粒小光点。16px 下仍清晰，不再是一堆碎星
     wand: '<path d="M3.5 20.5 13 11" stroke-width="2"/><path d="M16.5 2.5l1.3 3.2 3.2 1.3-3.2 1.3-1.3 3.2-1.3-3.2L12 7l3.2-1.3z" fill="currentColor" stroke="none"/><circle cx="7" cy="6" r="1" fill="currentColor" stroke="none"/>',
     copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/>',
+    thumbup: '<path d="M7 11v9M7 11l3.2-6.4A1.8 1.8 0 0 1 13.6 5v4h4.6a1.8 1.8 0 0 1 1.8 2.1l-1.1 6.4a1.8 1.8 0 0 1-1.8 1.5H7"/>',
+    thumbdown: '<path d="M17 13V4M17 13l-3.2 6.4A1.8 1.8 0 0 1 10.4 19v-4H5.8A1.8 1.8 0 0 1 4 12.9l1.1-6.4A1.8 1.8 0 0 1 6.9 5H17"/>',
+    arrowup: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+    arrowdown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
     search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     x: '<path d="M6 6l12 12M18 6 6 18"/>',

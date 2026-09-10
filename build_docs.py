@@ -133,7 +133,17 @@ self.addEventListener("fetch", (e) => {
     print(f"build[{platform}]:", build_id, "| pages:", len(pages), "->", outdir)
 
 
+def sync_brand():
+    # 品牌目录唯一源是仓库根 brand/（服务端读写目录）；docs/brand 与静态站均为构建拷贝
+    src, dst = os.path.join(ROOT, "brand"), os.path.join(DOCS, "brand")
+    if os.path.isdir(src):
+        os.makedirs(dst, exist_ok=True)
+        for f in os.listdir(src):
+            open(os.path.join(dst, f), "wb").write(open(os.path.join(src, f), "rb").read())
+
+
 def build():
+    sync_brand()
     # 清掉 docs/ 里已退役的页面
     for stale in ["apikeys.html", "router.html", "chat.html", "trace.html"]:
         p = os.path.join(DOCS, stale)

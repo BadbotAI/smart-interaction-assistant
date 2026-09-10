@@ -127,6 +127,11 @@ function renderStatusTabs(counts = {}) {
 }
 
 
+function shortProductId2(pid) {
+  const hex = String(pid).replace(/[^0-9a-f]/gi, "").slice(0, 8) || "0";
+  return String(parseInt(hex, 16) % 1000000).padStart(6, "0");
+}
+
 function styleSummary(c) {
   const so = c.style_overrides || {};
   const parts = [];
@@ -326,9 +331,9 @@ function renderProductCover(products, brands, unboundCount) {
         return el("div", { style: "display:flex;align-items:center;gap:8px" }, [nameAnchor, switchBtn]); })(),
       el("div", { class: "pc-meta" }, [
         el("span", { style: "margin-right:8px" }, ["产品 ID"]),
-        el("button", { class: "key-chip", title: "点击复制产品 ID",
+        el("button", { class: "key-chip", title: "点击复制完整产品 ID",
           onclick: () => { navigator.clipboard.writeText(p.product_id); UI.toast("已复制产品 ID"); } },
-          [el("span", { class: "num" }, [p.product_id]), UI.icon("copy", 12)]),
+          [el("span", { class: "num" }, ["ID:" + shortProductId2(p.product_id)]), UI.icon("copy", 12)]),
       ]),
     ]),
     el("div", { style: "flex:1" }),
@@ -1694,7 +1699,7 @@ async function openEditor(cardId, prefill, initStep) {
     const backTo = { style: isNew ? "pick" : null };
     if (step === "done") {
       foot.append(spacer,
-        el("button", { class: "btn", onclick: () => { closeEditor(); location.href = "/web/playground.html#comp"; } }, ["去组件测试"]),
+
         el("button", { class: "btn primary", onclick: () => closeEditor() }, ["完成"]));
       return;
     }

@@ -105,6 +105,18 @@
       });
       return { generated: true, asof: bm.asof, alpha, clusters, models: names, router: v7.router };
     }
+    const regm = pn.match(/^\/v1\/products\/([^/]+)\/registry$/);
+    if (regm) {
+      // 静态站演示：注册表由组件目录组装（真实环境按产品绑定的组件实例生成）
+      const cat = (D["/api/components/catalog"] || {}).catalog || [];
+      const prod = ((D["/api/products"] || {}).products || []).find(p => p.product_id === regm[1]) || {};
+      return { registry_version: "2.1", generated_at: new Date().toISOString(), content_hash: "demo",
+        product_id: regm[1], product_name: prod.name || "演示产品", brand_file: prod.brand_file || "brand-tokens.default.json",
+        usage: "把 components[] 作为工具声明给你的大模型；模型返回 { component_id, params } 后交给 SIA.render 渲染",
+        components: cat.map((t, i) => ({ component_id: "ci-demo-" + String(i + 1).padStart(2, "0"), type: t.type,
+          name: t.label, description: t.desc, interactive: !!t.interactive,
+          params_schema: t.params_schema || {}, fixed: t.fixed || {}, submit_schema: t.submit_schema || null })) };
+    }
     if (pn === "/v1/models") {
       const base = JSON.parse(JSON.stringify(D[pn] || { models: [] }));
       base.models = (base.models || []).filter(m => !modelLocal.deleted.has(m.model_id)).map(m => {

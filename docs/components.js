@@ -139,14 +139,14 @@ window.Components = (function () {
     const deltaStr = p.delta != null ? String(p.delta) : null;
     const up = deltaStr && !deltaStr.startsWith("-");
     return compCard([
-      el("div", { class: "muted" }, [p.label || ""]),
-      el("div", { style: "display:flex;align-items:baseline;gap:10px" }, [
-        el("span", { style: "font-size:var(--font-hero);font-weight:600" }, [String(p.value)]),
+      el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [p.label || ""]),
+      el("div", { style: "display:flex;align-items:baseline;gap:10px;margin-top:2px" }, [
+        el("span", { class: "metric-value" }, [String(p.value)]),
         p.unit ? el("span", { class: "secondary" }, [p.unit]) : null,
-        deltaStr ? el("span", { style: `font-size:var(--font-small);color:${up ? "#006300" : "var(--danger)"}` },
-          [(up ? "上升 " : "下降 ") + deltaStr.replace("-", "")]) : null,
+        deltaStr ? el("span", { class: "delta-chip " + (up ? "up" : "down"), title: up ? "较基线上升" : "较基线下降" }, [
+          UI.icon(up ? "arrowup" : "arrowdown", 11), deltaStr.replace("-", "")]) : null,
       ]),
-      p.baseline ? el("div", { class: "muted" }, ["基线：" + p.baseline]) : null,
+      p.baseline ? el("div", { class: "muted", style: "font-size:var(--font-caption);margin-top:4px" }, ["基线：" + p.baseline]) : null,
     ]);
   }
 
@@ -158,39 +158,60 @@ window.Components = (function () {
   }
 
   function rTimeline(env) {
+    // v2.3 视觉重做：节点圆点 + 竖连线，最新一条主色实心强调
     const p = env.params;
+    const evs = p.events || [];
     return compCard([
       compTitle(p.title),
-      el("div", {}, (p.events || []).map(e =>
-        el("div", { style: "display:flex;gap:12px;padding:6px 0;border-left:2px solid var(--primary);padding-left:12px;margin-left:4px" }, [
-          el("div", { class: "muted", style: "min-width:48px;font-variant-numeric:tabular-nums" }, [e.ts || ""]),
-          el("div", {}, [
-            el("div", { style: "font-weight: 600" }, [e.title || ""]),
-            e.desc ? el("div", { class: "muted" }, [e.desc]) : null,
-          ]),
-        ]))),
+      el("div", { class: "tl-list" }, evs.map((e, i) => el("div", { class: "tl-row" }, [
+        el("div", { class: "tl-ts" }, [e.ts || ""]),
+        el("div", { class: "tl-rail" }, [
+          el("span", { class: "tl-dot" + (i === evs.length - 1 ? " now" : "") }),
+          i < evs.length - 1 ? el("span", { class: "tl-line" }) : null,
+        ]),
+        el("div", { class: "tl-body" }, [
+          el("div", { class: "tl-title" + (i === evs.length - 1 ? " now" : "") }, [e.title || ""]),
+          e.desc ? el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [e.desc]) : null,
+        ]),
+      ]))),
     ]);
   }
 
   function rSteps(env) {
+    // v2.3 视觉重做：真步骤条——圆形节点 + 连线 + 完成/当前/待办三态
     const p = env.params;
-    const cur = p.current_index || 0;
+    const steps = p.steps || [];
+    const cur = Math.min(Math.max(p.current_index || 0, 0), Math.max(steps.length - 1, 0));
     return compCard([
       compTitle(p.title),
-      el("div", { style: "display:flex;gap:6px;flex-wrap:wrap" }, (p.steps || []).map((s, i) =>
-        el("span", { class: "chip " + (i < cur ? "green" : i === cur ? "blue" : "gray") },
-          [`${i + 1}. ${s}`]))),
+      el("div", { class: "steps-row" }, steps.map((s, i) => {
+        const st = i < cur ? "done" : i === cur ? "cur" : "todo";
+        return el("div", { class: "step-cell" }, [
+          el("div", { class: "step-track" }, [
+            el("span", { class: "step-line" + (i === 0 ? " ghost" : i <= cur ? " fill" : "") }),
+            el("span", { class: "step-node " + st }, st === "done" ? [UI.icon("check", 12)] : [String(i + 1)]),
+            el("span", { class: "step-line" + (i === steps.length - 1 ? " ghost" : i < cur ? " fill" : "") }),
+          ]),
+          el("div", { class: "step-label " + st }, [String(s)]),
+        ]);
+      })),
     ]);
   }
 
   function rTable(env) {
     const p = env.params;
+    const rows = p.rows || [];
+    // 数字列（含 % / 千分位 / 正负号）自动右对齐 + 等宽数字
+    const numCol = (p.columns || []).map((_, j) =>
+      rows.length > 0 && rows.every(r => /^[-+]?[\d.,]+%?$/.test(String((r || [])[j] ?? "").trim())));
     return compCard([
       compTitle(p.title),
       el("div", { style: "overflow-x:auto" }, [
         el("table", { class: "data" }, [
-          el("thead", {}, [el("tr", {}, (p.columns || []).map(c => el("th", {}, [String(c)])))]),
-          el("tbody", {}, (p.rows || []).map(r => el("tr", {}, r.map(c => el("td", {}, [String(c)]))))),
+          el("thead", {}, [el("tr", {}, (p.columns || []).map((c, j) =>
+            el("th", { class: numCol[j] ? "num-col" : "" }, [String(c)])))]),
+          el("tbody", {}, rows.map(r => el("tr", {}, (r || []).map((c, j) =>
+            el("td", { class: numCol[j] ? "num-col" : "" }, [String(c)]))))),
         ]),
       ]),
     ]);
@@ -224,10 +245,11 @@ window.Components = (function () {
     const p = env.params;
     const slices = (p.slices || []).slice(0, 7);
     const total = slices.reduce((s, x) => s + x.value, 0) || 1;
-    const pal = Brand.chartPalette().categorical;
+    const pal = (window.Brand ? Brand.chartPalette() : {}).categorical
+      || ["#3E63DD", "#0FA3A3", "#8E4EC6", "#EE7712", "#D6409F"];
     return compCard([
       compTitle(p.title),
-      el("div", { style: "display:flex;height:16px;border-radius:4px;overflow:hidden;gap:2px" },
+      el("div", { style: "display:flex;height:18px;border-radius:6px;overflow:hidden;gap:2px" },
         slices.map((s, i) => el("div", {
           style: `width:${(s.value / total * 100)}%;background:${pal[i % pal.length]}`,
           title: `${s.label}: ${(s.value / total * 100).toFixed(1)}%`,
@@ -1282,12 +1304,12 @@ window.Components = (function () {
         up.disabled = down.disabled = true;
         up.classList.add("on");
         emitBinary(env, ctx, { key: dim.key }, 1.0, null);
-      } }, ["赞"]);
+      } }, [UI.icon("thumbup", 13), "赞"]);
       const down = el("button", { class: "fb-btn down", title: "踩", onclick: () => {
         up.disabled = down.disabled = true;
         down.classList.add("on");
         askDownReason(env, ctx);
-      } }, ["踩"]);
+      } }, [UI.icon("thumbdown", 13), "踩"]);
       wrap.append(up, down);
       return wrap;
     };
@@ -1337,31 +1359,33 @@ window.Components = (function () {
     // 折叠呈现（走查 A9）：核心信号源，但不该在每条聚合回答下强占屏幕
     const p = env.params;
     const cands = p.candidates || [];
-    const box = el("details", {
-      class: "comp",
-      style: "background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:10px 14px;margin-top:8px",
-    }, [
-      el("summary", { style: "cursor:pointer;color:var(--text-secondary);font-size:var(--font-small)" },
-        [`本次综合了 ${cands.length} 个候选回答，展开选出你认为更好的（可选）`]),
+    const box = el("div", { class: "comp" }, [
+      compTitle(p.prompt || "哪个回答更好？"),
+      el("div", { class: "muted", style: "font-size:var(--font-caption);margin-top:-4px" },
+        [`本次综合了 ${cands.length} 个候选回答，选出你认为更好的（可选）`]),
     ]);
-    const list = el("div", { style: "display:flex;flex-direction:column;gap:8px;margin-top:8px" });
-    cands.forEach(c => {
-      list.appendChild(el("div", {
-        style: "border:1px solid var(--border);border-radius:var(--radius-control);padding:8px 12px;cursor:pointer",
-        onclick: (e) => {
-          list.querySelectorAll("div").forEach(d => d.style.pointerEvents = "none");
-          e.currentTarget.style.borderColor = "var(--primary)";
-          e.currentTarget.style.background = "var(--primary-weak)";
-          ctx.sendEvent("feedback_given", env, {
-            selected_model_id: c.model_id,
-            unselected_model_ids: cands.filter(x => x.model_id !== c.model_id).map(x => x.model_id),
-          });
-          UI.toast("已记录你的择优选择");
-        },
-      }, [
-        el("div", { class: "muted" }, [c.alias || c.model_id]),
-        el("div", { style: "font-size:var(--font-small)" }, [c.content || ""]),
-      ]));
+    const list = el("div", { class: "fb-cands" });
+    cands.forEach((c, i) => {
+      const cell = el("div", { class: "fb-cand", role: "radio", "aria-checked": "false", tabindex: "0" }, [
+        el("div", { class: "fb-cand-head" }, [
+          el("span", { class: "chip blue" }, [c.alias || c.label || `候选 ${i + 1}`]),
+          el("span", { class: "fb-cand-check" }, [UI.icon("check", 12)]),
+        ]),
+        el("div", { class: "fb-cand-body" }, [c.content || ""]),
+      ]);
+      const pick = () => {
+        list.querySelectorAll(".fb-cand").forEach(d => { d.style.pointerEvents = "none"; d.classList.add("settled"); });
+        cell.classList.add("on");
+        cell.setAttribute("aria-checked", "true");
+        ctx.sendEvent("feedback_given", env, {
+          selected_model_id: c.model_id,
+          unselected_model_ids: cands.filter(x => x.model_id !== c.model_id).map(x => x.model_id),
+        });
+        UI.toast("已记录你的择优选择");
+      };
+      cell.onclick = pick;
+      cell.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } };
+      list.appendChild(cell);
     });
     box.appendChild(list);
     return box;
