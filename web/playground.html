@@ -25,7 +25,7 @@
 const { el } = UI;
 const MODES = {
   comp: { nav: "playground:comp", title: "智能交互测试", seg: "智能交互测试",
-    help: "像用户一样提问：命中触发条件时，AI 会在回答里插入你配置的交互组件。在这里验证触发词准不准、组件长什么样、提交后续动作对不对；对效果不满意可从组件直接进编辑。测试数据不计入业务看板。" },
+    help: "像用户一样提问：大模型按「组件说明」判断该出哪个组件（v2 注册制，无触发条件）。在这里验证组件说明写得清不清楚、组件长什么样、提交链路对不对；不满意可从组件直接进编辑。测试数据不计入业务看板。" },
   model: { nav: "playground:model", title: "模型路由测试", seg: "模型路由测试",
     help: "验证路由怎么选模型：切换不同路由策略问同一个问题，每次回答展示完整过程与成本。" },
 };
@@ -41,7 +41,14 @@ async function buildSuggestions(m) {
       const picks = live.slice(0, 6).map(c => ({ text: c.trigger_examples[0], label: "会触发「" + c.name + "」" }));
       if (picks.length) return picks;
     } catch (e) {}
-    return [{ text: "我的货三天没更新了", label: "触发物流异常处理" }, { text: "我要开发票", label: "触发发票类型确认" }];
+    return [
+      { text: "我的货延误了有哪些处理方式可以选", label: "模型选出「选择表单」并动态给选项" },
+      { text: "帮我登记一下联系方式", label: "模型选出「信息表单」" },
+      { text: "取消这笔订单", label: "模型选出「操作确认」" },
+      { text: "这几个月的费用走势帮我看看", label: "模型选出「图表」直接渲染" },
+      { text: "把这几项整理成表格对比一下", label: "模型选出「表格」" },
+      { text: "这两个方案你觉得哪个好", label: "模型选出「偏好选择」" },
+    ];
   }
   return [
     { text: "帮我看看这段 SQL 为什么慢", label: "代码生成：看判维与打分" },
@@ -65,9 +72,9 @@ async function boot() {
   const suggestions = await buildSuggestions(k);
   TestChat.open({
     mountEl: "#chatHost", prefill, autosend, suggestions,
-    guideTitle: k === "comp" ? "试试这些会触发组件的问法" : "换一种策略，问同一个问题，对比路由决策",
+    guideTitle: k === "comp" ? "试试这些问法，看模型选出什么组件" : "换一种策略，问同一个问题，对比路由决策",
     hint: k === "comp"
-      ? "点击任意问法发送；命中触发条件时 AI 会插入对应的交互组件，可直接操作提交、也可从组件进入编辑"
+      ? "点击任意问法发送；大模型按组件说明判断出哪个组件（演示为规则模拟），交互类可提交、展示类直接渲染，也可从组件进入编辑"
       : "下方可切换路由策略与聚合参数（模拟客户端的 aggregate 传参）；每次回答展示判维结果、打分过程、最终去向与本次成本。演示环境：模型与计价均为模拟",
     keepReasoning: k === "model",
     editableCards: k === "comp",

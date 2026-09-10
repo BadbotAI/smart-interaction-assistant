@@ -147,5 +147,22 @@ assert((r.trigger_examples || []).length === 3, "应生成 3 条示例问法");
 r = await post("/api/scenarios/rewrite-trigger", { description: "s d f g" });
 assert(r.trigger_description.includes("s d f g") && (r.trigger_examples || []).length === 3, "乱输入也应结构完整");
 
+// 11) v2 智能助手：组件目录 / schema 预览 / 模型选件（规则模拟）
+const cat = (await api("/api/components/catalog")).catalog || [];
+assert(cat.length === 7, "组件目录应为 7 类，实际 " + cat.length);
+assert(cat.filter(c => c.interactive).length === 5 && cat.filter(c => !c.interactive).length === 2, "交互 5 + 展示 2");
+r = await post("/api/components/schema-preview", { component_type: "select.single", config: {} });
+assert(r.params_schema && r.params_schema.properties && r.params_schema.properties.options, "选择表单 schema 应含 options");
+evts = await sse({ text: "取消这笔订单", skip_card_match: false });
+fin = evts.find(e => e.ask_card) || {};
+assert(fin.ask_card && fin.ask_card.component_type === "control.confirm", "「取消订单」应选出操作确认: " + (fin.ask_card || {}).component_type);
+evts = await sse({ text: "这几个月的费用走势帮我看看", skip_card_match: false });
+fin = evts.find(e => e.components) || {};
+assert(fin.components && fin.components[0].component_type.startsWith("chart."), "「费用走势」应直接渲染图表");
+evts = await sse({ text: "我的货延误了有哪些处理方式可以选", skip_card_match: false });
+fin = evts.find(e => e.ask_card) || {};
+assert(fin.ask_card && fin.ask_card.component_type.startsWith("select.") && (fin.ask_card.params.options || []).length >= 2,
+  "「处理方式」应选出选择表单并动态给选项");
+
 console.log(failures === 0 ? "MOCK SMOKE: ALL PASS" : `MOCK SMOKE: ${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

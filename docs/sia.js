@@ -1,9 +1,10 @@
-// Smart Interaction Assistant 植入 SDK（演示版）
-// 用法：<script async src=".../sia.js" data-key="sk-route-xxxx"></script>
-//   sia('init')                                    —— 初始化（可省，首个命令自动初始化）
-//   sia('show', cardId, { mount: '#slot' })        —— 显式唤起组件
-//   sia('on', { selector, event }, cardId, opts)   —— 规则触发（GTM 式）
-// 渲染在 Shadow DOM 内，样式与宿主页面双向隔离；数据经 /v1/events 回传。
+// Smart Interaction Assistant 植入 SDK（v2 组件注册制 · 演示版 · 仅 Web 端）
+// 接入三步（完整口径见平台「产品 → SDK 接入」）：
+//   1. 后端拉注册表 GET /v1/products/{pid}/registry?key=…，把组件作为工具声明给大模型
+//   2. 前端引入 <link href=".../sia.css"> 与 <script src=".../sia.js" data-key="…">
+//   3. 模型返回 { component_id, params } 后交给 SIA.render(container, call) 渲染
+// 交互类组件用户点「提交」自动按 submit 结构回传（/v1/events）；展示类直接渲染无提交。
+// 渲染在 Shadow DOM 内，样式与宿主页面双向隔离；配置在出包时固化，平台改配置需重新部署。
 (function () {
   const scriptEl = document.currentScript;
   const BASE = scriptEl ? scriptEl.src.replace(/\/[^/]*$/, "") : "";
@@ -24,7 +25,9 @@
         if (!window.Brand) await loadScript(BASE + "/tokens.js");
         if (!window.UI) await loadScript(BASE + "/ui.js");
         if (!window.Components) await loadScript(BASE + "/components.js");
-        S.css = await fetch(BASE + "/shared.css").then(r => r.text());
+        const base = await fetch(BASE + "/shared.css").then(r => r.text());
+        const sdk = await fetch(BASE + "/sia.css").then(r => r.ok ? r.text() : "").catch(() => "");
+        S.css = base + "\n" + sdk;
         try { await window.Brand.loadActive?.(); } catch (e) {}
       })();
     }
@@ -51,16 +54,9 @@
     fetch(ORIGIN + "/v1/events", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
   }
 
-  async function show(cardId, opts = {}) {
-    await ensureDeps();
-    const r = await fetch(ORIGIN + "/v1/embed/envelope/" + cardId + "?key=" + encodeURIComponent(S.key));
-    const data = await r.json();
-    if (!r.ok || !data.envelope) { console.warn("[sia] " + (data.error || "加载组件失败")); return null; }
-    const env = data.envelope;
-    const mountEl = typeof opts.mount === "string" ? document.querySelector(opts.mount) : (opts.mount || document.body);
-    if (!mountEl) { console.warn("[sia] 挂载点不存在：" + opts.mount); return null; }
+  function mountEnvelope(env, mountEl, opts = {}) {
     const hostNode = document.createElement("sia-card");
-    hostNode.setAttribute("card-id", cardId);
+    hostNode.setAttribute("card-id", env.card_ref?.card_id || "");
     const shadow = hostNode.attachShadow({ mode: "open" });
     const style = document.createElement("style");
     // Shadow DOM 里 :root 不匹配，把设计变量映射到 :host；all:initial 先重置再定义，保证与宿主双向隔离
@@ -84,6 +80,39 @@
     return hostNode;
   }
 
+  async function fetchEnvelope(componentId) {
+    const r = await fetch(ORIGIN + "/v1/embed/envelope/" + componentId + "?key=" + encodeURIComponent(S.key));
+    const data = await r.json();
+    if (!r.ok || !data.envelope) { console.warn("[sia] " + (data.error || "加载组件失败")); return null; }
+    return data.envelope;
+  }
+
+  // v2 核心入口：渲染大模型返回的组件调用 { component_id, params }
+  // params 按注册表 params_schema 覆盖组件默认内容（prompt / options / candidates / columns / rows / series…）
+  async function render(mount, call = {}) {
+    await ensureDeps();
+    const mountEl = typeof mount === "string" ? document.querySelector(mount) : (mount || document.body);
+    if (!mountEl) { console.warn("[sia] 挂载点不存在：" + mount); return null; }
+    if (!call.component_id) { console.warn("[sia] render 需要 component_id（来自组件注册表）"); return null; }
+    const env = await fetchEnvelope(call.component_id);
+    if (!env) return null;
+    const p = call.params || {};
+    env.params = { ...env.params, ...p };
+    // 图表组件：模型在参数里指定 kind（line / bar），按 kind 切换渲染类型
+    if (env.component_type && env.component_type.startsWith("chart.") && (p.kind === "line" || p.kind === "bar"))
+      env.component_type = "chart." + p.kind;
+    return mountEnvelope(env, mountEl, call);
+  }
+
+  async function show(cardId, opts = {}) {
+    await ensureDeps();
+    const env = await fetchEnvelope(cardId);
+    if (!env) return null;
+    const mountEl = typeof opts.mount === "string" ? document.querySelector(opts.mount) : (opts.mount || document.body);
+    if (!mountEl) { console.warn("[sia] 挂载点不存在：" + opts.mount); return null; }
+    return mountEnvelope(env, mountEl, opts);
+  }
+
   function on(rule, cardId, opts = {}) {
     const evName = rule.event || "click";
     document.addEventListener(evName, (e) => {
@@ -94,10 +123,12 @@
     }, true);
   }
 
-  const HANDLERS = { init: (cfg) => { if (cfg && cfg.key) S.key = cfg.key; ensureDeps(); }, show, on };
+  const HANDLERS = { init: (cfg) => { if (cfg && cfg.key) S.key = cfg.key; ensureDeps(); }, render, show, on };
   window.sia = function (cmd, ...args) {
     const fn = HANDLERS[cmd];
     if (!fn) { console.warn("[sia] 未知命令：" + cmd); return; }
     return fn(...args);
   };
+  // v2 显式对象入口（与命令式等价）：SIA.render(container, { component_id, params })
+  window.SIA = { render, show, on, init: HANDLERS.init };
 })();

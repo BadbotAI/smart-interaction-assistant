@@ -1,0 +1,24 @@
+
+.brand-scope {
+  --brand-primary: #1DA1F2;
+  --brand-primary-weak: #E9F1FB;
+  --brand-accent: #6E4BD8;
+  --brand-ring: #1DA1F2;
+  --brand-bg-page: #FFFFFF;
+  --brand-bg-surface: #F7F8F8;
+  --brand-text-primary: #0F1B26;
+  --brand-text-secondary: #43596B;
+  --brand-text-muted: #71828F;
+  --brand-border: #E1EAF1;
+  --brand-success: #17A673;
+  --brand-warning: #B97A17;
+  --brand-danger: #E5484D;
+  --brand-shadow: 0 1px 3px rgba(15, 27, 38, .08);
+  --brand-density: regular;
+  --brand-radius-card: 16px;
+  --brand-radius-control: 12px;
+  --brand-font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --brand-font-size: 14px;
+  --brand-font-weight: 400;
+}
+sia-card { display: block; }

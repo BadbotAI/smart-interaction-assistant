@@ -30,6 +30,11 @@ window.Brand = (function () {
     "motion.duration_base": "--dur-base",
     "chart.grid": "--chart-grid",
     "chart.axis": "--chart-axis",
+    // v2 语义 token：强调色 / 焦点环 / 阴影 / 密度
+    "color.accent": "--brand-accent",
+    "color.ring": "--brand-ring",
+    "shadow": "--brand-shadow",
+    "density": "--brand-density",
   };
 
   function get(obj, path) {

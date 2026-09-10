@@ -192,6 +192,15 @@
       };
     }
     if (pn === "/api/cards") return { card: { card_id: "demo-" + Math.random().toString(36).slice(2, 8), version: 0, status: "draft", ...(body || {}) } };
+    if (pn === "/api/components/schema-preview") {
+      const cat = ((D["/api/components/catalog"] || {}).catalog) || [];
+      const ct = (body && body.component_type) || "";
+      const t = ct === "chart.line" || ct === "chart.bar" ? "chart" : ct.startsWith("select.") ? "select"
+        : ct === "form.structured" ? "form" : ct === "control.confirm" ? "confirm"
+        : ct === "feedback.binary" ? "feedback" : ct === "feedback.preference" ? "preference" : ct;
+      const hit = cat.find(x => x.type === t) || {};
+      return { params_schema: hit.params_schema || {}, fixed: {}, submit_schema: hit.submit_schema || null };
+    }
     if (pn === "/api/settings/router-model") {
       const mid = (body && body.model_id || "").trim();
       if (!mid) { v7.router = null; return { ok: true, router: null }; }
@@ -312,21 +321,36 @@
         echo_results: false } };
   }
 
+  // v2 选件模拟：大模型按组件说明判断该出哪个组件（与服务端规则同步；生产由真实模型决定）
+  const V2_PICK = [
+    ["chart", ["走势", "趋势", "变化", "图表", "画个图", "分布", "环比", "同比"]],
+    ["table", ["表格", "列个表", "清单", "明细", "整理成表", "列出来"]],
+    ["control.confirm", ["取消", "删除", "撤销", "退款", "终止", "变更", "确认执行"]],
+    ["form.structured", ["登记", "填写", "联系方式", "补充信息", "留个", "资料", "预约"]],
+    ["feedback.preference", ["哪个好", "哪份好", "择优", "更认可", "两个方案"]],
+    ["feedback.binary", ["评价一下", "满意吗", "打个分", "反馈"]],
+    ["select", ["选", "挑", "哪种", "方式", "方案", "怎么处理", "有哪些"]],
+  ];
+  function gen_v2_options(text) {
+    if (/货|快递|延误|派送/.test(text)) return ["加急派送", "改约取件时间", "转自提点", "申请破损赔付"];
+    if (/发票|开票/.test(text)) return ["电子普票", "增值税专票", "纸质普票"];
+    if (/方案|对比/.test(text)) return ["方案 A · 时效优先", "方案 B · 成本优先", "方案 C · 均衡"];
+    return ["确认继续", "查看详情", "换个方案", "稍后处理"];
+  }
+
   function matchCard(text) {
     const cards = ((D["/api/cards"] || {}).cards || [])
       .map(c => cardStatus[c.card_id] ? { ...c, status: cardStatus[c.card_id] } : c)
-      .filter(c =>
-      (c.status === "published" || (c.status === "draft" && c.version >= 1)) &&
-      ["collect", "control"].includes(c.semantic_category));
-    let best = null;
-    for (const c of cards) {
-      for (const t of [c.trigger_description || "", ...(c.trigger_examples || [])]) {
-        if (!t) continue;
-        if (t === text || (t.length >= 5 && (text.includes(t) || t.includes(text)))) { best = c; break; }
+      .filter(c => c.status === "published");
+    const typeOf = ct => ct === "chart.line" || ct === "chart.bar" ? "chart"
+      : ct.startsWith("select.") ? "select" : ct;
+    for (const [t, words] of V2_PICK) {
+      if (words.some(w => text.includes(w))) {
+        const hit = cards.find(c => typeOf(c.component_type) === t);
+        if (hit) return hit;
       }
-      if (best) break;
     }
-    return best;
+    return null;
   }
 
   function sseStream(steps, gap) {
@@ -360,11 +384,39 @@
     // 智能交互：命中触发条件 -> 返回组件信封
     if (!(body && body.skip_card_match)) {
       const hit = matchCard(text);
-      if (hit) {
+      if (hit && (hit.semantic_category === "present")) {
+        // v2 展示类：模型判定用它翻译结构化内容——带演示数据直接渲染，无提交
+        const isTable = hit.component_type === "table";
+        const params = isTable
+          ? { title: "分区域概览", columns: ["区域", "数量", "环比"], rows: [["华东", "352", "2.3%"], ["华南", "332", "1.5%"], ["华北", "372", "3.2%"]] }
+          : { title: "近半年走势", categories: ["4月", "5月", "6月", "7月", "8月", "9月"],
+              series: [{ name: "金额（万元）", values: [122, 165, 148, 161, 178, 190] }] };
         return sseStream([
-          { step: "match", text: `触发条件命中：「${hit.name}」` },
+          { step: "match", text: `模型判断适用组件：「${hit.name}」（展示类，直接渲染）` },
           { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
-            content: "", ask_card: makeEnvelope(hit),
+            content: `已为你整理为${isTable ? "表格" : "图表"}：${params.title}`,
+            components: [{ schema_version: "1.0.0", render_id: "v2-" + Math.random().toString(36).slice(2, 8),
+              component_type: hit.component_type, semantic_category: "present", trigger_source: "model_tool_call",
+              card_ref: { card_id: hit.card_id, version: hit.version }, params }],
+            decision_summary: { mode: "auto", switch_result: "fastlane", final_model: "swift-4b", candidates: ["swift-4b"],
+              total_cost: 0.0002, total_latency_ms: 240,
+              policy: { policy_id: "policy-global-balanced", name: "全局均衡", latency_tier: "balanced", K: 3 } },
+            usage: { cost: 0.0002, tokens: 120 } },
+        ], 350);
+      }
+      if (hit) {
+        const env = makeEnvelope(hit);
+        // v2 动态选项：选择组件未预置选项时模拟模型按对话给出
+        if (hit.component_type.startsWith("select.") && !(env.params.options || []).length)
+          env.params.options = gen_v2_options(text);
+        if (hit.component_type === "feedback.preference" && !(env.params.candidates || []).length)
+          env.params.candidates = [
+            { alias: "方案 A", label: "方案 A", content: "优先保证时效：改走直达线路，成本上浮约 8%。" },
+            { alias: "方案 B", label: "方案 B", content: "优先控制成本：维持现有线路，预计多用 2 天。" }];
+        return sseStream([
+          { step: "match", text: `模型判断适用组件：「${hit.name}」` },
+          { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
+            content: "", ask_card: env,
             decision_summary: { mode: "auto", switch_result: "await_user", final_model: null, candidates: [],
               total_cost: 0, total_latency_ms: 120,
               policy: { policy_id: "policy-global-balanced", name: "全局均衡", latency_tier: "balanced", K: 3 } },

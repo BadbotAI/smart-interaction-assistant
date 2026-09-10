@@ -19,14 +19,14 @@
     <button type="button" class="tab active">产品管理</button>
     <a class="tab" href="./design.html" style="text-decoration:none">品牌风格管理</a>
   </div>
-  <div class="muted" style="margin-bottom:14px">一个产品 = 一个品牌风格 + 多个组件 + 一个 MCP 接入点；风格在「品牌风格管理」标签页里新建与编辑</div>
+  <div class="muted" style="margin-bottom:14px">一个产品 = 一个品牌风格 + 多个组件 + 一份 SDK 接入配置；风格在「品牌风格管理」标签页里新建与编辑</div>
   <div id="listBox"></div>
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=d70be8bd"></script>
-<script src="./mock_api.js?v=15b223fa"></script>
-<script src="./tokens.js?v=360e29ec"></script>
+<script src="./mock_data.js?v=3e97a1d2"></script>
+<script src="./mock_api.js?v=7f86550f"></script>
+<script src="./tokens.js?v=64d83daa"></script>
 <script src="./ui.js?v=ff5d6dcf"></script>
 <script>
 UI.nav("products");
@@ -39,18 +39,24 @@ function brandName(file) {
   return b ? (b.brand_name || b.file) : file;
 }
 
-function mcpSnippet(p) {
+function sdkSnippet(p) {
+  const origin = location.origin;
   return [
-    `// MCP UI 接入「${p.name}」：把本产品的接入点加进你的 MCP 客户端配置`,
-    `{`,
-    `  "mcpServers": {`,
-    `    "sia-${p.product_id}": {`,
-    `      "url": "https://your-domain/v1/mcp",`,
-    `      "headers": { "Authorization": "Bearer ${p.mcp_key}" }`,
-    `    }`,
-    `  }`,
-    `}`,
-    `// 连接后即可使用该产品绑定的 ${p.card_ids.length} 个交互组件，渲染自动应用「${brandName(p.brand_file)}」`,
+    `// 「${p.name}」SDK 接入（v2 组件注册制 · 仅 Web 端）`,
+    `// 配置在出包时固化：平台上修改组件或风格后，需重新拉取注册表并重新部署前端`,
+    ``,
+    `// 第 1 步 · 后端：拉取组件注册表，作为工具声明给你的大模型`,
+    `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`,
+    `// 返回 components[]：每个组件的说明 + params_schema + 提交回传结构`,
+    `// 模型决定出组件时返回 { component_id, params }`,
+    ``,
+    `// 第 2 步 · 前端：引入 SDK（JS + CSS，样式含本产品的品牌风格 token）`,
+    `<link rel="stylesheet" href="${origin}/web/sia.css">`,
+    `<script src="${origin}/web/sia.js" data-key="${p.mcp_key}" defer><\/script>`,
+    ``,
+    `// 第 3 步 · 渲染与回传：把模型返回的组件调用交给 SDK`,
+    `SIA.render(container, { component_id: "…", params: { … } })`,
+    `// 交互类组件用户点「提交」时自动按 submit 结构回传；展示类组件直接渲染、无提交`,
   ].join("\n");
 }
 
@@ -85,14 +91,14 @@ function configProduct(p) {
   const form = productForm(p);
   const err = el("div", { class: "field-error" });
   const access = el("div", { class: "field", style: "margin-top:4px" }, [
-    el("span", { class: "label-text" }, ["MCP 接入信息"]),
+    el("span", { class: "label-text" }, ["SDK 接入"]),
     el("div", { class: "drawer-meta", style: "margin-bottom:8px" }, [
-      el("span", {}, ["接入 Key"]),
+      el("span", {}, ["产品接入 Key"]),
       el("span", { class: "cr-id num", style: "cursor:pointer", title: "点击复制",
-        onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制 MCP 接入 Key"); } },
+        onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制产品接入 Key"); } },
         [p.mcp_key.slice(0, 12) + "…"]),
       el("div", { style: "flex:1" }),
-      el("button", { class: "btn small", onclick: () => { navigator.clipboard.writeText(mcpSnippet(p)); UI.toast("已复制 MCP 接入配置"); } }, [UI.icon("copy", 13), "复制接入配置"]),
+      el("button", { class: "btn small", onclick: () => { navigator.clipboard.writeText(sdkSnippet(p)); UI.toast("已复制 SDK 接入配置（三步）"); } }, [UI.icon("copy", 13), "复制接入配置"]),
     ]),
 
   ]);
@@ -157,7 +163,7 @@ function draw() {
         el("span", { style: "font-weight:700;font-size:var(--font-title);width:200px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: p.name }, [p.name]),
         el("div", { style: "flex:1" }),
         el("button", { class: "btn small iconic", title: "复制 MCP 接入配置", "aria-label": "复制 MCP 接入配置",
-          onclick: () => { navigator.clipboard.writeText(mcpSnippet(p)); UI.toast("已复制 MCP 接入配置，贴进你的 MCP 客户端即可"); } }, [UI.icon("copy", 15)]),
+          onclick: () => { navigator.clipboard.writeText(sdkSnippet(p)); UI.toast("已复制 SDK 接入配置（三步）"); } }, [UI.icon("copy", 15)]),
         el("button", { class: "btn small", onclick: () => configProduct(p) }, ["产品配置"]),
         (() => { const more = el("button", { class: "btn iconic round", title: "更多", "aria-label": "更多操作",
           onclick: () => { UI.menu(more, [

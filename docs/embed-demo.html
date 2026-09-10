@@ -49,14 +49,16 @@
     <h2>植入点二：显式调用</h2>
     <div class="tip">客户代码在业务流程里主动唤起组件：sia('show', cardId, { mount: '#slot' })</div>
     <button class="hbtn" id="show-btn">唤起交互组件</button>
+    <div class="tip" style="margin-top:14px">v2 注册制：模型返回 { component_id, params } 后交给 SDK —— SIA.render('#slot', call)</div>
+    <button class="hbtn" id="render-btn">模拟模型返回组件调用</button>
     <div id="slot" style="margin-top:14px"></div>
   </div>
 </div>
 
 <script src="./sia.js" data-key="sk-route-demo"></script>
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=d70be8bd"></script>
-<script src="./mock_api.js?v=15b223fa"></script>
+<script src="./mock_data.js?v=3e97a1d2"></script>
+<script src="./mock_api.js?v=7f86550f"></script>
 <script>
 (async () => {
   // 演示页：取一张已上线配置做示例（真实客户场景由平台下发 cardId）
@@ -74,6 +76,11 @@
   sia("on", { selector: "#help-btn", event: "click" }, cardId, { mount: ".goods" });
   // 植入点二：显式调用
   document.getElementById("show-btn").onclick = () => sia("show", cardId, { mount: "#slot" });
+  // v2 注册制演示：假装大模型判定要出选择组件，并动态给出候选项（params 覆盖组件默认内容）
+  document.getElementById("render-btn").onclick = () => SIA.render("#slot", {
+    component_id: cardId,
+    params: { prompt: "模型按当前对话给出的问题", options: ["方案 A · 时效优先", "方案 B · 成本优先", "方案 C · 均衡"] },
+  });
   if (params.get("auto")) sia("show", cardId, { mount: "#slot" });
 })();
 </script>

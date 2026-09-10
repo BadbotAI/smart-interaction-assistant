@@ -1,0 +1,27 @@
+/* Smart Interaction Assistant SDK 样式（v2 三件套之一）
+ * 承载品牌风格 token 的默认值：产品在平台配置的品牌风格出包时固化到这里（演示为通用默认）。
+ * 组件级样式覆盖（高度 / 倒角 / 配色 / 密度 / 阴影 / 字号档）由渲染引擎按实例注入，优先于本文件。
+ * 全部变量只作用于 .brand-scope（组件容器），不污染宿主页面。 */
+.brand-scope {
+  --brand-primary: #1DA1F2;
+  --brand-primary-weak: #E9F1FB;
+  --brand-accent: #6E4BD8;
+  --brand-ring: #1DA1F2;
+  --brand-bg-page: #FFFFFF;
+  --brand-bg-surface: #F7F8F8;
+  --brand-text-primary: #0F1B26;
+  --brand-text-secondary: #43596B;
+  --brand-text-muted: #71828F;
+  --brand-border: #E1EAF1;
+  --brand-success: #17A673;
+  --brand-warning: #B97A17;
+  --brand-danger: #E5484D;
+  --brand-shadow: 0 1px 3px rgba(15, 27, 38, .08);
+  --brand-density: regular;
+  --brand-radius-card: 16px;
+  --brand-radius-control: 12px;
+  --brand-font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --brand-font-size: 14px;
+  --brand-font-weight: 400;
+}
+sia-card { display: block; }

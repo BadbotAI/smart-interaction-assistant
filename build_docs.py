@@ -14,7 +14,7 @@ WEB = os.path.join(ROOT, "web")
 DOCS = os.path.join(ROOT, "docs")                       # 智能交互平台站（本仓库 Pages）
 RSITE = os.path.expanduser("~/Desktop/smart-model-router")  # 模型路由平台站（独立仓库 Pages）
 ROUTER_URL = "https://badbotai.github.io/smart-model-router/"
-ASSETS = ["tokens.js", "ui.js", "components.js", "testchat.js", "sia.js", "shared.css"]
+ASSETS = ["tokens.js", "ui.js", "components.js", "testchat.js", "sia.js", "sia.css", "shared.css"]
 MOCKS = ["mock_data.js", "mock_api.js"]
 IA_PAGES = ["index.html", "cards.html", "library.html", "design.html", "products.html",
             "playground.html", "dashboard.html", "audit.html", "embed-demo.html"]
@@ -27,6 +27,7 @@ def snapshot():
             "/api/dashboard/insights?days=30", "/api/dashboard/overview?days=30",
             "/api/dashboard/questions?days=30", "/api/profile",
             "/api/templates", "/api/benchmark", "/api/settings/router-model",
+            "/api/components/catalog",
             "/api/traces?limit=30", "/v1/models", "/v1/policies"]
 
     def get(p):
