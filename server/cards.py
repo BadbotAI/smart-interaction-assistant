@@ -56,9 +56,7 @@ def validate_card(payload: dict, strict: bool = False) -> list:
         errors.append({"field": "component_type",
                        "message": "该组件类型已在 v2 下线（业务耦合或复杂形式）；可用：选择 / 表单 / 确认 / 赞踩 / 偏好 / 表格 / 图表"})
         return errors
-    # v2：触发条件下线——组件何时出现由大模型判断，依据是「组件说明」（description）
-    if payload.get("model_invokable", True) and not (payload.get("description") or "").strip():
-        errors.append({"field": "description", "message": "组件说明必填：大模型靠它判断什么情况下使用本组件"})
+    # v2.1：说明与内容都不在平台配置——组件的使用说明由 agent 侧（注册表默认为类型说明）承担
     if len(payload.get("trigger_description") or "") > 200:
         errors.append({"field": "trigger_description", "message": "触发条件不能超过 200 字"})
     examples = payload.get("trigger_examples") or []
@@ -227,6 +225,9 @@ def update_card(card_id: str, payload: dict, lock_version: int):
         current = row_to_card(row)
         return None, [{"field": "_", "code": "conflict", "message": "他人已修改此配置，请对比差异后选择合并或覆盖。",
                        "server_state": current}]
+    if not payload:
+        # 空 payload 不做任何变更（否则已发布卡会被无修改地打回草稿并 bump 锁）
+        return row_to_card(row), None
     merged = row_to_card(row)
     if "component_type" in payload and payload["component_type"] != row["component_type"]:
         return None, [{"field": "component_type", "message": "组件类型不可变更，换组件请新建配置"}]
@@ -469,6 +470,10 @@ def _match_corpus(card: dict) -> list:
     v2 组件靠说明让模型判断何时用；旧卡兼容触发描述。"""
     import re as _re
     base = (card.get("trigger_description") or "").strip() or (card.get("description") or "").strip()
+    if not base:
+        from . import registry as _reg
+        v2 = _reg.V2_TYPE_MAP.get(card.get("component_type") or "")
+        base = (_reg.V2_META.get(v2) or {}).get("desc", "")
     parts = [t for t in _re.split(r"[。；;：:]", base) if t.strip()]
     name = (card.get("name") or "").strip()
     return ([name] if name else []) + parts
@@ -491,8 +496,13 @@ HIT_THRESHOLD = 0.35
 # v2 选件模拟规则：注册类型 → 意图关键词。演示「大模型按组件说明判断该出哪个组件」；
 # 生产环境由大模型依据注册 schema 自主决定，本规则仅测试对话用。顺序即优先级（具体意图在前）。
 V2_PICK_RULES = [
-    ("chart",      ["走势", "趋势", "变化", "图表", "画个图", "分布", "环比", "同比"]),
-    ("table",      ["表格", "列个表", "清单", "明细", "整理成表", "列出来", "对比一下这几"]),
+    ("pie",        ["占比", "比例", "构成", "份额"]),
+    ("trend",      ["走势", "趋势", "变化", "折线"]),
+    ("bar",        ["对比图", "柱状", "分布", "环比", "同比", "数量对比"]),
+    ("metric",     ["指标", "总共多少", "核心数字", "总览"]),
+    ("timeline",   ["时间线", "历程", "进度", "节点", "先后"]),
+    ("steps",      ["步骤", "怎么操作", "操作指引", "分几步", "流程指引"]),
+    ("table",      ["表格", "列个表", "清单", "明细", "整理成表", "列出来"]),
     ("confirm",    ["取消", "删除", "撤销", "退款", "终止", "变更", "改地址", "确认执行"]),
     ("form",       ["登记", "填写", "联系方式", "补充信息", "留个", "资料", "预约"]),
     ("preference", ["哪个好", "哪份好", "择优", "更认可", "帮我比比", "两个方案"]),

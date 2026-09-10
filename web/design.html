@@ -34,11 +34,7 @@
 </head>
 <body>
 <div class="page">
-  <div class="page-head"><div class="page-title">产品及风格管理</div></div>
-  <div class="tab-bar" style="margin-bottom:14px">
-    <a class="tab" href="/web/products.html" style="text-decoration:none">产品管理</a>
-    <button type="button" class="tab active">品牌风格管理</button>
-  </div>
+  <div class="page-head"><div class="page-title">品牌风格</div></div>
 
   <div class="style-split">
     <div style="align-self:start;display:flex;flex-direction:column;gap:14px">
@@ -72,7 +68,7 @@
 <script>
 // 深链直开编辑器时，先行标记以免生效风格覆盖预览
 if (new URLSearchParams(location.search).get("new")) window._editingStyle = true;
-UI.nav("products");
+UI.nav("design");
 const { el } = UI;
 document.getElementById("demoHelp").appendChild(UI.help("与线上同一套渲染器；风格预览后此处实时更新，提交不产生数据"));
 

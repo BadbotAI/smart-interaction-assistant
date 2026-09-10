@@ -45,11 +45,30 @@ window.Components = (function () {
     requestAnimationFrame(() => setTimeout(tryClamp, 60));
   }
 
+  // v2 组件级样式覆盖：语义档位映射为设计变量，作用于本组件实例（优先于 .brand-scope 的品牌 token）
+  const OV_RADIUS = { none: ["0px", "0px"], sm: ["8px", "6px"], md: ["16px", "12px"], lg: ["22px", "16px"], full: ["28px", "22px"] };
+  const OV_PAD = { compact: "10px", regular: "16px", loose: "22px" };
+  const OV_FONT = { "-1": "13px", "1": "15px", "2": "16px" };
+  const OV_HEIGHT = { compact: "32px", regular: "40px", large: "48px" };
+  const OV_SHADOW = { none: "none", sm: "0 1px 3px rgba(15,27,38,.08)", md: "0 4px 12px rgba(15,27,38,.12)", lg: "0 8px 24px rgba(15,27,38,.18)" };
+  function applyStyleOverrides(node, so) {
+    if (!so || typeof so !== "object") return;
+    const set = (k, v) => { if (v) node.style.setProperty(k, v); };
+    set("--primary", so["color.primary"]);
+    set("--brand-accent", so["color.accent"]);
+    if (OV_RADIUS[so.radius]) { set("--radius-card", OV_RADIUS[so.radius][0]); set("--radius-control", OV_RADIUS[so.radius][1]); }
+    set("--card-pad", OV_PAD[so.spacing]);
+    set("--font-base", OV_FONT[so.font_scale]);
+    set("--control-height", OV_HEIGHT[so.height]);
+    set("--brand-shadow", OV_SHADOW[so.shadow]);
+  }
+
   function render(envelope, ctx) {
     try {
       const fn = RENDERERS[envelope.component_type];
       if (!fn) throw new Error("unsupported component_type");
       const node = fn(envelope, ctx);
+      applyStyleOverrides(node, envelope.style_overrides);
       // 溯源信息：每个由配置触发的组件都带配置 ID 与版本（后台按此统计），dataset 供埋点与自动化测试定位
       node.dataset.componentType = envelope.component_type;
       node.dataset.renderId = envelope.render_id || "";

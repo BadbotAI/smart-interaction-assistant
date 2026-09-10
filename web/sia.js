@@ -96,7 +96,12 @@
     if (!call.component_id) { console.warn("[sia] render 需要 component_id（来自组件注册表）"); return null; }
     const env = await fetchEnvelope(call.component_id);
     if (!env) return null;
-    const p = call.params || {};
+    const p = { ...(call.params || {}) };
+    // 模型参数不可信：数量与长度截断兜底（schema 上限之外的输入不放大渲染面）
+    if (Array.isArray(p.options)) p.options = p.options.slice(0, 8).map(x => String(x).slice(0, 60));
+    if (Array.isArray(p.candidates)) p.candidates = p.candidates.slice(0, 4);
+    if (Array.isArray(p.rows)) p.rows = p.rows.slice(0, 100);
+    if (Array.isArray(p.categories)) p.categories = p.categories.slice(0, 24);
     env.params = { ...env.params, ...p };
     // 图表组件：模型在参数里指定 kind（line / bar），按 kind 切换渲染类型
     if (env.component_type && env.component_type.startsWith("chart.") && (p.kind === "line" || p.kind === "bar"))

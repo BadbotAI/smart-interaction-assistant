@@ -209,14 +209,15 @@ window.UI = (function () {
   // 两个平台各自独立的导航；共享页（操作日志等）按 window.SIA_PLATFORM 或高亮键推断归属
   const PLATFORMS = {
     ia: {
-      name: "智能交互平台", home: "./index.html",
+      name: "智能交互平台", home: "./index.html", productSwitcher: true,
       groups: [
         { title: "智能交互", items: [
           ["cards", "组件工作台", "./cards.html", "board"],
           ["library", "组件库", "./library.html", "grid"],
-          ["products", "产品及风格管理", "./products.html", "link"],
+          ["products", "产品管理", "./products.html", "link"],
+          ["design", "品牌风格", "./design.html", "palette"],
           ["playground:comp", "智能交互测试", "./playground.html#comp", "chat"],
-          ["dashboard:survey", "交互数据", "./dashboard.html#survey", "chart"],
+          ["dashboard:survey", "交互数据（v1 不做）", "./dashboard.html#survey", "chart"],
         ] },
       ],
     },
@@ -244,6 +245,40 @@ window.UI = (function () {
     if (active === "router") return "router";
     return "ia";
   }
+  // v2.1：导航顶部产品切换器——展示当前产品，点击下拉切换（存 localStorage sia_product，工作台等按其聚焦）
+  async function mountProductSwitcher(host) {
+    try {
+      const { products } = await api("/api/products");
+      if (!products || !products.length) return;
+      const saved = localStorage.getItem("sia_product");
+      let cur = products.find(p => p.product_id === saved) || products[0];
+      const label = el("span", { class: "fsel-label", style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, [cur.name]);
+      const btn = el("button", { class: "fsel", type: "button", title: "切换产品",
+        style: "width:100%;margin:2px 0 10px" }, [label, el("span", { class: "fsel-caret" }, [icon("chevron", 12)])]);
+      btn.onclick = () => {
+        document.querySelectorAll(".menu-pop").forEach(n => n.remove());
+        const pop = el("div", { class: "menu-pop", role: "listbox" });
+        products.forEach(p => pop.appendChild(el("button", {
+          class: "menu-item" + (p.product_id === cur.product_id ? " on" : ""), role: "option",
+          onclick: () => {
+            pop.remove();
+            localStorage.setItem("sia_product", p.product_id);
+            cur = p; label.textContent = p.name;
+            // 工作台等页面按产品聚焦：通知或整页刷新（简单可靠）
+            location.reload();
+          } }, [p.name])));
+        document.body.appendChild(pop);
+        const r = btn.getBoundingClientRect();
+        pop.style.minWidth = r.width + "px";
+        pop.style.left = (r.left + window.scrollX) + "px";
+        pop.style.top = (r.bottom + window.scrollY + 4) + "px";
+        const close = (e) => { if (!pop.contains(e.target) && e.target !== btn) { pop.remove(); document.removeEventListener("click", close, true); } };
+        setTimeout(() => document.addEventListener("click", close, true), 0);
+      };
+      host.appendChild(btn);
+    } catch (e) {}
+  }
+
   function nav(active) {
     document.querySelectorAll(".sidenav").forEach(n => n.remove());
     const plat = PLATFORMS[platformOf(active)];
@@ -261,6 +296,11 @@ window.UI = (function () {
         return a;
       })(),
     ]);
+    if (plat.productSwitcher) {
+      const swHost = el("div", { style: "padding:0 12px" });
+      side.appendChild(swHost);
+      mountProductSwitcher(swHost);
+    }
     // 二级项按 #hash 高亮；无 hash 时默认该页第一个二级项
     const isActive = (key) => {
       if (key === active) return true;

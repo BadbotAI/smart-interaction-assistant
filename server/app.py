@@ -140,20 +140,23 @@ async def _handle_turn(body: dict, emit):
             v2t = registry.V2_TYPE_MAP.get(hit["component_type"], "table")
             params = mockmodels.gen_present_params(v2t, text)
             ct_out = hit["component_type"]
-            if v2t == "chart":
-                ct_out = "chart.bar" if params.get("kind") == "bar" else "chart.line"
             envelope = _envelope(ct_out, "model_tool_call", params,
                                  card={"card_id": hit["card_id"], "version": hit["version"]})
+            if hit.get("style_overrides"):
+                envelope["style_overrides"] = hit["style_overrides"]
             recorder.span("card_render", {"card_id": hit["card_id"], "card_version": hit["version"],
                                           "component_type": ct_out, "trigger_source": "model_tool_call",
                                           "degraded": False, "competitors": competitors[:3]})
             recorder.finish("fastlane", None, 0.0002, 120, False)
+            _pn = registry.V2_META.get(v2t, {}).get("label", "内容")
             await emit({"step": "final", "trace_id": trace_id, "turn_id": turn_id,
-                        "content": params.get("title") and f"已为你整理为{'表格' if v2t == 'table' else '图表'}：{params['title']}" or "已为你整理如下。",
+                        "content": f"已为你整理为{_pn}" + (f"：{params['title']}" if params.get("title") else "。"),
                         "components": [envelope]})
             return
         if hit:
             envelope, degraded = _build_ask_envelope(hit, text)
+            if hit.get("style_overrides"):
+                envelope["style_overrides"] = hit["style_overrides"]
             recorder.span("card_render", {
                 "card_id": hit["card_id"], "card_version": hit["version"],
                 "component_type": hit["component_type"], "trigger_source": "model_tool_call",
@@ -296,14 +299,22 @@ async def _handle_turn(body: dict, emit):
 
 
 @app.get("/v1/embed/envelope/{card_id}")
-def embed_envelope(card_id: str):
-    """植入 SDK：按配置 ID 获取可渲染的协议信封（sia.js 用）。仅已上线配置可被植入。"""
+def embed_envelope(card_id: str, key: str = None):
+    """植入 SDK：按配置 ID 获取可渲染的协议信封（sia.js 用）。仅已上线配置可被植入。
+    v2：必须携带产品接入 Key（此前完全不校验——任何人可拉任意组件配置）。"""
+    conn = db.get_conn()
+    valid = key and any(_mcp_key(r["product_id"]) == key
+                        for r in conn.execute("SELECT product_id FROM products").fetchall())
+    if not valid:
+        return JSONResponse({"error": "invalid_key", "message": "请携带产品接入 Key（产品管理页可复制）"}, status_code=401)
     card = cards.get_card(card_id)
     if not card:
         return JSONResponse({"error": "配置不存在"}, status_code=404)
     if not (card.get("status") == "published" or (card.get("status") == "draft" and (card.get("version") or 0) >= 1)):
         return JSONResponse({"error": "配置未上线，不能植入"}, status_code=409)
     envelope, degraded = _build_ask_envelope(card, "")
+    if card.get("style_overrides"):
+        envelope["style_overrides"] = card["style_overrides"]
     return {"envelope": envelope, "degraded": bool(degraded),
             "card": {"card_id": card["card_id"], "name": card["name"], "version": card.get("version")}}
 

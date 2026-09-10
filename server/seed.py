@@ -803,12 +803,55 @@ V2_SEED_CARDS = [
      "field_bindings": {"config": {}},
      "text_templates": {"prompt": "你更认可哪一份"}},
     {"name": "数据表格", "component_type": "table", "semantic_category": "present",
-     "description": "模型要表达结构化数据（清单、对比、多行记录）时使用，替代大段文字。展示类，无提交。",
+     "description": "要表达清单、对比、多行记录等结构化数据时使用，替代大段文字。展示类，无提交。",
      "field_bindings": {"config": {}}, "text_templates": {}},
-    {"name": "趋势图表", "component_type": "chart.line", "semantic_category": "present",
-     "description": "模型要表达数列趋势或分布（费用走势、数量对比）时使用，折线或柱状。展示类，无提交。",
+    {"name": "趋势图", "component_type": "chart.line", "semantic_category": "present",
+     "description": "要表达数列随时间的走势时使用（折线图）。展示类，无提交。",
+     "field_bindings": {"config": {}}, "text_templates": {}},
+    {"name": "对比图", "component_type": "chart.bar", "semantic_category": "present",
+     "description": "要表达类别之间的数量对比或分布时使用（柱状图）。展示类，无提交。",
+     "field_bindings": {"config": {}}, "text_templates": {}},
+    {"name": "占比图", "component_type": "chart.pie", "semantic_category": "present",
+     "description": "要表达部分与整体的占比构成时使用。展示类，无提交。",
+     "field_bindings": {"config": {}}, "text_templates": {}},
+    {"name": "指标卡", "component_type": "metric.card", "semantic_category": "present",
+     "description": "要突出一个关键数字（含涨跌与基线）时使用。展示类，无提交。",
+     "field_bindings": {"config": {}}, "text_templates": {}},
+    {"name": "时间线", "component_type": "timeline", "semantic_category": "present",
+     "description": "要表达事件先后过程、里程碑或进度时使用。展示类，无提交。",
+     "field_bindings": {"config": {}}, "text_templates": {}},
+    {"name": "步骤条", "component_type": "steps", "semantic_category": "present",
+     "description": "要给出分步操作指引并标注当前步骤时使用。展示类，无提交。",
      "field_bindings": {"config": {}}, "text_templates": {}},
 ]
+
+
+def migrate_assistant_v21():
+    """v2.1：展示类扩容（趋势/对比/占比/指标/时间线/步骤）——补种新增的展示实例并挂到种子产品。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT v FROM kv_settings WHERE k='v21_display'").fetchone():
+        return False
+    new_ids = []
+    for payload in V2_SEED_CARDS:
+        exists = conn.execute("SELECT card_id, status FROM cards WHERE tenant_id=? AND name=?",
+                              (TENANT, payload["name"])).fetchone()
+        if exists:
+            if exists["status"] != "published":
+                cards.transition(exists["card_id"], "publish", actor="seed")
+            new_ids.append(exists["card_id"])
+            continue
+        card, errors = cards.create_card(TENANT, dict(payload))
+        if errors:
+            raise RuntimeError(f"v2.1 seed card failed: {errors}")
+        cards.transition(card["card_id"], "publish", actor="seed")
+        new_ids.append(card["card_id"])
+    prow = conn.execute("SELECT product_id FROM products LIMIT 1").fetchone()
+    if prow:
+        conn.execute("UPDATE products SET card_ids=? WHERE product_id=?", (db.j(new_ids), prow["product_id"]))
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('v21_display', '1')")
+    conn.commit()
+    db.audit("system", "migrate_assistant_v21", {"note": "展示类扩容至 7 类", "total": len(new_ids)})
+    return True
 
 
 def migrate_assistant_v2():
@@ -866,6 +909,7 @@ def run_all():
     migrate_bench_v7()
     migrate_model_name_v71()
     migrate_assistant_v2()
+    migrate_assistant_v21()
     n_bank = 0
     n_fb = seed_ab_feedback()
     n_hist = seed_history()

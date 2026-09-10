@@ -15,27 +15,49 @@ V2_TYPE_MAP = {
     "feedback.binary": "feedback",
     "feedback.preference": "preference",
     "table": "table",
-    "chart.line": "chart", "chart.bar": "chart",
+    "chart.line": "trend", "chart.area": "trend",
+    "chart.bar": "bar",
+    "chart.pie": "pie",
+    "metric.card": "metric",
+    "timeline": "timeline",
+    "steps": "steps",
 }
 V2_ALLOWED_CT = set(V2_TYPE_MAP)
 
-# 注册类型元信息：交互类必有提交（唯一后端交互点）；展示类无提交
+# 注册类型元信息：交互类必有提交（唯一后端交互点）；展示类无提交。
+# v2.1：平台只管「组件 + 样式」，说明与内容全部参数化——描述默认用类型说明，agent 侧可自行改写。
 V2_META = {
     "select":     {"label": "选择表单", "interactive": True,
-                   "desc": "单选 / 多选表单。选项可由管理员预置，也可留空由模型按当前对话动态给出（几项都行）。"},
+                   "desc": "需要用户在若干候选中做选择时使用（单选或多选由参数 multi 决定）；候选项由调用参数给出，几项都行。"},
     "form":       {"label": "信息表单", "interactive": True,
-                   "desc": "属性定死的信息收集表单（字段由管理员在平台定义），模型可选传预填值。"},
+                   "desc": "需要用户补充结构化信息时使用；字段列表由调用参数定义（key / 标签 / 是否必填）。"},
     "confirm":    {"label": "操作确认", "interactive": True,
-                   "desc": "高风险或关键动作的确认卡：用户明确点击确认 / 取消后才继续。"},
+                   "desc": "执行不可逆或高风险动作前使用：用户明确点击确认 / 取消后才继续。"},
     "feedback":   {"label": "赞踩反馈", "interactive": True,
-                   "desc": "对一条回答的赞 / 踩评价，可带维度。"},
+                   "desc": "对一条回答收集赞 / 踩评价，可带评价维度。"},
     "preference": {"label": "偏好选择", "interactive": True,
-                   "desc": "多个候选回答让用户择优（多模型 / 多方案对比场景）。"},
+                   "desc": "多个候选回答或方案让用户择优（多模型 / 多方案对比场景）。"},
     "table":      {"label": "表格", "interactive": False,
-                   "desc": "把模型要表达的结构化数据渲染成表格，替代大段文字。"},
-    "chart":      {"label": "图表", "interactive": False,
-                   "desc": "把数列渲染成折线图或柱状图，替代文字描述趋势。"},
+                   "desc": "要表达清单、对比、多行记录等结构化数据时使用，替代大段文字。"},
+    "trend":      {"label": "趋势图", "interactive": False,
+                   "desc": "要表达数列随时间的走势时使用（折线图）。"},
+    "bar":        {"label": "对比图", "interactive": False,
+                   "desc": "要表达类别之间的数量对比或分布时使用（柱状图）。"},
+    "pie":        {"label": "占比图", "interactive": False,
+                   "desc": "要表达部分与整体的占比构成时使用（百分比条）。"},
+    "metric":     {"label": "指标卡", "interactive": False,
+                   "desc": "要突出一个关键数字（含涨跌与基线）时使用。"},
+    "timeline":   {"label": "时间线", "interactive": False,
+                   "desc": "要表达事件先后过程、里程碑或进度时使用。"},
+    "steps":      {"label": "步骤条", "interactive": False,
+                   "desc": "要给出分步操作指引并标注当前进行到哪一步时使用。"},
 }
+
+# 每类的默认存储 component_type（实例创建与渲染入口）
+V2_DEFAULT_CT = {"select": "select.single", "form": "form.structured", "confirm": "control.confirm",
+                 "feedback": "feedback.binary", "preference": "feedback.preference",
+                 "table": "table", "trend": "chart.line", "bar": "chart.bar", "pie": "chart.pie",
+                 "metric": "metric.card", "timeline": "timeline", "steps": "steps"}
 
 
 def _cfg(card: dict) -> dict:
@@ -44,74 +66,97 @@ def _cfg(card: dict) -> dict:
 
 def params_schema_for(card: dict) -> dict:
     """模型调用该组件实例时要填的参数（JSON Schema 子集）。
-    管理员已定死的内容不进 schema（对模型是黑盒），只在 fixed 里声明存在。"""
+    v2.1：平台不配内容——说明与内容全部参数化，实例只携带样式。"""
     ct = card.get("component_type") or ""
     v2 = V2_TYPE_MAP.get(ct)
-    cfg = _cfg(card)
     schema = {"type": "object", "properties": {}, "required": []}
     props, req = schema["properties"], schema["required"]
+    S = lambda d: {"type": "string", "description": d}
     if v2 == "select":
-        props["prompt"] = {"type": "string", "description": "向用户提出的问题"}
-        req.append("prompt")
-        fixed_opts = [o for o in (cfg.get("options") or []) if str(o).strip()]
-        if not fixed_opts:
-            props["options"] = {"type": "array", "items": {"type": "string"},
-                                "minItems": 2, "maxItems": 8,
-                                "description": "候选项文本，按当前对话动态给出"}
-            req.append("options")
+        props["prompt"] = S("向用户提出的问题")
+        props["options"] = {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 8,
+                            "description": "候选项文本，按当前对话给出"}
+        props["multi"] = {"type": "boolean", "description": "true=多选（勾选后提交），false=单选"}
+        req.extend(["prompt", "options"])
     elif v2 == "form":
-        props["prefill"] = {"type": "object",
-                            "description": "可选：按字段 key 预填已知值（字段定义见 fixed.fields）"}
+        props["prompt"] = S("表单引导语")
+        props["fields"] = {"type": "array", "minItems": 1, "maxItems": 8,
+                           "items": {"type": "object",
+                                     "properties": {"key": S("字段标识（英文）"), "label": S("字段名"),
+                                                    "required": {"type": "boolean"}},
+                                     "required": ["key", "label"]},
+                           "description": "要收集的字段列表"}
+        props["prefill"] = {"type": "object", "description": "可选：按字段 key 预填已知值"}
+        req.extend(["prompt", "fields"])
     elif v2 == "confirm":
-        props["prompt"] = {"type": "string", "description": "需要用户确认的动作描述"}
-        props["summary"] = {"type": "string", "description": "可选：动作影响的一句话摘要"}
+        props["prompt"] = S("需要用户确认的动作描述")
+        props["summary"] = S("可选：动作影响的一句话摘要")
         req.append("prompt")
     elif v2 == "feedback":
-        props["prompt"] = {"type": "string", "description": "可选：评价引导语"}
+        props["prompt"] = S("可选：评价引导语")
+        props["dimensions"] = {"type": "array", "maxItems": 4,
+                               "items": {"type": "object",
+                                         "properties": {"key": S("维度标识"), "label": S("维度名")},
+                                         "required": ["key", "label"]},
+                               "description": "可选：评价维度，缺省为单一赞踩"}
     elif v2 == "preference":
         props["candidates"] = {"type": "array", "minItems": 2, "maxItems": 4,
                                "items": {"type": "object",
-                                         "properties": {"label": {"type": "string"},
-                                                        "content": {"type": "string"}},
+                                         "properties": {"label": S("候选名"), "content": S("候选内容")},
                                          "required": ["label", "content"]},
                                "description": "候选回答列表，用户从中择优"}
         req.append("candidates")
     elif v2 == "table":
-        props["title"] = {"type": "string"}
+        props["title"] = S("表格标题，可选")
         props["columns"] = {"type": "array", "items": {"type": "string"}, "minItems": 2}
         props["rows"] = {"type": "array", "items": {"type": "array", "items": {"type": "string"}}}
         req.extend(["columns", "rows"])
-    elif v2 == "chart":
-        props["title"] = {"type": "string"}
-        props["kind"] = {"type": "string", "enum": ["line", "bar"], "description": "折线或柱状"}
-        props["categories"] = {"type": "array", "items": {"type": "string"}}
+    elif v2 in ("trend", "bar"):
+        props["title"] = S("图表标题，可选")
+        props["categories"] = {"type": "array", "items": {"type": "string"}, "description": "横轴类目"}
         props["series"] = {"type": "array",
                            "items": {"type": "object",
-                                     "properties": {"name": {"type": "string"},
+                                     "properties": {"name": S("系列名"),
                                                     "values": {"type": "array", "items": {"type": "number"}}},
                                      "required": ["name", "values"]}}
-        req.extend(["kind", "categories", "series"])
+        req.extend(["categories", "series"])
+    elif v2 == "pie":
+        props["title"] = S("标题，可选")
+        props["slices"] = {"type": "array", "minItems": 2, "maxItems": 7,
+                           "items": {"type": "object",
+                                     "properties": {"label": S("类别名"), "value": {"type": "number"}},
+                                     "required": ["label", "value"]}}
+        req.append("slices")
+    elif v2 == "metric":
+        props["label"] = S("指标名")
+        props["value"] = S("指标值（数字或文本）")
+        props["unit"] = S("单位，可选")
+        props["delta"] = S("涨跌值，可选，负数下跌")
+        props["baseline"] = S("基线说明，可选")
+        req.extend(["label", "value"])
+    elif v2 == "timeline":
+        props["title"] = S("标题，可选")
+        props["events"] = {"type": "array", "minItems": 2, "maxItems": 12,
+                           "items": {"type": "object",
+                                     "properties": {"ts": S("时间"), "title": S("事件"), "desc": S("说明，可选")},
+                                     "required": ["title"]}}
+        req.append("events")
+    elif v2 == "steps":
+        props["title"] = S("标题，可选")
+        props["steps"] = {"type": "array", "minItems": 2, "maxItems": 9,
+                          "items": {"type": "string"}, "description": "步骤文本列表"}
+        props["current_index"] = {"type": "integer", "description": "当前进行到第几步（0 起）"}
+        req.append("steps")
     return schema
 
 
 def fixed_config_for(card: dict) -> dict:
-    """管理员在平台定死的部分：模型不可改，仅供 agent 开发者了解组件行为。"""
+    """平台侧固定项：v2.1 内容全参数化后，只剩样式相关（选择表单的展现样式变体等）。"""
     ct = card.get("component_type") or ""
-    v2 = V2_TYPE_MAP.get(ct)
     cfg = _cfg(card)
     fixed = {}
-    if v2 == "select":
-        fixed["multi"] = ct == "select.multi"
-        fixed["display"] = "card" if ct == "select.card" else "text"
-        opts = [o for o in (cfg.get("options") or []) if str(o).strip()]
-        if opts:
-            fixed["options"] = opts
-    elif v2 == "form":
-        fixed["fields"] = cfg.get("fields") or []
-    elif v2 == "feedback":
-        fixed["dimensions"] = cfg.get("dimensions") or []
-    elif v2 == "chart" and ct in ("chart.line", "chart.bar"):
-        fixed["kind_default"] = "line" if ct == "chart.line" else "bar"
+    if V2_TYPE_MAP.get(ct) == "select":
+        fixed["display"] = "card" if (ct == "select.card" or cfg.get("display") == "card") else "text"
     return fixed
 
 
@@ -170,15 +215,12 @@ def build_registry(product: dict) -> dict:
 
 def build_catalog() -> list:
     """组件库目录：7 类泛化组件模板（无实例语境下的 schema 示例，供组件库页展示与新建选型）。"""
-    ct_of = {"select": "select.single", "form": "form.structured", "confirm": "control.confirm",
-             "feedback": "feedback.binary", "preference": "feedback.preference",
-             "table": "table", "chart": "chart.line"}
     out = []
     for v2, meta in V2_META.items():
-        stub = {"component_type": ct_of[v2], "field_bindings": {"config": {}}}
+        stub = {"component_type": V2_DEFAULT_CT[v2], "field_bindings": {"config": {}}}
         out.append({"type": v2, "label": meta["label"], "desc": meta["desc"],
                     "interactive": meta["interactive"],
                     "params_schema": params_schema_for(stub),
                     "submit_schema": submit_schema_for(stub),
-                    "component_types": [ct for ct, t in V2_TYPE_MAP.items() if t == v2]})
+                    "component_types": [V2_DEFAULT_CT[v2]]})
     return out

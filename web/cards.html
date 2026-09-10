@@ -56,7 +56,7 @@
     </div>
   </div>
 
-  <div class="grid cols-4" id="kpiRow" style="margin-bottom:14px"></div>
+
 
   <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
     <input type="text" id="searchInput" placeholder="搜索组件名称、说明" style="width:340px;min-width:220px" aria-label="搜索配置">
@@ -127,6 +127,20 @@ function renderStatusTabs(counts = {}) {
 }
 
 
+function styleSummary(c) {
+  const so = c.style_overrides || {};
+  const parts = [];
+  if (so["color.primary"]) parts.push("主色 " + so["color.primary"]);
+  if (so.radius) parts.push({ none: "直角", sm: "小倒角", md: "标准倒角", lg: "大倒角", full: "全圆" }[so.radius] || so.radius);
+  if (so.height) parts.push({ compact: "紧凑高度", regular: "标准高度", large: "宽大高度" }[so.height]);
+  if (so.spacing) parts.push({ compact: "紧凑", regular: "标准", loose: "宽松" }[so.spacing] + "密度");
+  if (so.shadow) parts.push("阴影" + ({ none: "无", sm: "轻", md: "中", lg: "重" }[so.shadow] || ""));
+  if (so.font_scale) parts.push("字号" + ({ "-1": "小一档", "1": "大一档", "2": "大两档" }[so.font_scale] || ""));
+  const disp = ((c.field_bindings || {}).config || {}).display;
+  if (disp === "card") parts.push("卡片样式");
+  return parts.length ? parts.join(" · ") : "品牌默认";
+}
+
 async function loadKpisAndTodos() {
   try {
     const [q, { cards: allCards }] = await Promise.all([
@@ -139,6 +153,7 @@ async function loadKpisAndTodos() {
     const totalSubmitted = q.questions.reduce((s, x) => s + x.submitted, 0);
     const totalRendered = q.questions.reduce((s, x) => s + x.rendered, 0);
     const kpi = document.getElementById("kpiRow");
+    if (!kpi) return;
     kpi.innerHTML = "";
     const tile = (label, value, help) => el("div", { class: "stat-tile" }, [
       el("div", { class: "stat-label" }, [label, help ? UI.help(help) : null]),
@@ -226,7 +241,8 @@ function embedDialog(c) {
   ]));
 }
 
-let curProduct = sessionStorage.getItem("wb_product") || null;
+// 导航切换器（localStorage sia_product）优先；工作台内切换仍记 session
+let curProduct = localStorage.getItem("sia_product") || sessionStorage.getItem("wb_product") || null;
 
 function sdkSnippetFor(p) {
   const origin = location.origin;
@@ -276,7 +292,8 @@ function renderProductCover(products, brands, unboundCount) {
   const opts = [...products.map(p => [p.product_id, p.name]), ["__unbound", `未绑定产品（${unboundCount}）`]];
   const isUnbound = curProduct === "__unbound";
   const p = products.find(x => x.product_id === curProduct);
-  const pickProduct = (v) => { curProduct = v; sessionStorage.setItem("wb_product", v); statusTab = ""; loadCards(); };
+  const pickProduct = (v) => { curProduct = v; sessionStorage.setItem("wb_product", v);
+    if (v && v !== "__unbound") localStorage.setItem("sia_product", v); statusTab = ""; loadCards(); };
   let nameAnchor = null;
   const switchBtn = el("button", { class: "pc-switch", title: "换一换：切换产品", "aria-label": "切换产品",
     onclick: (e) => { e.stopPropagation(); UI.menu(nameAnchor || switchBtn, opts.map(([v, name]) => ({
@@ -397,7 +414,7 @@ function buildCardRow(c) {
 
           ...cardAnomalies(c, eff).map(x => el("span", { class: "chip red", title: x.title }, [x.label])),
         ]),
-        el("div", { class: "cr-line2", title: c.description }, ["说明：" + (c.description || "（未填写）")]),
+        el("div", { class: "cr-line2" }, ["样式：" + styleSummary(c)]),
         el("div", { class: "cr-line3 muted" }, [
           el("span", {}, ["创建 " + UI.fmtTs(c.created_at)]),
           (() => { const st = statsByCard[c.card_id]; return st ? el("span", { title: "近 30 天：组件触发 / 用户提交" }, [`触发 ${st.rendered} · 提交 ${st.submitted}`]) : null; })(),
@@ -516,39 +533,55 @@ const WIZ_DESC = {
   "control.confirm": "高风险动作的确认卡：确认 / 取消",
   "feedback.binary": "对回答的赞 / 踩评价，可分维度",
   "feedback.preference": "多个候选回答让用户择优",
-  "table": "展示类：模型把结构化数据渲染成表格",
-  "chart.line": "展示类：模型把数列渲染成折线 / 柱状图",
+  "table": "展示类：清单、对比、多行记录渲染成表格",
+  "chart.line": "展示类：数列随时间的走势（折线图）",
+  "chart.bar": "展示类：类别间的数量对比（柱状图）",
+  "chart.pie": "展示类：部分与整体的占比构成",
+  "metric.card": "展示类：突出一个关键数字（含涨跌）",
+  "timeline": "展示类：事件先后过程与进度",
+  "steps": "展示类：分步操作指引与当前进度",
 };
-// v2 组件模板（交互 5 + 展示 2）：与注册集一致，业务解耦
+// v2.1 组件模板（交互 5 + 展示 7）：与注册集一致；default_config 仅用于右侧预览演示，保存时不落内容
 const V2_TEMPLATES = [
-  { component_type: "select.single", name: "选择表单", default_config: {} },
+  { component_type: "select.single", name: "选择表单", default_config: { options: ["方案 A", "方案 B", "方案 C"] } },
   { component_type: "form.structured", name: "信息表单", default_config: { fields: [
       { key: "contact_name", label: "联系人", required: true }, { key: "contact_phone", label: "联系方式", required: true }] } },
   { component_type: "control.confirm", name: "操作确认", default_config: {} },
   { component_type: "feedback.binary", name: "赞踩反馈", default_config: { dimensions: [
       { key: "accuracy", label: "答得准确吗" }, { key: "helpful", label: "对你有帮助吗" }] } },
   { component_type: "feedback.preference", name: "偏好选择", default_config: {} },
-  { component_type: "table", name: "表格（展示）", default_config: {} },
-  { component_type: "chart.line", name: "图表（展示）", default_config: {} },
+  { component_type: "table", name: "表格", default_config: {} },
+  { component_type: "chart.line", name: "趋势图", default_config: {} },
+  { component_type: "chart.bar", name: "对比图", default_config: {} },
+  { component_type: "chart.pie", name: "占比图", default_config: {} },
+  { component_type: "metric.card", name: "指标卡", default_config: {} },
+  { component_type: "timeline", name: "时间线", default_config: {} },
+  { component_type: "steps", name: "步骤条", default_config: {} },
 ];
-const PRESENT_TYPES = ["table", "chart.line", "chart.bar"];
+// 展示类预览演示参数（与组件库一致；运行时由模型参数填入）
+const DEMO_PRESENT = {
+  "table": { title: "分区域概览", columns: ["区域", "数量", "环比"], rows: [["华东", "352", "2.3%"], ["华南", "332", "1.5%"], ["华北", "372", "3.2%"]] },
+  "chart.line": { title: "近半年走势", categories: ["4月", "5月", "6月", "7月", "8月", "9月"], series: [{ name: "金额（万元）", values: [122, 165, 148, 161, 178, 190] }] },
+  "chart.bar": { title: "分区域对比", categories: ["华东", "华南", "华北", "西南"], series: [{ name: "数量", values: [352, 332, 372, 222] }] },
+  "chart.pie": { title: "构成占比", slices: [{ label: "华东", value: 42 }, { label: "华南", value: 27 }, { label: "华北", value: 22 }, { label: "其他", value: 9 }] },
+  "metric.card": { label: "本月累计金额", value: "1,286", unit: "万元", delta: "4.2%", baseline: "对比上月同期" },
+  "timeline": { title: "处理进度", events: [{ ts: "09:20", title: "已受理", desc: "工单创建" }, { ts: "10:05", title: "处理中", desc: "已分派专员跟进" }, { ts: "14:30", title: "待确认", desc: "方案已发出" }] },
+  "steps": { title: "操作指引", steps: ["填写申请信息", "上传相关凭证", "等待审核", "查收处理结果"], current_index: 1 },
+};
+const PRESENT_TYPES = ["table", "chart.line", "chart.bar", "chart.pie", "chart.area", "metric.card", "timeline", "steps"];
 const NO_CONTENT_TYPES = ["feedback.preference", "table", "chart.line", "chart.bar"];
 
 
+// v2.1 极简：内容与说明不在平台配（全参数化）——选组件 → 调样式 → 发布
 const STEP_DEFS = [
   { key: "pick", label: "选择组件" },
-  { key: "trigger", label: "基本信息" },
-  { key: "comp", label: "设计内容" },
-  { key: "confirm", label: "数据与 schema" },
+  { key: "style", label: "样式设计" },
   { key: "done", label: "获取接入信息" },
 ];
 // 每步负责校验的字段（下一步前只拦本步的错）
 const STEP_FIELDS = {
   pick: ["component_type"],
-  trigger: ["name", "description"],
-  comp: ["component_type", "question", "reply_text", "options", "dimensions", "fields",
-    "slider_min", "slider_max", "recommended_default", "likert_scale", "placeholder", "submit"],
-  confirm: ["webhook"],
+  style: ["name"],
 };
 
 async function newConfigWizard(preset = {}) { return openEditor(undefined, preset); }
@@ -641,8 +674,8 @@ async function openEditor(cardId, prefill, initStep) {
   });
   let step = initStep && STEP_FIELDS[initStep] ? initStep
     : restore?.step && STEP_FIELDS[restore.step] ? restore.step
-    : (isNew ? (state.component_type ? "trigger" : "pick") : "trigger");
-  if (step === "done") step = isNew ? "confirm" : "trigger";
+    : (isNew ? (state.component_type ? "style" : "pick") : "style");
+  if (step === "done") step = "style";
 
   function autosave() {
     clearTimeout(autosaveTimer);
@@ -770,6 +803,7 @@ async function openEditor(cardId, prefill, initStep) {
   }
 
   const previewBox = el("div", {});
+  function previewWithStyle(env) { if (env && Object.keys(state.styleOv || {}).length) env.style_overrides = state.styleOv; return env; }
   function renderPreview() {
     previewBox.innerHTML = "";
     if (!state.component_type) {
@@ -778,7 +812,12 @@ async function openEditor(cardId, prefill, initStep) {
     }
     let node;
     try {
-      node = Components.render(buildPreviewEnvelope(), {
+      const pv = PRESENT_TYPES.includes(state.component_type)
+        ? { schema_version: "1.0.0", render_id: "pv-present", component_type: state.component_type,
+            semantic_category: "present", trigger_source: "preview", card_ref: null,
+            params: DEMO_PRESENT[state.component_type] || {}, style_overrides: state.styleOv }
+        : null;
+      node = Components.render(previewWithStyle(pv || buildPreviewEnvelope()), {
         sendEvent: () => {}, onCollectSubmit: () => UI.toast("预览不产生数据"), onControl: () => {}, userId: "preview", preview: true, titleInBubble: true,
       });
     } catch (e) { node = el("div", { class: "muted" }, ["暂不支持预览"]); }
@@ -889,6 +928,121 @@ async function openEditor(cardId, prefill, initStep) {
     box.appendChild(el("div", { class: "muted", style: "margin-top:12px" },
       ["v2 组件与业务解耦：何时出现由大模型按「组件说明」判断，无需配置触发条件"]));
     drawGrid();
+    return box;
+  }
+
+  // ---------- 第 2 步：组件样式设计（v2.2：样式是平台的主舞台——全可视化档位，实时预览） ----------
+  function stepStyle() {
+    const so = state.styleOv;
+    const box = el("div", {});
+    const tplName = (V2_TEMPLATES.find(t => t.component_type === state.component_type) || {}).name || "";
+    if (!state.name.trim() && tplName) state.name = tplName;
+    const upd = () => { autosave(); renderPreview(); };
+
+    // 继承说明 + 一键恢复品牌默认
+    const resetBtn = el("button", { class: "btn small ghost", type: "button", onclick: () => {
+      Object.keys(so).forEach(k => delete so[k]); state.display = ""; autosave(); rebuild();
+    } }, ["恢复品牌默认"]);
+    box.appendChild(el("div", { class: "sty-inherit" }, [
+      UI.icon("palette", 14),
+      el("span", {}, ["未覆盖的样式项跟随产品的品牌风格；以下调整只作用于本组件实例"]),
+      el("div", { style: "flex:1" }), resetBtn,
+    ]));
+
+    box.appendChild(el("div", { class: "field", style: "max-width:360px" }, [
+      el("span", { class: "label-text req" }, ["实例名称"]), (() => { const n = input("name", { maxlength: "15" }); return n; })(),
+    ]));
+
+    // —— 颜色：主色 / 强调色（品牌 + 预设 + 自定义） ——
+    const SWATCHES = ["#1DA1F2", "#4F5BD5", "#0FA968", "#FF6B4A", "#D97706", "#334155"];
+    function colorRow(key, label) {
+      const row = el("div", { class: "sty-swatches" });
+      const draw = () => {
+        row.innerHTML = "";
+        row.appendChild(el("button", { type: "button", class: "sty-swatch brand" + (!so[key] ? " on" : ""),
+          title: "跟随品牌", onclick: () => { delete so[key]; draw(); upd(); } }, ["品牌"]));
+        SWATCHES.forEach(cx => row.appendChild(el("button", { type: "button",
+          class: "sty-swatch" + (so[key] === cx ? " on" : ""), style: `background:${cx}`,
+          title: cx, onclick: () => { so[key] = cx; draw(); upd(); } })));
+        const ci = el("input", { type: "color", value: so[key] || "#1DA1F2",
+          style: "width:34px;height:34px;padding:2px;border-radius:10px;border:1.5px solid var(--border);cursor:pointer", title: "自定义" });
+        ci.oninput = () => { so[key] = ci.value; draw(); upd(); };
+        row.appendChild(ci);
+        row.appendChild(el("span", { class: "muted num", style: "margin-left:2px" }, [so[key] || "跟随品牌"]));
+      };
+      draw();
+      return el("div", { class: "sty-section" }, [el("div", { class: "sty-label" }, [label]), row]);
+    }
+
+    // —— 通用档位卡 ——
+    function cardsRow(key, label, items, demoOf, hint) {
+      const row = el("div", { class: "sty-cards" });
+      const draw = () => {
+        row.innerHTML = "";
+        items.forEach(([v, nm]) => {
+          const on = (so[key] || "") === v || (!so[key] && v === "");
+          row.appendChild(el("button", { type: "button", class: "sty-card" + (on ? " on" : ""), onclick: () => {
+            if (v) so[key] = v; else delete so[key];
+            draw(); upd();
+          } }, [el("div", { class: "demo" }, [demoOf(v)]), el("span", { class: "nm" }, [nm])]));
+        });
+      };
+      draw();
+      return el("div", { class: "sty-section" }, [
+        el("div", { class: "sty-label" }, [label, hint ? UI.help(hint) : null]), row]);
+    }
+    const radiusDemo = v => el("i", { class: "sty-radius-demo",
+      style: `border-top-left-radius:${{ "": "10px", none: "0", sm: "5px", md: "10px", lg: "14px", full: "18px" }[v]}` });
+    const heightDemo = v => el("i", { class: "sty-h-demo", style: `height:${{ "": "18px", compact: "13px", regular: "18px", large: "24px" }[v]}` });
+    const shadowDemo = v => el("i", { class: "sty-shadow-demo",
+      style: `box-shadow:${{ "": "0 1px 3px rgba(15,27,38,.12)", none: "none", sm: "0 1px 3px rgba(15,27,38,.14)", md: "0 4px 10px rgba(15,27,38,.18)", lg: "0 7px 16px rgba(15,27,38,.26)" }[v]}` });
+    const densityDemo = v => el("i", { class: "sty-density-demo",
+      style: `--sd-gap:${{ "": "3px", compact: "2px", regular: "3px", loose : "5px" }[v]}` },
+      [el("i", {}), el("i", {}), el("i", {})]);
+    const fontDemo = v => el("span", { style: `font-weight:600;font-size:${{ "": "14px", "-1": "12px", "1": "16px", "2": "18px" }[v]}` }, ["字A"]);
+
+    box.appendChild(colorRow("color.primary", "主色（按钮 / 选中态）"));
+    box.appendChild(colorRow("color.accent", "强调色（hover / 高亮）"));
+    box.appendChild(cardsRow("radius", "倒角", [["", "品牌"], ["none", "直角"], ["sm", "小"], ["md", "标准"], ["lg", "大"], ["full", "全圆"]], radiusDemo));
+    if (!PRESENT_TYPES.includes(state.component_type))
+      box.appendChild(cardsRow("height", "控件高度", [["", "品牌"], ["compact", "紧凑 32"], ["regular", "标准 40"], ["large", "宽大 48"]], heightDemo));
+    box.appendChild(cardsRow("spacing", "密度", [["", "品牌"], ["compact", "紧凑"], ["regular", "标准"], ["loose", "宽松"]], densityDemo, "组件内边距与行距的整体缩放"));
+    box.appendChild(cardsRow("shadow", "阴影", [["", "品牌"], ["none", "无"], ["sm", "轻"], ["md", "中"], ["lg", "重"]], shadowDemo));
+    box.appendChild(cardsRow("font_scale", "字号", [["", "品牌"], ["-1", "小一档"], ["1", "大一档"], ["2", "大两档"]], fontDemo));
+
+    // 选择类：展现变体（可视化两卡）
+    if (["select.single", "select.multi", "select.card"].includes(state.component_type)) {
+      const row = el("div", { class: "sty-cards" });
+      const drawV = () => {
+        row.innerHTML = "";
+        [["text", "文本样式", () => el("i", { style: "display:block;width:44px;height:8px;border:1.5px solid var(--text-secondary);border-radius:4px" })],
+         ["card", "卡片样式", () => el("i", { style: "display:block;width:44px;height:26px;border:1.5px solid var(--text-secondary);border-radius:6px" })]]
+          .forEach(([v, nm, demo]) => row.appendChild(el("button", { type: "button",
+            class: "sty-card" + ((state.display || "text") === v ? " on" : ""),
+            onclick: () => { state.display = v; drawV(); autosave(); rebuild(); } },
+            [el("div", { class: "demo" }, [demo()]), el("span", { class: "nm" }, [nm])])));
+      };
+      drawV();
+      box.appendChild(el("div", { class: "sty-section" }, [
+        el("div", { class: "sty-label" }, ["选项展现", UI.help("同一选择表单的两种展现：文本行 / 图文卡片；不影响参数 schema")]), row]));
+    }
+
+    // 数据 schema 折叠（对接契约放底部，不抢样式的主舞台）
+    const schemaBody = el("div", { hidden: true, style: "margin-top:8px" }, [el("div", { class: "muted" }, ["加载中……"])]);
+    const schemaBtn = el("button", { class: "btn small ghost", type: "button", onclick: async () => {
+      schemaBody.hidden = !schemaBody.hidden; schemaBtn.classList.toggle("active", !schemaBody.hidden);
+      if (!schemaBody.hidden && !schemaBody.dataset.loaded) {
+        try {
+          const r = await UI.api("/api/components/schema-preview", { method: "POST",
+            body: { component_type: state.component_type, config: { display: state.display || undefined } } });
+          schemaBody.innerHTML = "";
+          schemaBody.appendChild(el("pre", { class: "code", style: "max-height:240px;overflow:auto" },
+            [JSON.stringify({ params_schema: r.params_schema, submit: r.submit_schema }, null, 2)]));
+          schemaBody.dataset.loaded = "1";
+        } catch (e2) { schemaBody.innerHTML = ""; schemaBody.appendChild(el("div", { class: "field-error" }, ["加载失败：" + e2.message])); }
+      }
+    } }, ["数据 schema（组件内容由调用参数给出）", UI.icon("chevron", 13)]);
+    box.appendChild(el("div", { style: "margin-top:6px;border-top:1px solid var(--border);padding-top:12px" }, [schemaBtn, schemaBody]));
     return box;
   }
 
@@ -1548,11 +1702,21 @@ async function openEditor(cardId, prefill, initStep) {
     if (nextBtnEl && step === "pick") nextBtnEl.disabled = !state.component_type;
   }
 
+  const V2_CT_SET = new Set([...V2_TEMPLATES.map(t => t.component_type), "select.multi", "select.card", "chart.bar"]);
+  const legacyType = !!(card && state.component_type && !V2_CT_SET.has(state.component_type));
+
   function drawFoot() {
     foot.innerHTML = "";
+    if (legacyType) {
+      foot.appendChild(el("div", { class: "muted", style: "color:var(--danger)" },
+        ["该组件类型已在 v2 下线，仅可查看与历史数据，不能修改保存"]));
+      foot.appendChild(el("div", { style: "flex:1" }));
+      foot.appendChild(el("button", { class: "btn", onclick: () => closeEditor() }, ["关闭"]));
+      return;
+    }
     const spacer = el("div", { style: "flex:1" });
-    const nextTo = { pick: ["trigger", "下一步"], trigger: ["comp", "下一步"], comp: ["confirm", "下一步"] };
-    const backTo = { trigger: isNew ? "pick" : null, comp: "trigger", confirm: "comp" };
+    const nextTo = { pick: ["style", "下一步"] };
+    const backTo = { style: isNew ? "pick" : null };
     if (step === "done") {
       foot.append(spacer,
         el("button", { class: "btn", onclick: () => { closeEditor(); openTest(state.trigger_examples[0] || state.question.trim()); } }, ["测试"]),
@@ -1568,7 +1732,7 @@ async function openEditor(cardId, prefill, initStep) {
       if (step === "pick") b.disabled = !state.component_type;
       foot.appendChild(b);
     }
-    if (!isNew || step === "confirm") {
+    if (step === "style") {
       foot.appendChild(el("button", { class: "btn", onclick: (e) => save(false, e.currentTarget) }, ["保存草稿"]));
       foot.appendChild(el("button", { class: "btn primary", onclick: (e) => save(true, e.currentTarget) }, ["保存并发布"]));
     }
@@ -1580,7 +1744,7 @@ async function openEditor(cardId, prefill, initStep) {
     Object.keys(fieldWraps).forEach(k => delete fieldWraps[k]);
     errorsBox.innerHTML = "";
     formCol.innerHTML = "";
-    formCol.appendChild({ pick: stepPick, trigger: stepTrigger, comp: stepComp, confirm: stepConfirm, done: stepDone }[step]());
+    formCol.appendChild({ pick: stepPick, style: stepStyle, done: stepDone }[step]());
     drawStepBar();
     drawFoot();
     renderPreview();
@@ -1686,41 +1850,31 @@ async function openEditor(cardId, prefill, initStep) {
     return alias[err.field] || err.field?.split(".")[0];
   }
 
+  // v2.1 保存载荷：平台只管实例名 + 类型 + 样式（内容全参数化；编辑存量卡时不触碰其历史 config 其他键）
+  function collectPayloadLite() {
+    const cfg0 = card ? (((card.field_bindings || {}).config) || {}) : {};
+    const config = { ...cfg0 };
+    if (state.display) config.display = state.display; else delete config.display;
+    delete config.options;
+    return {
+      card_id: clientCardId,
+      name: state.name.trim(),
+      description: (card?.description || "").trim(),
+      component_type: state.component_type,
+      style_overrides: state.styleOv,
+      model_invokable: true,
+      echo_results: !!state.echo_results,
+      field_bindings: { config, fields: config.fields || [] },
+      text_templates: card?.text_templates && Object.keys(card.text_templates).length ? card.text_templates : { prompt: "请补充信息", submit: "提交" },
+      emit_targets: ["model", "dashboard", "label_store"],
+    };
+  }
+
   function clientValidate() {
     const errs = [];
-    if (!state.name.trim()) errs.push({ field: "name", message: "请填写配置名称" });
-    else if (state.name.trim().length > 15) errs.push({ field: "name", message: "配置名称不能超过 15 字" });
-    if (!state.description.trim()) errs.push({ field: "description", message: "请填写组件说明：大模型靠它判断何时使用本组件" });
-    else if (state.description.trim().length > 256) errs.push({ field: "description", message: "组件说明不能超过 256 字" });
+    if (!state.name.trim()) errs.push({ field: "name", message: "请填写实例名称" });
+    else if (state.name.trim().length > 15) errs.push({ field: "name", message: "名称不能超过 15 字" });
     if (!state.component_type) errs.push({ field: "component_type", message: "请选择一个组件" });
-    if (!state.question.trim() && !PRESENT_TYPES.includes(state.component_type) && state.component_type !== "entry.link")
-      errs.push({ field: "question", message: "请填写提问兜底文案" });
-    const ct = state.component_type;
-    const opts = getOptions();
-    // v2：选择表单选项留空 = 模型动态给出；预置则至少 2 个
-    if (SELECT_TYPES.includes(ct) && opts.length === 1) errs.push({ field: "options", message: "预置选项至少 2 个；全部留空表示由模型动态给出" });
-    if (ct === "suggest.followup" && opts.length < 2) errs.push({ field: "options", message: "至少 2 个选项" });
-    if (SELECT_TYPES.includes(ct) && new Set(opts).size !== opts.length) errs.push({ field: "options", message: "选项有重复" });
-    if (SELECT_TYPES.includes(ct) && state.optionRows.some(r => (r.api || "").trim() && !/^https:\/\/[^\s]+$/.test(r.api.trim())))
-      errs.push({ field: "options", message: "跳转链接必须是 https:// 开头的完整 URL" });
-    if (ct === "matrix.compare+select" && state.dimensions.split("\n").filter(s => s.trim()).length < 1) errs.push({ field: "dimensions", message: "至少填写 1 个对比维度" });
-    if (ct === "rank.priority" && opts.length < 2) errs.push({ field: "options", message: "至少 2 个候选项" });
-    if (ct === "entry.link" && opts.length < 1) errs.push({ field: "options", message: "至少 1 个入口" });
-    if (ct === "commerce.order") {
-      if (opts.length < 1) errs.push({ field: "options", message: "至少 1 个商品" });
-      else if (state.optionRows.some(r => (r.text || "").trim() && (r.price === "" || isNaN(Number(r.price)) || Number(r.price) < 0))) errs.push({ field: "options", message: "每个商品需要有效价格" });
-    }
-    if (SELECT_TYPES.includes(ct) || ct === "rank.priority") { if (state.optionRows.some(r => (r.image || "").trim() && !/^(https?:\/\/|data:image\/)/.test(r.image.trim()))) errs.push({ field: "options", message: "配图需为 http(s) 链接或本地上传的图片" }); }
-    if (ct === "slider.range" && !(Number(state.slider_min) < Number(state.slider_max))) errs.push({ field: "slider_max", message: "最大值必须大于最小值" });
-    if (ct === "form.structured") {
-      const rows = state.fieldRows.filter(f => f.key || f.label);
-      if (!rows.length) errs.push({ field: "fields", message: "至少添加 1 个采集字段" });
-      else if (rows.some(f => !(f.key || "").trim())) errs.push({ field: "fields", message: "每个字段都需要字段标识" });
-      else if (rows.some(f => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(f.key))) errs.push({ field: "fields", message: "字段标识只能用英文、数字、下划线，且不能以数字开头" });
-      else if (new Set(rows.map(f => f.key)).size !== rows.length) errs.push({ field: "fields", message: "字段标识重复" });
-    }
-    const wh = state.webhook.trim();
-    if (wh && !/^https:\/\/[^\s]+$/.test(wh)) errs.push({ field: "webhook", message: "Webhook 地址必须是 https:// 开头的完整 URL" });
     return errs;
   }
 
@@ -1752,7 +1906,7 @@ async function openEditor(cardId, prefill, initStep) {
       UI.toast(`还有 ${cerrs.length} 处需要修正`, true);
       return;
     }
-    const payload = collectPayload();
+    const payload = collectPayloadLite();
     await UI.withBusy(btn, async () => {
       try {
         let saved2;

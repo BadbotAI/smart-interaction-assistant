@@ -309,6 +309,7 @@
   function makeEnvelope(card, source) {
     const cfg = (card.field_bindings || {}).config || {};
     return { schema_version: "1.0.0", render_id: "mk-" + Math.random().toString(36).slice(2, 8),
+      ...(card.style_overrides && Object.keys(card.style_overrides).length ? { style_overrides: card.style_overrides } : {}),
       component_type: card.component_type, semantic_category: "collect", trigger_source: source || "model_tool_call",
       card_ref: { card_id: card.card_id, version: card.version },
       params: { prompt: (card.text_templates || {}).prompt || card.name,
@@ -323,7 +324,12 @@
 
   // v2 选件模拟：大模型按组件说明判断该出哪个组件（与服务端规则同步；生产由真实模型决定）
   const V2_PICK = [
-    ["chart", ["走势", "趋势", "变化", "图表", "画个图", "分布", "环比", "同比"]],
+    ["pie", ["占比", "比例", "构成", "份额"]],
+    ["trend", ["走势", "趋势", "变化", "折线"]],
+    ["bar", ["对比图", "柱状", "分布", "环比", "同比", "数量对比"]],
+    ["metric", ["指标", "总共多少", "核心数字", "总览"]],
+    ["timeline", ["时间线", "历程", "进度", "节点"]],
+    ["steps", ["步骤", "怎么操作", "操作指引", "分几步", "流程指引"]],
     ["table", ["表格", "列个表", "清单", "明细", "整理成表", "列出来"]],
     ["control.confirm", ["取消", "删除", "撤销", "退款", "终止", "变更", "确认执行"]],
     ["form.structured", ["登记", "填写", "联系方式", "补充信息", "留个", "资料", "预约"]],
@@ -342,8 +348,8 @@
     const cards = ((D["/api/cards"] || {}).cards || [])
       .map(c => cardStatus[c.card_id] ? { ...c, status: cardStatus[c.card_id] } : c)
       .filter(c => c.status === "published");
-    const typeOf = ct => ct === "chart.line" || ct === "chart.bar" ? "chart"
-      : ct.startsWith("select.") ? "select" : ct;
+    const typeOf = ct => ct === "chart.line" ? "trend" : ct === "chart.bar" ? "bar" : ct === "chart.pie" ? "pie"
+      : ct === "metric.card" ? "metric" : ct.startsWith("select.") ? "select" : ct;
     for (const [t, words] of V2_PICK) {
       if (words.some(w => text.includes(w))) {
         const hit = cards.find(c => typeOf(c.component_type) === t);
@@ -386,15 +392,21 @@
       const hit = matchCard(text);
       if (hit && (hit.semantic_category === "present")) {
         // v2 展示类：模型判定用它翻译结构化内容——带演示数据直接渲染，无提交
+        const PRESENT_DEMO = {
+          "table": { title: "分区域概览", columns: ["区域", "数量", "环比"], rows: [["华东", "352", "2.3%"], ["华南", "332", "1.5%"], ["华北", "372", "3.2%"]] },
+          "chart.line": { title: "近半年走势", categories: ["4月", "5月", "6月", "7月", "8月", "9月"], series: [{ name: "金额（万元）", values: [122, 165, 148, 161, 178, 190] }] },
+          "chart.bar": { title: "分区域对比", categories: ["华东", "华南", "华北", "西南"], series: [{ name: "数量", values: [352, 332, 372, 222] }] },
+          "chart.pie": { title: "构成占比", slices: [{ label: "华东", value: 42 }, { label: "华南", value: 27 }, { label: "华北", value: 22 }, { label: "其他", value: 9 }] },
+          "metric.card": { label: "本月累计金额", value: "1,286", unit: "万元", delta: "4.2%", baseline: "对比上月同期" },
+          "timeline": { title: "处理进度", events: [{ ts: "09:20", title: "已受理", desc: "工单创建" }, { ts: "10:05", title: "处理中", desc: "已分派专员跟进" }, { ts: "14:30", title: "待确认", desc: "方案已发出" }] },
+          "steps": { title: "操作指引", steps: ["填写申请信息", "上传相关凭证", "等待审核", "查收处理结果"], current_index: 1 },
+        };
+        const params = PRESENT_DEMO[hit.component_type] || PRESENT_DEMO["table"];
         const isTable = hit.component_type === "table";
-        const params = isTable
-          ? { title: "分区域概览", columns: ["区域", "数量", "环比"], rows: [["华东", "352", "2.3%"], ["华南", "332", "1.5%"], ["华北", "372", "3.2%"]] }
-          : { title: "近半年走势", categories: ["4月", "5月", "6月", "7月", "8月", "9月"],
-              series: [{ name: "金额（万元）", values: [122, 165, 148, 161, 178, 190] }] };
         return sseStream([
           { step: "match", text: `模型判断适用组件：「${hit.name}」（展示类，直接渲染）` },
           { step: "final", trace_id: "demo-trace", turn_id: "t-" + Math.random().toString(36).slice(2, 8),
-            content: `已为你整理为${isTable ? "表格" : "图表"}：${params.title}`,
+            content: `已为你整理为${isTable ? "表格" : "可视化"}` + (params.title ? `：${params.title}` : "。"),
             components: [{ schema_version: "1.0.0", render_id: "v2-" + Math.random().toString(36).slice(2, 8),
               component_type: hit.component_type, semantic_category: "present", trigger_source: "model_tool_call",
               card_ref: { card_id: hit.card_id, version: hit.version }, params }],

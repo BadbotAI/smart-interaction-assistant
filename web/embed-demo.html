@@ -55,8 +55,16 @@
   </div>
 </div>
 
-<script src="./sia.js" data-key="sk-route-demo"></script>
+<script src="./sia.js"></script>
 <script>
+  // v2：信封接口需产品接入 Key——演示页动态取第一个产品的 Key
+  (async () => {
+    try {
+      const r = await fetch("/api/products").then(x => x.json());
+      const k = ((r.products || [])[0] || {}).mcp_key;
+      if (k) sia("init", { key: k });
+    } catch (e) {}
+  })();
 (async () => {
   // 演示页：取一张已上线配置做示例（真实客户场景由平台下发 cardId）
   const params = new URLSearchParams(location.search);

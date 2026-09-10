@@ -463,6 +463,22 @@ def _stable_hash(s: str) -> int:
 
 
 def gen_present_params(v2_type: str, query: str) -> dict:
+    h0 = _stable_hash(query or "q")
+    if v2_type == "pie":
+        return {"title": "构成占比", "slices": [
+            {"label": "华东", "value": 38 + h0 % 8}, {"label": "华南", "value": 24 + h0 % 6},
+            {"label": "华北", "value": 21 + h0 % 5}, {"label": "其他", "value": 12}]}
+    if v2_type == "metric":
+        return {"label": "本月累计金额", "value": str(1200 + h0 % 300), "unit": "万元",
+                "delta": f"{(h0 % 60) / 10:.1f}%", "baseline": "对比上月同期"}
+    if v2_type == "timeline":
+        return {"title": "处理进度", "events": [
+            {"ts": "09:20", "title": "已受理", "desc": "工单创建"},
+            {"ts": "10:05", "title": "处理中", "desc": "已分派专员跟进"},
+            {"ts": "14:30", "title": "待确认", "desc": "方案已发出，等待确认"}]}
+    if v2_type == "steps":
+        return {"title": "操作指引", "steps": ["填写申请信息", "上传相关凭证", "等待审核", "查收处理结果"],
+                "current_index": 1}
     """展示类组件的演示参数：模拟大模型按对话填入 table / chart 数据。
     生产环境由大模型在组件调用参数里直接给出。"""
     h = _stable_hash(query or "q")

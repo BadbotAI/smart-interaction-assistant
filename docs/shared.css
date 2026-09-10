@@ -1234,3 +1234,23 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 [hidden] { display: none !important; }
 
 .form-loose label.field, .form-loose .field { margin-bottom: 18px; }
+
+.sty-section { margin-bottom: 18px; }
+.sty-label { font-size: var(--font-small); color: var(--text-secondary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.sty-swatches { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.sty-swatch { width: 34px; height: 34px; border-radius: 10px; border: 2px solid transparent; cursor: pointer; padding: 0; position: relative; }
+.sty-swatch.on { border-color: var(--text-primary); box-shadow: 0 0 0 2px #fff inset; }
+.sty-swatch.brand { background: repeating-conic-gradient(var(--border) 0 25%, #fff 0 50%) 50%/10px 10px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text-secondary); }
+.sty-cards { display: flex; gap: 8px; flex-wrap: wrap; }
+.sty-card { border: 1.5px solid var(--border); border-radius: 10px; background: #fff; cursor: pointer; padding: 10px 12px 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 74px; }
+.sty-card:hover { border-color: var(--text-secondary); }
+.sty-card.on { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-weak); }
+.sty-card .demo { display: flex; align-items: center; justify-content: center; height: 34px; }
+.sty-card .nm { font-size: var(--font-caption); color: var(--text-secondary); }
+.sty-card.on .nm { color: var(--primary); font-weight: 600; }
+.sty-radius-demo { width: 30px; height: 22px; border: 2px solid var(--text-secondary); border-bottom: none; border-right: none; }
+.sty-h-demo { background: var(--primary); border-radius: 6px; width: 40px; }
+.sty-shadow-demo { width: 36px; height: 24px; border-radius: 6px; background: #fff; border: 1px solid var(--border); }
+.sty-density-demo { display: flex; flex-direction: column; gap: var(--sd-gap, 3px); width: 36px; }
+.sty-density-demo i { display: block; height: 4px; border-radius: 2px; background: var(--border); }
+.sty-inherit { display: flex; align-items: center; gap: 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: var(--font-small); color: var(--text-secondary); }
