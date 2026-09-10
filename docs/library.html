@@ -11,6 +11,8 @@
   .tpl-card { display: flex; flex-direction: column; gap: 8px; }
   .tpl-head { display: flex; align-items: center; gap: 8px; }
   .tpl-name { font-weight: 700; font-size: var(--font-title); }
+  .tpl-name-link { border: none; background: none; padding: 0; cursor: pointer; color: var(--text-primary); font-family: inherit; }
+  .tpl-name-link:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
   .tpl-desc { color: var(--text-secondary); font-size: var(--font-base); line-height: 1.6; }
   .tpl-preview { background: var(--bg-sunken); border-radius: 10px; padding: 14px; height: 230px; overflow: hidden; position: relative; }
   .tpl-preview::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 44px;
@@ -85,10 +87,10 @@ function tplCard(t) {
   } catch (e) { previewBox.appendChild(el("div", { class: "muted" }, ["示例预览暂不可用"])); }
   return el("div", { class: "card tpl-card" }, [
     el("div", { class: "tpl-head" }, [
-      el("span", { class: "tpl-name" }, [t.label]),
+      el("button", { class: "tpl-name tpl-name-link", type: "button", title: "查看组件详情",
+        onclick: () => { location.hash = "d-" + t.type; } }, [t.label]),
       el("span", { class: "chip " + (t.interactive ? "blue" : "gray") }, [t.interactive ? "交互 · 有提交" : "展示 · 无提交"]),
       el("div", { style: "flex:1" }),
-      el("button", { class: "btn small ghost", onclick: () => { location.hash = "d-" + t.type; } }, ["查看详情"]),
       el("a", { class: "btn small primary", href: "./cards.html?new=1&ct=" + encodeURIComponent(t.component_types[0]) }, ["从模板创建"]),
     ]),
     el("div", { class: "tpl-desc" }, [t.desc]),
