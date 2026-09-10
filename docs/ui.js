@@ -254,27 +254,39 @@ window.UI = (function () {
       if (!products || !products.length) return;
       const saved = localStorage.getItem("sia_product");
       let cur = products.find(p => p.product_id === saved) || products[0];
-      const label = el("span", { class: "fsel-label", style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, [cur.name]);
-      const btn = el("button", { class: "fsel", type: "button", title: "切换产品",
-        style: "width:100%;margin:2px 0 10px" }, [label, el("span", { class: "fsel-caret" }, [icon("chevron", 12)])]);
+      const HUES = [["#1DA1F2", "#6E4BD8"], ["#0FA968", "#1D7FBF"], ["#FF6B4A", "#D97706"],
+                    ["#4F5BD5", "#D9569B"], ["#D97706", "#B85C38"], ["#334155", "#5B7A9D"]];
+      const hueOf = (name) => { let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return HUES[h % HUES.length]; };
+      const avatar = (name, size) => {
+        const [a, b] = hueOf(name);
+        return el("span", { class: "np-avatar", style: `width:${size}px;height:${size}px;background:linear-gradient(135deg,${a},${b})` },
+          [String(name).slice(0, 1)]);
+      };
+      const nameEl = el("span", { class: "np-name" }, [cur.name]);
+      const avaHost = el("span", {}, [avatar(cur.name, 30)]);
+      const btn = el("button", { class: "np-btn", type: "button", title: "切换产品" }, [
+        avaHost,
+        el("span", { class: "np-meta" }, [nameEl, el("span", { class: "np-sub" }, ["点击切换产品"])]),
+        el("span", { class: "fsel-caret" }, [icon("chevron", 13)]),
+      ]);
       btn.onclick = () => {
         document.querySelectorAll(".menu-pop").forEach(n => n.remove());
-        const pop = el("div", { class: "menu-pop", role: "listbox" });
+        const pop = el("div", { class: "menu-pop np-pop", role: "listbox" });
         products.forEach(p => pop.appendChild(el("button", {
-          class: "menu-item" + (p.product_id === cur.product_id ? " on" : ""), role: "option",
+          class: "menu-item np-item" + (p.product_id === cur.product_id ? " on" : ""), role: "option",
           onclick: () => {
             pop.remove();
             localStorage.setItem("sia_product", p.product_id);
-            cur = p; label.textContent = p.name;
-            // 工作台等页面按产品聚焦：通知或整页刷新（简单可靠）
+            cur = p;
             location.reload();
-          } }, [p.name])));
+          } }, [avatar(p.name, 24), el("span", { style: "flex:1;text-align:left" }, [p.name]),
+                p.product_id === cur.product_id ? icon("check", 14) : null])));
         document.body.appendChild(pop);
         const r = btn.getBoundingClientRect();
         pop.style.minWidth = r.width + "px";
         pop.style.left = (r.left + window.scrollX) + "px";
-        pop.style.top = (r.bottom + window.scrollY + 4) + "px";
-        const close = (e) => { if (!pop.contains(e.target) && e.target !== btn) { pop.remove(); document.removeEventListener("click", close, true); } };
+        pop.style.top = (r.bottom + window.scrollY + 6) + "px";
+        const close = (e) => { if (!pop.contains(e.target) && !btn.contains(e.target)) { pop.remove(); document.removeEventListener("click", close, true); } };
         setTimeout(() => document.addEventListener("click", close, true), 0);
       };
       host.appendChild(btn);
