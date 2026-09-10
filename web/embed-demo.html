@@ -47,9 +47,9 @@
   </div>
   <div class="panel">
     <h2>植入点二：显式调用</h2>
-    <div class="tip">客户代码在业务流程里主动唤起组件：sia('show', cardId, { mount: '#slot' })</div>
+    <div class="tip">v1 遗留（legacy）：配置态唤起 sia('show', cardId)。v2 主推下方注册制调用。</div>
     <button class="hbtn" id="show-btn">唤起交互组件</button>
-    <div class="tip" style="margin-top:14px">v2 注册制：模型返回 { component_id, params } 后交给 SDK —— SIA.render('#slot', call)</div>
+    <div class="tip" style="margin-top:14px"><b>v2 注册制（主推）</b>：agent 后端拉注册表声明给大模型 → 模型返回 { component_id, params } → 前端 SIA.render('#slot', call) 渲染，提交自动回传。</div>
     <button class="hbtn" id="render-btn">模拟模型返回组件调用</button>
     <div id="slot" style="margin-top:14px"></div>
   </div>

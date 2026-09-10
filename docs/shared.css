@@ -1287,3 +1287,18 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .np-pop { padding: 6px; border-radius: 12px; }
 .np-item { display: flex; align-items: center; gap: 10px; border-radius: 9px; padding: 8px 10px; }
 .np-item.on { background: var(--primary-weak); color: var(--primary); font-weight: 600; }
+
+.comp .fb-pair, .brand-scope .fb-pair { display: inline-flex; gap: 6px; }
+.fb-btn { border: 1.5px solid var(--border); background: var(--bg-elevated); border-radius: 999px;
+  padding: 5px 16px; font-size: var(--font-small); cursor: pointer; color: var(--text-secondary);
+  transition: border-color var(--dur-fast), background var(--dur-fast), color var(--dur-fast), transform var(--dur-fast); }
+.fb-btn:hover { border-color: var(--primary); color: var(--primary); }
+.fb-btn.down:hover { border-color: var(--danger); color: var(--danger); }
+.fb-btn:active { transform: scale(.96); }
+.fb-btn.on { background: var(--primary-weak); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.fb-btn.down.on { background: color-mix(in srgb, var(--danger) 10%, #fff); border-color: var(--danger); color: var(--danger); }
+.fb-btn:disabled:not(.on) { opacity: .45; cursor: default; }
+
+.comp table.data tbody tr:nth-child(even) { background: var(--bg-surface); }
+.comp table.data tbody tr:hover { background: var(--primary-weak); }
+.comp table.data td:first-child { font-weight: 600; }

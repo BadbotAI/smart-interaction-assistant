@@ -202,7 +202,7 @@ window.Components = (function () {
     const chartBox = el("div", {});
     box.appendChild(chartBox);
     requestAnimationFrame(() => UI.lineChart(chartBox, {
-      series: p.series || [], labels: p.x_axis || [], unit: p.unit || "",
+      series: p.series || [], labels: p.categories || p.x_axis || [], unit: p.unit || "",
     }));
     return box;
   }
@@ -1273,23 +1273,37 @@ window.Components = (function () {
   // ================= 评价型 =================
 
   function rFeedbackBinary(env, ctx) {
-    // §2.3.4 的合规路径二：单一赞踩 + 点踩后追问原因分类（原因分组区分 能力/偏好 两种语义）。
-    // 双维度并排展示信息过载，已按走查 A9 修正为此形态。
-    const row = el("span", { style: "display:inline-flex;gap:2px;align-items:center" });
-    const up = el("button", { class: "btn small ghost", onclick: () => {
-      up.disabled = down.disabled = true;
-      up.style.color = "var(--primary)";
-      emitBinary(env, ctx, { key: "capability" }, 1.0, null);
-      UI.toast("已记录，谢谢反馈");
-    } }, ["赞"]);
-    const down = el("button", { class: "btn small ghost", onclick: () => {
-      up.disabled = down.disabled = true;
-      down.style.color = "var(--primary)";
-      askDownReason(env, ctx);
-    } }, ["踩"]);
-    row.appendChild(up);
-    row.appendChild(down);
-    return row;
+    // v2.2 视觉重做：卡容器 + 引导语 + pill 按钮；支持多评价维度（params.dimensions）
+    const p = env.params || {};
+    const dims = (p.dimensions || []).length ? p.dimensions : [{ key: "capability", label: "" }];
+    const mkPair = (dim) => {
+      const wrap = el("span", { class: "fb-pair" });
+      const up = el("button", { class: "fb-btn", title: "赞", onclick: () => {
+        up.disabled = down.disabled = true;
+        up.classList.add("on");
+        emitBinary(env, ctx, { key: dim.key }, 1.0, null);
+      } }, ["赞"]);
+      const down = el("button", { class: "fb-btn down", title: "踩", onclick: () => {
+        up.disabled = down.disabled = true;
+        down.classList.add("on");
+        askDownReason(env, ctx);
+      } }, ["踩"]);
+      wrap.append(up, down);
+      return wrap;
+    };
+    if (dims.length === 1 && !dims[0].label) {
+      // 单一赞踩：轻量行内形态（跟随回答，不占一张卡）
+      const row = el("span", { style: "display:inline-flex;gap:6px;align-items:center" });
+      if (p.prompt) row.appendChild(el("span", { class: "muted", style: "font-size:var(--font-caption)" }, [p.prompt]));
+      row.appendChild(mkPair(dims[0]));
+      return row;
+    }
+    return compCard([
+      compTitle(p.prompt || "这条回答怎么样"),
+      el("div", { style: "display:flex;flex-direction:column;gap:8px" }, dims.map(d =>
+        el("div", { style: "display:flex;align-items:center;gap:12px" }, [
+          el("span", { style: "flex:1" }, [d.label || d.key]), mkPair(d)]))),
+    ]);
   }
 
   function askDownReason(env, ctx) {

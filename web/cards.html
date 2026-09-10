@@ -1694,7 +1694,7 @@ async function openEditor(cardId, prefill, initStep) {
     const backTo = { style: isNew ? "pick" : null };
     if (step === "done") {
       foot.append(spacer,
-        el("button", { class: "btn", onclick: () => { closeEditor(); openTest(state.trigger_examples[0] || state.question.trim()); } }, ["测试"]),
+        el("button", { class: "btn", onclick: () => { closeEditor(); location.href = "/web/playground.html#comp"; } }, ["去组件测试"]),
         el("button", { class: "btn primary", onclick: () => closeEditor() }, ["完成"]));
       return;
     }

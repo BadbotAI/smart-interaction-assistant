@@ -14,7 +14,10 @@
     <div style="flex:1"></div>
     <button class="btn primary" id="newBtn"></button>
   </div>
-  <div class="muted" style="margin-bottom:14px">一个产品 = 一个品牌风格 + 多个组件 + 一份 SDK 接入配置；风格在左侧「品牌风格」里新建与编辑</div>
+  <div class="muted" style="margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span>一个产品 = 一个品牌风格 + 多个组件 + 一份 SDK 接入配置；风格在左侧「品牌风格」里新建与编辑</span>
+    <a class="btn small ghost" href="/web/embed-demo.html" target="_blank" rel="noopener">SDK 接入演示</a>
+  </div>
   <div id="listBox"></div>
 </div>
 
@@ -172,13 +175,13 @@ function draw() {
       el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
         el("span", { style: "font-weight:700;font-size:var(--font-title);width:200px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: p.name }, [p.name]),
         el("div", { style: "flex:1" }),
-        el("button", { class: "btn small iconic", title: "复制 MCP 接入配置", "aria-label": "复制 MCP 接入配置",
+        el("button", { class: "btn small iconic", title: "复制 SDK 接入配置", "aria-label": "复制 SDK 接入配置",
           onclick: () => { navigator.clipboard.writeText(sdkSnippet(p)); UI.toast("已复制 SDK 接入配置（三步）"); } }, [UI.icon("copy", 15)]),
         el("button", { class: "btn small", onclick: () => configProduct(p) }, ["产品配置"]),
         (() => { const more = el("button", { class: "btn iconic round", title: "更多", "aria-label": "更多操作",
           onclick: () => { UI.menu(more, [
             { label: "删除", danger: true, onClick: async () => {
-              const ok = await UI.confirm("删除产品", `删除「${p.name}」后，它的 MCP 接入点立即失效。`, { okText: "删除", danger: true });
+              const ok = await UI.confirm("删除产品", `删除「${p.name}」后，它的接入 Key 与注册表立即失效，已出包的 SDK 将无法工作。`, { okText: "删除", danger: true });
               if (!ok) return;
               try { await UI.api(`/api/products/${p.product_id}/delete`, { method: "POST" }); UI.toast("已删除"); load(); }
               catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
@@ -189,9 +192,9 @@ function draw() {
         el("button", { class: "key-chip", title: "产品 ID（点击复制）",
           onclick: () => { navigator.clipboard.writeText(p.product_id); UI.toast("已复制产品 ID"); } },
           [el("span", { class: "num" }, [p.product_id]), UI.icon("copy", 12)]),
-        el("button", { class: "key-chip", title: "MCP 接入 Key（点击复制完整 Key）",
-          onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制 MCP 接入 Key"); } },
-          [el("span", { class: "num" }, ["MCP Key = sk-mcp-••••" + p.mcp_key.slice(-4)]), UI.icon("copy", 12)]),
+        el("button", { class: "key-chip", title: "产品接入 Key（点击复制完整 Key）",
+          onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制产品接入 Key"); } },
+          [el("span", { class: "num" }, ["接入 Key = sk-mcp-••••" + p.mcp_key.slice(-4)]), UI.icon("copy", 12)]),
       ]),
       (() => {
         const bound = p.card_ids || [];
