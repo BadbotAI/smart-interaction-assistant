@@ -426,3 +426,54 @@ BENCH_SNAPSHOT = {
     },
 }
 
+
+
+# ---------- v2 智能助手交互：动态选项模拟 ----------
+# 演示「模型按当前对话动态给出候选项」：同一组件不同对话可能 3-6 项各不相同。
+# 生产环境由大模型在组件调用参数 options 里直接给出。
+_OPT_BANK = {
+    "物流": ["加急派送", "改约取件时间", "转自提点", "申请破损赔付", "联系派送员", "查询最新轨迹"],
+    "发票": ["电子普票", "增值税专票", "纸质普票", "先开电子后补纸质"],
+    "价格": ["按最新报价执行", "锁定当前价格 7 天", "等待价格回落提醒", "人工议价"],
+    "方案": ["方案 A · 时效优先", "方案 B · 成本优先", "方案 C · 均衡", "方案 D · 自定义组合"],
+    "服务": ["转人工客服", "提交工单", "查看帮助文档", "稍后再说"],
+}
+
+
+def gen_options(query: str):
+    text = query or ""
+    for kw, opts in _OPT_BANK.items():
+        if kw in text or any(w in text for w in {"物流": ["货", "快递", "派送", "延误"],
+                                                  "发票": ["开票", "抬头", "报销"],
+                                                  "价格": ["报价", "运价", "多少钱"],
+                                                  "方案": ["选择", "对比", "哪个好"],
+                                                  "服务": ["客服", "人工", "投诉"]}.get(kw, [])):
+            n = 3 + (_stable_hash(text) % (len(opts) - 2)) if len(opts) > 3 else len(opts)
+            return opts[:max(2, min(n, len(opts)))]
+    base = ["确认继续", "查看详情", "换个方案", "稍后处理", "转人工跟进", "取消本次操作"]
+    n = 3 + (_stable_hash(text or "q") % 4)
+    return base[:n]
+
+
+def _stable_hash(s: str) -> int:
+    h = 0
+    for ch in s:
+        h = (h * 31 + ord(ch)) % 100000
+    return h
+
+
+def gen_present_params(v2_type: str, query: str) -> dict:
+    """展示类组件的演示参数：模拟大模型按对话填入 table / chart 数据。
+    生产环境由大模型在组件调用参数里直接给出。"""
+    h = _stable_hash(query or "q")
+    if v2_type == "table":
+        rows = [["华东", str(320 + h % 80), f"{2.1 + (h % 10) / 10:.1f}%"],
+                ["华南", str(280 + h % 60), f"{1.5 + (h % 8) / 10:.1f}%"],
+                ["华北", str(350 + h % 50), f"{2.8 + (h % 6) / 10:.1f}%"],
+                ["西南", str(190 + h % 40), f"{1.2 + (h % 5) / 10:.1f}%"]]
+        return {"title": "分区域概览", "columns": ["区域", "数量", "环比"], "rows": rows}
+    kind = "bar" if any(w in (query or "") for w in ("对比", "分布", "柱")) else "line"
+    cats = ["4月", "5月", "6月", "7月", "8月", "9月"]
+    vals = [round(100 + ((h + i * 37) % 90) + i * 6, 1) for i in range(6)]
+    return {"title": "近半年走势", "kind": kind, "categories": cats,
+            "series": [{"name": "金额（万元）", "values": vals}]}

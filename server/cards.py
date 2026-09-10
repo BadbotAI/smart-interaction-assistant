@@ -51,10 +51,15 @@ def validate_card(payload: dict, strict: bool = False) -> list:
     except (ValueError, TypeError):
         errors.append({"field": "component_type", "message": "组件类型不合法"})
         return errors
-    trig = payload.get("trigger_description") or ""
-    if payload.get("model_invokable", True) and semantic_category(ct) in ("collect", "control") and not trig.strip():
-        errors.append({"field": "trigger_description", "message": "允许 AI 触发的配置必须填写触发条件描述"})
-    if len(trig) > 200:
+    from . import registry as _reg
+    if ct not in _reg.V2_ALLOWED_CT:
+        errors.append({"field": "component_type",
+                       "message": "该组件类型已在 v2 下线（业务耦合或复杂形式）；可用：选择 / 表单 / 确认 / 赞踩 / 偏好 / 表格 / 图表"})
+        return errors
+    # v2：触发条件下线——组件何时出现由大模型判断，依据是「组件说明」（description）
+    if payload.get("model_invokable", True) and not (payload.get("description") or "").strip():
+        errors.append({"field": "description", "message": "组件说明必填：大模型靠它判断什么情况下使用本组件"})
+    if len(payload.get("trigger_description") or "") > 200:
         errors.append({"field": "trigger_description", "message": "触发条件不能超过 200 字"})
     examples = payload.get("trigger_examples") or []
     if len(examples) > 10:
@@ -64,7 +69,9 @@ def validate_card(payload: dict, strict: bool = False) -> list:
         if isinstance(tpl, str) and tpl.count("{") != tpl.count("}"):
             errors.append({"field": f"text_templates.{key}", "message": "文案模板变量括号不匹配"})
     style = payload.get("style_overrides") or {}
-    allowed_tokens = {"color.primary", "radius.card", "radius.control", "font.size_base", "spacing.card_padding", "density"}
+    allowed_tokens = {"height", "radius", "color.primary", "color.accent", "spacing", "shadow", "font_scale",
+                      # 旧 token 兼容读取（编辑器已不再写入）
+                      "radius.card", "radius.control", "font.size_base", "spacing.card_padding", "density"}
     for key in style:
         if key not in allowed_tokens:
             errors.append({"field": f"style_overrides.{key}", "message": f"非法样式 token：{key}（仅允许 design token 覆盖，禁止任意 CSS）"})
@@ -89,7 +96,11 @@ def validate_card_content(payload: dict) -> list:
     config = ((payload.get("field_bindings") or {}).get("config") or {})
     options = [o for o in (config.get("options") or []) if _norm_opt(o)]
     select_types = ("select.single", "select.multi", "select.card", "matrix.compare+select", "suggest.followup")
-    if ct in select_types or ct == "rank.priority":
+    if ct in select_types:
+        # v2：选项留空 = 模型按对话动态填充（合法）；预置了选项则至少 2 个
+        if options and len(options) < 2:
+            errors.append({"field": "options", "message": "预置选项至少 2 个；留空表示由模型动态给出"})
+    elif ct == "rank.priority":
         if len(options) < 2:
             errors.append({"field": "options", "message": "至少 2 个选项"})
     if ct == "commerce.order" and len(options) < 1:
@@ -433,7 +444,8 @@ def published_invokable_cards(tenant_id: str):
     conn = db.get_conn()
     rows = conn.execute(
         "SELECT * FROM cards WHERE tenant_id=? AND model_invokable=1 "
-        "AND semantic_category IN ('collect','control') "
+        # v2：模型可出全部注册集组件——采集/控制/评价/展示（v1 只开放采集与控制）
+        "AND semantic_category IN ('collect','control','evaluate','present') "
         "AND (status='published' OR (status='draft' AND version>=1))", (tenant_id,)).fetchall()
     out = []
     for r in rows:
@@ -452,10 +464,20 @@ def published_invokable_cards(tenant_id: str):
     return out
 
 
+def _match_corpus(card: dict) -> list:
+    """模型选件模拟的判断语料：组件名 + 说明（按句拆开，取相似度最大的一句）。
+    v2 组件靠说明让模型判断何时用；旧卡兼容触发描述。"""
+    import re as _re
+    base = (card.get("trigger_description") or "").strip() or (card.get("description") or "").strip()
+    parts = [t for t in _re.split(r"[。；;：:]", base) if t.strip()]
+    name = (card.get("name") or "").strip()
+    return ([name] if name else []) + parts
+
+
 def match_score(query: str, card: dict) -> float:
-    """query 与卡片触发描述/示例的相似度（取最大）。"""
+    """query 与组件说明/示例的相似度（取最大）——「模型判断该出哪个组件」的演示实现。"""
     q_emb = embeddings.embed(query)
-    texts = [card.get("trigger_description") or ""] + (card.get("trigger_examples") or [])
+    texts = _match_corpus(card) + (card.get("trigger_examples") or [])
     best = 0.0
     for t in texts:
         if t.strip():
@@ -466,13 +488,43 @@ def match_score(query: str, card: dict) -> float:
 HIT_THRESHOLD = 0.35
 
 
+# v2 选件模拟规则：注册类型 → 意图关键词。演示「大模型按组件说明判断该出哪个组件」；
+# 生产环境由大模型依据注册 schema 自主决定，本规则仅测试对话用。顺序即优先级（具体意图在前）。
+V2_PICK_RULES = [
+    ("chart",      ["走势", "趋势", "变化", "图表", "画个图", "分布", "环比", "同比"]),
+    ("table",      ["表格", "列个表", "清单", "明细", "整理成表", "列出来", "对比一下这几"]),
+    ("confirm",    ["取消", "删除", "撤销", "退款", "终止", "变更", "改地址", "确认执行"]),
+    ("form",       ["登记", "填写", "联系方式", "补充信息", "留个", "资料", "预约"]),
+    ("preference", ["哪个好", "哪份好", "择优", "更认可", "帮我比比", "两个方案"]),
+    ("feedback",   ["评价一下", "满意吗", "打个分", "反馈"]),
+    ("select",     ["选", "挑", "哪种", "方式", "方案", "怎么处理", "有哪些"]),
+]
+
+
 def match_cards(query: str, tenant_id: str):
-    """返回 (命中卡片或 None, 竞争列表)。"""
+    """返回 (命中卡片或 None, 竞争列表)——「模型判断该出哪个组件」的演示实现。
+    规则路由优先（可控），组件说明相似度兜底；生产由大模型按注册 schema 决定。"""
+    from . import registry as _reg
     cards = published_invokable_cards(tenant_id)
     scored = sorted(((match_score(query, c), c) for c in cards), key=lambda x: -x[0])
+    rule_hit = None
+    for v2_type, words in V2_PICK_RULES:
+        if any(w in query for w in words):
+            for c in cards:
+                if _reg.V2_TYPE_MAP.get(c.get("component_type")) == v2_type:
+                    rule_hit = c
+                    break
+            if rule_hit:
+                break
+    hit = rule_hit or (scored[0][1] if scored and scored[0][0] >= HIT_THRESHOLD else None)
     competitors = [{"card_id": c["card_id"], "name": c["name"], "component_type": c["component_type"],
-                    "score": round(s, 4), "hit": s >= HIT_THRESHOLD} for s, c in scored[:6]]
-    hit = scored[0][1] if scored and scored[0][0] >= HIT_THRESHOLD else None
+                    "score": round(0.85 if rule_hit and c["card_id"] == rule_hit["card_id"] else sc, 4),
+                    "hit": (rule_hit and c["card_id"] == rule_hit["card_id"]) or sc >= HIT_THRESHOLD}
+                   for sc, c in scored[:6]]
+    if rule_hit and all(x["card_id"] != rule_hit["card_id"] for x in competitors):
+        competitors.insert(0, {"card_id": rule_hit["card_id"], "name": rule_hit["name"],
+                               "component_type": rule_hit["component_type"], "score": 0.85, "hit": True})
+    competitors.sort(key=lambda x: -x["score"])
     return hit, competitors
 
 
@@ -481,7 +533,14 @@ def resolve_options(card: dict, query: str):
     src = card.get("option_source") or {}
     stype = src.get("type", "static")
     if stype == "static":
-        return src.get("values") or [], None
+        vals = src.get("values") or []
+        if not vals:
+            cfg = ((card.get("field_bindings") or {}).get("config") or {})
+            if not [o for o in (cfg.get("options") or []) if str(o).strip()]:
+                # v2：管理员未预置选项 = 模型动态填充（演示为规则生成；生产由大模型在 params.options 里给出）
+                from . import mockmodels
+                return mockmodels.gen_options(query), None
+        return vals, None
     if stype == "model_generated":
         base = src.get("hint_values") or ["方案一", "方案二", "方案三"]
         return base, None

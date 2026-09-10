@@ -13,7 +13,7 @@ from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import cards, dashboard, db, embeddings, events, mockmodels, router_core, seed, traces
+from . import cards, dashboard, db, embeddings, events, mockmodels, registry, router_core, seed, traces
 
 app = FastAPI(title="智能助手交互与调度平台", version="0.1.0")
 
@@ -135,6 +135,23 @@ async def _handle_turn(body: dict, emit):
     # 采集/控制卡片触发（模型自主 tool call 的模拟；已带 card_context 的续轮不再触发）
     if not card_context and not body.get("skip_card_match"):
         hit, competitors = cards.match_cards(text, tenant_id)
+        if hit and hit.get("semantic_category") == "present":
+            # v2 展示类组件：模型判定用它「翻译」结构化内容——带数据直接渲染，无提交、不等待用户
+            v2t = registry.V2_TYPE_MAP.get(hit["component_type"], "table")
+            params = mockmodels.gen_present_params(v2t, text)
+            ct_out = hit["component_type"]
+            if v2t == "chart":
+                ct_out = "chart.bar" if params.get("kind") == "bar" else "chart.line"
+            envelope = _envelope(ct_out, "model_tool_call", params,
+                                 card={"card_id": hit["card_id"], "version": hit["version"]})
+            recorder.span("card_render", {"card_id": hit["card_id"], "card_version": hit["version"],
+                                          "component_type": ct_out, "trigger_source": "model_tool_call",
+                                          "degraded": False, "competitors": competitors[:3]})
+            recorder.finish("fastlane", None, 0.0002, 120, False)
+            await emit({"step": "final", "trace_id": trace_id, "turn_id": turn_id,
+                        "content": params.get("title") and f"已为你整理为{'表格' if v2t == 'table' else '图表'}：{params['title']}" or "已为你整理如下。",
+                        "components": [envelope]})
+            return
         if hit:
             envelope, degraded = _build_ask_envelope(hit, text)
             recorder.span("card_render", {
@@ -302,6 +319,11 @@ def _build_ask_envelope(card: dict, query: str):
               "submit_label": templates.get("submit") or "提交",
               "reply_text": templates.get("reply") or "",
               "echo_results": bool(card.get("echo_results"))}
+    if ct == "feedback.preference" and not config.get("candidates"):
+        # v2：候选由模型按对话给出（params.candidates）——演示生成两份方案
+        params["candidates"] = [
+            {"alias": "方案 A", "label": "方案 A", "content": "优先保证时效：改走直达线路，成本上浮约 8%。"},
+            {"alias": "方案 B", "label": "方案 B", "content": "优先控制成本：维持现有线路，预计多用 2 天。"}]
     if config.get("steps"):
         params["steps"] = config["steps"]
     if config.get("display"):
@@ -654,6 +676,19 @@ def _product_row(r):
     return {"product_id": r["product_id"], "name": r["name"], "brand_file": r["brand_file"],
             "card_ids": db.dj(r["card_ids"], []), "created_at": r["created_at"],
             "mcp_key": _mcp_key(r["product_id"])}
+
+
+@app.get("/v1/products/{product_id}/registry")
+def product_registry(product_id: str, key: str = None):
+    """组件注册表（v2）：agent 后端凭产品 SDK Key 拉取，作为工具声明给大模型。
+    只含已发布且属于 v2 注册集的组件实例；说明 + 参数 schema + 提交结构，UI 排布不暴露。"""
+    conn = db.get_conn()
+    row = conn.execute("SELECT * FROM products WHERE product_id=?", (product_id,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "product_not_found"}, status_code=404)
+    if not key or key != _mcp_key(product_id):
+        return JSONResponse({"error": "invalid_key", "message": "请携带产品接入 Key（接入配置页可复制）"}, status_code=401)
+    return registry.build_registry(dict(row))
 
 
 @app.get("/api/products")

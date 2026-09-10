@@ -774,6 +774,84 @@ def migrate_model_name_v71():
     return True
 
 
+V2_SEED_CARDS = [
+    {"name": "通用选择", "component_type": "select.single", "semantic_category": "collect",
+     "description": "需要用户在若干候选中做单项选择时使用：处理方式、方案、时间段等。候选项按当前对话动态给出，也可由管理员预置。",
+     "field_bindings": {"config": {"options": []}},
+     "text_templates": {"prompt": "请选择", "submit": "确认"}},
+    {"name": "多项勾选", "component_type": "select.multi", "semantic_category": "collect",
+     "description": "需要用户勾选多个候选项时使用：偏好调查、批量操作确认等。候选项按当前对话动态给出。",
+     "field_bindings": {"config": {"options": []}},
+     "text_templates": {"prompt": "请勾选适用项", "submit": "提交"}},
+    {"name": "信息登记", "component_type": "form.structured", "semantic_category": "collect",
+     "description": "需要用户补充结构化信息时使用。字段在平台定义（属性定死），模型可预填已知值。",
+     "field_bindings": {"config": {"fields": [
+         {"key": "contact_name", "label": "联系人", "type": "text", "required": True},
+         {"key": "contact_phone", "label": "联系方式", "type": "text", "required": True}]}},
+     "text_templates": {"prompt": "请补充以下信息", "submit": "提交"}},
+    {"name": "高风险确认", "component_type": "control.confirm", "semantic_category": "control",
+     "description": "执行不可逆或高风险动作前使用：取消订单、变更关键信息、发起赔付等，用户明确确认后才继续。",
+     "field_bindings": {"config": {}},
+     "text_templates": {"prompt": "请确认是否继续", "submit": "确认执行"}},
+    {"name": "回答评价", "component_type": "feedback.binary", "semantic_category": "evaluate",
+     "description": "对一条回答收集赞 / 踩评价，可分维度；用于回答质量的持续观测。",
+     "field_bindings": {"config": {"dimensions": [
+         {"key": "accuracy", "label": "答得准确吗"}, {"key": "helpful", "label": "对你有帮助吗"}]}},
+     "text_templates": {"prompt": "这条回答怎么样"}},
+    {"name": "方案择优", "component_type": "feedback.preference", "semantic_category": "evaluate",
+     "description": "多个候选回答或方案让用户择优（多模型对比、多方案对比场景），采纳结果回传。",
+     "field_bindings": {"config": {}},
+     "text_templates": {"prompt": "你更认可哪一份"}},
+    {"name": "数据表格", "component_type": "table", "semantic_category": "present",
+     "description": "模型要表达结构化数据（清单、对比、多行记录）时使用，替代大段文字。展示类，无提交。",
+     "field_bindings": {"config": {}}, "text_templates": {}},
+    {"name": "趋势图表", "component_type": "chart.line", "semantic_category": "present",
+     "description": "模型要表达数列趋势或分布（费用走势、数量对比）时使用，折线或柱状。展示类，无提交。",
+     "field_bindings": {"config": {}}, "text_templates": {}},
+]
+
+
+def migrate_assistant_v2():
+    """v2 智能助手交互：触发条件下线、组件集收敛为注册集（交互 5 + 展示 2）。
+    旧业务组件卡（地图 / 下单 / 物流轨迹等）整体下线保留数据；种入泛化组件实例并挂到种子产品。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT v FROM kv_settings WHERE k='v2_assistant'").fetchone():
+        return False
+    seed_names = {c["name"] for c in V2_SEED_CARDS}
+    demoted = 0
+    for r in conn.execute("SELECT card_id, name, status FROM cards").fetchall():
+        if r["status"] == "published" and r["name"] not in seed_names:
+            # v2 清场：旧业务场景组件（含类型合法但内容业务耦合的）一律下线，数据保留
+            conn.execute("UPDATE cards SET status='offline' WHERE card_id=?", (r["card_id"],))
+            demoted += 1
+    new_ids = []
+    for payload in V2_SEED_CARDS:
+        exists = conn.execute("SELECT card_id FROM cards WHERE tenant_id=? AND name=?",
+                              (TENANT, payload["name"])).fetchone()
+        if exists:
+            row = conn.execute("SELECT status FROM cards WHERE card_id=?", (exists["card_id"],)).fetchone()
+            if row and row["status"] != "published":
+                cards.transition(exists["card_id"], "publish", actor="seed")
+            new_ids.append(exists["card_id"])
+            continue
+        card, errors = cards.create_card(TENANT, dict(payload))
+        if errors:
+            raise RuntimeError(f"v2 seed card failed: {errors}")
+        card, err = cards.transition(card["card_id"], "publish", actor="seed")
+        if err:
+            raise RuntimeError(f"v2 seed publish failed: {err}")
+        new_ids.append(card["card_id"])
+    prow = conn.execute("SELECT product_id FROM products LIMIT 1").fetchone()
+    if prow:
+        conn.execute("UPDATE products SET card_ids=? WHERE product_id=?",
+                     (db.j(new_ids), prow["product_id"]))
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('v2_assistant', '1')")
+    conn.commit()
+    db.audit("system", "migrate_assistant_v2",
+             {"note": "触发条件下线，组件集收敛为注册集（交互 5 + 展示 2）", "demoted": demoted, "seeded": len(new_ids)})
+    return True
+
+
 def run_all():
     db.init_db()
     seed_models()
@@ -787,6 +865,7 @@ def run_all():
     migrate_pool_v6()
     migrate_bench_v7()
     migrate_model_name_v71()
+    migrate_assistant_v2()
     n_bank = 0
     n_fb = seed_ab_feedback()
     n_hist = seed_history()
