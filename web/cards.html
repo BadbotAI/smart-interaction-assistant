@@ -58,15 +58,16 @@
 
 
 
-  <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
-    <input type="text" id="searchInput" placeholder="搜索组件实例" style="width:340px;min-width:220px" aria-label="搜索配置">
-    <button class="btn" id="searchBtn" style="height:36px;padding:0 18px">搜索</button>
-    <span class="muted" id="listCount"></span>
-  </div>
   <div class="card" style="padding:0">
     <div id="prodCover"></div>
-    <div style="display:flex;gap:16px;padding:4px 16px 0;border-bottom:1px solid var(--border);align-items:center">
+    <div style="display:flex;gap:12px;padding:4px 16px 0;border-bottom:1px solid var(--border);align-items:center">
       <div id="statusTabs"></div>
+      <div style="flex:1"></div>
+      <span class="muted" id="listCount" style="font-size:var(--font-caption)"></span>
+      <div style="display:flex;gap:8px;align-items:center;padding-bottom:6px">
+        <input type="text" id="searchInput" placeholder="搜索组件实例" style="width:230px;height:32px;padding:4px 12px" aria-label="搜索配置">
+        <button class="btn small" id="searchBtn">搜索</button>
+      </div>
     </div>
     <div id="cardList"></div>
   </div>

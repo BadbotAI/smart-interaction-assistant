@@ -211,13 +211,15 @@ window.UI = (function () {
     ia: {
       name: "智能交互平台", home: "./index.html", productSwitcher: true,
       groups: [
-        // 排序按用户动线：组件库（了解与起点）→ 工作台（日常主阵地）→ 品牌风格（样式是产品重点）
-        // → 产品与接入（SDK 出口）→ 组件测试（渲染与契约验证）→ 数据（Stage2）
-        { title: "智能交互", items: [
+        // 分组按对象：上组围绕「当前产品」（切换器正下方：接入出口与品牌风格），
+        // 下组围绕「组件」（模板库与实例工作台，日常主阵地）
+        { title: "产品", items: [
+          ["products", "产品与接入", "./products.html", "link"],
+          ["design", "品牌风格", "./design.html", "palette"],
+        ] },
+        { title: "组件", items: [
           ["library", "组件库", "./library.html", "grid"],
           ["cards", "组件工作台", "./cards.html", "board"],
-          ["design", "品牌风格", "./design.html", "palette"],
-          ["products", "产品与接入", "./products.html", "link"],
         ] },
       ],
     },
