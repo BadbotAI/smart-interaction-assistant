@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=cffe8a19">
+<link rel="stylesheet" href="./shared.css?v=54566844">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -76,8 +76,8 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=a3f9392f"></script>
-<script src="./mock_api.js?v=13eb79e0"></script>
+<script src="./mock_data.js?v=598f8853"></script>
+<script src="./mock_api.js?v=582ad7ee"></script>
 <script src="./tokens.js?v=be27f7d8"></script>
 <script src="./ui.js?v=fbc0fa45"></script>
 <script src="./components.js?v=b9b4a937"></script>
@@ -376,9 +376,7 @@ function buildCardRow(c) {
       el("div", { class: "main", style: editable ? "cursor:pointer" : "", title: editable ? "点击编辑" : "上线中不可编辑，先下线",
         onclick: () => { if (editable) openEditor(c.card_id); else UI.toast("已上线的配置不可编辑，请先下线", true); } }, [
         el("div", { class: "cr-line1" }, [
-          el("span", { class: "cr-id num", title: "配置 ID（点击复制完整 ID）：" + c.card_id,
-            onclick: (e) => { e.stopPropagation(); navigator.clipboard.writeText(c.card_id); UI.toast("已复制配置 ID"); } },
-            ["ID:" + shortId(c.card_id)]),
+          el("span", { class: "cr-id num static", title: "配置 ID" }, ["ID:" + shortId(c.card_id)]),
           el("span", { class: "name" }, [c.name]),
           el("span", { class: "chip " + color }, [label]),
           UI.ctChip(c.component_type),
@@ -441,7 +439,6 @@ function moreButton(c, eff) {
   const moreBtn = el("button", { class: "btn small", onclick: () => UI.menu(moreBtn, [
     { label: "查看数据（看板）", onClick: () => { location.href = "./dashboard.html?card=" + c.card_id + "#survey"; } },
 
-    { label: "复制配置 ID", onClick: () => { navigator.clipboard.writeText(c.card_id); UI.toast("已复制配置 ID"); } },
     eff !== "published" ? { label: c.version >= 1 ? "删除配置（含线上版本）" : "删除配置", danger: true, onClick: () => doTransition(c, "delete") } : null,
   ]) }, ["更多"]);
   return moreBtn;
@@ -527,9 +524,20 @@ const V2_TEMPLATES = [
   { component_type: "metric.card", name: "指标卡", default_config: {} },
   { component_type: "timeline", name: "时间线", default_config: {} },
   { component_type: "steps", name: "步骤条", default_config: {} },
+  { component_type: "slider.range", name: "数值滑杆", default_config: { min: 0, max: 100, step: 1 } },
+  { component_type: "scale.likert", name: "评分量表", default_config: { likert: { from: 1, to: 5 } } },
+  { component_type: "picker.datetime", name: "日期时间", default_config: {} },
+  { component_type: "rank.priority", name: "优先级排序", default_config: { options: [] } },
+  { component_type: "matrix.compare", name: "方案对比", default_config: {} },
+  { component_type: "list.ordered", name: "要点清单", default_config: {} },
+  { component_type: "text.emphasis", name: "重点结论", default_config: {} },
 ];
 // 展示类预览演示参数（与组件库一致；运行时由模型参数填入）
 const DEMO_PRESENT = {
+  "matrix.compare": { title: "方案对比", options: ["方案 A", "方案 B"], dimensions: ["时效", "成本", "稳定"],
+    values: [[8, 6, 7], [6, 9, 8]] },
+  "list.ordered": { title: "注意事项", items: ["保留原包装以便验收", "签收前拍照留证", "异常 24 小时内反馈"] },
+  "text.emphasis": { value: "本月履约率 98.6%，创近半年新高", caption: "对比上月 +1.2 个百分点", tone: "positive" },
   "table": { title: "分区域概览", columns: ["区域", "数量", "环比"], rows: [["华东", "352", "2.3%"], ["华南", "332", "1.5%"], ["华北", "372", "3.2%"]] },
   "chart.line": { title: "近半年走势", categories: ["4月", "5月", "6月", "7月", "8月", "9月"], series: [{ name: "金额（万元）", values: [122, 165, 148, 161, 178, 190] }] },
   "chart.bar": { title: "分区域对比", categories: ["华东", "华南", "华北", "西南"], series: [{ name: "数量", values: [352, 332, 372, 222] }] },
@@ -538,7 +546,8 @@ const DEMO_PRESENT = {
   "timeline": { title: "处理进度", events: [{ ts: "09:20", title: "已受理", desc: "工单创建" }, { ts: "10:05", title: "处理中", desc: "已分派专员跟进" }, { ts: "14:30", title: "待确认", desc: "方案已发出" }] },
   "steps": { title: "操作指引", steps: ["填写申请信息", "上传相关凭证", "等待审核", "查收处理结果"], current_index: 1 },
 };
-const PRESENT_TYPES = ["table", "chart.line", "chart.bar", "chart.pie", "chart.area", "metric.card", "timeline", "steps"];
+const PRESENT_TYPES = ["table", "chart.line", "chart.bar", "chart.pie", "chart.area", "metric.card", "timeline", "steps",
+  "matrix.compare", "list.ordered", "text.emphasis"];
 const NO_CONTENT_TYPES = ["feedback.preference", "table", "chart.line", "chart.bar"];
 
 
@@ -837,13 +846,24 @@ async function openEditor(cardId, prefill, initStep) {
   function stepPick() {
     const box = el("div", {});
     let activeTag = null;
+    // 双 tab：与组件库同构（交互类 / 展示类）；初始定位到当前已选组件所在类
+    let pickTab = PRESENT_TYPES.includes(state.component_type) ? "present" : "interactive";
     const gridBox = el("div", { class: "tpl-grid" });
     const tagBox = el("div", { class: "scene-tags" });
+    const tabBar = el("div", { style: "display:flex;gap:16px;margin-bottom:10px" });
+    function drawTabs() {
+      tabBar.innerHTML = "";
+      const nI = V2_TEMPLATES.filter(t => !PRESENT_TYPES.includes(t.component_type)).length;
+      const nP = V2_TEMPLATES.length - nI;
+      [["interactive", `交互类组件（${nI}）`], ["present", `展示类组件（${nP}）`]].forEach(([v, nm]) =>
+        tabBar.appendChild(el("button", { type: "button", class: "tab" + (pickTab === v ? " active" : ""),
+          onclick: () => { if (pickTab === v) return; pickTab = v; drawTabs(); drawGrid(); } }, [nm])));
+    }
     function drawGrid() {
       const rec = Object.fromEntries(sugs.map((s2, i) => [s2.component_type, { s: s2, top: i === 0 }]));
       gridBox.innerHTML = "";
       // 有推荐时推荐卡置顶（已选组件时也一眼可见），组内保持原顺序
-      const list = V2_TEMPLATES;
+      const list = V2_TEMPLATES.filter(t => PRESENT_TYPES.includes(t.component_type) === (pickTab === "present"));
       list.forEach(t => {
         const selAny = state.component_type === t.component_type ||
           (t.component_type === "select.single" && state.component_type === "select.multi");
@@ -894,8 +914,10 @@ async function openEditor(cardId, prefill, initStep) {
     }
     box.appendChild(el("div", { class: "field", style: "margin-bottom:0" }, [
       el("span", { class: "label-text req" }, ["选择组件"]),
+      tabBar,
       el("div", { class: "tpl-scroll" }, [gridBox]),
     ]));
+    drawTabs();
     drawGrid();
     return box;
   }

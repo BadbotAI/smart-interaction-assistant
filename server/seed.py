@@ -823,7 +823,66 @@ V2_SEED_CARDS = [
     {"name": "步骤条", "component_type": "steps", "semantic_category": "present",
      "description": "要给出分步操作指引并标注当前步骤时使用。展示类，无提交。",
      "field_bindings": {"config": {}}, "text_templates": {}},
+    {"name": "数值滑杆", "component_type": "slider.range", "semantic_category": "collect",
+     "description": "需要用户给出一个范围内的数值时使用：预算、数量、额度。范围与步长由调用参数给出。",
+     "field_bindings": {"config": {"min": 0, "max": 100, "step": 1}},
+     "text_templates": {"prompt": "请选择数值", "submit": "确认"}},
+    {"name": "评分量表", "component_type": "scale.likert", "semantic_category": "evaluate",
+     "description": "需要用户按刻度打分时使用：满意度、意愿度。刻度档数由调用参数给出。",
+     "field_bindings": {"config": {"likert": {"from": 1, "to": 5}}},
+     "text_templates": {"prompt": "请为本次服务打分", "submit": "提交"}},
+    {"name": "日期时间", "component_type": "picker.datetime", "semantic_category": "collect",
+     "description": "需要用户选择日期或时间时使用：预约、提醒、截止时间。",
+     "field_bindings": {"config": {}},
+     "text_templates": {"prompt": "请选择时间", "submit": "确认"}},
+    {"name": "优先级排序", "component_type": "rank.priority", "semantic_category": "collect",
+     "description": "需要用户对若干条目按重要程度排序时使用，条目由调用参数给出。",
+     "field_bindings": {"config": {"options": []}},
+     "text_templates": {"prompt": "请按优先级排序", "submit": "提交"}},
+    {"name": "方案对比", "component_type": "matrix.compare", "semantic_category": "present",
+     "description": "要把多个方案按多个维度打分对比时使用（矩阵表 + 综合分）。展示类，无提交。",
+     "field_bindings": {"config": {}}, "text_templates": {}},
+    {"name": "要点清单", "component_type": "list.ordered", "semantic_category": "present",
+     "description": "要按序列出要点、结论或注意事项时使用。展示类，无提交。",
+     "field_bindings": {"config": {}}, "text_templates": {}},
+    {"name": "重点结论", "component_type": "text.emphasis", "semantic_category": "present",
+     "description": "要用一句话突出核心结论或状态时使用（可带正负语气）。展示类，无提交。",
+     "field_bindings": {"config": {}}, "text_templates": {}},
 ]
+
+
+def migrate_components_v24():
+    """v2.4 组件扩容：交互 +4（滑杆/评分/日期/排序）+ 展示 +3（方案对比/要点清单/重点结论）。
+    补种进现有库并挂到所有产品（新库由 v2 主种子直接覆盖）。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT v FROM kv_settings WHERE k='v24_components'").fetchone():
+        return False
+    NEW = {"数值滑杆", "评分量表", "日期时间", "优先级排序", "方案对比", "要点清单", "重点结论"}
+    new_ids = []
+    for payload in V2_SEED_CARDS:
+        if payload["name"] not in NEW:
+            continue
+        exists = conn.execute("SELECT card_id, status FROM cards WHERE tenant_id=? AND name=?",
+                              (TENANT, payload["name"])).fetchone()
+        if exists:
+            if exists["status"] != "published":
+                cards.transition(exists["card_id"], "publish", actor="seed")
+            new_ids.append(exists["card_id"])
+            continue
+        card, errors = cards.create_card(TENANT, dict(payload))
+        if errors:
+            raise RuntimeError(f"v2.4 seed card failed: {errors}")
+        cards.transition(card["card_id"], "publish", actor="seed")
+        new_ids.append(card["card_id"])
+    for prow in conn.execute("SELECT product_id, card_ids FROM products").fetchall():
+        ids = db.dj(prow["card_ids"], [])
+        merged = ids + [x for x in new_ids if x not in ids]
+        if merged != ids:
+            conn.execute("UPDATE products SET card_ids=? WHERE product_id=?", (db.j(merged), prow["product_id"]))
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('v24_components', '1')")
+    conn.commit()
+    db.audit("system", "migrate_components_v24", {"note": "组件扩容至 19 类", "added": len(new_ids)})
+    return True
 
 
 def migrate_assistant_v21():
@@ -955,6 +1014,7 @@ def run_all():
     migrate_assistant_v21()
     migrate_products_v22()
     migrate_products_v23()
+    migrate_components_v24()
     n_bank = 0
     n_fb = seed_ab_feedback()
     n_hist = seed_history()

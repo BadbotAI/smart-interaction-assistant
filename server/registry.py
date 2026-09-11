@@ -21,6 +21,13 @@ V2_TYPE_MAP = {
     "metric.card": "metric",
     "timeline": "timeline",
     "steps": "steps",
+    "slider.range": "slider",
+    "scale.likert": "rating",
+    "picker.datetime": "datetime",
+    "rank.priority": "rank",
+    "matrix.compare": "compare",
+    "list.ordered": "list",
+    "text.emphasis": "highlight",
 }
 V2_ALLOWED_CT = set(V2_TYPE_MAP)
 
@@ -51,13 +58,30 @@ V2_META = {
                    "desc": "要表达事件先后过程、里程碑或进度时使用。"},
     "steps":      {"label": "步骤条", "interactive": False,
                    "desc": "要给出分步操作指引并标注当前进行到哪一步时使用。"},
+    "slider":     {"label": "数值滑杆", "interactive": True,
+                   "desc": "需要用户给出一个范围内的数值时使用（预算、数量、额度），范围与步长由调用参数给出。"},
+    "rating":     {"label": "评分量表", "interactive": True,
+                   "desc": "需要用户按刻度打分时使用（满意度、意愿度），刻度档数由调用参数给出。"},
+    "datetime":   {"label": "日期时间", "interactive": True,
+                   "desc": "需要用户选择日期或时间时使用（预约、提醒、截止时间）。"},
+    "rank":       {"label": "优先级排序", "interactive": True,
+                   "desc": "需要用户对若干条目按重要程度排序时使用，条目由调用参数给出。"},
+    "compare":    {"label": "方案对比", "interactive": False,
+                   "desc": "要把多个方案按多个维度打分对比时使用（矩阵表 + 综合分）。"},
+    "list":       {"label": "要点清单", "interactive": False,
+                   "desc": "要按序列出要点、结论或注意事项时使用（无列结构的条目列举）。"},
+    "highlight":  {"label": "重点结论", "interactive": False,
+                   "desc": "要用一句话突出核心结论或状态时使用（可带正负语气）。"},
 }
 
 # 每类的默认存储 component_type（实例创建与渲染入口）
 V2_DEFAULT_CT = {"select": "select.single", "form": "form.structured", "confirm": "control.confirm",
                  "feedback": "feedback.binary", "preference": "feedback.preference",
                  "table": "table", "trend": "chart.line", "bar": "chart.bar", "pie": "chart.pie",
-                 "metric": "metric.card", "timeline": "timeline", "steps": "steps"}
+                 "metric": "metric.card", "timeline": "timeline", "steps": "steps",
+                 "slider": "slider.range", "rating": "scale.likert", "datetime": "picker.datetime",
+                 "rank": "rank.priority", "compare": "matrix.compare", "list": "list.ordered",
+                 "highlight": "text.emphasis"}
 
 
 def _cfg(card: dict) -> dict:
@@ -147,6 +171,48 @@ def params_schema_for(card: dict) -> dict:
                           "items": {"type": "string"}, "description": "步骤文本列表"}
         props["current_index"] = {"type": "integer", "description": "当前进行到第几步（0 起）"}
         req.append("steps")
+    elif v2 == "slider":
+        props["prompt"] = S("向用户提出的问题")
+        props["min"] = {"type": "number", "description": "最小值"}
+        props["max"] = {"type": "number", "description": "最大值"}
+        props["step"] = {"type": "number", "description": "步长，可选，默认 1"}
+        props["unit"] = S("单位，可选（元 / 件 / 天）")
+        props["default"] = {"type": "number", "description": "初始值，可选"}
+        req.extend(["prompt", "min", "max"])
+    elif v2 == "rating":
+        props["prompt"] = S("评分引导语")
+        props["scale"] = {"type": "integer", "minimum": 2, "maximum": 11, "description": "刻度档数（5 或 10 常用）"}
+        props["low_label"] = S("低端含义，可选（如 很不满意）")
+        props["high_label"] = S("高端含义，可选（如 非常满意）")
+        req.extend(["prompt", "scale"])
+    elif v2 == "datetime":
+        props["prompt"] = S("选择引导语")
+        props["mode"] = {"type": "string", "enum": ["date", "datetime"], "description": "选日期还是日期+时间"}
+        req.append("prompt")
+    elif v2 == "rank":
+        props["prompt"] = S("排序引导语")
+        props["items"] = {"type": "array", "minItems": 2, "maxItems": 8, "items": {"type": "string"},
+                          "description": "待排序条目，按当前对话给出"}
+        req.extend(["prompt", "items"])
+    elif v2 == "compare":
+        props["title"] = S("标题，可选")
+        props["options"] = {"type": "array", "minItems": 2, "maxItems": 5, "items": {"type": "string"},
+                            "description": "方案名列表"}
+        props["dimensions"] = {"type": "array", "minItems": 1, "maxItems": 6, "items": {"type": "string"},
+                               "description": "对比维度列表"}
+        props["values"] = {"type": "array", "items": {"type": "array", "items": {"type": "number"}},
+                           "description": "打分矩阵：每个方案一行，与 dimensions 对齐"}
+        req.extend(["options", "dimensions", "values"])
+    elif v2 == "list":
+        props["title"] = S("标题，可选")
+        props["items"] = {"type": "array", "minItems": 2, "maxItems": 12, "items": {"type": "string"},
+                          "description": "要点条目列表"}
+        req.append("items")
+    elif v2 == "highlight":
+        props["value"] = S("要突出的结论文本")
+        props["caption"] = S("补充说明，可选")
+        props["tone"] = {"type": "string", "enum": ["positive", "neutral", "negative"], "description": "语气，可选"}
+        req.append("value")
     return schema
 
 
@@ -173,6 +239,14 @@ def submit_schema_for(card: dict) -> dict:
         return {"votes": "object 各维度的 up/down"}
     if v2 == "preference":
         return {"chosen": "string 被采纳候选的 label"}
+    if v2 == "slider":
+        return {"value": "number 用户选定的数值"}
+    if v2 == "rating":
+        return {"score": "number 用户打出的分数"}
+    if v2 == "datetime":
+        return {"datetime": "string 用户选择的日期时间（ISO）"}
+    if v2 == "rank":
+        return {"ranked": "string[] 按用户排序后的条目"}
     return None
 
 

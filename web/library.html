@@ -67,6 +67,13 @@ const DEMO_PARAMS = {
   timeline: { component_type: "timeline", params: { title: "处理进度", events: [
     { ts: "09:20", title: "已受理", desc: "工单创建" }, { ts: "10:05", title: "处理中", desc: "已分派专员跟进" }, { ts: "14:30", title: "待确认", desc: "方案已发出" }] } },
   steps: { component_type: "steps", params: { title: "操作指引", steps: ["填写申请信息", "上传相关凭证", "等待审核", "查收处理结果"], current_index: 1 } },
+  slider: { component_type: "slider.range", params: { prompt: "本次预算大约多少？", min: 0, max: 5000, step: 100, unit: "元", default: 2000, submit_label: "确认" } },
+  rating: { component_type: "scale.likert", params: { prompt: "请为本次服务打分", scale: 5, low_label: "很不满意", high_label: "非常满意", submit_label: "提交" } },
+  datetime: { component_type: "picker.datetime", params: { prompt: "希望什么时间上门取件？", mode: "datetime", submit_label: "确认" } },
+  rank: { component_type: "rank.priority", params: { prompt: "请按重要程度排序", items: ["运费成本", "送达时效", "服务质量"], submit_label: "提交" } },
+  compare: { component_type: "matrix.compare", params: { title: "运输方案对比", options: ["海运直达", "海铁联运"], dimensions: ["时效", "成本", "稳定"], values: [[8, 6, 7], [6, 9, 8]] } },
+  list: { component_type: "list.ordered", params: { title: "验收注意事项", items: ["保留原包装以便验收", "签收前拍照留证", "异常 24 小时内反馈"] } },
+  highlight: { component_type: "text.emphasis", params: { value: "本月履约率 98.6%，创近半年新高", caption: "对比上月 +1.2 个百分点", tone: "positive" } },
 };
 
 let __cards = [];

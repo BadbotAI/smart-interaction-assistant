@@ -380,6 +380,13 @@
     ["feedback.preference", ["哪个好", "哪份好", "择优", "更认可", "两个方案"]],
     ["feedback.binary", ["评价一下", "满意吗", "打个分", "反馈"]],
     ["select", ["选", "挑", "哪种", "方式", "方案", "怎么处理", "有哪些"]],
+    ["slider.range", ["多少钱", "预算", "数量", "额度"]],
+    ["scale.likert", ["打几分", "评分", "满意度"]],
+    ["picker.datetime", ["什么时候", "约个时间", "哪天", "几点"]],
+    ["rank.priority", ["排个序", "优先级", "先后顺序"]],
+    ["matrix.compare", ["对比一下", "多维对比", "打分对比"]],
+    ["list.ordered", ["要点", "注意事项", "总结几点"]],
+    ["text.emphasis", ["一句话结论", "核心结论"]],
   ];
   function gen_v2_options(text) {
     if (/货|快递|延误|派送/.test(text)) return ["加急派送", "改约取件时间", "转自提点", "申请破损赔付"];
@@ -437,6 +444,9 @@
       if (hit && (hit.semantic_category === "present")) {
         // v2 展示类：模型判定用它翻译结构化内容——带演示数据直接渲染，无提交
         const PRESENT_DEMO = {
+          "matrix.compare": { title: "方案对比", options: ["方案 A", "方案 B"], dimensions: ["时效", "成本", "稳定"], values: [[8, 6, 7], [6, 9, 8]] },
+          "list.ordered": { title: "注意事项", items: ["保留原包装", "签收前拍照", "异常尽快反馈"] },
+          "text.emphasis": { value: "本月履约率 98.6%，创近半年新高", tone: "positive" },
           "table": { title: "分区域概览", columns: ["区域", "数量", "环比"], rows: [["华东", "352", "2.3%"], ["华南", "332", "1.5%"], ["华北", "372", "3.2%"]] },
           "chart.line": { title: "近半年走势", categories: ["4月", "5月", "6月", "7月", "8月", "9月"], series: [{ name: "金额（万元）", values: [122, 165, 148, 161, 178, 190] }] },
           "chart.bar": { title: "分区域对比", categories: ["华东", "华南", "华北", "西南"], series: [{ name: "数量", values: [352, 332, 372, 222] }] },

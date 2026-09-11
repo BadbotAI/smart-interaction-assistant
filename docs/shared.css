@@ -947,8 +947,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: a
 .comp .mx-row.pick:hover td { background: var(--bg-surface); }
 .comp .mx-row.on td { background: var(--primary-weak); }
 
-.card-row .cr-id { font-size: var(--font-caption); color: var(--text-muted); background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; padding: 1px 7px; cursor: pointer; flex: none; }
-.card-row .cr-id:hover { color: var(--primary); border-color: var(--primary-border); }
+.card-row .cr-id { font-size: var(--font-caption); color: var(--text-muted); background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; padding: 1px 7px; flex: none; }
 .icon-btn.dim { opacity: 0.4; }
 .btn.dim { opacity: 0.5; }
 
@@ -1465,7 +1464,7 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
   box-shadow: 0 8px 28px rgba(16, 24, 40, .16); }
 
 .key-chip.static { cursor: default; }
-.key-chip.static:hover { border-color: var(--border); background: var(--bg-elevated); }
+.key-chip.static:hover { border-color: var(--border); background: var(--bg-elevated); color: inherit; }
 
 .sh-custom { margin-top: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-elevated); }
 .sh-custom summary { cursor: pointer; padding: 8px 12px; font-size: var(--font-small); color: var(--text-secondary); font-weight: 600; user-select: none; }
