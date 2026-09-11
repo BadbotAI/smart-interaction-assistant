@@ -6,9 +6,30 @@
 
   // v7 会话状态机：配置智能路由模型 → benchmark 得分表（点格修正）→ 判维路由（静态站可走完整动线）
   const v7 = { router: null, overrides: {}, asof: null, keys: {} };
-  const deadCards = new Set(); // 静态站会话内删除的配置
-  const cardStatus = {}; // 会话内上下线状态（否则点「下线」快照回读=界面无反应且无法编辑）
-  const prodLocal = { created: [], updated: {}, deleted: new Set() }; // 会话内产品操作
+  // —— 演示数据持久层：产品 / 组件实例 / 审计写进 localStorage，刷新与跨页不丢（v8） ——
+  const LS_KEY = "sia_demo_state_v8";
+  let S = { prodCreated: [], prodUpdated: {}, prodDeleted: [],
+            cardCreated: [], cardUpdated: {}, cardStatus: {}, cardDeleted: [], audit: [] };
+  try { S = { ...S, ...(JSON.parse(localStorage.getItem(LS_KEY) || "{}")) }; } catch (e) {}
+  const persist = () => { try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) {} };
+  function auditLog(action, detail) {
+    S.audit.unshift({ ts: Date.now() / 1000, actor: "张三", action, detail });
+    if (S.audit.length > 100) S.audit.length = 100;
+    persist();
+  }
+  // 兼容旧变量名的轻代理
+  const deadCards = { has: id => S.cardDeleted.includes(id), add: id => { if (!S.cardDeleted.includes(id)) S.cardDeleted.push(id); persist(); } };
+  const cardStatus = S.cardStatus;
+  const prodLocal = { created: S.prodCreated, updated: S.prodUpdated,
+    deleted: { has: id => S.prodDeleted.includes(id), add: id => { if (!S.prodDeleted.includes(id)) S.prodDeleted.push(id); persist(); } } };
+  // 合并视图：快照组件 + 本地新建组件（含状态与编辑覆盖）
+  function allCardsMerged() {
+    const seeded = (((D["/api/cards"] || {}).cards) || [])
+      .filter(c => !deadCards.has(c.card_id))
+      .map(c => ({ ...c, ...(S.cardUpdated[c.card_id] || {}), ...(cardStatus[c.card_id] ? { status: cardStatus[c.card_id] } : {}) }));
+    const created = S.cardCreated.filter(c => !deadCards.has(c.card_id));
+    return [...created, ...seeded];
+  }
   // 模型操作会话内状态：设默认兜底 / 启停 / 思考开关 / 编辑 / 删除（否则快照回读=界面无反应）
   const modelLocal = { defaultId: null, status: {}, thinking: {}, updated: {}, deleted: new Set() };
   // 判维演示实现：与服务端 classify_bench_dims 同规则（关键词判定，最多 2 维，multimodal 优先）
@@ -56,15 +77,29 @@
   function getMock(pn, full) {
     if (pn === "/api/products") {
       const base = JSON.parse(JSON.stringify(D[pn] || { products: [] }));
+      // 接入派生字段统一在此补齐（pub_key 缺失会让前端接入代码出现 undefined）
+      const derive = p => ({ pub_key: "pk-web-demo" + String(p.product_id || "").slice(-6), current_hash: "demo-hash",
+        pulled_hash: p.pulled_hash === undefined ? "demo-hash" : p.pulled_hash,
+        pulled_at: p.pulled_at === undefined ? Date.now() / 1000 - 3600 : p.pulled_at, stale: false, ...p });
       base.products = (base.products || []).filter(p => !prodLocal.deleted.has(p.product_id))
-        .map(p => ({ ...p, ...(prodLocal.updated[p.product_id] || {}) }))
-        .concat(prodLocal.created);
+        .map(p => derive({ ...p, ...(prodLocal.updated[p.product_id] || {}) }))
+        .concat(prodLocal.created.filter(p => !prodLocal.deleted.has(p.product_id))
+          .map(p => derive({ ...p, ...(prodLocal.updated[p.product_id] || {}) })));
       return base;
     }
     if (pn === "/api/cards") {
-      const base = JSON.parse(JSON.stringify(D[pn] || { cards: [] }));
-      base.cards = (base.cards || []).filter(c => !deadCards.has(c.card_id))
-        .map(c => cardStatus[c.card_id] ? { ...c, status: cardStatus[c.card_id] } : c);
+      let cards = allCardsMerged();
+      const q = new URLSearchParams((full || "").split("?")[1] || "").get("q");
+      if (q && q.trim()) {
+        const kw = q.trim().toLowerCase();
+        cards = cards.filter(c => (c.name || "").toLowerCase().includes(kw)
+          || (c.component_type || "").toLowerCase().includes(kw));
+      }
+      return { cards: JSON.parse(JSON.stringify(cards)) };
+    }
+    if (pn === "/api/audit") {
+      const base = JSON.parse(JSON.stringify(D["/api/audit"] || { audit: [] }));
+      base.audit = [...S.audit, ...(base.audit || [])];
       return base;
     }
     if (pn === "/api/benchmark") {
@@ -105,13 +140,6 @@
       });
       return { generated: true, asof: bm.asof, alpha, clusters, models: names, router: v7.router };
     }
-    if (pn === "/api/products") {
-      const base = D["/api/products"] || { products: [] };
-      return { products: (base.products || []).map(p => ({
-        pub_key: "pk-web-demo" + String(p.product_id || "").slice(-6), current_hash: "demo-hash",
-        pulled_hash: p.pulled_hash === undefined ? "demo-hash" : p.pulled_hash,
-        pulled_at: p.pulled_at === undefined ? Date.now() / 1000 - 3600 : p.pulled_at, stale: false, ...p })) };
-    }
     if (pn === "/api/brands") return { brands: window.__mockBrands() };
     if (pn === "/api/brands/active") return { file: "brand-tokens.default.json" };
     const regm = pn.match(/^\/v1\/products\/([^/]+)\/registry$/);
@@ -146,17 +174,17 @@
     }
     if (D[pn] !== undefined) return D[pn];
     const m = pn.match(/^\/api\/cards\/([^/]+)$/);
-    if (m && D["/api/cards"]) {
-      const card = D["/api/cards"].cards.find(c => c.card_id === m[1]);
-      if (card) return { card: cardStatus[card.card_id] ? { ...card, status: cardStatus[card.card_id] } : card };
+    if (m) {
+      const card = allCardsMerged().find(c => c.card_id === m[1]);
+      if (card) return { card: JSON.parse(JSON.stringify(card)) };
     }
     if (pn.startsWith("/api/dashboard/questions")) return D["/api/dashboard/questions"];
     if (pn.startsWith("/api/dashboard/insights")) return D["/api/dashboard/insights"];
     if (pn.startsWith("/api/dashboard/overview")) return D["/api/dashboard/overview"];
     const em = pn.match(/^\/v1\/embed\/envelope\/([^/]+)$/);
-    if (em && D["/api/cards"]) {
-      const card = D["/api/cards"].cards.find(c => c.card_id === em[1])
-        || D["/api/cards"].cards.find(c => c.status === "published");
+    if (em) {
+      const merged = allCardsMerged();
+      const card = merged.find(c => c.card_id === em[1]) || merged.find(c => c.status === "published");
       if (card) {
         const cfg = (card.field_bindings || {}).config || {};
         return { envelope: { schema_version: "1.0.0", render_id: "emb-" + Math.random().toString(36).slice(2, 8),
@@ -190,8 +218,12 @@
       const action = body && body.action;
       if (action === "publish") cardStatus[cid] = "published";
       else if (action === "offline") cardStatus[cid] = "offline";
-      const base = ((D["/api/cards"] || {}).cards || []).find(c => c.card_id === cid);
-      return { ok: true, card: base ? { ...base, status: cardStatus[cid] || base.status } : null };
+      const own = S.cardCreated.find(c => c.card_id === cid);
+      if (own) { own.status = cardStatus[cid] || own.status; if (action === "publish") own.version = (own.version || 0) + 1; }
+      persist();
+      const base = allCardsMerged().find(c => c.card_id === cid);
+      if (base) auditLog(action === "publish" ? "card_publish" : "card_offline", { 组件: base.name, 版本: base.version });
+      return { ok: true, card: base || null };
     }
     if (pn === "/api/templates/suggest") {
       const t = (D["/api/templates"] || { templates: [] }).templates.slice(0, 3);
@@ -212,7 +244,30 @@
         trigger_examples: [`${core}，怎么处理`, `我遇到了${core}的情况`, `关于${core}想咨询一下`],
       };
     }
-    if (pn === "/api/cards") return { card: { card_id: "demo-" + Math.random().toString(36).slice(2, 8), version: 0, status: "draft", ...(body || {}) } };
+    if (pn === "/api/cards") {
+      const card = { card_id: "demo-" + Math.random().toString(36).slice(2, 8), version: 0, status: "draft",
+        lock_version: 0, created_at: Date.now() / 1000, updated_at: Date.now() / 1000, ...(body || {}) };
+      S.cardCreated.unshift(card);
+      persist();
+      auditLog("card_create", { 组件: card.name || card.card_id, 类型: card.component_type });
+      return { card: JSON.parse(JSON.stringify(card)) };
+    }
+    {
+      const cm = pn.match(/^\/api\/cards\/([^/]+)$/);
+      if (cm) {
+        // 编辑保存：本地新建的直接改，快照种子的记覆盖层
+        const patch = (body && body.payload) || body || {};
+        const own = S.cardCreated.find(c => c.card_id === cm[1]);
+        if (own) { Object.assign(own, patch, { updated_at: Date.now() / 1000, lock_version: (own.lock_version || 0) + 1 }); persist();
+          auditLog("card_update", { 组件: own.name || cm[1] });
+          return { card: JSON.parse(JSON.stringify(own)) }; }
+        S.cardUpdated[cm[1]] = { ...(S.cardUpdated[cm[1]] || {}), ...patch, updated_at: Date.now() / 1000 };
+        persist();
+        const merged = allCardsMerged().find(c => c.card_id === cm[1]);
+        if (merged) auditLog("card_update", { 组件: merged.name || cm[1] });
+        return { card: merged ? JSON.parse(JSON.stringify(merged)) : { card_id: cm[1], ...patch } };
+      }
+    }
     if (pn === "/api/components/schema-preview") {
       const cat = ((D["/api/components/catalog"] || {}).catalog) || [];
       const ct = (body && body.component_type) || "";
@@ -261,9 +316,15 @@
     if (pn === "/api/products") {
       const name = (body && body.name || "").trim();
       if (!name || name.length > 15) return { error: "产品名称必填，1-15 字" };
+      const taken = getMock("/api/products").products.some(p => p.name === name);
+      if (taken) return { error: "已有同名产品，请换一个名称", __status: 409 };
       const pid = "prod-demo-" + Math.random().toString(36).slice(2, 8);
       prodLocal.created.push({ product_id: pid, name, brand_file: (body && body.brand_file) || "brand-tokens.default.json",
-        card_ids: (body && body.card_ids) || [], created_at: Date.now() / 1000, mcp_key: "sk-mcp-demo" + Math.random().toString(36).slice(2, 10) });
+        card_ids: (body && body.card_ids) || [], created_at: Date.now() / 1000,
+        mcp_key: "sk-mcp-demo" + Math.random().toString(36).slice(2, 10),
+        pub_key: "pk-web-demo" + Math.random().toString(36).slice(2, 8) });
+      persist();
+      auditLog("product_create", { 产品: name });
       return { product_id: pid, mcp_key: prodLocal.created[prodLocal.created.length - 1].mcp_key };
     }
     if (/^\/api\/products\/[^/]+$/.test(pn)) {
@@ -271,6 +332,9 @@
       prodLocal.updated[pid] = { ...(prodLocal.updated[pid] || {}), ...(body || {}) };
       const c = prodLocal.created.find(p => p.product_id === pid);
       if (c) Object.assign(c, body || {});
+      persist();
+      const nm = (c || {}).name || ((getMock("/api/products").products.find(p => p.product_id === pid) || {}).name) || pid;
+      auditLog("product_update", { 产品: nm });
       return { ok: true };
     }
     if (pn === "/api/brands") {
@@ -285,11 +349,14 @@
       const i = BRAND_EXTRA.findIndex(b => b.brand_id === bid);
       if (i >= 0) BRAND_EXTRA[i] = rec; else BRAND_EXTRA.push(rec);
       brandPersist();
+      auditLog("brand_import", { 主题: bname });
       return { ok: true, file, brand_id: bid, brand_name: bname };
     }
     if (pn === "/api/brands/delete") {
+      const dead = BRAND_EXTRA.find(b => b.file === (body || {}).file);
       BRAND_EXTRA = BRAND_EXTRA.filter(b => b.file !== (body || {}).file);
       brandPersist();
+      auditLog("brand_delete", { 主题: (dead || {}).brand_name || (body || {}).file });
       return { ok: true };
     }
     if (/^\/api\/products\/[^/]+\/reset-key$/.test(pn)) {
@@ -298,11 +365,18 @@
     }
     if (/^\/api\/products\/[^/]+\/delete$/.test(pn)) {
       const pid = pn.split("/")[3];
+      const nm = ((getMock("/api/products").products.find(p => p.product_id === pid) || {}).name) || pid;
       prodLocal.deleted.add(pid);
-      prodLocal.created = prodLocal.created.filter(p => p.product_id !== pid);
+      auditLog("product_delete", { 产品: nm });
       return { ok: true };
     }
-    if (/^\/api\/cards\/[^/]+\/delete$/.test(pn)) { deadCards.add(pn.split("/")[3]); return { ok: true }; }
+    if (/^\/api\/cards\/[^/]+\/delete$/.test(pn)) {
+      const cid = pn.split("/")[3];
+      const nm = ((allCardsMerged().find(c => c.card_id === cid) || {}).name) || cid;
+      deadCards.add(cid);
+      auditLog("card_delete", { 组件: nm });
+      return { ok: true };
+    }
     if (pn === "/v1/policies") return { policy_id: "policy-demo-" + Math.random().toString(36).slice(2, 8), api_key: "sk-route-demo0000" };
     if (/^\/v1\/policies\/[^/]+\/reset-key$/.test(pn)) {
       const pid = pn.split("/")[3];
@@ -630,8 +704,8 @@
     { file: "brand-tokens.harbor.json", brand_id: "harbor", brand_name: "远洋港航（示例品牌B）" },
   ];
   let BRAND_EXTRA = [];
-  try { BRAND_EXTRA = JSON.parse(sessionStorage.getItem("mock_brands") || "[]"); } catch (e) {}
-  const brandPersist = () => { try { sessionStorage.setItem("mock_brands", JSON.stringify(BRAND_EXTRA)); } catch (e) {} };
+  try { BRAND_EXTRA = JSON.parse(localStorage.getItem("mock_brands") || sessionStorage.getItem("mock_brands") || "[]"); } catch (e) {}
+  const brandPersist = () => { try { localStorage.setItem("mock_brands", JSON.stringify(BRAND_EXTRA)); } catch (e) {} };
   window.__mockBrands = () => [...BRAND_BUILTIN, ...BRAND_EXTRA.map(b => ({ file: b.file, brand_id: b.brand_id, brand_name: b.brand_name }))];
 
   window.fetch = function (url, opts = {}) {
@@ -659,6 +733,9 @@
     if (opts.body) { try { body = JSON.parse(opts.body); } catch (e) {} }
     if (pn === "/v1/route") return Promise.resolve(sseRoute(body));
     if (method === "GET") return Promise.resolve(json(getMock(pn, u)));
-    return Promise.resolve(json(postMock(pn, body)));
+    const out = postMock(pn, body);
+    const st = out && out.__status ? out.__status : (out && out.error ? 400 : 200);
+    if (out && out.__status) delete out.__status;
+    return Promise.resolve(json(out, st));
   };
 })();
