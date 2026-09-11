@@ -1764,7 +1764,7 @@ async function openEditor(cardId, prefill, initStep) {
     // 继承说明（恢复按钮在右侧预览卡上，与示例对齐）
     box.appendChild(el("div", { class: "sty-inherit" }, [
       UI.icon("palette", 14),
-      el("span", {}, ["未覆盖的样式项跟随产品的风格主题；以下调整只作用于本组件实例"]),
+      el("span", {}, ["未覆盖的样式项跟随产品的风格主题；这里的设置优先于主题，只作用于本组件实例"]),
     ]));
 
     // —— 颜色：主色 / 强调色（品牌 + 预设 + 自定义） ——
@@ -1892,12 +1892,29 @@ async function openEditor(cardId, prefill, initStep) {
     }
 
 
-    // 配色（面板 / 选项 / 按钮 / 文字）统一在「风格主题」定义；这里只调本组件的形态
-    box.appendChild(groupHead("容器", "圆角 / 内边距 / 阴影，只作用于本组件"));
+    // 组件级配色：优先于风格主题（主题是基础层，这里逐项覆盖）
+    if (!IS_PRESENT) {
+      box.appendChild(groupHead("颜色", "主色与强调色，覆盖主题同名 token"));
+      box.appendChild(colorRow("color.primary", "主色（按钮 / 选中态）"));
+      box.appendChild(colorRow("color.accent", "强调色（hover / 高亮）"));
+    }
+
+    box.appendChild(groupHead("外层容器（面板）", "包住整个组件的大容器"));
+    box.appendChild(colorRow("panel.bg", "面板底色"));
+    box.appendChild(colorRow("panel.bc", "面板边框色"));
     box.appendChild(numRow("radius", "圆角", 0, 28, 16, "组件卡片圆角；控件圆角按比例跟随"));
     box.appendChild(numRow("spacing", "内边距", 8, 24, 16, "面板内边距，同时影响行距节奏"));
     box.appendChild(cardsRow("shadow", "阴影", [["", "主题"], ["none", "无"], ["sm", "轻"], ["md", "中"], ["lg", "重"]], shadowDemo));
 
+    // 选项容器：面板内每个可点的选项 / 条目 / 候选卡自己的一层
+    if (["select.single", "select.multi", "select.card", "rank.priority", "feedback.preference"].includes(ct)) {
+      box.appendChild(groupHead("选项容器", "面板内每个选项 / 条目的底色与边框，覆盖主题「组件容器」token"));
+      box.appendChild(colorRow("opt.bg", "选项底色"));
+      box.appendChild(colorRow("opt.bc", "选项边框色"));
+    }
+
+    box.appendChild(groupHead("文字"));
+    box.appendChild(numRow("font_scale", "字号", 12, 16, 13, "组件内正文字号"));
 
     if (!IS_PRESENT) {
       box.appendChild(groupHead("交互区"));
@@ -1978,17 +1995,20 @@ async function openEditor(cardId, prefill, initStep) {
 
     // 提交按钮容器：文案 + 底色 / 边框 / 文字颜色（顺序在组件参数之后）
     if (!IS_PRESENT && !["feedback.binary", "feedback.preference"].includes(ct)) {
-      box.appendChild(groupHead("提交按钮", "文案与内容配置步保持同步；按钮配色在风格主题里定义"));
+      box.appendChild(groupHead("提交按钮", "文案与内容配置步保持同步；配色覆盖主题按钮 token"));
       const subIn = el("input", { type: "text", maxlength: "8", value: state.submitLabel || "",
         placeholder: ct === "control.confirm" ? "确认执行" : "提交", style: "max-width:200px" });
       subIn.oninput = () => { state.submitLabel = subIn.value; upd(); };
       box.appendChild(el("div", { class: "sty-section" }, [
         el("div", { class: "sty-label" }, ["按钮文案"]), subIn]));
+      box.appendChild(colorRow("btn.bg", "按钮底色"));
+      box.appendChild(colorRow("btn.bc", "按钮边框色"));
+      box.appendChild(colorRow("btn.fg", "按钮文字颜色"));
     }
 
     // —— 折叠分组：配置项多时也好配——每组可收起，默认只展开高频组 ——
     (function accordionize() {
-      const OPEN = new Set(["容器", "组件参数"]);
+      const OPEN = new Set(["外层容器（面板）", "组件参数"]);
       const kids = [...box.children];
       const out = [];
       let cur = null;
