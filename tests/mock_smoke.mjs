@@ -149,8 +149,8 @@ assert(r.trigger_description.includes("s d f g") && (r.trigger_examples || []).l
 
 // 11) v2 智能助手：组件目录 / schema 预览 / 模型选件（规则模拟）
 const cat = (await api("/api/components/catalog")).catalog || [];
-assert(cat.length === 19, "组件目录应为 19 类，实际 " + cat.length);
-assert(cat.filter(c => c.interactive).length === 9 && cat.filter(c => !c.interactive).length === 10, "交互 9 + 展示 10");
+assert(cat.length === 20, "组件目录应为 20 类，实际 " + cat.length);
+assert(cat.filter(c => c.interactive).length === 9 && cat.filter(c => !c.interactive).length === 11, "交互 9 + 展示 11");
 r = await post("/api/components/schema-preview", { component_type: "select.single", config: {} });
 assert(r.params_schema && r.params_schema.properties && r.params_schema.properties.options, "选择表单 schema 应含 options");
 evts = await sse({ text: "取消这笔订单", skip_card_match: false });

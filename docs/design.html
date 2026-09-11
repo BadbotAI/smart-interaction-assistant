@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>产品及风格管理 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=b8f2612f">
+<link rel="stylesheet" href="./shared.css?v=89c37efb">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
@@ -75,11 +75,11 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=4147c496"></script>
-<script src="./mock_api.js?v=582ad7ee"></script>
+<script src="./mock_data.js?v=acc21307"></script>
+<script src="./mock_api.js?v=f2563b18"></script>
 <script src="./tokens.js?v=be27f7d8"></script>
-<script src="./ui.js?v=e6887116"></script>
-<script src="./components.js?v=b08f2cc2"></script>
+<script src="./ui.js?v=d24c8709"></script>
+<script src="./components.js?v=832befc9"></script>
 <script>
 // 深链直开编辑器时，先行标记以免生效风格覆盖预览
 if (new URLSearchParams(location.search).get("new")) window._editingStyle = true;
@@ -174,11 +174,25 @@ const DEMO_GRID = [
   ["metric.card", { component_type: "metric.card", semantic_category: "present",
     params: { label: "本月累计金额", value: "1,286", unit: "万元", delta: "4.2%" } }],
 ];
+const DEMO_GRID_B = [
+  ["scale.likert", { component_type: "scale.likert", semantic_category: "evaluate",
+    params: { prompt: "请为本次服务打分", scale: 5, low_label: "很不满意", high_label: "非常满意", submit_label: "提交" } }],
+  ["steps", { component_type: "steps", semantic_category: "present",
+    params: { title: "操作指引", steps: ["填写信息", "上传凭证", "等待审核"], current_index: 1 } }],
+  ["table", { component_type: "table", semantic_category: "present",
+    params: { title: "分区域概览", columns: ["区域", "数量", "环比"], rows: [["华东", "352", "2.3%"], ["华南", "332", "1.5%"]] } }],
+  ["chart.waterfall", { component_type: "chart.waterfall", semantic_category: "present",
+    params: { title: "利润构成", categories: ["营收", "运费", "仓储", "退款"], values: [420, -86, -54, -32] } }],
+  ["timeline", { component_type: "timeline", semantic_category: "present",
+    params: { title: "处理进度", events: [{ ts: "09:20", title: "已受理" }, { ts: "10:05", title: "处理中" }, { ts: "11:40", title: "已完成" }] } }],
+  ["feedback.binary", { component_type: "feedback.binary", semantic_category: "evaluate",
+    params: { prompt: "这条回答怎么样" } }],
+];
 function renderDemos() {
   const boxOne = document.getElementById("demoOne");
   boxOne.innerHTML = "";
   const grid2 = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start" });
-  DEMO_GRID.forEach(([ct, envBase]) => {
+  (typeof demoBatch !== "undefined" && demoBatch === 1 ? DEMO_GRID_B : DEMO_GRID).forEach(([ct, envBase]) => {
     let node;
     try {
       node = Components.render({ schema_version: "1.0.0", render_id: "brand-pv-" + ct,
@@ -188,9 +202,11 @@ function renderDemos() {
   });
   boxOne.appendChild(grid2);
 }
+let demoBatch = 0;
 function mountDemoControls() {
   const m = document.getElementById("compSelMount");
-  if (m) m.appendChild(el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["同屏预览 6 类代表组件"]));
+  if (m) m.appendChild(el("button", { class: "btn small", type: "button",
+    onclick: () => { demoBatch = (demoBatch + 1) % 2; renderDemos(); } }, ["换一批"]));
 }
 
 // ---------- 导入 / 编辑风格主题：弹窗建卡片（名称 + 风格代码），创建后出现在列表，可编辑 / 删除 ----------
@@ -652,7 +668,7 @@ function brandDialog(existing, onClose) {
   host.appendChild(el("div", { class: "style-ed" }, [
     el("div", { class: "ed-sticky-head" }, [
       el("button", { class: "btn small", type: "button", onclick: close }, ["返回"]),
-      el("span", { style: "font-weight:700;font-size:var(--font-title)" }, [existing ? `编辑「${existing.brand_name}」` : "新建主题"]),
+      el("span", { style: "font-weight:700;font-size:var(--font-title)" }, [existing ? "编辑" : "新建主题"]),
       el("div", { style: "flex:1" }),
       el("button", { class: "btn small", type: "button", onclick: close }, ["取消"]),
       (() => { const b = el("button", { class: "btn small primary", type: "button" }, [existing ? "保存修改" : "保存主题"]);

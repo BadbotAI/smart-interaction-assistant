@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=b8f2612f">
+<link rel="stylesheet" href="./shared.css?v=89c37efb">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -76,11 +76,11 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=4147c496"></script>
-<script src="./mock_api.js?v=582ad7ee"></script>
+<script src="./mock_data.js?v=acc21307"></script>
+<script src="./mock_api.js?v=f2563b18"></script>
 <script src="./tokens.js?v=be27f7d8"></script>
-<script src="./ui.js?v=e6887116"></script>
-<script src="./components.js?v=b08f2cc2"></script>
+<script src="./ui.js?v=d24c8709"></script>
+<script src="./components.js?v=832befc9"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
 UI.nav("cards");
@@ -106,6 +106,13 @@ const DISPLAY_VARIANTS = {
   "slider.range": [["slider", "滑杆"], ["stepper", "步进器"], ["input", "直接填写"]],
   "form.structured": [["stacked", "逐字段"], ["compact", "两列"]],
   "input.followup": [["box", "多行文本"], ["mini", "单行"]],
+  "chart.waterfall": [
+    ["wf.pos", "增长色", "color"],
+    ["wf.neg", "下降色", "color"],
+    ["total.show", "合计柱", "bool", true],
+    ["value_labels", "数值标签", "bool", true],
+    ["grid", "网格线", "bool", true],
+  ],
   "picker.datetime": [["date", "日期"], ["datetime", "日期+时间"]],
   "picker.timerange": [["date", "日期段"], ["time", "时间段"]],
 };
@@ -114,6 +121,18 @@ const LIKERT_PRESETS = [["1 ~ 5", 1, 5], ["0 ~ 5", 0, 5], ["0 ~ 3", 0, 3], ["1 ~
 // ============ 列表（状态 tab + 数据概览合并） ============
 
 let statusTab = "";
+let wbCat = "all";
+const WB_CATS = [
+  ["all", "全部"],
+  ["sel", "选择", ["select.single", "select.multi", "select.card", "feedback.preference", "rank.priority"]],
+  ["form", "表单", ["form.structured", "picker.datetime", "slider.range", "scale.likert"]],
+  ["cfm", "确认", ["control.confirm"]],
+  ["fb", "反馈", ["feedback.binary"]],
+  ["chart", "图表", ["chart.line", "chart.bar", "chart.pie", "chart.waterfall", "chart.area", "metric.card"]],
+  ["tbl", "表格", ["table", "matrix.compare"]],
+  ["flow", "流程", ["timeline", "steps"]],
+  ["text", "文本", ["list.ordered", "text.emphasis"]],
+];
 let statsByCard = {};
 const STATUS_TABS = [["", "全部"], ["published", "已上线"], ["offline", "已下线"], ["draft", "草稿箱"]];
 function renderStatusTabs(counts = {}) {
@@ -225,6 +244,13 @@ let curProduct = localStorage.getItem("sia_product") || sessionStorage.getItem("
 
 
 function renderProductCover(products, brands, unboundCount) {
+  const allCardsOf = () => {
+    const p2 = products.find(x => x.product_id === curProduct);
+    const ids = (p2 || {}).card_ids || [];
+    const all = window.__allCards || [];
+    const hit = all.filter(c => ids.includes(c.card_id));
+    return hit.length ? hit : ids.map(id => ({ card_id: id, status: "published" }));
+  };
   const box = document.getElementById("prodCover");
   box.innerHTML = "";
   if (!products.length) { box.hidden = true; return; }
@@ -260,18 +286,23 @@ function renderProductCover(products, brands, unboundCount) {
         loadCards();
       } catch (e) { UI.toast(e.data?.error || e.message, true); loadCards(); }
     } });
+  const inProd = allCardsOf();
+  const onlineN = inProd.filter(x => x.status === "published").length;
   box.appendChild(el("div", { class: "prod-cover" }, [
     el("div", { class: "pc-main" }, [
-      (() => { nameAnchor = el("div", { class: "pc-name" }, [p.name]);
-        return el("div", { style: "display:flex;align-items:center;gap:8px" }, [nameAnchor, switchBtn]); })(),
+      (() => { nameAnchor = el("div", { class: "pc-name" }, [p.name]); return nameAnchor; })(),
       el("div", { class: "pc-meta" }, [
-        el("span", { style: "margin-right:8px" }, ["产品 ID"]),
-        el("span", { class: "key-chip static", title: "产品 ID" },
-          [el("span", { class: "num" }, ["ID:" + shortProductId2(p.product_id)])]),
+        el("span", { class: "key-chip static" }, [el("span", { class: "num" }, ["ID:" + shortProductId2(p.product_id)])]),
+        el("span", { class: "pc-stat" }, [`组件实例 ${inProd.length} 个 · ${onlineN} 个在线`]),
       ]),
     ]),
     el("div", { style: "flex:1" }),
-    el("button", { class: "btn small", onclick: () => { location.href = "./products.html"; } }, [UI.icon("link", 13), "接入配置"]),
+    el("div", { class: "pc-side" }, [
+      el("div", { class: "pc-side-label" }, ["风格主题"]),
+      brandSel,
+    ]),
+    switchBtn,
+    el("a", { class: "btn small", href: "./products.html" }, [UI.icon("link", 13), "接入配置"]),
   ]));
 }
 
@@ -287,6 +318,7 @@ async function loadCards() {
     UI.api("/api/products").catch(() => ({ products: [] })),
     UI.api("/api/brands").catch(() => ({ brands: [] })),
   ]);
+  window.__allCards = all;
   if (seq !== _loadSeq) return; // 已有更新的请求在途，丢弃过期响应
   const products = prodRes.products || [];
   const brands = brandRes.brands || [];
@@ -330,7 +362,17 @@ async function loadCards() {
     }
     return;
   }
-  cards.forEach(c => list.appendChild(buildCardRow(c)));
+  const cat = WB_CATS.find(x => x[0] === wbCat) || WB_CATS[0];
+  const shown2 = wbCat === "all" ? cards : cards.filter(c => cat[2].includes(c.component_type));
+  const nav = el("div", { class: "lib-cats", style: "top:190px" }, WB_CATS.map(([k, nm, types]) => {
+    const n = k === "all" ? cards.length : cards.filter(c => types.includes(c.component_type)).length;
+    if (k !== "all" && !n) return null;
+    return el("button", { type: "button", class: "lib-cat" + (wbCat === k ? " on" : ""),
+      onclick: () => { wbCat = k; loadCards(); } }, [nm,
+      el("span", { class: "muted num", style: "font-size:11px" }, [String(n)])]);
+  }));
+  const gridBox = el("div", { class: "wb-grid" }, shown2.map(c => buildCardRow(c)));
+  list.appendChild(el("div", { class: "lib-split", style: "padding:14px 16px" }, [nav, gridBox]));
 }
 
 // 单行构建：局部刷新用（状态开关切换后只替换该行，不重建整个列表）
@@ -372,66 +414,53 @@ function buildCardRow(c) {
       el("input", { type: "checkbox", "aria-label": "选择 " + c.name, ...(batchSel.has(c.card_id) ? { checked: "" } : {}),
         onchange: (e) => { e.target.checked ? batchSel.add(c.card_id) : batchSel.delete(c.card_id); batchBar(); } }),
     ]);
-    return el("div", { class: "row-item card-row", "data-cid": c.card_id }, [
-      chk,
-      el("div", { class: "main", style: editable ? "cursor:pointer" : "", title: editable ? "点击编辑" : "上线中不可编辑，先下线",
-        onclick: () => { if (editable) openEditor(c.card_id); else UI.toast("已上线的配置不可编辑，请先下线", true); } }, [
-        el("div", { class: "cr-line1" }, [
-          el("span", { class: "cr-id num static", title: "配置 ID" }, ["ID:" + shortId(c.card_id)]),
-          el("span", { class: "name" }, [c.name]),
-          el("span", { class: "chip " + color }, [label]),
-          (UI.ctName(c.component_type) || "") === c.name ? null : UI.ctChip(c.component_type),
-          (((c.field_bindings || {}).config || {}).content_mode === "fixed")
-            ? el("span", { class: "chip blue", title: "业务选项在平台定死，模型不可覆盖" }, ["固定内容"]) : null,
-          c.echo_results ? el("span", { class: "chip green", title: "用户提交后展示群体选择分布" }, ["回显"]) : null,
-
-          ...cardAnomalies(c, eff).map(x => el("span", { class: "chip red", title: x.title }, [x.label])),
-        ]),
-        (() => { const sm = styleSummary(c); return sm === "主题默认" ? null : el("div", { class: "cr-line2" }, ["样式：" + sm]); })(),
-        el("div", { class: "cr-line3 muted" }, [
-          el("span", {}, ["创建 " + UI.fmtTs(c.created_at)]),
-
-
+    const sm = styleSummary(c);
+    return el("div", { class: "wb-card card-row", "data-cid": c.card_id }, [
+      el("div", { class: "wb-head" }, [
+        chk,
+        el("span", { class: "tpl-ico", style: "width:34px;height:34px" }, [UI.icon(CT_ICONS[c.component_type] || "grid", 18)]),
+        el("div", { class: "wb-title", style: editable ? "cursor:pointer" : "", title: editable ? "点击编辑" : "上线中不可编辑，先下线",
+          onclick: () => { if (editable) openEditor(c.card_id); else UI.toast("已上线的配置不可编辑，请先下线", true); } }, [
+          el("div", { class: "wb-name" }, [c.name]),
+          el("div", { class: "wb-chips" }, [
+            el("span", { class: "chip " + color }, [label]),
+            (UI.ctName(c.component_type) || "") === c.name ? null : UI.ctChip(c.component_type),
+            (((c.field_bindings || {}).config || {}).content_mode === "fixed")
+              ? el("span", { class: "chip blue" }, ["固定内容"]) : null,
+            c.echo_results ? el("span", { class: "chip green" }, ["回显"]) : null,
+            ...cardAnomalies(c, eff).map(x => el("span", { class: "chip red", title: x.title }, [x.label])),
+          ]),
         ]),
       ]),
-      el("div", { class: "actions cr-actions" }, [
-        // 状态开关（开 = 上线）+ 编辑 / 更多 icon
-        UI.toggle({ checked: eff === "published",
-          onChange: async (next) => {
-            try {
-              const resp = await UI.api(`/api/cards/${c.card_id}/transition`, { method: "POST", body: { action: next ? "publish" : "offline" } });
-              UI.toast(next ? "已上线" : "已下线，可编辑");
-              if (resp && resp.warning) setTimeout(() => UI.toast(resp.warning, true), 1200);
-              // 局部刷新：只替换本行，避免整个列表重建带来的闪动
+      sm === "主题默认" ? null : el("div", { class: "wb-summary" }, ["样式：" + sm]),
+      el("div", { class: "wb-foot" }, [
+        el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["创建 " + UI.fmtTs(c.created_at)]),
+        el("div", { style: "flex:1" }),
+        el("span", { class: "switch-wrap" }, [(() => {
+          const sw = el("button", { class: "switch" + (eff === "published" ? " on" : ""), role: "switch",
+            "aria-checked": eff === "published" ? "true" : "false",
+            title: eff === "published" ? "点击下线" : "点击上线",
+            onclick: async () => {
+              const next = eff !== "published";
+              if (!next) { doTransition(c, "offline"); return; }
               try {
-                const { card } = await UI.api(`/api/cards/${c.card_id}`);
-                const rowEl = document.querySelector(`.card-row[data-cid="${c.card_id}"]`);
-                if (rowEl && card) rowEl.replaceWith(buildCardRow(card));
-                else loadCards();
-              } catch (e2) { loadCards(); }
-              loadKpisAndTodos();
-              return true;
-            } catch (e) {
-              const err = e.data?.error || {};
-              UI.toast(err.message || e.message, true);
-              if (err.errors) UI.modal("无法上线", el("div", {}, [
-                el("div", { class: "secondary", style: "margin-bottom:8px" }, ["以下字段未通过校验："]),
-                ...err.errors.map(x => el("div", { class: "field-error" }, [`${FIELD_LABEL[x.field] || x.field}：${x.message}`])),
-                el("button", { class: "btn primary", style: "margin-top:12px", onclick: () => { document.querySelector(".modal-mask")?.remove(); openEditor(c.card_id); } }, ["去修改"]),
-              ]));
-              return false;
-            }
-          } }),
-        el("span", { class: "sep-v" }),
-        (() => {
-          const b2 = el("button", { class: "btn small" + (editable ? "" : " dim"),
-            title: editable ? "编辑" : "上线中不可编辑，先下线",
-            onclick: () => {
-              if (editable) openEditor(c.card_id);
-              else UI.toast("已上线的配置不可编辑，请先下线", true);
-            } }, ["编辑"]);
-          return b2;
-        })(),
+                const resp = await UI.api(`/api/cards/${c.card_id}/transition`, { method: "POST", body: { action: "publish" } });
+                if (resp.warning) UI.toast(resp.warning, true); else UI.toast("已上线");
+                loadCards(); loadKpisAndTodos();
+              } catch (e) {
+                const err = e.data?.error || {};
+                UI.toast(err.message || e.message, true);
+                if (err.errors) UI.modal("无法上线", el("div", {}, [
+                  el("div", { class: "secondary", style: "margin-bottom:8px" }, ["以下字段未通过校验："]),
+                  ...err.errors.map(x => el("div", { class: "field-error" }, [`${FIELD_LABEL[x.field] || x.field}：${x.message}`])),
+                  el("button", { class: "btn primary", style: "margin-top:12px", onclick: () => { document.querySelector(".modal-mask")?.remove(); openEditor(c.card_id); } }, ["去修改"]),
+                ]));
+              }
+            } }, [el("span", { class: "knob" })]);
+          return sw;
+        })()]),
+        el("button", { class: "btn small" + (editable ? "" : " dim"),
+          onclick: () => { if (editable) openEditor(c.card_id); else UI.toast("已上线的配置不可编辑，请先下线", true); } }, ["编辑"]),
         moreButton(c, eff),
       ]),
     ]);
@@ -535,9 +564,12 @@ const V2_TEMPLATES = [
   { component_type: "matrix.compare", name: "方案对比", default_config: {} },
   { component_type: "list.ordered", name: "要点清单", default_config: {} },
   { component_type: "text.emphasis", name: "重点结论", default_config: {} },
+  { component_type: "chart.waterfall", name: "瀑布图", default_config: {} },
 ];
 // 展示类预览演示参数（与组件模板一致；运行时由模型参数填入）
 const DEMO_PRESENT = {
+  "chart.waterfall": { title: "利润构成", categories: ["营收", "运费", "仓储", "人力", "退款"],
+    values: [420, -86, -54, -120, -32] },
   "matrix.compare": { title: "方案对比", options: ["方案 A", "方案 B"], dimensions: ["时效", "成本", "稳定"],
     values: [[8, 6, 7], [6, 9, 8]] },
   "list.ordered": { title: "注意事项", items: ["保留原包装以便验收", "签收前拍照留证", "异常 24 小时内反馈"] },
@@ -681,6 +713,13 @@ const COMPONENT_PARAMS = {
     ["dot.size", "刻度尺寸", "num", 24, 36, 28, { deps: ["lk.style", ""] }],
     ["dot.gap", "刻度间距", "num", 4, 14, 8, { deps: ["lk.style", ""] }],
   ],
+  "chart.waterfall": [
+    ["wf.pos", "增长色", "color"],
+    ["wf.neg", "下降色", "color"],
+    ["total.show", "合计柱", "bool", true],
+    ["value_labels", "数值标签", "bool", true],
+    ["grid", "网格线", "bool", true],
+  ],
   "picker.datetime": [
     ["quick.show", "快捷日期片", "bool", true],
   ],
@@ -697,9 +736,10 @@ const CT_ICONS = {
   "rank.priority": "tplrank", "table": "tpltable", "chart.line": "activity", "chart.bar": "chart",
   "chart.pie": "tplpie", "metric.card": "tplmetric", "timeline": "tpltimeline", "steps": "tplsteps",
   "matrix.compare": "tplcompare", "list.ordered": "loglist", "text.emphasis": "tplhl",
+  "chart.waterfall": "tplmetric",
 };
 const PRESENT_TYPES = ["table", "chart.line", "chart.bar", "chart.pie", "chart.area", "metric.card", "timeline", "steps",
-  "matrix.compare", "list.ordered", "text.emphasis"];
+  "matrix.compare", "list.ordered", "text.emphasis", "chart.waterfall"];
 const NO_CONTENT_TYPES = ["feedback.preference", "table", "chart.line", "chart.bar"];
 
 

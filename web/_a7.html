@@ -1,0 +1,12 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>body{margin:0}iframe{border:none;width:1380px;height:1000px}</style>
+<script>
+(async () => {
+  const r = await fetch("/api/products").then(x => x.json());
+  const p = r.products.find(x => x.name === "链运宝 App");
+  localStorage.setItem("sia_product", p.product_id);
+  localStorage.setItem("brand_file", p.brand_file);
+  const f = document.createElement("iframe"); f.src = "/web/cards.html"; document.body.appendChild(f);
+})();
+</script>

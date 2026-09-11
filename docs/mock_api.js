@@ -387,6 +387,7 @@
     ["matrix.compare", ["对比一下", "多维对比", "打分对比"]],
     ["list.ordered", ["要点", "注意事项", "总结几点"]],
     ["text.emphasis", ["一句话结论", "核心结论"]],
+    ["chart.waterfall", ["瀑布图", "构成拆解", "增减项"]],
   ];
   function gen_v2_options(text) {
     if (/货|快递|延误|派送/.test(text)) return ["加急派送", "改约取件时间", "转自提点", "申请破损赔付"];
@@ -444,6 +445,7 @@
       if (hit && (hit.semantic_category === "present")) {
         // v2 展示类：模型判定用它翻译结构化内容——带演示数据直接渲染，无提交
         const PRESENT_DEMO = {
+          "chart.waterfall": { title: "利润构成", categories: ["营收", "运费", "仓储", "人力", "退款"], values: [420, -86, -54, -120, -32] },
           "matrix.compare": { title: "方案对比", options: ["方案 A", "方案 B"], dimensions: ["时效", "成本", "稳定"], values: [[8, 6, 7], [6, 9, 8]] },
           "list.ordered": { title: "注意事项", items: ["保留原包装", "签收前拍照", "异常尽快反馈"] },
           "text.emphasis": { value: "本月履约率 98.6%，创近半年新高", tone: "positive" },

@@ -1504,6 +1504,78 @@ window.Components = (function () {
     return box;
   }
 
+  function rChartWaterfall(env) {
+    // 瀑布图：增减项逐步累计的浮动柱（正主色 / 负危险色 / 合计灰）
+    const p = env.params;
+    const so = env.style_overrides || {};
+    const cats = (p.categories || []).slice(0, 10);
+    const vals = (p.values || []).slice(0, cats.length).map(Number);
+    const box = compCard([compTitle(p.title)]);
+    const host = el("div", {});
+    box.appendChild(host);
+    requestAnimationFrame(() => {
+      host.innerHTML = "";
+      const showTotal = so["total.show"] !== false;
+      const posC = so["wf.pos"] || "var(--success)";
+      const negC = so["wf.neg"] || "var(--danger)";
+      const labels = [...cats];
+      const segs = [];
+      let acc = 0;
+      vals.forEach(v => { segs.push([acc, acc + v, v]); acc += v; });
+      if (showTotal) { labels.push("合计"); segs.push([0, acc, acc, true]); }
+      const hi = Math.max(...segs.map(s2 => Math.max(s2[0], s2[1])), 1);
+      const lo = Math.min(...segs.map(s2 => Math.min(s2[0], s2[1])), 0);
+      const span = (hi - lo) || 1;
+      const w = 560, h = 190, padL = 44, padR = 12, padT = 14, padB = 30;
+      const svgNS = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(svgNS, "svg");
+      svg.setAttribute("viewBox", `0 0 ${w} ${h}`); svg.setAttribute("width", "100%"); svg.style.display = "block";
+      const y = v => padT + (h - padT - padB) * (1 - (v - lo) / span);
+      if (so.grid !== false) for (let g = 0; g <= 3; g++) {
+        const gy = padT + g * (h - padT - padB) / 3;
+        const gl = document.createElementNS(svgNS, "line");
+        gl.setAttribute("x1", padL); gl.setAttribute("x2", w - padR); gl.setAttribute("y1", gy); gl.setAttribute("y2", gy);
+        gl.setAttribute("stroke", "var(--border)"); svg.appendChild(gl);
+        const tl = document.createElementNS(svgNS, "text");
+        tl.setAttribute("x", padL - 6); tl.setAttribute("y", gy + 4); tl.setAttribute("text-anchor", "end");
+        tl.setAttribute("font-size", "10"); tl.setAttribute("fill", "var(--text-muted)");
+        tl.textContent = String(Math.round(hi - g * span / 3));
+        svg.appendChild(tl);
+      }
+      const slot = (w - padL - padR) / segs.length;
+      const bw = Math.min(40, slot * 0.55);
+      segs.forEach((s2, i) => {
+        const [a, b2, v, isTotal] = s2;
+        const x0 = padL + i * slot + (slot - bw) / 2;
+        const rect = document.createElementNS(svgNS, "rect");
+        rect.setAttribute("x", x0); rect.setAttribute("y", Math.min(y(a), y(b2)));
+        rect.setAttribute("width", bw); rect.setAttribute("height", Math.max(2, Math.abs(y(a) - y(b2))));
+        rect.setAttribute("rx", 3);
+        rect.setAttribute("fill", isTotal ? "var(--text-muted)" : v >= 0 ? posC : negC);
+        const t = document.createElementNS(svgNS, "title");
+        t.textContent = `${labels[i]}: ${v >= 0 && !isTotal ? "+" : ""}${v}`;
+        rect.appendChild(t);
+        svg.appendChild(rect);
+        if (so.value_labels !== false && segs.length <= 10) {
+          const vt = document.createElementNS(svgNS, "text");
+          vt.setAttribute("x", x0 + bw / 2); vt.setAttribute("y", Math.min(y(a), y(b2)) - 4);
+          vt.setAttribute("text-anchor", "middle"); vt.setAttribute("font-size", "10");
+          vt.setAttribute("fill", "var(--text-secondary)");
+          vt.textContent = (v >= 0 && !isTotal ? "+" : "") + v;
+          svg.appendChild(vt);
+        }
+        const cx = document.createElementNS(svgNS, "text");
+        cx.setAttribute("x", x0 + bw / 2); cx.setAttribute("y", h - 10);
+        cx.setAttribute("text-anchor", "middle"); cx.setAttribute("font-size", "10");
+        cx.setAttribute("fill", "var(--text-muted)");
+        cx.textContent = String(labels[i]).slice(0, 6);
+        svg.appendChild(cx);
+      });
+      host.appendChild(svg);
+    });
+    return box;
+  }
+
   const RENDERERS = {
     "text.emphasis": rText,
     "metric.card": rMetric,
@@ -1515,6 +1587,7 @@ window.Components = (function () {
     "chart.area": rChartLine,
     "chart.bar": rChartBar,
     "chart.pie": rChartPie,
+    "chart.waterfall": rChartWaterfall,
     "matrix.compare": rMatrixCompare,
     "flow.reasoning": rFlowReasoning,
     "citation.card": rCitation,

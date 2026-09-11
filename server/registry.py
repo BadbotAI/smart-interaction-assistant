@@ -28,6 +28,7 @@ V2_TYPE_MAP = {
     "matrix.compare": "compare",
     "list.ordered": "list",
     "text.emphasis": "highlight",
+    "chart.waterfall": "waterfall",
 }
 V2_ALLOWED_CT = set(V2_TYPE_MAP)
 
@@ -72,6 +73,8 @@ V2_META = {
                    "desc": "要按序列出要点、结论或注意事项时使用（无列结构的条目列举）。"},
     "highlight":  {"label": "重点结论", "interactive": False,
                    "desc": "要用一句话突出核心结论或状态时使用（可带正负语气）。"},
+    "waterfall":  {"label": "瀑布图", "interactive": False,
+                   "desc": "要表达一个数值如何被多个增减项逐步构成时使用（成本拆解、变化归因）。"},
 }
 
 # 每类的默认存储 component_type（实例创建与渲染入口）
@@ -81,7 +84,7 @@ V2_DEFAULT_CT = {"select": "select.single", "form": "form.structured", "confirm"
                  "metric": "metric.card", "timeline": "timeline", "steps": "steps",
                  "slider": "slider.range", "rating": "scale.likert", "datetime": "picker.datetime",
                  "rank": "rank.priority", "compare": "matrix.compare", "list": "list.ordered",
-                 "highlight": "text.emphasis"}
+                 "highlight": "text.emphasis", "waterfall": "chart.waterfall"}
 
 
 def _cfg(card: dict) -> dict:
@@ -221,6 +224,13 @@ def params_schema_for(card: dict) -> dict:
         props["items"] = {"type": "array", "minItems": 2, "maxItems": 12, "items": {"type": "string"},
                           "description": "要点条目列表"}
         req.append("items")
+    elif v2 == "waterfall":
+        props["title"] = S("标题，可选")
+        props["categories"] = {"type": "array", "minItems": 2, "maxItems": 10, "items": {"type": "string"},
+                               "description": "增减项名称（首项通常为起始值）"}
+        props["values"] = {"type": "array", "items": {"type": "number"},
+                           "description": "各项增减量（正增负减），与 categories 对齐"}
+        req.extend(["categories", "values"])
     elif v2 == "highlight":
         props["value"] = S("要突出的结论文本")
         props["caption"] = S("补充说明，可选")

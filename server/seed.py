@@ -848,7 +848,38 @@ V2_SEED_CARDS = [
     {"name": "重点结论", "component_type": "text.emphasis", "semantic_category": "present",
      "description": "要用一句话突出核心结论或状态时使用（可带正负语气）。展示类，无提交。",
      "field_bindings": {"config": {}}, "text_templates": {}},
+    {"name": "瀑布图", "component_type": "chart.waterfall", "semantic_category": "present",
+     "description": "要表达一个数值如何被多个增减项逐步构成时使用（成本拆解、变化归因）。展示类，无提交。",
+     "field_bindings": {"config": {}}, "text_templates": {}},
 ]
+
+
+def migrate_components_v25():
+    """v2.5：瀑布图补种并挂到所有产品。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT v FROM kv_settings WHERE k='v25_waterfall'").fetchone():
+        return False
+    payload = next(c for c in V2_SEED_CARDS if c["name"] == "瀑布图")
+    exists = conn.execute("SELECT card_id, status FROM cards WHERE tenant_id=? AND name=?",
+                          (TENANT, "瀑布图")).fetchone()
+    if exists:
+        cid = exists["card_id"]
+        if exists["status"] != "published":
+            cards.transition(cid, "publish", actor="seed")
+    else:
+        card, errors = cards.create_card(TENANT, dict(payload))
+        if errors:
+            raise RuntimeError(f"v2.5 seed failed: {errors}")
+        cards.transition(card["card_id"], "publish", actor="seed")
+        cid = card["card_id"]
+    for prow in conn.execute("SELECT product_id, card_ids FROM products").fetchall():
+        ids = db.dj(prow["card_ids"], [])
+        if cid not in ids:
+            conn.execute("UPDATE products SET card_ids=? WHERE product_id=?", (db.j(ids + [cid]), prow["product_id"]))
+    conn.execute("INSERT OR REPLACE INTO kv_settings (k, v) VALUES ('v25_waterfall', '1')")
+    conn.commit()
+    db.audit("system", "migrate_components_v25", {"note": "瀑布图"})
+    return True
 
 
 def migrate_components_v24():
@@ -1015,6 +1046,7 @@ def run_all():
     migrate_products_v22()
     migrate_products_v23()
     migrate_components_v24()
+    migrate_components_v25()
     n_bank = 0
     n_fb = seed_ab_feedback()
     n_hist = seed_history()

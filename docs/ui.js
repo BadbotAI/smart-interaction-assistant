@@ -196,10 +196,10 @@ window.UI = (function () {
   const CT_NAMES = {
     "select.single": "文本选择（单选）", "select.multi": "文本选择（多选）", "select.card": "卡片选择", "scale.likert": "评分",
     "matrix.compare+select": "对比选择", "form.structured": "表单收集", "input.followup": "备注填写",
-    "slider.range": "数值选择", "picker.datetime": "日期选择", "picker.timerange": "时间段选择", "picker.location": "地址卡片", "rank.priority": "优先级排序", "upload.file": "文件上传", "upload.image": "图片上传", "suggest.followup": "追问引导", "commerce.order": "商品下单", "entry.link": "入口跳转", "guide.steps": "步骤说明书", "track.map": "物流轨迹", "feedback.binary": "赞踩反馈", "feedback.preference": "多回答择优",
-    "control.confirm": "操作确认", "control.interrupt": "中断", "control.retry": "重试", "text.emphasis": "重点文本",
+    "slider.range": "数值滑杆", "picker.datetime": "日期时间", "picker.timerange": "时间段选择", "picker.location": "地址卡片", "rank.priority": "优先级排序", "chart.waterfall": "瀑布图", "upload.file": "文件上传", "upload.image": "图片上传", "suggest.followup": "追问引导", "commerce.order": "商品下单", "entry.link": "入口跳转", "guide.steps": "步骤说明书", "track.map": "物流轨迹", "feedback.binary": "赞踩反馈", "feedback.preference": "偏好选择",
+    "control.confirm": "操作确认", "control.interrupt": "中断", "control.retry": "重试", "text.emphasis": "重点结论",
     "metric.card": "指标卡", "table": "表格", "chart.line": "折线图", "chart.area": "面积图", "chart.bar": "柱状图", "chart.pie": "占比图",
-    "matrix.compare": "对比矩阵", "timeline": "时间线", "citation.card": "引用卡", "list.ordered": "有序列表", "steps": "步骤条",
+    "matrix.compare": "方案对比", "timeline": "时间线", "citation.card": "引用卡", "list.ordered": "要点清单", "steps": "步骤条",
     "flow.reasoning": "推理过程", "control.branch": "分支选择", "implicit.behavior": "隐式行为",
   };
   function ctName(ct) { return CT_NAMES[ct] || ct || "-"; }
@@ -246,6 +246,18 @@ window.UI = (function () {
     return "ia";
   }
   // v2.1：导航顶部产品切换器——展示当前产品，点击下拉切换（存 localStorage sia_product，工作台等按其聚焦）
+  const _brandColors = {};
+  async function brandColorOf(file) {
+    if (!file) return { p: "#3E63DD", a: "#8E4EC6" };
+    if (!_brandColors[file]) {
+      try {
+        const t = await fetch("./brand/" + file).then(r => r.json());
+        _brandColors[file] = { p: (t.color || {}).primary || "#3E63DD",
+                               a: (t.color || {}).accent || (t.color || {}).primary || "#8E4EC6" };
+      } catch (e) { _brandColors[file] = { p: "#3E63DD", a: "#8E4EC6" }; }
+    }
+    return _brandColors[file];
+  }
   async function mountProductSwitcher(host) {
     // 首帧：用上次缓存的产品名立即画切换行（避免拉取期间导航下移抖动）；数据回来后原位替换
     let ghost = null;
@@ -270,12 +282,21 @@ window.UI = (function () {
       const HUES = [["#3E63DD", "#8E4EC6"], ["#0FA968", "#1D7FBF"], ["#FF6B4A", "#D97706"],
                     ["#4F5BD5", "#D9569B"], ["#D97706", "#B85C38"], ["#334155", "#5B7A9D"]];
       const hueOf = (name) => { let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return HUES[h % HUES.length]; };
-      const avatar = (name, size) => {
-        const [a, b] = hueOf(name);
+      const avatar = (name, size, colors) => {
+        const [a, b] = colors ? [colors.p, colors.a] : hueOf(name);
         return el("span", { class: "np-avatar", style: `width:${size}px;height:${size}px;background:linear-gradient(135deg,${a},${b})` },
           [String(name).slice(0, 1)]);
       };
+      // 切产品 = 换气质：顶部区与封面卡随当前产品主题色渐变
+      const applyCtxColor = async (p2) => {
+        const c2 = await brandColorOf(p2.brand_file);
+        document.documentElement.style.setProperty("--ctx-p", c2.p);
+        document.documentElement.style.setProperty("--ctx-a", c2.a);
+        const av = host.querySelector(".np-avatar");
+        if (av) av.style.background = `linear-gradient(135deg, ${c2.p}, ${c2.a})`;
+      };
       const nameEl = el("span", { class: "np-name" }, [cur.name]);
+      applyCtxColor(cur);
       const avaHost = el("span", { style: "display:inline-flex;flex:none" }, [avatar(cur.name, 22)]);
       const btn = el("button", { class: "np-btn", type: "button", title: "点击切换产品" }, [
         avaHost,
@@ -288,6 +309,11 @@ window.UI = (function () {
           el("div", { class: "np-pop-head" }, ["切换产品",
             el("span", { class: "np-pop-count" }, [products.length + " 个"])]),
         ]);
+        Promise.all(products.map(p => brandColorOf(p.brand_file))).then(cols => {
+          pop.querySelectorAll(".np-card:not(.np-new) .np-avatar").forEach((av, i) => {
+            if (cols[i]) av.style.background = `linear-gradient(135deg, ${cols[i].p}, ${cols[i].a})`;
+          });
+        });
         products.forEach(p => {
           const on = p.product_id === cur.product_id;
           pop.appendChild(el("button", {

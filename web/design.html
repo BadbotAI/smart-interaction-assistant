@@ -170,11 +170,25 @@ const DEMO_GRID = [
   ["metric.card", { component_type: "metric.card", semantic_category: "present",
     params: { label: "本月累计金额", value: "1,286", unit: "万元", delta: "4.2%" } }],
 ];
+const DEMO_GRID_B = [
+  ["scale.likert", { component_type: "scale.likert", semantic_category: "evaluate",
+    params: { prompt: "请为本次服务打分", scale: 5, low_label: "很不满意", high_label: "非常满意", submit_label: "提交" } }],
+  ["steps", { component_type: "steps", semantic_category: "present",
+    params: { title: "操作指引", steps: ["填写信息", "上传凭证", "等待审核"], current_index: 1 } }],
+  ["table", { component_type: "table", semantic_category: "present",
+    params: { title: "分区域概览", columns: ["区域", "数量", "环比"], rows: [["华东", "352", "2.3%"], ["华南", "332", "1.5%"]] } }],
+  ["chart.waterfall", { component_type: "chart.waterfall", semantic_category: "present",
+    params: { title: "利润构成", categories: ["营收", "运费", "仓储", "退款"], values: [420, -86, -54, -32] } }],
+  ["timeline", { component_type: "timeline", semantic_category: "present",
+    params: { title: "处理进度", events: [{ ts: "09:20", title: "已受理" }, { ts: "10:05", title: "处理中" }, { ts: "11:40", title: "已完成" }] } }],
+  ["feedback.binary", { component_type: "feedback.binary", semantic_category: "evaluate",
+    params: { prompt: "这条回答怎么样" } }],
+];
 function renderDemos() {
   const boxOne = document.getElementById("demoOne");
   boxOne.innerHTML = "";
   const grid2 = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start" });
-  DEMO_GRID.forEach(([ct, envBase]) => {
+  (typeof demoBatch !== "undefined" && demoBatch === 1 ? DEMO_GRID_B : DEMO_GRID).forEach(([ct, envBase]) => {
     let node;
     try {
       node = Components.render({ schema_version: "1.0.0", render_id: "brand-pv-" + ct,
@@ -184,9 +198,11 @@ function renderDemos() {
   });
   boxOne.appendChild(grid2);
 }
+let demoBatch = 0;
 function mountDemoControls() {
   const m = document.getElementById("compSelMount");
-  if (m) m.appendChild(el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["同屏预览 6 类代表组件"]));
+  if (m) m.appendChild(el("button", { class: "btn small", type: "button",
+    onclick: () => { demoBatch = (demoBatch + 1) % 2; renderDemos(); } }, ["换一批"]));
 }
 
 // ---------- 导入 / 编辑风格主题：弹窗建卡片（名称 + 风格代码），创建后出现在列表，可编辑 / 删除 ----------
@@ -648,7 +664,7 @@ function brandDialog(existing, onClose) {
   host.appendChild(el("div", { class: "style-ed" }, [
     el("div", { class: "ed-sticky-head" }, [
       el("button", { class: "btn small", type: "button", onclick: close }, ["返回"]),
-      el("span", { style: "font-weight:700;font-size:var(--font-title)" }, [existing ? `编辑「${existing.brand_name}」` : "新建主题"]),
+      el("span", { style: "font-weight:700;font-size:var(--font-title)" }, [existing ? "编辑" : "新建主题"]),
       el("div", { style: "flex:1" }),
       el("button", { class: "btn small", type: "button", onclick: close }, ["取消"]),
       (() => { const b = el("button", { class: "btn small primary", type: "button" }, [existing ? "保存修改" : "保存主题"]);

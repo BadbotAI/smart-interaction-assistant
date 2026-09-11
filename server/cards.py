@@ -6,8 +6,7 @@ PRESENT_TYPES = {
     "chart.line", "chart.area", "chart.bar", "chart.pie", "chart.stacked",
     "chart.scatter", "chart.range", "chart.box", "tree", "treemap",
     "graph.network", "map.geo", "gantt", "calendar", "track.map",
-    "matrix.compare", "flow.reasoning", "citation.card",
-}
+    "matrix.compare", "flow.reasoning", "citation.card", "chart.waterfall"}
 COLLECT_TYPES = {
     "select.single", "select.card", "select.multi", "rank.priority", "slider.range",
     "scale.likert", "form.structured", "input.followup", "picker.datetime", "picker.timerange",
@@ -72,7 +71,7 @@ def validate_card(payload: dict, strict: bool = False) -> list:
     SPEC_BOOL = {"rec_chip", "striped", "header_bold", "outline", "grid", "value_labels", "line.smooth",
                  "point.show", "area.fill", "axis.show", "delta.show", "baseline.show", "ts.show", "desc.show",
                  "halo", "best.highlight", "sum.show", "legend.show", "legend.pct", "quick.show", "handle.show",
-                 "caption.show", "tone.color", "opt.border", "icon.show",
+                 "caption.show", "tone.color", "opt.border", "icon.show", "total.show",
                  "y.zero", "last.emph", "bar.horizontal", "pie.sort", "delta.invert", "stepnum.show", "radio.show"}
     SPEC_NUM = {"line.width": (1, 4), "point.size": (2, 6), "area.opacity": (4, 40), "bar.width": (20, 75),
                 "bar.radius": (0, 8), "pie.height": (10, 28), "value.size": (22, 40), "hl.size": (16, 30),
@@ -89,7 +88,8 @@ def validate_card(payload: dict, strict: bool = False) -> list:
                  "bar.sort": ("asc", "desc"), "metric.align": ("left", "center"),
                  "col.align": ("smart", "left"), "text.align": ("left", "center"), "lk.style": ("dots", "bar")}
     SPEC_COLOR = {"color.primary", "color.accent", "panel.bg", "line.color", "axis.color", "bar.color",
-                  "done.color", "marker.color", "header.bg", "dot.color", "input.bg", "tlline.color", "icon.color"}
+                  "done.color", "marker.color", "header.bg", "dot.color", "input.bg", "tlline.color", "icon.color",
+                  "wf.pos", "wf.neg"}
     allowed_tokens = ({"height", "radius", "spacing", "shadow", "font_scale",
                       # 旧 token 兼容读取（编辑器已不再写入）
                       "radius.card", "radius.control", "font.size_base", "spacing.card_padding", "density"}
@@ -572,6 +572,7 @@ V2_PICK_RULES = [
     ("compare",    ["对比一下", "多维对比", "打分对比", "矩阵"]),
     ("list",       ["要点", "注意事项", "总结几点", "清单列点"]),
     ("highlight",  ["一句话结论", "核心结论", "重点是"]),
+    ("waterfall",  ["瀑布图", "构成拆解", "增减", "归因"]),
     ("select",     ["选", "挑", "哪种", "方式", "方案", "怎么处理", "有哪些"]),
 ]
 
