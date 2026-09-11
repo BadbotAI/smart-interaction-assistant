@@ -612,9 +612,9 @@
   // —— 品牌风格 mock：静态站也能新建 / 编辑 / 删除 / 预览（sessionStorage 会话内持久） ——
   const BRAND_BUILTIN = [
     { file: "brand-tokens.default.json", brand_id: "default", brand_name: "默认风格 · 墨蓝" },
-    { file: "brand-tokens.chainbao.json", brand_id: "chainbao", brand_name: "链运宝 · 青瓷" },
-    { file: "brand-tokens.meetnote.json", brand_id: "meetnote", brand_name: "智会纪要 · 黛紫" },
-    { file: "brand-tokens.caishui.json", brand_id: "caishui", brand_name: "财税小助 · 松绿" },
+    { file: "brand-tokens.chainbao.json", brand_id: "chainbao", brand_name: "自然清新" },
+    { file: "brand-tokens.meetnote.json", brand_id: "meetnote", brand_name: "创意活力" },
+    { file: "brand-tokens.caishui.json", brand_id: "caishui", brand_name: "政企稳重" },
     { file: "brand-tokens.harbor.json", brand_id: "harbor", brand_name: "远洋港航（示例品牌B）" },
   ];
   let BRAND_EXTRA = [];

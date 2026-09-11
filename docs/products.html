@@ -22,8 +22,8 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=8629555f"></script>
-<script src="./mock_api.js?v=fa3973ef"></script>
+<script src="./mock_data.js?v=d1524d6f"></script>
+<script src="./mock_api.js?v=ba5d41a5"></script>
 <script src="./tokens.js?v=f1cb69ae"></script>
 <script src="./ui.js?v=a71b5a76"></script>
 <script>
@@ -92,8 +92,6 @@ function productForm(init, opts = {}) {
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["产品名称"]), nameIn, nameErr]),
     el("label", { class: "field" }, [el("span", { class: "label-text" }, ["品牌风格",
       UI.help("该产品里所有组件渲染时使用的风格；在「品牌风格」页新建与编辑")]), brandSel]),
-    el("div", { class: "muted", style: "font-size:var(--font-caption)" },
-      ["组件实例不在此配置：在组件工作台创建并发布时，自动加入当前产品的注册表"]),
   ]);
   return { node, st, nameIn, nameErr };
 }
@@ -115,9 +113,9 @@ function configProduct(p) {
   const access = el("div", { class: "field", style: "margin-top:4px" }, [
     el("span", { class: "label-text" }, ["SDK 接入",
       UI.help("每个产品对应：一个后端 API 接口 + 一个前端 JS/CSS 代码块 + 一份数据块 Schema；配置出包时固化，平台修改后需重新拉取部署")]),
-    codeBlock("后端 API 接口", "拉组件注册表，作为工具声明给你的大模型（后端私有 Key，勿放前端）",
+    codeBlock("后端 API 接口", null,
       `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`),
-    codeBlock("前端 JS/CSS 代码块", "引入 SDK，样式含本产品品牌风格 token（前端公开 Key，页面可见）",
+    codeBlock("前端 JS/CSS 代码块", null,
       `<link rel="stylesheet" href="${origin}/v1/products/${p.product_id}/sia.css?key=${p.pub_key}">\n<script src="${origin}/web/sia.js" data-key="${p.pub_key}" defer><\/script>`),
     el("div", { class: "drawer-meta", style: "margin:10px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap" }, [
       el("span", { class: "muted", style: "flex:none" }, ["后端私有 Key"]),
