@@ -212,17 +212,14 @@ window.UI = (function () {
     ia: {
       name: "智能交互平台", home: "./index.html", productSwitcher: true,
       groups: [
-        // 分组按对象：上组围绕「当前产品」（切换器正下方：接入出口与风格主题），
-        // 下组围绕「组件」（模板库与实例工作台，日常主阵地）
-        { title: "产品", items: [
-          ["products", "产品与接入", "./products.html", "box"],
+        // 切换器（全局上下文）之下 = 当前产品维度的三页一组；全局管理沉到底部区
+        { title: "当前产品", items: [
+          ["cards", "组件工作台", "./cards.html", "sliders"],
+          ["library", "组件模板", "./library.html", "grid"],
           ["design", "风格主题", "./design.html", "palette"],
         ] },
-        { title: "组件", items: [
-          ["library", "组件库", "./library.html", "grid"],
-          ["cards", "组件工作台", "./cards.html", "sliders"],
-        ] },
       ],
+      footItems: [["products", "产品与接入", "./products.html", "box"]],
     },
     router: {
       name: "模型路由平台", home: "./home-router.html",
@@ -299,7 +296,7 @@ window.UI = (function () {
               pop.remove();
               localStorage.setItem("sia_product", p.product_id);
               localStorage.setItem("sia_product_meta", JSON.stringify({ name: p.name }));
-              // 切产品 = 切它的风格主题：平台内预览（工作台 / 编辑器 / 组件库）立即跟随
+              // 切产品 = 切它的风格主题：平台内预览（工作台 / 编辑器 / 组件模板）立即跟随
               if (p.brand_file) localStorage.setItem("brand_file", p.brand_file);
               cur = p;
               location.reload();
@@ -312,6 +309,12 @@ window.UI = (function () {
             on ? el("span", { class: "np-card-check" }, [icon("check", 15)]) : null,
           ]));
         });
+                pop.appendChild(el("button", { class: "np-card np-new", role: "option", onclick: () => {
+          location.href = "./products.html?new=1";
+        } }, [
+          el("span", { class: "np-avatar", style: "width:34px;height:34px;background:var(--primary-weak);color:var(--primary)" }, ["+"]),
+          el("span", { class: "np-meta" }, [el("span", { class: "np-name", style: "color:var(--primary)" }, ["新建产品"])]),
+        ]));
         document.body.appendChild(pop);
         const r = btn.getBoundingClientRect();
         pop.style.minWidth = r.width + "px";
@@ -362,8 +365,11 @@ window.UI = (function () {
       }, [icon(ic, 17), el("span", {}, [name])])));
       side.appendChild(box);
     });
-    // 审计日志：低频入口，收在底部账户上方
+    // 底部全局区：跨产品的管理入口（产品与接入）+ 审计日志
     side.appendChild(el("div", { class: "nav-group", style: "margin-top:auto" }, [
+      ...((plat.footItems || []).map(([key, name, href, ic]) => el("a", {
+        class: "navlink" + (isActive(key) ? " active" : ""), href, "data-key": key,
+      }, [icon(ic, 17), el("span", {}, [name])]))),
       el("a", { class: "navlink" + (active === "audit" ? " active" : ""), href: "./audit.html", "data-key": "audit" }, [
         icon("loglist", 17), el("span", {}, ["操作日志"]),
       ]),
@@ -473,7 +479,7 @@ window.UI = (function () {
     return svg;
   }
 
-  function lineChart(container, { series, labels, height = 180, unit = "" }) {
+  function lineChart(container, { series, labels, height = 180, unit = "", grid = true }) {
     container.innerHTML = "";
     const pal = Brand.chartPalette().categorical;
     const w = 560, h = height, padL = 44, padR = 12, padT = 14, padB = 26;
@@ -486,7 +492,7 @@ window.UI = (function () {
     const y = v => padT + (h - padT - padB) * (1 - (v - minV) / span);
     for (let g = 0; g <= 3; g++) {
       const gy = padT + g * (h - padT - padB) / 3;
-      svg.appendChild(svgEl("line", { x1: padL, y1: gy, x2: w - padR, y2: gy, stroke: GRID(), "stroke-width": 1 }));
+      if (grid) svg.appendChild(svgEl("line", { x1: padL, y1: gy, x2: w - padR, y2: gy, stroke: GRID(), "stroke-width": 1 }));
       const tl = svgEl("text", { x: padL - 6, y: gy + 4, "text-anchor": "end", "font-size": 10, fill: INK() });
       tl.textContent = fmtTick(maxV - g * span / 3);
       svg.appendChild(tl);
@@ -531,7 +537,7 @@ window.UI = (function () {
     container.appendChild(svg);
   }
 
-  function barChart(container, { categories, values, height = 190, unit = "", color, horizontal = false, maxValue, format }) {
+  function barChart(container, { categories, values, height = 190, unit = "", color, horizontal = false, maxValue, format, grid = true, valueLabels = true }) {
     container.innerHTML = "";
     const barColor = color || "var(--primary)";
     const fmtVal = format || (v => String(typeof v === "number" && v % 1 !== 0 ? v.toFixed(3) : v) + unit);
@@ -563,7 +569,7 @@ window.UI = (function () {
     const bw = Math.min(38, slot * 0.55);
     for (let g = 0; g <= 3; g++) {
       const gy = padT + g * (h - padT - padB) / 3;
-      svg.appendChild(svgEl("line", { x1: padL, y1: gy, x2: w - padR, y2: gy, stroke: GRID(), "stroke-width": 1 }));
+      if (grid) svg.appendChild(svgEl("line", { x1: padL, y1: gy, x2: w - padR, y2: gy, stroke: GRID(), "stroke-width": 1 }));
       const tl = svgEl("text", { x: padL - 6, y: gy + 4, "text-anchor": "end", "font-size": 10, fill: INK() });
       tl.textContent = fmtTick(maxV * (1 - g / 3));
       svg.appendChild(tl);
@@ -577,7 +583,7 @@ window.UI = (function () {
       });
       svgTitle(rect, `${categories[i]}: ${v}${unit}`);
       svg.appendChild(rect);
-      if (values.length <= 12) {
+      if (valueLabels && values.length <= 12) {
         const vt = svgEl("text", { x: bx + bw / 2, y: h - padB - bh - 5, "text-anchor": "middle",
           "font-size": 10, fill: "var(--text-secondary)", style: "font-variant-numeric:tabular-nums" });
         vt.textContent = fmtTick(v);

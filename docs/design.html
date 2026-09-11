@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>产品及风格管理 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=3186cba4">
+<link rel="stylesheet" href="./shared.css?v=e794a2b7">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
@@ -24,7 +24,7 @@
   .brand-card .bname { font-weight: 600; font-size: var(--font-base); display: flex; align-items: center; gap: 6px; }
   .brand-card .bsub { font-size: var(--font-caption); color: var(--text-muted); margin-top: 3px; }
   /* 导入编辑器 */
-  /* 组件示例网格（与组件库同款陈列） */
+  /* 组件示例网格（与组件模板同款陈列） */
   .demo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; align-items: stretch; }
   .demo-card { display: flex; flex-direction: column; gap: 8px; height: 100%; }
   .demo-card .head { display: flex; align-items: center; gap: 8px; }
@@ -75,11 +75,11 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=e21dbbc2"></script>
+<script src="./mock_data.js?v=be0b3fbc"></script>
 <script src="./mock_api.js?v=582ad7ee"></script>
 <script src="./tokens.js?v=be27f7d8"></script>
-<script src="./ui.js?v=d1a4e948"></script>
-<script src="./components.js?v=0bb2d8f1"></script>
+<script src="./ui.js?v=487617bb"></script>
+<script src="./components.js?v=ca938a69"></script>
 <script>
 // 深链直开编辑器时，先行标记以免生效风格覆盖预览
 if (new URLSearchParams(location.search).get("new")) window._editingStyle = true;
@@ -256,11 +256,15 @@ function brandDialog(existing, onClose) {
         success: "#34A873", warning: "#DCA43B", danger: "#ED6A6A" },
       chart: ["#1E7A50", "#A87F2C", "#4C6FE7", "#C74E68", "#58A08C"] },
   ];
+  // 每个 token 标注作用位置（会议：每个属性都要可解释、与组件配套）
   const COLOR_GROUPS = [
-    ["品牌色", [["primary", "主色"], ["primary_weak", "主色弱底"], ["accent", "强调色"], ["ring", "焦点环"]]],
-    ["界面色", [["bg_page", "页面底色"], ["bg_elevated", "卡片面"], ["bg_surface", "区块底色"], ["border", "描边"]]],
-    ["文字色", [["text_primary", "正文"], ["text_secondary", "次级"], ["text_muted", "辅助"]]],
-    ["状态色", [["success", "成功"], ["warning", "警告"], ["danger", "危险"]]],
+    ["品牌色", [["primary", "主色", "提交按钮 / 选中态 / 滑杆填充"], ["primary_weak", "主色弱底", "选中项底色 / 步骤当前光晕"],
+                ["accent", "强调色", "hover 高亮 / 标签强调"], ["ring", "焦点环", "输入框聚焦描边"]]],
+    ["界面色", [["bg_page", "页面底色", "对话流画布"], ["bg_elevated", "卡片面", "组件面板背景"],
+                ["bg_surface", "区块底色", "输入框 / 摘要块底"], ["border", "描边", "组件与选项边框"]]],
+    ["文字色", [["text_primary", "正文", "标题与选项文字"], ["text_secondary", "次级", "描述与辅助说明"],
+                ["text_muted", "辅助", "时间戳 / 占位符"]]],
+    ["状态色", [["success", "成功", "提交成功 / 上涨"], ["warning", "警告", "线上包落后提示"], ["danger", "危险", "确认执行 / 失败态"]]],
   ];
   // 每个字体带自己支持的字重档（宋体 / 楷体等系统字重少，黑体多）
   const FONTS = [
@@ -274,7 +278,7 @@ function brandDialog(existing, onClose) {
     ["Menlo 等宽", 'Menlo, "SF Mono", Consolas, monospace', [["常规", "400"], ["加粗", "700"]]],
   ];
   const curWeights = () => FONTS[opts.font][2];
-  const SIZES = [["12px", "12px"], ["13px", "13px"], ["14px", "14px"], ["15px", "15px"]];
+  const SIZES = [["12px", "12px"], ["13px", "13px"], ["14px", "14px"], ["15px", "15px"]];   // 兼容旧档位索引
   const SHADOWS = [["无", "none"], ["轻", "0 1px 3px rgba(15,27,38,.08)"], ["中", "0 4px 12px rgba(15,27,38,.12)"], ["重", "0 8px 24px rgba(15,27,38,.18)"]];
   const DENSITIES = [["紧凑", "compact"], ["标准", "regular"], ["宽松", "loose"]];
 
@@ -303,7 +307,8 @@ function brandDialog(existing, onClose) {
     t.radius = { ...(t.radius || {}), card: rc + "px", control: rk + "px", chip: "999px" };
     const ws = curWeights();
     const wi = Math.min(opts.weight, ws.length - 1);
-    t.font = { ...(t.font || {}), family: FONTS[opts.font][1], weight_base: ws[wi][1], size_base: SIZES[opts.size][1] };
+    const sizePx = typeof opts.size_px === "number" ? opts.size_px : Number((SIZES[opts.size] || SIZES[1])[1]);
+    t.font = { ...(t.font || {}), family: FONTS[opts.font][1], weight_base: ws[wi][1], size_base: sizePx + "px" };
     const shc = opts.shadow_custom;
     t.shadow = shc ? `${shc.x}px ${shc.y}px ${shc.blur}px ${shc.spread}px rgba(15, 23, 42, ${(shc.alpha / 100).toFixed(2)})`
                    : SHADOWS[opts.shadow][1];
@@ -379,7 +384,7 @@ function brandDialog(existing, onClose) {
         style: "display:flex;align-items:center;gap:10px;border:1.5px solid " + (opts.preset === i ? "var(--primary)" : "var(--border)") +
                ";border-radius:10px;padding:10px 12px;background:#fff;cursor:pointer" + (opts.preset === i ? ";box-shadow:0 0 0 2px var(--primary-weak)" : ""),
         title: pz.name + "（应用整套，之后可逐项微调）",
-        onclick: () => { opts.preset = i; loadPreset(i); palOpen = false; drawPals(); drawTokens(); applyPreview(); } }, [
+        onclick: () => { opts.preset = i; loadPreset(i); palOpen = false; drawPals(); drawTokens(); drawQuick(); applyPreview(); } }, [
         presetSwatch(pz),
         el("span", { style: "font-weight:600;flex:1;text-align:left" }, [pz.name]),
         opts.preset === i ? UI.icon("check", 14) : null,
@@ -398,11 +403,31 @@ function brandDialog(existing, onClose) {
     modeSeg.innerHTML = "";
     [["light", "浅色模式"], ["dark", "深色模式"]].forEach(([k, nm]) => modeSeg.appendChild(el("button", {
       type: "button", class: "seg" + (editMode === k ? " active" : ""),
-      onclick: () => { editMode = k; drawModeSeg(); drawPals(); drawTokens(); applyPreview(); } }, [nm])));
+      onclick: () => { editMode = k; drawModeSeg(); drawPals(); drawTokens(); drawQuick(); applyPreview(); } }, [nm])));
   }
   drawModeSeg();
 
   // —— 逐 token 细颗粒度编辑（Figma 式：分组 · 色块 + HEX 双向同步） ——
+  // 快速配色：主色 / 正文色 / 页面底色 / 成功色——同步写入对应 token 并联动弱底
+  const quickPanel = el("div", { class: "quick-colors" });
+  function drawQuick() {
+    quickPanel.innerHTML = "";
+    [["primary", "主色"], ["text_primary", "文字颜色"], ["bg_page", "背景色"], ["success", "成功色"]].forEach(([key, label]) => {
+      const cur = tok[editMode];
+      const ci = el("input", { type: "color", class: "tok-chip",
+        value: /^#[0-9a-f]{6}$/i.test(cur[key] || "") ? cur[key] : "#3E63DD" });
+      ci.oninput = () => {
+        cur[key] = ci.value;
+        if (key === "primary") {
+          cur.ring = ci.value;
+          if (editMode === "light") cur.primary_weak = "#" + ci.value.slice(1).replace(/../g,
+            m2 => Math.min(255, Math.round(parseInt(m2, 16) * 0.12 + 236)).toString(16).padStart(2, "0"));
+        }
+        refreshGroupSwatches(); drawTokens(); applyPreview();
+      };
+      quickPanel.appendChild(el("label", { class: "quick-color" }, [ci, el("span", {}, [label])]));
+    });
+  }
   const tokenPanel = el("div", {});
   let grpRefreshers = [];
   const refreshGroupSwatches = () => grpRefreshers.forEach(f => { try { f(); } catch (e) {} });
@@ -413,7 +438,7 @@ function brandDialog(existing, onClose) {
     COLOR_GROUPS.forEach(([gname, items]) => {
       const rows = el("div", { class: "tok-rows" });
       const TOK_DEF = { bg_elevated: "#FFFFFF", bg_sunken: "#F2F3F5" };
-      items.forEach(([key, label]) => {
+      items.forEach(([key, label, kdesc]) => {
         const val = cur[key] || TOK_DEF[key] || "#000000";
         const ci = el("input", { type: "color", value: /^#([0-9a-f]{6})$/i.test(val) ? val : "#000000", class: "tok-chip", title: label });
         const hex = el("input", { type: "text", value: val, class: "tok-hex", spellcheck: "false", maxlength: "7" });
@@ -425,7 +450,8 @@ function brandDialog(existing, onClose) {
           else { hex.value = cur[key]; UI.toast("请输入合法 HEX 色值，如 #3E63DD", true); }
         };
         rows.appendChild(el("div", { class: "tok-row" }, [ci,
-          el("span", { class: "tok-name" }, [label]), el("span", { style: "flex:1" }), hex]));
+          el("span", { class: "tok-name" }, [label]),
+          el("span", { class: "tok-desc" }, [kdesc || ""]), hex]));
       });
       const swRow = el("span", { class: "tok-sum-sw" });
       const refreshSw = () => {
@@ -463,6 +489,8 @@ function brandDialog(existing, onClose) {
       el("summary", {}, [el("span", {}, ["图表序列色"]), swRowC]), rows]));
   }
   drawTokens();
+  drawQuick();
+  const _origDrawTokens = drawTokens;
 
   // —— 圆角 / 字体 / 字重 / 字号 / 阴影 / 密度（沿用可视化控件） ——
   // 圆角：连续滑块（0-28px）+ 档位刻度点按吸附 + 数值输入
@@ -542,6 +570,19 @@ function brandDialog(existing, onClose) {
   const densSl = stepSlider(DENSITIES, () => opts.density, (i) => opts.density = i);
   const wBox = el("div", { class: "fs-cards" });
   const sBox = el("div", { class: "fs-cards" });
+  if (opts.size_px === undefined) opts.size_px = Number((SIZES[opts.size] || SIZES[1])[1].replace("px", ""));
+  const szRange = el("input", { type: "range", min: "10", max: "18", step: "1", value: String(opts.size_px), class: "sl-range" });
+  const szNum = el("input", { type: "number", min: "10", max: "18", value: String(opts.size_px), class: "sl-num num" });
+  const szFill = () => szRange.style.setProperty("--fill", ((opts.size_px - 10) / 8 * 100) + "%");
+  const setSz = (v) => {
+    opts.size_px = Math.max(10, Math.min(18, Math.round(Number(v) || 13)));
+    szRange.value = String(opts.size_px); szNum.value = String(opts.size_px); szFill(); applyPreview();
+  };
+  szFill();
+  szRange.oninput = () => setSz(szRange.value);
+  szNum.onchange = () => setSz(szNum.value);
+  const sizeRow = el("div", { class: "sl-row" }, [el("div", { class: "sl-wrap" }, [szRange]), szNum,
+    el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["px"])]);
   function drawFsCards() {
     wBox.innerHTML = ""; sBox.innerHTML = "";
     const ws = curWeights();
@@ -579,11 +620,15 @@ function brandDialog(existing, onClose) {
       ]),
       palGrid,
     ]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["颜色 token"]), tokenPanel]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["快速配色"]),
+      el("div", { class: "muted", style: "font-size:var(--font-caption);margin:-2px 0 8px" },
+        ["只改这四个就能出一套能用的主题；更细的调整在下方逐项展开"]),
+      quickPanel]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["高级 · 逐项细调"]), tokenPanel]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["圆角"]), radBox]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["字体"]), mountFontSel()]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字重"]), wBox]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字号"]), sBox]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字号"]), sizeRow]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["阴影"]), shadowSl, shadowCustom]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["紧凑度"]), densSl]),
   ]);
@@ -659,10 +704,13 @@ function brandDialog(existing, onClose) {
       if (oo.font != null) opts.font = Math.min(oo.font, FONTS.length - 1);
       if (oo.weight != null) opts.weight = oo.weight;
       if (oo.size != null) opts.size = oo.size;
+      if (oo.size_px != null) { opts.size_px = oo.size_px; }
+      else if (oo.size != null) { opts.size_px = Number((SIZES[oo.size] || SIZES[1])[1].replace("px", "")); }
+      setSz(opts.size_px);
       if (oo.shadow != null) opts.shadow = oo.shadow;
       if (oo.shadow_custom) { opts.shadow_custom = oo.shadow_custom; }
       if (oo.density != null) opts.density = oo.density;
-      drawPals(); drawTokens(); drawFsCards(); drawSegs();
+      drawPals(); drawTokens(); drawQuick(); drawFsCards(); drawSegs();
       syncShadowCustom();
       syncRad();
       fontSel && fontSel.setValue && fontSel.setValue(String(opts.font));

@@ -115,7 +115,7 @@ function configProduct(p) {
     ]),
     codeBlock("后端 API 接口", null,
       `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`),
-    codeBlock("前端 JS/CSS 代码块", null,
+    codeBlock("前端代码块", "加载即自动完成组件注册；图表类依赖由接入方自装（见文档）",
       `<link rel="stylesheet" href="${origin}/v1/products/${p.product_id}/sia.css?key=${p.pub_key}">\n<script src="${origin}/web/sia.js" data-key="${p.pub_key}" defer><\/script>`),
   ]);
   const foot = el("div", { style: "display:flex;gap:8px;justify-content:flex-end;align-items:center;width:100%" }, [
@@ -200,7 +200,10 @@ function draw() {
             { label: "删除", danger: true, onClick: async () => {
               const ok = await UI.confirm("删除产品", `删除「${p.name}」后，它的接入 Key 与注册表立即失效，已出包的 SDK 将无法工作。`, { okText: "删除", danger: true });
               if (!ok) return;
-              try { await UI.api(`/api/products/${p.product_id}/delete`, { method: "POST" }); UI.toast("已删除"); load(); }
+              try { await UI.api(`/api/products/${p.product_id}/delete`, { method: "POST" }); UI.toast("已删除"); load().then(() => {
+  // ?new=1 深链（切换器「新建产品」）：自动打开新建弹窗
+  if (new URLSearchParams(location.search).get("new")) newProductDialog();
+}); }
               catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
             } },
           ]); } }, [UI.icon("more", 15)]); return more; })(),

@@ -93,15 +93,25 @@ def params_schema_for(card: dict) -> dict:
     v2.1：平台不配内容——说明与内容全部参数化，实例只携带样式。"""
     ct = card.get("component_type") or ""
     v2 = V2_TYPE_MAP.get(ct)
+    cfg = _cfg(card)
+    fixed_mode = cfg.get("content_mode") == "fixed"
     schema = {"type": "object", "properties": {}, "required": []}
     props, req = schema["properties"], schema["required"]
     S = lambda d: {"type": "string", "description": d}
     if v2 == "select":
         props["prompt"] = S("向用户提出的问题")
-        props["options"] = {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 8,
-                            "description": "候选项文本，按当前对话给出"}
+        if fixed_mode:
+            # 固定组件：选项由平台定死（业务定义），模型不可覆盖
+            req.append("prompt")
+        else:
+            props["options"] = {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 8,
+                                "description": "候选项文本，按当前对话给出"}
+            req.extend(["prompt", "options"])
         props["multi"] = {"type": "boolean", "description": "true=多选（勾选后提交），false=单选"}
-        req.extend(["prompt", "options"])
+    elif v2 == "form" and fixed_mode:
+        props["prompt"] = S("表单引导语")
+        props["prefill"] = {"type": "object", "description": "可选：按字段 key 预填已知值"}
+        req.append("prompt")
     elif v2 == "form":
         props["prompt"] = S("表单引导语")
         props["fields"] = {"type": "array", "minItems": 1, "maxItems": 8,
@@ -191,9 +201,12 @@ def params_schema_for(card: dict) -> dict:
         req.append("prompt")
     elif v2 == "rank":
         props["prompt"] = S("排序引导语")
-        props["items"] = {"type": "array", "minItems": 2, "maxItems": 8, "items": {"type": "string"},
-                          "description": "待排序条目，按当前对话给出"}
-        req.extend(["prompt", "items"])
+        if fixed_mode:
+            req.append("prompt")
+        else:
+            props["items"] = {"type": "array", "minItems": 2, "maxItems": 8, "items": {"type": "string"},
+                              "description": "待排序条目，按当前对话给出"}
+            req.extend(["prompt", "items"])
     elif v2 == "compare":
         props["title"] = S("标题，可选")
         props["options"] = {"type": "array", "minItems": 2, "maxItems": 5, "items": {"type": "string"},
@@ -220,9 +233,19 @@ def fixed_config_for(card: dict) -> dict:
     """平台侧固定项：v2.1 内容全参数化后，只剩样式相关（选择表单的展现样式变体等）。"""
     ct = card.get("component_type") or ""
     cfg = _cfg(card)
+    v2 = V2_TYPE_MAP.get(ct)
     fixed = {}
-    if V2_TYPE_MAP.get(ct) == "select":
+    if v2 == "select":
         fixed["display"] = "card" if (ct == "select.card" or cfg.get("display") == "card") else "text"
+    if cfg.get("content_mode") == "fixed":
+        # 固定组件：业务内容平台定死，随注册表下发（模型只读）
+        fixed["content_mode"] = "fixed"
+        if v2 == "select" and cfg.get("options"):
+            fixed["options"] = cfg.get("options")
+        if v2 == "form" and cfg.get("fields"):
+            fixed["fields"] = cfg.get("fields")
+        if v2 == "rank" and cfg.get("options"):
+            fixed["items"] = cfg.get("options")
     return fixed
 
 

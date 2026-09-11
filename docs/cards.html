@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=3186cba4">
+<link rel="stylesheet" href="./shared.css?v=e794a2b7">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -76,11 +76,11 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=e21dbbc2"></script>
+<script src="./mock_data.js?v=be0b3fbc"></script>
 <script src="./mock_api.js?v=582ad7ee"></script>
 <script src="./tokens.js?v=be27f7d8"></script>
-<script src="./ui.js?v=d1a4e948"></script>
-<script src="./components.js?v=0bb2d8f1"></script>
+<script src="./ui.js?v=487617bb"></script>
+<script src="./components.js?v=ca938a69"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
 UI.nav("cards");
@@ -324,7 +324,7 @@ async function loadCards() {
         el("div", { class: "empty-title" }, ["还没有交互配置"]),
         el("div", { style: "display:flex;gap:8px;justify-content:center;margin-top:10px" }, [
           el("button", { class: "btn primary", onclick: () => newConfigWizard() }, ["新建第一条配置"]),
-          el("a", { class: "btn", href: "./library.html" }, ["去组件库"]),
+          el("a", { class: "btn", href: "./library.html" }, ["去组件模板"]),
         ]),
       ]));
     }
@@ -533,7 +533,7 @@ const V2_TEMPLATES = [
   { component_type: "list.ordered", name: "要点清单", default_config: {} },
   { component_type: "text.emphasis", name: "重点结论", default_config: {} },
 ];
-// 展示类预览演示参数（与组件库一致；运行时由模型参数填入）
+// 展示类预览演示参数（与组件模板一致；运行时由模型参数填入）
 const DEMO_PRESENT = {
   "matrix.compare": { title: "方案对比", options: ["方案 A", "方案 B"], dimensions: ["时效", "成本", "稳定"],
     values: [[8, 6, 7], [6, 9, 8]] },
@@ -847,7 +847,7 @@ async function openEditor(cardId, prefill, initStep) {
   function stepPick() {
     const box = el("div", {});
     let activeTag = null;
-    // 双 tab：与组件库同构（交互类 / 展示类）；初始定位到当前已选组件所在类
+    // 双 tab：与组件模板同构（交互类 / 展示类）；初始定位到当前已选组件所在类
     let pickTab = PRESENT_TYPES.includes(state.component_type) ? "present" : "interactive";
     const gridBox = el("div", { class: "tpl-grid" });
     const tagBox = el("div", { class: "scene-tags" });
@@ -927,6 +927,14 @@ async function openEditor(cardId, prefill, initStep) {
   function stepStyle() {
     const so = state.styleOv;
     const box = el("div", {});
+    {
+      const cfg1 = card ? (((card.field_bindings || {}).config) || {}) : {};
+      if (state.contentMode === undefined) state.contentMode = cfg1.content_mode || "dynamic";
+      if (state.fixedOptions === undefined) state.fixedOptions = (cfg1.options || []).join("\n");
+      if (state.fixedFields === undefined) state.fixedFields = (cfg1.fields || [])
+        .map(f => [f.key, f.label, f.required ? "必填" : ""].filter(Boolean).join("|")).join("\n");
+      if (state.submitLabel === undefined) state.submitLabel = ((card || {}).text_templates || {}).submit || "";
+    }
     const tplName = (V2_TEMPLATES.find(t => t.component_type === state.component_type) || {}).name || "";
     if (!state.name.trim() && tplName) {
       const taken = new Set((window.__allCards || []).map(x => x.name));
@@ -1040,13 +1048,109 @@ async function openEditor(cardId, prefill, initStep) {
       [el("i", {}), el("i", {}), el("i", {})]);
     const fontDemo = v => el("span", { style: `font-weight:600;font-size:${{ "": "14px", "-1": "12px", "1": "16px", "2": "18px" }[v]}` }, ["字A"]);
 
-    box.appendChild(colorRow("color.primary", "主色（按钮 / 选中态）"));
+    // —— 按组件结构分组：容器 → 内容 → 交互区 → 类型特有 → 提交区 → 元素（会议：可配置项跟随组件定制） ——
+    const ct = state.component_type;
+    const IS_PRESENT = PRESENT_TYPES.includes(ct);
+    const HAS_SUBMIT = !IS_PRESENT && !["feedback.binary", "feedback.preference"].includes(ct);
+    const SEL_STYLE_OK = ["select.single", "select.multi", "select.card", "feedback.preference", "rank.priority"].includes(ct);
+    const FIXED_OK = ["select.single", "select.multi", "form.structured", "rank.priority"].includes(ct);
+    const groupHead = (t, d) => el("div", { class: "sty-group" }, [el("span", {}, [t]),
+      d ? el("span", { class: "muted", style: "font-size:var(--font-caption);font-weight:400" }, [d]) : null]);
+    const boolRow = (key, label, defOn, hint) => {
+      const cb = el("input", { type: "checkbox", ...(so[key] === undefined ? (defOn ? { checked: "" } : {}) : (so[key] ? { checked: "" } : {})) });
+      cb.onchange = () => {
+        if (cb.checked === defOn) delete so[key]; else so[key] = cb.checked;
+        upd();
+      };
+      return el("label", { class: "sty-bool" }, [cb, el("span", {}, [label]), hint ? UI.help(hint) : null]);
+    };
+
+    // 内容模式（固定 / 动态）——仅业务内容型组件
+    if (FIXED_OK) {
+      box.appendChild(groupHead("内容", "固定 = 业务选项在平台定死并可开群体回显；动态 = 内容由模型按对话给出"));
+      const cmSeg = el("div", { class: "segmented" });
+      const fixedArea = el("div", { style: "margin-top:10px" });
+      const drawCM = () => {
+        cmSeg.innerHTML = "";
+        [["dynamic", "动态（模型给出）"], ["fixed", "固定（平台定死）"]].forEach(([v, nm]) =>
+          cmSeg.appendChild(el("button", { type: "button", class: "seg" + (state.contentMode === v ? " active" : ""),
+            onclick: () => { state.contentMode = v; if (v !== "fixed") state.echo_results = false; drawCM(); drawFixed(); upd(); } }, [nm])));
+      };
+      const drawFixed = () => {
+        fixedArea.innerHTML = "";
+        if (state.contentMode !== "fixed") return;
+        if (ct === "form.structured") {
+          const ta = el("textarea", { rows: "4", spellcheck: "false", placeholder: "每行一个字段：字段标识|字段名|必填\n如 contact_name|联系人|必填",
+            style: "width:100%;font-family:var(--font-mono);font-size:12px" }, [state.fixedFields]);
+          ta.oninput = () => { state.fixedFields = ta.value; upd(); };
+          fixedArea.appendChild(el("div", { class: "field" }, [el("span", { class: "label-text" }, ["固定字段"]), ta]));
+        } else {
+          const ta = el("textarea", { rows: "4", spellcheck: "false", placeholder: "每行一个选项，如：\n开专票\n开普票",
+            style: "width:100%;font-size:13px" }, [state.fixedOptions]);
+          ta.oninput = () => { state.fixedOptions = ta.value; upd(); };
+          fixedArea.appendChild(el("div", { class: "field" }, [el("span", { class: "label-text" },
+            [ct === "rank.priority" ? "固定条目" : "固定选项"]), ta]));
+        }
+        const echo = el("input", { type: "checkbox", ...(state.echo_results ? { checked: "" } : {}) });
+        echo.onchange = () => { state.echo_results = echo.checked; upd(); };
+        fixedArea.appendChild(el("label", { class: "sty-bool" }, [echo,
+          el("span", {}, ["群体回显：用户提交后展示所有人的选择分布"]),
+          UI.help("仅固定内容可开启——动态内容每次不同，无法聚合统计")]));
+      };
+      drawCM(); drawFixed();
+      box.appendChild(el("div", { class: "sty-section" }, [cmSeg, fixedArea]));
+    }
+
+    box.appendChild(groupHead("颜色"));
+    box.appendChild(colorRow("color.primary", HAS_SUBMIT ? "主色（按钮 / 选中态）" : "主色（选中 / 强调）"));
     box.appendChild(colorRow("color.accent", "强调色（hover / 高亮）"));
+
+    box.appendChild(groupHead("容器（面板）"));
+    box.appendChild(colorRow("panel.bg", "面板底色"));
     box.appendChild(numRow("radius", "倒角", 0, 28, 16, "组件卡片圆角；控件圆角按比例跟随"));
-    if (!PRESENT_TYPES.includes(state.component_type))
-      box.appendChild(numRow("height", "控件高度", 28, 56, 40, "选项行 / 按钮等可点控件的高度"));
-    box.appendChild(numRow("spacing", "间距", 8, 24, 16, "组件卡片内边距，同时影响行距节奏"));
+    box.appendChild(numRow("spacing", "内边距", 8, 24, 16, "面板内边距，同时影响行距节奏"));
     box.appendChild(cardsRow("shadow", "阴影", [["", "品牌"], ["none", "无"], ["sm", "轻"], ["md", "中"], ["lg", "重"]], shadowDemo));
+
+    if (!IS_PRESENT) {
+      box.appendChild(groupHead("交互区"));
+      box.appendChild(numRow("height", "控件高度", 28, 56, 40, "选项行 / 输入框等可点控件的高度"));
+      if (SEL_STYLE_OK) {
+        const seg2 = el("div", { class: "segmented" });
+        const drawSel = () => {
+          seg2.innerHTML = "";
+          [["", "填充（主题默认）"], ["outline", "描边"]].forEach(([v, nm]) =>
+            seg2.appendChild(el("button", { type: "button", class: "seg" + ((so.sel_style || "") === v ? " active" : ""),
+              onclick: () => { if (v) so.sel_style = v; else delete so.sel_style; drawSel(); upd(); } }, [nm])));
+        };
+        drawSel();
+        box.appendChild(el("div", { class: "sty-section" }, [
+          el("div", { class: "sty-label" }, ["选中态样式"]), seg2]));
+      }
+      if (ct.startsWith("select")) box.appendChild(boolRow("rec_chip", "显示「推荐」角标", true, "模型标记推荐项时显示"));
+    }
+
+    if (ct === "table") {
+      box.appendChild(groupHead("表格样式"));
+      box.appendChild(boolRow("striped", "隔行变色", true));
+      box.appendChild(boolRow("header_bold", "表头加重", true));
+      box.appendChild(boolRow("outline", "外边框", false));
+    }
+    if (ct === "chart.line" || ct === "chart.bar") {
+      box.appendChild(groupHead("图表样式"));
+      box.appendChild(boolRow("grid", "网格线", true));
+      if (ct === "chart.bar") box.appendChild(boolRow("value_labels", "柱顶数值", true));
+    }
+
+    if (HAS_SUBMIT) {
+      box.appendChild(groupHead("提交区", "按钮自带 提交中 / 已提交 / 失败 状态样式"));
+      const sub = el("input", { type: "text", maxlength: "8", value: state.submitLabel || "",
+        placeholder: ct === "control.confirm" ? "确认执行" : "提交", style: "max-width:200px" });
+      sub.oninput = () => { state.submitLabel = sub.value; upd(); };
+      box.appendChild(el("div", { class: "sty-section" }, [
+        el("div", { class: "sty-label" }, ["按钮文案"]), sub]));
+    }
+
+    box.appendChild(groupHead("文字"));
     box.appendChild(numRow("font_scale", "字号", 12, 16, 13, "组件内正文字号"));
 
     // 选择类：展现变体（可视化两卡）
@@ -1665,7 +1769,7 @@ async function openEditor(cardId, prefill, initStep) {
         } }, [UI.icon("copy", 14), "复制"]),
       ]),
       el("pre", { class: "code" }, ["SIA.render(container, " + callDemo + ")"]),
-      el("div", { class: "muted" }, ["参数 schema 与提交回传结构：见「组件库 → 组件详情」，或产品配置里的「查看数据 Schema」"]),
+      el("div", { class: "muted" }, ["参数 schema 与提交回传结构：见「组件模板 → 组件详情」，或产品配置里的「查看数据 Schema」"]),
     ]));
     box.appendChild(el("div", { class: "muted", style: "margin-top:8px" },
       ["接入三件套（注册表 API + JS + CSS）在「产品与接入」页一键复制；样式修改后需重新出包"]));
@@ -1865,7 +1969,20 @@ async function openEditor(cardId, prefill, initStep) {
     const cfg0 = card ? (((card.field_bindings || {}).config) || {}) : {};
     const config = { ...cfg0 };
     if (state.display) config.display = state.display; else delete config.display;
+    config.content_mode = state.contentMode || "dynamic";
     delete config.options;
+    delete config.fields;
+    if (config.content_mode === "fixed") {
+      if (state.component_type === "form.structured") {
+        config.fields = (state.fixedFields || "").split("\n").map(l => l.trim()).filter(Boolean).map(l => {
+          const [k, lb, rq] = l.split("|").map(x => (x || "").trim());
+          return { key: k, label: lb || k, type: "text", required: rq === "必填" || rq === "required" };
+        }).filter(f => f.key);
+      } else {
+        config.options = (state.fixedOptions || "").split("\n").map(l => l.trim()).filter(Boolean);
+      }
+    }
+    const fixedEcho = config.content_mode === "fixed" && !!state.echo_results;
     return {
       card_id: clientCardId,
       name: state.name.trim(),
@@ -1873,9 +1990,12 @@ async function openEditor(cardId, prefill, initStep) {
       component_type: state.component_type,
       style_overrides: state.styleOv,
       model_invokable: true,
-      echo_results: !!state.echo_results,
+      echo_results: fixedEcho,
+      group_mode: fixedEcho ? { feedback_to_model: "distribution" } : null,
       field_bindings: { config, fields: config.fields || [] },
-      text_templates: card?.text_templates && Object.keys(card.text_templates).length ? card.text_templates : { prompt: "请补充信息", submit: "提交" },
+      text_templates: { ...(card?.text_templates || {}),
+        prompt: (card?.text_templates || {}).prompt || "请补充信息",
+        submit: (state.submitLabel || "").trim() || (card?.text_templates || {}).submit || "提交" },
       emit_targets: ["model", "dashboard", "label_store"],
     };
   }
@@ -2061,7 +2181,7 @@ loadCards().then(async () => {
     let prefill = null;
     try { prefill = JSON.parse(localStorage.getItem("config_prefill") || "null"); } catch (e) {}
     localStorage.removeItem("config_prefill");
-    // 深链：?new=1&ct=select.single 直接带组件进入（组件库「创建配置」也走这里）
+    // 深链：?new=1&ct=select.single 直接带组件进入（组件模板「创建配置」也走这里）
     if (!prefill && params.get("ct")) prefill = { component_type: params.get("ct") };
     if (prefill && prefill.component_type) {
       if (!templateLibrary) templateLibrary = (await UI.api("/api/templates")).templates;

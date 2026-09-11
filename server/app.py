@@ -761,7 +761,7 @@ def product_sia_css(product_id: str, key: str = None):
     dark_block = ("@media (prefers-color-scheme: dark){.brand-scope{%s}}\n" % dark_decls) if dark_decls else ""
     body = ("/* Smart Interaction SDK CSS — 产品「%s」的风格主题 token（出包固化：平台改风格后需重新拉取部署） */\n"
             ".brand-scope{%s}\n%ssia-card{display:block;}\n") % (row["name"], decls, dark_block)
-    return PlainTextResponse(body, media_type="text/css")
+    return PlainTextResponse(body, media_type="text/css", headers={"Cache-Control": "no-cache"})
 
 
 
@@ -795,7 +795,10 @@ def product_registry(product_id: str, key: str = None):
         conn.commit()
     except Exception:
         pass
-    return reg
+    from fastapi.responses import JSONResponse as _JR
+    resp = _JR(reg)
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
 
 
 @app.post("/api/components/schema-preview")

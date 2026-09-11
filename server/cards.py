@@ -69,6 +69,7 @@ def validate_card(payload: dict, strict: bool = False) -> list:
             errors.append({"field": f"text_templates.{key}", "message": "文案模板变量括号不匹配"})
     style = payload.get("style_overrides") or {}
     allowed_tokens = {"height", "radius", "color.primary", "color.accent", "spacing", "shadow", "font_scale",
+                      "panel.bg", "sel_style", "rec_chip", "striped", "header_bold", "outline", "grid", "value_labels",
                       # 旧 token 兼容读取（编辑器已不再写入）
                       "radius.card", "radius.control", "font.size_base", "spacing.card_padding", "density"}
     _legacy = {"radius": {"none", "sm", "md", "lg", "full"}, "height": {"compact", "regular", "large"},
@@ -84,6 +85,12 @@ def validate_card(payload: dict, strict: bool = False) -> list:
                 errors.append({"field": f"style_overrides.{key}", "message": f"{key} 取值须为 {lo}-{hi} 的数值（px）"})
         elif key == "shadow" and val not in ("none", "sm", "md", "lg"):
             errors.append({"field": "style_overrides.shadow", "message": "shadow 取值须为 none / sm / md / lg"})
+        elif key == "sel_style" and val not in ("fill", "outline"):
+            errors.append({"field": "style_overrides.sel_style", "message": "sel_style 取值须为 fill / outline"})
+        elif key in ("rec_chip", "striped", "header_bold", "outline", "grid", "value_labels") and not isinstance(val, bool):
+            errors.append({"field": f"style_overrides.{key}", "message": f"{key} 须为布尔值"})
+        elif key == "panel.bg" and not _re.fullmatch(r"#[0-9a-fA-F]{3,8}", str(val or "").strip()):
+            errors.append({"field": "style_overrides.panel.bg", "message": "panel.bg 须为合法 HEX 色值"})
         elif key in ("color.primary", "color.accent") and not _re.fullmatch(r"#[0-9a-fA-F]{3,8}", str(val or "").strip()):
             errors.append({"field": f"style_overrides.{key}", "message": f"{key} 须为合法 HEX 色值"})
     lpm = payload.get("label_polarity_map")
@@ -91,10 +98,15 @@ def validate_card(payload: dict, strict: bool = False) -> list:
         errors.append({"field": "label_polarity_map.label_kind", "message": "label_kind 必须为 capability 或 preference"})
     if strict:
         errors.extend(validate_card_content(payload))
+    _cm = ((payload.get("field_bindings") or {}).get("config") or {}).get("content_mode")
+    if _cm not in (None, "", "dynamic", "fixed"):
+        errors.append({"field": "content_mode", "message": "内容模式须为 dynamic 或 fixed"})
     group = payload.get("group_mode")
     if group:
         if semantic_category(ct) != "collect":
             errors.append({"field": "group_mode", "message": "群体决策模式仅采集型组件可开启"})
+        elif _cm != "fixed":
+            errors.append({"field": "group_mode", "message": "群体回显仅固定内容组件可开启（动态内容无法聚合）"})
         elif group.get("feedback_to_model") not in ("result_only", "distribution", None):
             errors.append({"field": "group_mode.feedback_to_model", "message": "取值必须为 result_only 或 distribution"})
     return errors

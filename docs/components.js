@@ -68,6 +68,9 @@ window.Components = (function () {
     const hN = px(so.height, 10);
     set("--control-height", hN != null ? hN + "px" : OV_HEIGHT[so.height]);
     set("--brand-shadow", OV_SHADOW[so.shadow]);
+    if (so["panel.bg"]) set("--bg-elevated", so["panel.bg"]);
+    if (so.sel_style === "outline") node.classList.add("sel-outline");
+    if (so.rec_chip === false) node.classList.add("no-rec");
   }
 
   function render(envelope, ctx) {
@@ -207,6 +210,9 @@ window.Components = (function () {
 
   function rTable(env) {
     const p = env.params;
+    const so = env.style_overrides || {};
+    const tblCls = "data" + (so.striped === false ? " no-striped" : "") +
+      (so.header_bold === false ? " hdr-normal" : "") + (so.outline === true ? " tbl-outline" : "");
     const rows = p.rows || [];
     // 数字列（含 % / 千分位 / 正负号）自动右对齐 + 等宽数字
     const numCol = (p.columns || []).map((_, j) =>
@@ -214,7 +220,7 @@ window.Components = (function () {
     return compCard([
       compTitle(p.title),
       el("div", { style: "overflow-x:auto" }, [
-        el("table", { class: "data" }, [
+        el("table", { class: tblCls }, [
           el("thead", {}, [el("tr", {}, (p.columns || []).map((c, j) =>
             el("th", { class: numCol[j] ? "num-col" : "" }, [String(c)])))]),
           el("tbody", {}, rows.map(r => el("tr", {}, (r || []).map((c, j) =>
@@ -229,8 +235,10 @@ window.Components = (function () {
     const box = compCard([compTitle(p.title)]);
     const chartBox = el("div", {});
     box.appendChild(chartBox);
+    const so = env.style_overrides || {};
     requestAnimationFrame(() => UI.lineChart(chartBox, {
       series: p.series || [], labels: p.categories || p.x_axis || [], unit: p.unit || "",
+      grid: so.grid !== false,
     }));
     return box;
   }
@@ -240,9 +248,11 @@ window.Components = (function () {
     const box = compCard([compTitle(p.title)]);
     const chartBox = el("div", {});
     box.appendChild(chartBox);
+    const so = env.style_overrides || {};
     const series0 = (p.series || [])[0] || { values: [] };
     requestAnimationFrame(() => UI.barChart(chartBox, {
       categories: p.categories || [], values: series0.values || [], unit: p.unit || "",
+      grid: so.grid !== false, valueLabels: so.value_labels !== false,
     }));
     return box;
   }
@@ -347,7 +357,13 @@ window.Components = (function () {
         // 提交即终态：冻结组件内全部交互控件，避免"已提交但还能改"的状态错觉
         const root = btn.closest(".comp");
         if (root) root.querySelectorAll("button, input, textarea, select").forEach(n => n.disabled = true);
-        btn.textContent = "已提交";
+        btn.textContent = "提交中…";
+        btn.classList.add("submitting");
+        setTimeout(() => {
+          btn.classList.remove("submitting");
+          btn.classList.add("submitted");
+          btn.textContent = "已提交";
+        }, 420);
         ctx.onCollectSubmit(payload, env);
         // 群体回显开关：提交完成后显示其他人的选择情况
         if (env.params.echo_results && env.card_ref?.card_id) {
@@ -428,7 +444,7 @@ window.Components = (function () {
       const row = el("button", { class: "opt-item", type: "button", role: multi ? "checkbox" : "radio", "aria-checked": "false" }, [
         selDot(false, multi),
         el("span", { class: "opt-text" }, [o]),
-        o === p.recommended_default ? el("span", { class: "chip blue", style: "flex:none" }, ["推荐"]) : null,
+        o === p.recommended_default ? el("span", { class: "chip blue rec-chip", style: "flex:none" }, ["推荐"]) : null,
       ]);
       row._opt = o;
       row.onclick = () => {

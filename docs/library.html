@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
-<title>组件库 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=3186cba4">
+<title>组件模板 · 智能交互平台</title>
+<link rel="stylesheet" href="./shared.css?v=e794a2b7">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   .tpl-card { display: flex; flex-direction: column; gap: 8px; }
@@ -30,18 +30,18 @@
 <body class="has-side">
 <div class="page">
   <div class="page-head" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-    <div class="page-title">组件库</div>
+    <div class="page-title">组件模板</div>
     <div style="flex:1"></div>
   </div>
   <div id="libBody"></div>
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=e21dbbc2"></script>
+<script src="./mock_data.js?v=be0b3fbc"></script>
 <script src="./mock_api.js?v=582ad7ee"></script>
 <script src="./tokens.js?v=be27f7d8"></script>
-<script src="./ui.js?v=d1a4e948"></script>
-<script src="./components.js?v=0bb2d8f1"></script>
+<script src="./ui.js?v=487617bb"></script>
+<script src="./components.js?v=ca938a69"></script>
 <script>
 UI.nav("library");
 const { el } = UI;
@@ -144,7 +144,7 @@ function renderDetail(t) {
   const secTitle = (t2, hint) => el("div", { style: "font-weight:600;margin:0 0 8px;display:flex;align-items:center;gap:6px" },
     [t2, hint ? UI.help(hint) : null]);
   box.appendChild(el("div", { class: "lib-detail-head" }, [
-    el("button", { class: "btn small", onclick: () => { location.hash = t.interactive ? "" : "present"; } }, ["返回组件库"]),
+    el("button", { class: "btn small", onclick: () => { location.hash = t.interactive ? "" : "present"; } }, ["返回组件模板"]),
     el("span", { class: "tpl-name", style: "font-size:20px" }, [t.label]),
     el("span", { class: "chip " + (t.interactive ? "blue" : "gray") }, [t.interactive ? "交互 · 有提交" : "展示 · 无提交"]),
     el("span", { class: "muted num" }, [t.component_types[0]]),
@@ -194,7 +194,24 @@ async function boot() {
         boot();
       } }, [nm])));
   box.appendChild(tabBar);
-  box.appendChild(el("div", { class: "grid cols-2" }, (libTab === "interact" ? interact : present).map(tplCard)));
+  if (libTab === "present") {
+    // 展示类按信息结构分组（会议：图表归图表、表格归表格，指标卡算图表）
+    const GROUPS = [
+      ["图表", ["trend", "bar", "pie", "metric"]],
+      ["表格", ["table", "compare"]],
+      ["流程", ["timeline", "steps"]],
+      ["文本", ["list", "highlight"]],
+    ];
+    GROUPS.forEach(([gname, types]) => {
+      const items = present.filter(t => types.includes(t.type));
+      if (!items.length) return;
+      box.appendChild(el("div", { class: "lib-group" }, [gname,
+        el("span", { class: "muted", style: "font-weight:400;font-size:var(--font-caption)" }, [` ${items.length} 类`])]));
+      box.appendChild(el("div", { class: "grid cols-2" }, items.map(tplCard)));
+    });
+  } else {
+    box.appendChild(el("div", { class: "grid cols-2" }, interact.map(tplCard)));
+  }
 }
 window.addEventListener("hashchange", () => boot().catch(e => UI.toast("加载失败：" + e.message, true)));
 boot().catch(e => UI.toast("加载失败：" + e.message, true));

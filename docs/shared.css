@@ -1487,3 +1487,31 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .comp .opt-item.on { border-width: 1.5px; }
 
 .sidenav .np-context { margin: 2px 0 10px; padding: 0 0 10px; border-bottom: 1px solid var(--border); }
+
+.sty-group { display: flex; align-items: baseline; gap: 8px; font-weight: 700; font-size: var(--font-base);
+  margin: 22px 0 12px; padding-top: 14px; border-top: 1px solid var(--border); }
+.sty-group:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+.sty-bool { display: flex; align-items: center; gap: 8px; font-size: var(--font-base); cursor: pointer; margin: 8px 0; }
+.sty-bool input { width: 15px; height: 15px; accent-color: var(--primary); cursor: pointer; }
+
+.comp.sel-outline .opt-item.on { background: transparent; box-shadow: inset 0 0 0 1px var(--primary); }
+.comp.sel-outline .fb-cand.on { background: transparent; box-shadow: inset 0 0 0 1px var(--primary); }
+
+.comp.no-rec .rec-chip { display: none; }
+
+.comp table.no-striped tbody tr { background: transparent !important; }
+.comp table.hdr-normal th { font-weight: 400; background: transparent; }
+.comp table.tbl-outline { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+
+.comp .btn.primary.submitting { opacity: .75; }
+.comp .btn.primary.submitted { background: var(--success); border-color: var(--success); }
+.comp .btn.primary.submit-fail { background: var(--danger); border-color: var(--danger); }
+
+.lib-group { font-weight: 700; font-size: var(--font-base); margin: 20px 0 10px; }
+.lib-group:first-of-type { margin-top: 4px; }
+
+.quick-colors { display: flex; gap: 14px; flex-wrap: wrap; }
+.quick-color { display: flex; flex-direction: column; align-items: center; gap: 5px;
+  font-size: var(--font-caption); color: var(--text-secondary); cursor: pointer; }
+.quick-color .tok-chip { width: 40px; height: 40px; border-radius: 10px; }
+.tok-desc { flex: 1; font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
