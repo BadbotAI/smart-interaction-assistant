@@ -14,9 +14,8 @@
     <div style="flex:1"></div>
     <button class="btn primary" id="newBtn"></button>
   </div>
-  <div class="muted" style="margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-    <span>每个产品对应：一个后端 API 接口 + 一个前端 JS/CSS 代码块 + 一份数据块 Schema；品牌风格在「品牌风格」页新建与编辑</span>
-    <a class="btn small ghost" href="/web/embed-demo.html" target="_blank" rel="noopener">SDK 接入演示</a>
+  <div class="muted" style="margin-bottom:14px">
+    产品是接入的基本单位：每个产品有自己的品牌风格、组件注册表和接入 Key，对应一个后端 API 接口、一个前端 JS/CSS 代码块和一份数据块 Schema。
   </div>
   <div id="listBox"></div>
 </div>
@@ -226,9 +225,8 @@ function draw() {
           ]); } }, [UI.icon("more", 15)]); return more; })(),
       ]),
       el("div", { style: "display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap" }, [
-        el("button", { class: "key-chip", title: "产品 ID（点击复制完整 ID）：" + p.product_id,
-          onclick: () => { navigator.clipboard.writeText(p.product_id); UI.toast("已复制完整产品 ID"); } },
-          [el("span", { class: "num" }, ["ID:" + shortProductId(p.product_id)]), UI.icon("copy", 12)]),
+        el("span", { class: "key-chip static", title: "产品 ID" },
+          [el("span", { class: "num" }, ["ID:" + shortProductId(p.product_id)])]),
         el("button", { class: "key-chip", title: "产品接入 Key（点击复制完整 Key）",
           onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制产品接入 Key"); } },
           [el("span", { class: "num" }, ["接入 Key = sk-mcp-••••" + p.mcp_key.slice(-4)]), UI.icon("copy", 12)]),

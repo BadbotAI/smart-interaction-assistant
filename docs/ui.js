@@ -214,12 +214,12 @@ window.UI = (function () {
         // 分组按对象：上组围绕「当前产品」（切换器正下方：接入出口与品牌风格），
         // 下组围绕「组件」（模板库与实例工作台，日常主阵地）
         { title: "产品", inSwitcher: true, items: [
-          ["products", "产品与接入", "./products.html", "link"],
+          ["products", "产品与接入", "./products.html", "box"],
           ["design", "品牌风格", "./design.html", "palette"],
         ] },
         { title: "组件", items: [
           ["library", "组件库", "./library.html", "grid"],
-          ["cards", "组件工作台", "./cards.html", "board"],
+          ["cards", "组件工作台", "./cards.html", "sliders"],
         ] },
       ],
     },
@@ -282,6 +282,8 @@ window.UI = (function () {
             onclick: () => {
               pop.remove();
               localStorage.setItem("sia_product", p.product_id);
+              // 切产品 = 切它的品牌风格：平台内预览（工作台 / 编辑器 / 组件库）立即跟随
+              if (p.brand_file) localStorage.setItem("brand_file", p.brand_file);
               cur = p;
               location.reload();
             } }, [
@@ -357,7 +359,7 @@ window.UI = (function () {
     // 审计日志：低频入口，收在底部账户上方
     side.appendChild(el("div", { class: "nav-group", style: "margin-top:auto" }, [
       el("a", { class: "navlink" + (active === "audit" ? " active" : ""), href: "./audit.html", "data-key": "audit" }, [
-        icon("layers", 17), el("span", {}, ["操作日志"]),
+        icon("loglist", 17), el("span", {}, ["操作日志"]),
       ]),
     ]));
     side.appendChild(el("div", { class: "nav-account", style: "margin-top:0" }, [
@@ -639,6 +641,8 @@ window.UI = (function () {
     check: '<path d="m5 12 4.5 4.5L19 7"/>',
     chevron: '<path d="m6 9 6 6 6-6"/>',
     board: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 9h16M9 9v11"/>',
+    box: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5"/><path d="M12 12v9"/>',
+    loglist: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.3" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="4.5" cy="18" r="1.3" fill="currentColor" stroke="none"/>',
     database: '<ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6"/><path d="M5 12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8"/>',
     palette2: '<circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="9.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="14.5" cy="8.8" r="1.2" fill="currentColor" stroke="none"/><circle cx="15.5" cy="13.5" r="1.2" fill="currentColor" stroke="none"/><path d="M12 20.5c-1.8 0-2.4-1.4-1.4-2.5.9-1 .3-2.5-1-2.5H8"/>',
     route2: '<path d="M5 20V10a4 4 0 0 1 4-4h10"/><path d="m15 2 4 4-4 4"/><path d="M5 14h7a4 4 0 0 1 4 4v2"/>',

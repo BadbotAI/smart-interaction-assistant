@@ -1,0 +1,95 @@
+{
+  "brand_id": "chainbao",
+  "brand_name": "链运宝 · 青瓷",
+  "color": {
+    "primary": "#0D9488",
+    "primary_weak": "#E6F7F5",
+    "bg_page": "#FFFFFF",
+    "bg_surface": "#F7FAF9",
+    "text_primary": "#16302B",
+    "text_secondary": "#4A625C",
+    "text_muted": "#7C918C",
+    "border": "#DCE8E5",
+    "success": "#12A150",
+    "warning": "#C98A0B",
+    "danger": "#DC4C4C",
+    "accent": "#4C6FE7",
+    "ring": "#0D9488"
+  },
+  "chart": {
+    "categorical": [
+      "#0D9488",
+      "#4C6FE7",
+      "#E0902A",
+      "#C74E68",
+      "#6BA893",
+      "#6E4BD8",
+      "#B97A17",
+      "#E5484D"
+    ],
+    "sequential": [
+      "#dde5f8",
+      "#b9c8ef",
+      "#93aae5",
+      "#6d8cdb",
+      "#4a6ed1",
+      "#3b5fce",
+      "#2c479c"
+    ],
+    "diverging_positive": "#3b5fce",
+    "diverging_negative": "#d9453c",
+    "diverging_mid": "#eef0f4",
+    "grid": "#E8ECEF",
+    "axis": "#C7D0D8"
+  },
+  "radius": {
+    "card": "12px",
+    "control": "9px",
+    "chip": "999px"
+  },
+  "font": {
+    "family": "'Open Sans', 'Noto Sans SC', -apple-system, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif",
+    "size_base": "14px",
+    "size_small": "12px",
+    "size_title": "16px",
+    "size_hero": "26px"
+  },
+  "spacing": {
+    "unit": "8px",
+    "card_padding": "16px",
+    "gap": "12px"
+  },
+  "density": "regular",
+  "motion": {
+    "duration_fast": "120ms",
+    "duration_base": "220ms"
+  },
+  "shape": {
+    "control_style": "rounded"
+  },
+  "color_dark": {
+    "primary": "#2AB5A5",
+    "primary_weak": "#0E2925",
+    "accent": "#7C92EE",
+    "ring": "#2AB5A5",
+    "bg_page": "#0D1514",
+    "bg_surface": "#14201D",
+    "border": "#263633",
+    "text_primary": "#E9F2F0",
+    "text_secondary": "#9FB5B0",
+    "text_muted": "#6C817C",
+    "success": "#2FBE7B",
+    "warning": "#DCA43B",
+    "danger": "#ED6A6A"
+  },
+  "_options": {
+    "preset": 1,
+    "radius": 12,
+    "font": 0,
+    "weight": 1,
+    "size": 1,
+    "shadow": 1,
+    "density": 1,
+    "radius_unit": "px"
+  }
+}

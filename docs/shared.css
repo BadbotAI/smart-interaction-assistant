@@ -1468,3 +1468,6 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
   display: flex; align-items: center; gap: 10px; padding: 10px 16px;
   background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px;
   box-shadow: 0 8px 28px rgba(16, 24, 40, .16); }
+
+.key-chip.static { cursor: default; }
+.key-chip.static:hover { border-color: var(--border); background: var(--bg-elevated); }

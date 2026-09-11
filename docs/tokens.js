@@ -61,12 +61,23 @@ window.Brand = (function () {
   }
 
   async function init() {
-    // 生效风格是租户级设置（服务端），本地记录仅作降级
+    // 优先级：当前产品的品牌风格（切产品 = 切风格）> 租户级 active > 本地记录
     let file = localStorage.getItem("brand_file") || "brand-tokens.default.json";
-    try {
-      const r = await fetch("/api/brands/active");
-      file = (await r.json()).file || file;
-    } catch (e) { /* 服务端不可达时用本地记录 */ }
+    const pid = localStorage.getItem("sia_product");
+    let fromProduct = null;
+    if (pid) {
+      try {
+        const pr = await fetch("/api/products").then(x => x.json());
+        fromProduct = ((pr.products || []).find(p => p.product_id === pid) || {}).brand_file;
+      } catch (e) {}
+    }
+    if (fromProduct) file = fromProduct;
+    else {
+      try {
+        const r = await fetch("/api/brands/active");
+        file = (await r.json()).file || file;
+      } catch (e) { /* 服务端不可达时用本地记录 */ }
+    }
     if (window._editingStyle) return; // 风格编辑器预览中，勿覆盖
     try { await load(file); } catch (e) { await load("brand-tokens.default.json"); }
   }

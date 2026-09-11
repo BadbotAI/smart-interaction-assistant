@@ -917,12 +917,13 @@ def migrate_products_v22():
         "SELECT card_id FROM cards WHERE status='published' AND semantic_category IN ('collect','control','evaluate')").fetchall()]
     present = [r["card_id"] for r in conn.execute(
         "SELECT card_id FROM cards WHERE status='published' AND semantic_category='present'").fetchall()]
-    brands = ["brand-tokens.default.json", "brand-tokens.harbor.json"]
+    brands = ["brand-tokens.default.json", "brand-tokens.chainbao.json",
+              "brand-tokens.meetnote.json", "brand-tokens.caishui.json"]
     have = {r["name"] for r in conn.execute("SELECT name FROM products").fetchall()}
     rows = [
-        ("链运宝 App", brands[1 % len(brands)], pub),                      # 供应链物流工具：全组件
-        ("智会纪要", brands[0], present + interact[:2]),                    # 生产力工具：偏展示 + 少量交互
-        ("财税小助", brands[0], interact[:4] + present[:3]),                # 财务 SaaS：表单/确认为主
+        ("链运宝 App", brands[1], pub),                                    # 供应链物流工具：全组件 · 青瓷
+        ("智会纪要", brands[2], present + interact[:2]),                    # 生产力工具：偏展示 · 黛紫
+        ("财税小助", brands[3], interact[:4] + present[:3]),                # 财务 SaaS：表单/确认 · 松绿
     ]
     n = 0
     for name, bf, ids in rows:

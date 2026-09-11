@@ -1,0 +1,95 @@
+{
+  "brand_id": "caishui",
+  "brand_name": "财税小助 · 松绿",
+  "color": {
+    "primary": "#1E7A50",
+    "primary_weak": "#E7F4EC",
+    "bg_page": "#FFFFFF",
+    "bg_surface": "#F7FAF8",
+    "text_primary": "#182720",
+    "text_secondary": "#4C5F55",
+    "text_muted": "#7E8F86",
+    "border": "#DEE9E1",
+    "success": "#1E7A50",
+    "warning": "#C98A0B",
+    "danger": "#DC4C4C",
+    "accent": "#A87F2C",
+    "ring": "#1E7A50"
+  },
+  "chart": {
+    "categorical": [
+      "#1E7A50",
+      "#A87F2C",
+      "#4C6FE7",
+      "#C74E68",
+      "#58A08C",
+      "#6E4BD8",
+      "#B97A17",
+      "#E5484D"
+    ],
+    "sequential": [
+      "#dde5f8",
+      "#b9c8ef",
+      "#93aae5",
+      "#6d8cdb",
+      "#4a6ed1",
+      "#3b5fce",
+      "#2c479c"
+    ],
+    "diverging_positive": "#3b5fce",
+    "diverging_negative": "#d9453c",
+    "diverging_mid": "#eef0f4",
+    "grid": "#E8ECEF",
+    "axis": "#C7D0D8"
+  },
+  "radius": {
+    "card": "8px",
+    "control": "6px",
+    "chip": "999px"
+  },
+  "font": {
+    "family": "'Open Sans', 'Noto Sans SC', -apple-system, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif",
+    "size_base": "14px",
+    "size_small": "12px",
+    "size_title": "16px",
+    "size_hero": "26px"
+  },
+  "spacing": {
+    "unit": "8px",
+    "card_padding": "16px",
+    "gap": "12px"
+  },
+  "density": "compact",
+  "motion": {
+    "duration_fast": "120ms",
+    "duration_base": "220ms"
+  },
+  "shape": {
+    "control_style": "rounded"
+  },
+  "color_dark": {
+    "primary": "#34A873",
+    "primary_weak": "#10291D",
+    "accent": "#C3A050",
+    "ring": "#34A873",
+    "bg_page": "#0E1512",
+    "bg_surface": "#16211B",
+    "border": "#283A2F",
+    "text_primary": "#EAF3EE",
+    "text_secondary": "#A2B8AB",
+    "text_muted": "#6D8277",
+    "success": "#34A873",
+    "warning": "#DCA43B",
+    "danger": "#ED6A6A"
+  },
+  "_options": {
+    "preset": 5,
+    "radius": 8,
+    "font": 0,
+    "weight": 1,
+    "size": 1,
+    "shadow": 0,
+    "density": 0,
+    "radius_unit": "px"
+  }
+}

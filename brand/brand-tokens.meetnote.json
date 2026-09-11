@@ -1,0 +1,95 @@
+{
+  "brand_id": "meetnote",
+  "brand_name": "智会纪要 · 黛紫",
+  "color": {
+    "primary": "#6E56CF",
+    "primary_weak": "#F1EEFB",
+    "bg_page": "#FFFFFF",
+    "bg_surface": "#F9F8FC",
+    "text_primary": "#201A33",
+    "text_secondary": "#584F72",
+    "text_muted": "#8C84A3",
+    "border": "#E5E1F0",
+    "success": "#30A46C",
+    "warning": "#D6970A",
+    "danger": "#E5484D",
+    "accent": "#D6409F",
+    "ring": "#6E56CF"
+  },
+  "chart": {
+    "categorical": [
+      "#6E56CF",
+      "#D6409F",
+      "#30A46C",
+      "#EE7712",
+      "#4C6FE7",
+      "#6E4BD8",
+      "#B97A17",
+      "#E5484D"
+    ],
+    "sequential": [
+      "#dde5f8",
+      "#b9c8ef",
+      "#93aae5",
+      "#6d8cdb",
+      "#4a6ed1",
+      "#3b5fce",
+      "#2c479c"
+    ],
+    "diverging_positive": "#3b5fce",
+    "diverging_negative": "#d9453c",
+    "diverging_mid": "#eef0f4",
+    "grid": "#E8ECEF",
+    "axis": "#C7D0D8"
+  },
+  "radius": {
+    "card": "22px",
+    "control": "16px",
+    "chip": "999px"
+  },
+  "font": {
+    "family": "'Open Sans', 'Noto Sans SC', -apple-system, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif",
+    "size_base": "14px",
+    "size_small": "12px",
+    "size_title": "16px",
+    "size_hero": "26px"
+  },
+  "spacing": {
+    "unit": "8px",
+    "card_padding": "16px",
+    "gap": "12px"
+  },
+  "density": "loose",
+  "motion": {
+    "duration_fast": "120ms",
+    "duration_base": "220ms"
+  },
+  "shape": {
+    "control_style": "rounded"
+  },
+  "color_dark": {
+    "primary": "#9B84EC",
+    "primary_weak": "#251E40",
+    "accent": "#E070B5",
+    "ring": "#9B84EC",
+    "bg_page": "#131020",
+    "bg_surface": "#1B172B",
+    "border": "#302A47",
+    "text_primary": "#F0EDF8",
+    "text_secondary": "#B0A8C8",
+    "text_muted": "#786F94",
+    "success": "#33B074",
+    "warning": "#E2A336",
+    "danger": "#EB6F76"
+  },
+  "_options": {
+    "preset": 3,
+    "radius": 22,
+    "font": 0,
+    "weight": 1,
+    "size": 1,
+    "shadow": 2,
+    "density": 2,
+    "radius_unit": "px"
+  }
+}

@@ -72,6 +72,10 @@
   .ob-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   .ob-body b { font-size: var(--font-base); color: var(--text-primary); }
   .ob-body i { font-style: normal; font-size: var(--font-caption); color: var(--text-muted); line-height: 1.5; }
+  .ob-go { margin-top: 6px; font-size: var(--font-caption); color: var(--primary); font-weight: 600;
+    display: inline-flex; align-items: center; gap: 3px; }
+  .ob-go::after { content: ""; width: 7px; height: 7px; border-top: 2px solid currentColor;
+    border-right: 2px solid currentColor; transform: rotate(45deg); }
   .ob-arrow { align-self: center; width: 14px; height: 14px; flex: none;
     border-top: 2px solid var(--border-strong); border-right: 2px solid var(--border-strong); transform: rotate(45deg); }
   @media (max-width: 900px) { .onboard { flex-direction: column; } .ob-arrow { display: none; } }
@@ -166,17 +170,20 @@
     <div class="onboard">
       <a class="ob-step" href="/web/products.html">
         <span class="ob-no">1</span>
-        <span class="ob-body"><b>建产品，定风格</b><i>新建产品，在「品牌风格」里选一套预设或逐 token 细调</i></span>
+        <span class="ob-body"><b>创建产品</b><i>新建你的产品，配一套品牌风格，拿到接入 Key</i>
+          <span class="ob-go">产品与接入</span></span>
       </a>
       <span class="ob-arrow" aria-hidden="true"></span>
       <a class="ob-step" href="/web/library.html">
         <span class="ob-no">2</span>
-        <span class="ob-body"><b>挑组件，配样式</b><i>从组件库挑模板创建实例，发布后自动加入当前产品</i></span>
+        <span class="ob-body"><b>挑选组件</b><i>浏览交互与展示两类模板，从模板创建组件实例</i>
+          <span class="ob-go">组件库</span></span>
       </a>
       <span class="ob-arrow" aria-hidden="true"></span>
-      <a class="ob-step" href="/web/products.html">
+      <a class="ob-step" href="/web/cards.html">
         <span class="ob-no">3</span>
-        <span class="ob-body"><b>复制接入，出包</b><i>一个后端 API + 一个前端 JS/CSS + 数据块 Schema</i></span>
+        <span class="ob-body"><b>调样式并发布</b><i>在工作台调好组件样式发布上线，导出配置代码接入你的 agent</i>
+          <span class="ob-go">组件工作台</span></span>
       </a>
     </div>
     <div class="go"><a class="btn primary" href="/web/library.html">进入组件库</a></div>
