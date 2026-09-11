@@ -101,13 +101,13 @@ function configProduct(p) {
       el("span", { class: "sdk-sec-title" }, [title]),
       hint ? el("span", { class: "muted", style: "font-size:var(--font-caption)" }, [hint]) : null,
       el("div", { style: "flex:1" }),
-      el("button", { class: "btn small iconic", title: "复制这段代码", "aria-label": "复制" + title,
-        onclick: () => { navigator.clipboard.writeText(code); UI.toast("已复制" + title); } }, [UI.icon("copy", 13)]),
+      el("button", { class: "btn small", title: "复制这段代码",
+        onclick: () => { navigator.clipboard.writeText(code); UI.toast("已复制" + title); } }, ["复制"]),
     ]),
     el("pre", { class: "sdk-code num" }, [code]),
   ]);
   const access = el("div", { class: "field", style: "margin-top:4px" }, [
-    el("span", { class: "label-text" }, ["SDK 接入",
+    el("span", { class: "label-text" }, ["产品配置",
       UI.help("每个产品对应：一个后端 API 接口 + 一个前端 JS/CSS 代码块 + 一份数据块 Schema；配置出包时固化，平台修改后需重新拉取部署")]),
     codeBlock("后端 API 接口", null,
       `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`),
