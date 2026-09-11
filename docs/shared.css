@@ -1515,3 +1515,77 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
   font-size: var(--font-caption); color: var(--text-secondary); cursor: pointer; }
 .quick-color .tok-chip { width: 40px; height: 40px; border-radius: 10px; }
 .tok-desc { flex: 1; font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.comp .opt-list { display: flex; flex-direction: column; gap: var(--opt-gap, 8px); }
+.comp .fb-cands, .fb-cands { gap: var(--cand-gap, 8px); }
+.comp .ol-list { display: flex; flex-direction: column; gap: var(--list-gap, 8px); margin-top: 2px; }
+.comp .ol-row { display: flex; gap: 10px; align-items: flex-start; line-height: 1.6; }
+.comp .ol-marker { width: 20px; height: 20px; border-radius: 50%; flex: none; font-size: 11px;
+  background: color-mix(in srgb, var(--mk-color, var(--primary)) 12%, transparent);
+  color: var(--mk-color, var(--primary)); display: inline-flex; align-items: center; justify-content: center; }
+.comp .ol-dotmark { display: none; width: 6px; height: 6px; border-radius: 50%; flex: none; margin-top: 7px;
+  background: var(--mk-color, var(--primary)); }
+.comp.mk-dot .ol-marker { display: none; }
+.comp.mk-dot .ol-dotmark { display: inline-block; }
+.comp.mk-none .ol-marker, .comp.mk-none .ol-dotmark { display: none; }
+
+.comp.no-optborder .opt-item { border-color: transparent; background: var(--bg-surface); }
+.comp.no-optborder .opt-item.on { border-color: var(--primary); }
+
+.comp.fb-square .fb-btn { border-radius: var(--radius-control, 10px); }
+
+.comp.no-cicon .confirm-ico { display: none; }
+.comp.btn-stretch .btn.confirm-danger, .comp.btn-stretch .btn.confirm-danger + .btn,
+.comp.btn-stretch [class*="confirm"] ~ div .btn { flex: 1; }
+.comp.btn-stretch > div:last-child { display: flex; }
+.comp.btn-stretch > div:last-child .btn { flex: 1; }
+
+.comp .step-node { width: var(--stp-node, 26px); height: var(--stp-node, 26px); }
+.comp .step-node.done { background: var(--stp-done, var(--primary)); border-color: var(--stp-done, var(--primary)); }
+.comp .step-line { height: var(--stp-line, 2px); }
+.comp .step-line.fill { background: var(--stp-done, var(--primary)); }
+.comp.no-halo .step-node.cur { box-shadow: none; }
+
+.comp .tl-dot { border-color: var(--tl-dot, var(--primary)); }
+.comp .tl-dot.now { background: var(--tl-dot, var(--primary)); }
+.comp.tl-square .tl-dot { border-radius: 3px; }
+.comp.tl-dashed .tl-line { background: none; border-left: 2px dashed var(--border); width: 0; }
+.comp.no-ts .tl-ts { display: none; }
+.comp.no-desc .tl-body .muted { display: none; }
+
+.comp.no-delta .delta-chip { display: none; }
+.comp.no-baseline .metric-baseline { display: none; }
+.comp.no-caption .hl-caption { display: none; }
+.comp.no-tone .hl-value { color: var(--text-primary) !important; }
+
+.comp table.data th { background: var(--th-bg, transparent); }
+.comp.div-none table.data td { border-bottom: none; }
+.comp.div-all table.data td { border: 1px solid var(--border); }
+.comp.div-all table.data th { border: 1px solid var(--border); }
+
+.comp.no-sum .mx-sum { display: none; }
+.comp.no-best .mx-sum.best { color: inherit; font-weight: inherit; }
+
+.comp.no-legend .pie-legend { display: none; }
+.comp.no-legendpct .pie-pct { display: none; }
+
+.comp.no-quick .dt-quick { display: none; }
+
+.comp.rank-square .rank-no, .comp.rank-square .ol-marker { border-radius: 5px; }
+.comp.no-handle .rank-handle, .comp.no-handle [class*="drag"] { display: none; }
+
+.comp input[type=range] { height: var(--track-h, 6px); }
+.comp input[type=range]::-webkit-slider-thumb { width: var(--thumb-s, 18px); height: var(--thumb-s, 18px); }
+.comp .likert-dots button, .comp .lk-dot { width: var(--lk-size, 28px); height: var(--lk-size, 28px); }
+.comp .likert-dots { gap: var(--lk-gap, 8px); }
+
+.comp input[type=text], .comp input[type=number], .comp textarea { background: var(--input-bg, var(--bg-elevated)); }
+
+.fx-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+
+.echo-demo { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.echo-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: var(--font-small); }
+.echo-name { width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
+.echo-bar { flex: 1; height: 8px; border-radius: 999px; background: var(--bg-surface); overflow: hidden; }
+.echo-bar i { display: block; height: 100%; border-radius: 999px; background: var(--primary); }
+.echo-pct { width: 40px; text-align: right; color: var(--text-muted); font-size: var(--font-caption); }

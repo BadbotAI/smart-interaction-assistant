@@ -111,11 +111,10 @@ function configProduct(p) {
       el("span", { class: "label-text", style: "margin:0" }, ["产品配置",
         UI.help("每个产品对应：一个后端 API 接口 + 一个前端 JS/CSS 代码块 + 一份数据块 Schema；配置出包时固化，平台修改后需重新拉取部署")]),
       el("div", { style: "flex:1" }),
-      el("button", { class: "btn small", onclick: () => viewSchemas(p) }, ["查看数据 Schema"]),
     ]),
     codeBlock("后端 API 接口", null,
       `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`),
-    codeBlock("前端代码块", "加载即自动完成组件注册；图表类依赖由接入方自装（见文档）",
+    codeBlock("前端代码块", null,
       `<link rel="stylesheet" href="${origin}/v1/products/${p.product_id}/sia.css?key=${p.pub_key}">\n<script src="${origin}/web/sia.js" data-key="${p.pub_key}" defer><\/script>`),
   ]);
   const foot = el("div", { style: "display:flex;gap:8px;justify-content:flex-end;align-items:center;width:100%" }, [
@@ -220,18 +219,6 @@ function draw() {
           `风格主题 ${brandName(p.brand_file)} · 组件实例 ${bound.length} 个` +
           (bound.length ? `（${online} 个在线）` : " · 在组件工作台创建，发布后自动加入"),
         ]);
-      })(),
-      (() => {
-        if (p.stale) {
-          const ago = p.pulled_at ? Math.max(1, Math.round((Date.now() / 1000 - p.pulled_at) / 60)) : null;
-          return el("div", { style: "margin-top:6px;font-size:var(--font-caption);color:var(--warning);display:flex;align-items:center;gap:6px" }, [
-            UI.icon("info", 13),
-            `配置已变更：请重新拉取注册表并重新部署${ago != null ? `（上次拉取在 ${ago < 60 ? ago + " 分钟" : Math.round(ago / 60) + " 小时"}前）` : ""}`,
-          ]);
-        }
-        if (p.pulled_hash === null || p.pulled_hash === undefined) return el("div", { class: "muted", style: "margin-top:6px;font-size:var(--font-caption)" },
-          ["尚未接入：在「产品配置」获取后端 API 与前端代码块即可开始"]);
-        return null;
       })(),
     ]));
   });

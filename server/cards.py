@@ -68,10 +68,28 @@ def validate_card(payload: dict, strict: bool = False) -> list:
         if isinstance(tpl, str) and tpl.count("{") != tpl.count("}"):
             errors.append({"field": f"text_templates.{key}", "message": "文案模板变量括号不匹配"})
     style = payload.get("style_overrides") or {}
-    allowed_tokens = {"height", "radius", "color.primary", "color.accent", "spacing", "shadow", "font_scale",
-                      "panel.bg", "sel_style", "rec_chip", "striped", "header_bold", "outline", "grid", "value_labels",
+    # 规格表键：类型化校验（bool / num 域 / enum / color），与前端 COMPONENT_PARAMS 对齐
+    SPEC_BOOL = {"rec_chip", "striped", "header_bold", "outline", "grid", "value_labels", "line.smooth",
+                 "point.show", "area.fill", "axis.show", "delta.show", "baseline.show", "ts.show", "desc.show",
+                 "halo", "best.highlight", "sum.show", "legend.show", "legend.pct", "quick.show", "handle.show",
+                 "caption.show", "tone.color", "opt.border", "icon.show", "fb.shape.x"}
+    SPEC_NUM = {"line.width": (1, 4), "point.size": (2, 6), "area.opacity": (4, 40), "bar.width": (20, 75),
+                "bar.radius": (0, 8), "pie.height": (10, 28), "value.size": (22, 40), "hl.size": (16, 30),
+                "node.size": (20, 32), "stepline.width": (1, 4), "list.gap": (4, 16), "opt.gap": (4, 16),
+                "card.gap": (4, 16), "track.height": (4, 10), "thumb.size": (14, 22), "dot.size": (24, 36),
+                "dot.gap": (4, 14)}
+    SPEC_ENUM = {"sel_style": ("fill", "outline"), "line.style": ("solid", "dashed", "dotted"),
+                 "grid.style": ("solid", "dashed"), "point.shape": ("circle", "square", "diamond"),
+                 "pie.style": ("bar", "donut"), "row.divider": ("line", "none", "all"),
+                 "dot.shape": ("circle", "square"), "tlline.style": ("solid", "dashed"),
+                 "marker.style": ("number", "dot", "none"), "btn.align": ("right", "stretch"),
+                 "fb.shape": ("pill", "square"), "no.style": ("circle", "square")}
+    SPEC_COLOR = {"color.primary", "color.accent", "panel.bg", "line.color", "axis.color", "bar.color",
+                  "done.color", "marker.color", "header.bg", "dot.color", "input.bg"}
+    allowed_tokens = ({"height", "radius", "spacing", "shadow", "font_scale",
                       # 旧 token 兼容读取（编辑器已不再写入）
                       "radius.card", "radius.control", "font.size_base", "spacing.card_padding", "density"}
+                      | SPEC_BOOL | set(SPEC_NUM) | set(SPEC_ENUM) | SPEC_COLOR)
     _legacy = {"radius": {"none", "sm", "md", "lg", "full"}, "height": {"compact", "regular", "large"},
                "spacing": {"compact", "regular", "loose"}, "font_scale": {"-1", "1", "2"}}
     _range = {"radius": (0, 28), "height": (28, 56), "spacing": (8, 24), "font_scale": (12, 16)}
@@ -85,12 +103,16 @@ def validate_card(payload: dict, strict: bool = False) -> list:
                 errors.append({"field": f"style_overrides.{key}", "message": f"{key} 取值须为 {lo}-{hi} 的数值（px）"})
         elif key == "shadow" and val not in ("none", "sm", "md", "lg"):
             errors.append({"field": "style_overrides.shadow", "message": "shadow 取值须为 none / sm / md / lg"})
-        elif key == "sel_style" and val not in ("fill", "outline"):
-            errors.append({"field": "style_overrides.sel_style", "message": "sel_style 取值须为 fill / outline"})
-        elif key in ("rec_chip", "striped", "header_bold", "outline", "grid", "value_labels") and not isinstance(val, bool):
+        elif key in SPEC_ENUM and val not in SPEC_ENUM[key]:
+            errors.append({"field": f"style_overrides.{key}", "message": f"{key} 取值须为 {' / '.join(SPEC_ENUM[key])}"})
+        elif key in SPEC_BOOL and not isinstance(val, bool):
             errors.append({"field": f"style_overrides.{key}", "message": f"{key} 须为布尔值"})
-        elif key == "panel.bg" and not _re.fullmatch(r"#[0-9a-fA-F]{3,8}", str(val or "").strip()):
-            errors.append({"field": "style_overrides.panel.bg", "message": "panel.bg 须为合法 HEX 色值"})
+        elif key in SPEC_NUM:
+            lo2, hi2 = SPEC_NUM[key]
+            if isinstance(val, bool) or not isinstance(val, (int, float)) or not (lo2 <= val <= hi2):
+                errors.append({"field": f"style_overrides.{key}", "message": f"{key} 取值须为 {lo2}-{hi2} 的数值"})
+        elif key in SPEC_COLOR and not _re.fullmatch(r"#[0-9a-fA-F]{3,8}", str(val or "").strip()):
+            errors.append({"field": f"style_overrides.{key}", "message": f"{key} 须为合法 HEX 色值"})
         elif key in ("color.primary", "color.accent") and not _re.fullmatch(r"#[0-9a-fA-F]{3,8}", str(val or "").strip()):
             errors.append({"field": f"style_overrides.{key}", "message": f"{key} 须为合法 HEX 色值"})
     lpm = payload.get("label_polarity_map")

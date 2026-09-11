@@ -479,53 +479,92 @@ window.UI = (function () {
     return svg;
   }
 
-  function lineChart(container, { series, labels, height = 180, unit = "", grid = true }) {
+  function lineChart(container, { series, labels, height = 180, unit = "", grid = true, gridStyle = "solid",
+    lineWidth = 2, lineStyle = "solid", smooth = false, pointShow = true, pointShape = "circle", pointSize = 3,
+    areaFill = true, areaOpacity = 0.16, axisShow = false, axisColor, valueLabels = false, lineColor }) {
     container.innerHTML = "";
     const pal = Brand.chartPalette().categorical;
     const w = 560, h = height, padL = 44, padR = 12, padT = 14, padB = 26;
     const svg = chartFrame(w, h);
     const all = series.flatMap(s => s.values);
-    // 走查：原先 Y 轴上限被强制为 ≥1，成本这类小数值曲线被压成一条直线
     const maxV = (Math.max(...all) || 0) > 0 ? Math.max(...all) : 1, minV = Math.min(...all, 0);
     const span = (maxV - minV) || 1;
     const x = i => padL + i * (w - padL - padR) / Math.max(1, labels.length - 1);
     const y = v => padT + (h - padT - padB) * (1 - (v - minV) / span);
+    const dashOf = st => st === "dashed" ? "6 4" : st === "dotted" ? "2 4" : null;
     for (let g = 0; g <= 3; g++) {
       const gy = padT + g * (h - padT - padB) / 3;
-      if (grid) svg.appendChild(svgEl("line", { x1: padL, y1: gy, x2: w - padR, y2: gy, stroke: GRID(), "stroke-width": 1 }));
+      if (grid) {
+        const gl = svgEl("line", { x1: padL, y1: gy, x2: w - padR, y2: gy, stroke: GRID(), "stroke-width": 1 });
+        const dg = dashOf(gridStyle);
+        if (dg) gl.setAttribute("stroke-dasharray", dg);
+        svg.appendChild(gl);
+      }
       const tl = svgEl("text", { x: padL - 6, y: gy + 4, "text-anchor": "end", "font-size": 10, fill: INK() });
       tl.textContent = fmtTick(maxV - g * span / 3);
       svg.appendChild(tl);
     }
+    if (axisShow) svg.appendChild(svgEl("line", { x1: padL, y1: h - padB, x2: w - padR, y2: h - padB,
+      stroke: axisColor || Brand.chartPalette().axis, "stroke-width": 1.2 }));
     labels.forEach((lb, i) => {
       if (labels.length > 10 && i % Math.ceil(labels.length / 8) !== 0) return;
       const tx = svgEl("text", { x: x(i), y: h - 8, "text-anchor": "middle", "font-size": 10, fill: INK() });
       tx.textContent = lb;
       svg.appendChild(tx);
     });
-    if (series.length === 1 && series[0].values.length > 1) {
-      // 单系列：主色面积渐变，走势一眼可读
-      const gid = "lg" + Math.random().toString(36).slice(2, 8);
-      const defs = svgEl("defs", {});
-      defs.innerHTML = `<linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">` +
-        `<stop offset="0" stop-color="${pal[0]}" stop-opacity=".16"/>` +
-        `<stop offset="1" stop-color="${pal[0]}" stop-opacity="0"/></linearGradient>`;
-      svg.appendChild(defs);
-      const vs = series[0].values;
-      const d = "M" + vs.map((v, i) => `${x(i)},${y(v)}`).join(" L") +
-        ` L${x(vs.length - 1)},${h - padB} L${x(0)},${h - padB} Z`;
-      svg.appendChild(svgEl("path", { d, fill: `url(#${gid})`, stroke: "none" }));
-    }
+    const pathOf = (vs) => {
+      const pts = vs.map((v, i) => [x(i), y(v)]);
+      if (!smooth || pts.length < 3) return "M" + pts.map(p => p.join(",")).join(" L");
+      // Catmull-Rom → cubic bezier 平滑曲线
+      let d = `M${pts[0][0]},${pts[0][1]}`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+        const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+        const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+        d += ` C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${p2[0]},${p2[1]}`;
+      }
+      return d;
+    };
     series.forEach((s, si) => {
-      const color = pal[si % pal.length];
-      const pts = s.values.map((v, i) => `${x(i)},${y(v)}`).join(" ");
-      svg.appendChild(svgEl("polyline", { points: pts, fill: "none", stroke: color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+      const color = (si === 0 && lineColor) || pal[si % pal.length];
+      if (areaFill && series.length === 1 && s.values.length > 1) {
+        const gid = "lg" + Math.random().toString(36).slice(2, 8);
+        const defs = svgEl("defs", {});
+        defs.innerHTML = `<linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">` +
+          `<stop offset="0" stop-color="${color}" stop-opacity="${areaOpacity}"/>` +
+          `<stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient>`;
+        svg.appendChild(defs);
+        const d = pathOf(s.values) + ` L${x(s.values.length - 1)},${h - padB} L${x(0)},${h - padB} Z`;
+        svg.appendChild(svgEl("path", { d, fill: `url(#${gid})`, stroke: "none" }));
+      }
+      const ln = svgEl("path", { d: pathOf(s.values), fill: "none", stroke: color,
+        "stroke-width": lineWidth, "stroke-linejoin": "round", "stroke-linecap": "round" });
+      const dl = dashOf(lineStyle);
+      if (dl) ln.setAttribute("stroke-dasharray", dl);
+      svg.appendChild(ln);
       s.values.forEach((v, i) => {
         const last = i === s.values.length - 1;
-        const c = svgEl("circle", { cx: x(i), cy: y(v), r: last ? 4.5 : 3, fill: last ? color : "var(--bg-elevated)",
-          stroke: last ? "var(--bg-elevated)" : color, "stroke-width": last ? 2 : 1.5 });
+        if (!pointShow && !last) return;
+        const r0 = last ? pointSize + 1.5 : pointSize;
+        let c;
+        if (pointShape === "square")
+          c = svgEl("rect", { x: x(i) - r0, y: y(v) - r0, width: r0 * 2, height: r0 * 2, rx: 1,
+            fill: last ? color : "var(--bg-elevated)", stroke: last ? "var(--bg-elevated)" : color, "stroke-width": last ? 2 : 1.5 });
+        else if (pointShape === "diamond")
+          c = svgEl("rect", { x: x(i) - r0, y: y(v) - r0, width: r0 * 2, height: r0 * 2, rx: 1,
+            transform: `rotate(45 ${x(i)} ${y(v)})`,
+            fill: last ? color : "var(--bg-elevated)", stroke: last ? "var(--bg-elevated)" : color, "stroke-width": last ? 2 : 1.5 });
+        else
+          c = svgEl("circle", { cx: x(i), cy: y(v), r: r0, fill: last ? color : "var(--bg-elevated)",
+            stroke: last ? "var(--bg-elevated)" : color, "stroke-width": last ? 2 : 1.5 });
         svgTitle(c, `${labels[i]} · ${s.name}: ${v}${unit}`);
         svg.appendChild(c);
+        if (valueLabels && s.values.length <= 12) {
+          const vt = svgEl("text", { x: x(i), y: y(v) - r0 - 4, "text-anchor": "middle", "font-size": 10,
+            fill: "var(--text-secondary)", style: "font-variant-numeric:tabular-nums" });
+          vt.textContent = fmtTick(v);
+          svg.appendChild(vt);
+        }
       });
       if (series.length > 1) {
         const last = s.values[s.values.length - 1];
@@ -537,7 +576,7 @@ window.UI = (function () {
     container.appendChild(svg);
   }
 
-  function barChart(container, { categories, values, height = 190, unit = "", color, horizontal = false, maxValue, format, grid = true, valueLabels = true }) {
+  function barChart(container, { categories, values, height = 190, unit = "", color, horizontal = false, maxValue, format, grid = true, gridStyle = "solid", valueLabels = true, barWidthPct = 0.55, barRadius = 4, axisColor }) {
     container.innerHTML = "";
     const barColor = color || "var(--primary)";
     const fmtVal = format || (v => String(typeof v === "number" && v % 1 !== 0 ? v.toFixed(3) : v) + unit);
@@ -566,10 +605,14 @@ window.UI = (function () {
     const maxV = maxValue || Math.max(...values, 1);
     const n = categories.length;
     const slot = (w - padL - padR) / n;
-    const bw = Math.min(38, slot * 0.55);
+    const bw = Math.min(46, slot * Math.max(0.2, Math.min(0.75, barWidthPct)));
     for (let g = 0; g <= 3; g++) {
       const gy = padT + g * (h - padT - padB) / 3;
-      if (grid) svg.appendChild(svgEl("line", { x1: padL, y1: gy, x2: w - padR, y2: gy, stroke: GRID(), "stroke-width": 1 }));
+      if (grid) {
+        const gl = svgEl("line", { x1: padL, y1: gy, x2: w - padR, y2: gy, stroke: GRID(), "stroke-width": 1 });
+        if (gridStyle === "dashed") gl.setAttribute("stroke-dasharray", "6 4");
+        svg.appendChild(gl);
+      }
       const tl = svgEl("text", { x: padL - 6, y: gy + 4, "text-anchor": "end", "font-size": 10, fill: INK() });
       tl.textContent = fmtTick(maxV * (1 - g / 3));
       svg.appendChild(tl);
@@ -577,8 +620,11 @@ window.UI = (function () {
     values.forEach((v, i) => {
       const bh = Math.max(2, (h - padT - padB) * v / maxV);
       const bx = padL + i * slot + (slot - bw) / 2;
+      const rr = Math.max(0, Math.min(8, barRadius, bw / 2));
       const rect = svgEl("path", {
-        d: `M${bx},${h - padB} v${-(bh - 4)} q0,-4 4,-4 h${bw - 8} q4,0 4,4 v${bh - 4} z`,
+        d: rr > 0
+          ? `M${bx},${h - padB} v${-(bh - rr)} q0,-${rr} ${rr},-${rr} h${bw - rr * 2} q${rr},0 ${rr},${rr} v${bh - rr} z`
+          : `M${bx},${h - padB} v${-bh} h${bw} v${bh} z`,
         fill: barColor,
       });
       svgTitle(rect, `${categories[i]}: ${v}${unit}`);
@@ -593,7 +639,7 @@ window.UI = (function () {
       tx.textContent = String(categories[i]).slice(0, 6);
       svg.appendChild(tx);
     });
-    svg.appendChild(svgEl("line", { x1: padL, y1: h - padB, x2: w - padR, y2: h - padB, stroke: Brand.chartPalette().axis, "stroke-width": 1 }));
+    svg.appendChild(svgEl("line", { x1: padL, y1: h - padB, x2: w - padR, y2: h - padB, stroke: axisColor || Brand.chartPalette().axis, "stroke-width": 1 }));
     container.appendChild(svg);
   }
 

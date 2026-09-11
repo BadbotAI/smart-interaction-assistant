@@ -71,6 +71,44 @@ window.Components = (function () {
     if (so["panel.bg"]) set("--bg-elevated", so["panel.bg"]);
     if (so.sel_style === "outline") node.classList.add("sel-outline");
     if (so.rec_chip === false) node.classList.add("no-rec");
+    // —— 组件参数（规格表键）：CSS 变量 ——
+    const pxv = (k, cssVar) => { const n = Number(so[k]); if (Number.isFinite(n)) set(cssVar, n + "px"); };
+    pxv("opt.gap", "--opt-gap"); pxv("card.gap", "--cand-gap"); pxv("list.gap", "--list-gap");
+    pxv("track.height", "--track-h"); pxv("thumb.size", "--thumb-s");
+    pxv("dot.size", "--lk-size"); pxv("dot.gap", "--lk-gap");
+    pxv("node.size", "--stp-node"); pxv("stepline.width", "--stp-line");
+    pxv("value.size", "--mv-size"); pxv("hl.size", "--hl-size"); pxv("pie.height", "--pie-h");
+    if (so["done.color"]) set("--stp-done", so["done.color"]);
+    if (so["marker.color"]) set("--mk-color", so["marker.color"]);
+    if (so["header.bg"]) set("--th-bg", so["header.bg"]);
+    if (so["dot.color"]) set("--tl-dot", so["dot.color"]);
+    if (so["input.bg"]) set("--input-bg", so["input.bg"]);
+    // —— 结构显隐 / 形态类 ——
+    const cls = (cond, name) => { if (cond) node.classList.add(name); };
+    cls(so["opt.border"] === false, "no-optborder");
+    cls(so["fb.shape"] === "square", "fb-square");
+    cls(so["btn.align"] === "stretch", "btn-stretch");
+    cls(so["icon.show"] === false, "no-cicon");
+    cls(so.halo === false, "no-halo");
+    cls(so["handle.show"] === false, "no-handle");
+    cls(so["no.style"] === "square", "rank-square");
+    cls(so["dot.shape"] === "square", "tl-square");
+    cls(so["tlline.style"] === "dashed", "tl-dashed");
+    cls(so["marker.style"] === "dot", "mk-dot");
+    cls(so["marker.style"] === "none", "mk-none");
+    cls(so["row.divider"] === "none", "div-none");
+    cls(so["row.divider"] === "all", "div-all");
+    cls(so["ts.show"] === false, "no-ts");
+    cls(so["desc.show"] === false, "no-desc");
+    cls(so["delta.show"] === false, "no-delta");
+    cls(so["baseline.show"] === false, "no-baseline");
+    cls(so["caption.show"] === false, "no-caption");
+    cls(so["tone.color"] === false, "no-tone");
+    cls(so["best.highlight"] === false, "no-best");
+    cls(so["sum.show"] === false, "no-sum");
+    cls(so["legend.show"] === false, "no-legend");
+    cls(so["legend.pct"] === false, "no-legendpct");
+    cls(so["quick.show"] === false, "no-quick");
   }
 
   function render(envelope, ctx) {
@@ -138,8 +176,8 @@ window.Components = (function () {
     const p = env.params;
     const toneColor = { positive: "var(--success)", negative: "var(--danger)", neutral: "var(--text-primary)" }[p.tone || "neutral"];
     return compCard([
-      p.caption ? el("div", { class: "muted" }, [p.caption]) : null,
-      el("div", { style: `font-size:var(--font-hero);font-weight:600;color:${toneColor}` },
+      p.caption ? el("div", { class: "muted hl-caption" }, [p.caption]) : null,
+      el("div", { class: "hl-value", style: `font-size:var(--hl-size, 20px);font-weight:600;color:${toneColor}` },
         [String(p.value) + (p.unit ? " " + p.unit : "")]),
     ]);
   }
@@ -151,19 +189,24 @@ window.Components = (function () {
     return compCard([
       el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [p.label || ""]),
       el("div", { style: "display:flex;align-items:baseline;gap:10px;margin-top:2px" }, [
-        el("span", { class: "metric-value" }, [String(p.value)]),
+        el("span", { class: "metric-value", style: "font-size:var(--mv-size, 30px)" }, [String(p.value)]),
         p.unit ? el("span", { class: "secondary" }, [p.unit]) : null,
         deltaStr ? el("span", { class: "delta-chip " + (up ? "up" : "down"), title: up ? "较基线上升" : "较基线下降" }, [
           UI.icon(up ? "arrowup" : "arrowdown", 11), deltaStr.replace("-", "")]) : null,
       ]),
-      p.baseline ? el("div", { class: "muted", style: "font-size:var(--font-caption);margin-top:4px" }, ["基线：" + p.baseline]) : null,
+      p.baseline ? el("div", { class: "muted metric-baseline", style: "font-size:var(--font-caption);margin-top:4px" }, ["基线：" + p.baseline]) : null,
     ]);
   }
 
   function rListOrdered(env) {
+    const p = env.params;
     return compCard([
-      compTitle(env.params.title),
-      el("ol", { style: "padding-left:20px" }, (env.params.items || []).map(i => el("li", {}, [String(i)]))),
+      compTitle(p.title),
+      el("div", { class: "ol-list" }, (p.items || []).map((it, i) => el("div", { class: "ol-row" }, [
+        el("span", { class: "ol-marker num" }, [String(i + 1)]),
+        el("span", { class: "ol-dotmark" }),
+        el("span", { class: "ol-text" }, [String(it)]),
+      ]))),
     ]);
   }
 
@@ -238,7 +281,14 @@ window.Components = (function () {
     const so = env.style_overrides || {};
     requestAnimationFrame(() => UI.lineChart(chartBox, {
       series: p.series || [], labels: p.categories || p.x_axis || [], unit: p.unit || "",
-      grid: so.grid !== false,
+      grid: so.grid !== false, gridStyle: so["grid.style"] || "solid",
+      lineColor: so["line.color"], lineWidth: Number(so["line.width"]) || 2,
+      lineStyle: so["line.style"] || "solid", smooth: so["line.smooth"] === true,
+      pointShow: so["point.show"] !== false, pointShape: so["point.shape"] || "circle",
+      pointSize: Number(so["point.size"]) || 3,
+      areaFill: so["area.fill"] !== false, areaOpacity: (Number(so["area.opacity"]) || 16) / 100,
+      axisShow: so["axis.show"] === true, axisColor: so["axis.color"],
+      valueLabels: so.value_labels === true,
     }));
     return box;
   }
@@ -252,30 +302,59 @@ window.Components = (function () {
     const series0 = (p.series || [])[0] || { values: [] };
     requestAnimationFrame(() => UI.barChart(chartBox, {
       categories: p.categories || [], values: series0.values || [], unit: p.unit || "",
-      grid: so.grid !== false, valueLabels: so.value_labels !== false,
+      color: so["bar.color"], grid: so.grid !== false, gridStyle: so["grid.style"] || "solid",
+      valueLabels: so.value_labels !== false,
+      barWidthPct: (Number(so["bar.width"]) || 55) / 100, barRadius: so["bar.radius"] != null ? Number(so["bar.radius"]) : 4,
+      axisColor: so["axis.color"],
     }));
     return box;
   }
 
   function rChartPie(env) {
-    // 部分与整体：类别 <= 7；用水平百分比条实现（比扇形更易读，同样表达占比）
     const p = env.params;
+    const so = env.style_overrides || {};
     const slices = (p.slices || []).slice(0, 7);
     const total = slices.reduce((s, x) => s + x.value, 0) || 1;
     const pal = (window.Brand ? Brand.chartPalette() : {}).categorical
       || ["#3E63DD", "#0FA3A3", "#8E4EC6", "#EE7712", "#D6409F"];
+    const legend = el("div", { class: "pie-legend", style: "display:flex;gap:12px;flex-wrap:wrap;margin-top:8px" },
+      slices.map((s, i) => el("span", { class: "muted", style: "display:flex;align-items:center;gap:4px" }, [
+        el("span", { style: `width:9px;height:9px;border-radius:2px;background:${pal[i % pal.length]};display:inline-block` }),
+        s.label, el("span", { class: "pie-pct num" }, [` ${(s.value / total * 100).toFixed(0)}%`]),
+      ])));
+    if (so["pie.style"] === "donut") {
+      // 环形图：SVG stroke 圆环
+      const R = 52, C = 2 * Math.PI * R;
+      const svg = el("div", { style: "display:flex;justify-content:center" });
+      const sv = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      sv.setAttribute("viewBox", "0 0 140 140"); sv.setAttribute("width", "150");
+      let acc = 0;
+      slices.forEach((s, i) => {
+        const frac = s.value / total;
+        const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        ring.setAttribute("cx", "70"); ring.setAttribute("cy", "70"); ring.setAttribute("r", String(R));
+        ring.setAttribute("fill", "none"); ring.setAttribute("stroke", pal[i % pal.length]);
+        ring.setAttribute("stroke-width", "20");
+        ring.setAttribute("stroke-dasharray", `${Math.max(0, frac * C - 2)} ${C}`);
+        ring.setAttribute("stroke-dashoffset", String(-acc * C));
+        ring.setAttribute("transform", "rotate(-90 70 70)");
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "title");
+        t.textContent = `${s.label}: ${(frac * 100).toFixed(1)}%`;
+        ring.appendChild(t);
+        sv.appendChild(ring);
+        acc += frac;
+      });
+      svg.appendChild(sv);
+      return compCard([compTitle(p.title), svg, legend]);
+    }
     return compCard([
       compTitle(p.title),
-      el("div", { style: "display:flex;height:18px;border-radius:6px;overflow:hidden;gap:2px" },
+      el("div", { style: "display:flex;height:var(--pie-h, 18px);border-radius:6px;overflow:hidden;gap:2px" },
         slices.map((s, i) => el("div", {
           style: `width:${(s.value / total * 100)}%;background:${pal[i % pal.length]}`,
           title: `${s.label}: ${(s.value / total * 100).toFixed(1)}%`,
         }))),
-      el("div", { style: "display:flex;gap:12px;flex-wrap:wrap;margin-top:6px" },
-        slices.map((s, i) => el("span", { class: "muted", style: "display:flex;align-items:center;gap:4px" }, [
-          el("span", { style: `width:9px;height:9px;border-radius:2px;background:${pal[i % pal.length]};display:inline-block` }),
-          `${s.label} ${(s.value / total * 100).toFixed(0)}%`,
-        ]))),
+      legend,
     ]);
   }
 
@@ -748,7 +827,8 @@ window.Components = (function () {
     const withTime = (p.mode || p.display || "date") === "datetime";
     const input = el("input", { type: withTime ? "datetime-local" : "date", style: "max-width:240px" });
     // 快捷选项：多数人约的就是这三天
-    const quick = withTime ? null : _quickChips([["今天", 0], ["明天", 1], ["后天", 2]], pr => { input.value = _dstr(pr[1]); });
+    let quick = withTime ? null : _quickChips([["今天", 0], ["明天", 1], ["后天", 2]], pr => { input.value = _dstr(pr[1]); });
+    if (quick) quick.classList.add("dt-quick");
     return compCard([
       compTitle(p.prompt),
       quick,

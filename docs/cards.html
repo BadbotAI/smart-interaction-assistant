@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=e794a2b7">
+<link rel="stylesheet" href="./shared.css?v=e9ab4ec0">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -76,11 +76,11 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=be0b3fbc"></script>
+<script src="./mock_data.js?v=4147c496"></script>
 <script src="./mock_api.js?v=582ad7ee"></script>
 <script src="./tokens.js?v=be27f7d8"></script>
-<script src="./ui.js?v=487617bb"></script>
-<script src="./components.js?v=ca938a69"></script>
+<script src="./ui.js?v=90eb1bd5"></script>
+<script src="./components.js?v=f696a00b"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
 UI.nav("cards");
@@ -381,6 +381,9 @@ function buildCardRow(c) {
           el("span", { class: "name" }, [c.name]),
           el("span", { class: "chip " + color }, [label]),
           (UI.ctName(c.component_type) || "") === c.name ? null : UI.ctChip(c.component_type),
+          (((c.field_bindings || {}).config || {}).content_mode === "fixed")
+            ? el("span", { class: "chip blue", title: "业务选项在平台定死，模型不可覆盖" }, ["固定内容"]) : null,
+          c.echo_results ? el("span", { class: "chip green", title: "用户提交后展示群体选择分布" }, ["回显"]) : null,
 
           ...cardAnomalies(c, eff).map(x => el("span", { class: "chip red", title: x.title }, [x.label])),
         ]),
@@ -546,6 +549,116 @@ const DEMO_PRESENT = {
   "metric.card": { label: "本月累计金额", value: "1,286", unit: "万元", delta: "4.2%", baseline: "对比上月同期" },
   "timeline": { title: "处理进度", events: [{ ts: "09:20", title: "已受理", desc: "工单创建" }, { ts: "10:05", title: "处理中", desc: "已分派专员跟进" }, { ts: "14:30", title: "待确认", desc: "方案已发出" }] },
   "steps": { title: "操作指引", steps: ["填写申请信息", "上传相关凭证", "等待审核", "查收处理结果"], current_index: 1 },
+};
+// —— 组件参数规格表：每个组件专属的可调项（type: color/num/bool/enum），设计器按表自动渲染 ——
+const COMPONENT_PARAMS = {
+  "chart.line": [
+    ["line.color", "折线颜色", "color"],
+    ["line.width", "线宽", "num", 1, 4, 2],
+    ["line.style", "线型", "enum", [["", "实线"], ["dashed", "虚线"], ["dotted", "点线"]]],
+    ["line.smooth", "平滑曲线", "bool", false],
+    ["point.show", "数据点", "bool", true],
+    ["point.shape", "点形状", "enum", [["", "圆形"], ["square", "方形"], ["diamond", "菱形"]]],
+    ["point.size", "点大小", "num", 2, 6, 3],
+    ["area.fill", "面积填充", "bool", true],
+    ["area.opacity", "面积浓度", "num", 4, 40, 16],
+    ["grid", "网格线", "bool", true],
+    ["grid.style", "网格线型", "enum", [["", "实线"], ["dashed", "虚线"]]],
+    ["axis.show", "底部轴线", "bool", false],
+    ["axis.color", "轴线颜色", "color"],
+    ["value_labels", "数值标签", "bool", false],
+  ],
+  "chart.bar": [
+    ["bar.color", "柱体颜色", "color"],
+    ["bar.width", "柱宽占比", "num", 20, 75, 55],
+    ["bar.radius", "柱顶圆角", "num", 0, 8, 4],
+    ["value_labels", "柱顶数值", "bool", true],
+    ["grid", "网格线", "bool", true],
+    ["grid.style", "网格线型", "enum", [["", "实线"], ["dashed", "虚线"]]],
+    ["axis.color", "轴线颜色", "color"],
+  ],
+  "chart.pie": [
+    ["pie.style", "形态", "enum", [["", "百分比条"], ["donut", "环形图"]]],
+    ["pie.height", "条高", "num", 10, 28, 18],
+    ["legend.show", "图例", "bool", true],
+    ["legend.pct", "图例带百分比", "bool", true],
+  ],
+  "metric.card": [
+    ["value.size", "数值字号", "num", 22, 40, 30],
+    ["delta.show", "涨跌标签", "bool", true],
+    ["baseline.show", "基线说明", "bool", true],
+  ],
+  "table": [
+    ["striped", "隔行变色", "bool", true],
+    ["header_bold", "表头加重", "bool", true],
+    ["header.bg", "表头底色", "color"],
+    ["outline", "外边框", "bool", false],
+    ["row.divider", "行分隔线", "enum", [["", "横线"], ["none", "无"], ["all", "全框"]]],
+  ],
+  "timeline": [
+    ["dot.shape", "节点形状", "enum", [["", "圆形"], ["square", "方形"]]],
+    ["dot.color", "节点颜色", "color"],
+    ["tlline.style", "连线线型", "enum", [["", "实线"], ["dashed", "虚线"]]],
+    ["ts.show", "时间戳", "bool", true],
+    ["desc.show", "描述文字", "bool", true],
+  ],
+  "steps": [
+    ["node.size", "节点尺寸", "num", 20, 32, 26],
+    ["done.color", "完成色", "color"],
+    ["halo", "当前步光晕", "bool", true],
+    ["stepline.width", "连线粗细", "num", 1, 4, 2],
+  ],
+  "matrix.compare": [
+    ["best.highlight", "最优项高亮", "bool", true],
+    ["sum.show", "综合列", "bool", true],
+    ["header.bg", "表头底色", "color"],
+  ],
+  "list.ordered": [
+    ["marker.style", "序号样式", "enum", [["", "数字圆标"], ["dot", "圆点"], ["none", "无"]]],
+    ["marker.color", "序号颜色", "color"],
+    ["list.gap", "条目间距", "num", 4, 16, 8],
+  ],
+  "text.emphasis": [
+    ["hl.size", "文字字号", "num", 16, 30, 20],
+    ["tone.color", "跟随语气配色", "bool", true],
+    ["caption.show", "补充说明", "bool", true],
+  ],
+  "select.single": [
+    ["opt.gap", "选项间距", "num", 4, 16, 8],
+    ["opt.border", "选项描边", "bool", true],
+  ],
+  "select.multi": [
+    ["opt.gap", "选项间距", "num", 4, 16, 8],
+    ["opt.border", "选项描边", "bool", true],
+  ],
+  "form.structured": [
+    ["input.bg", "输入框底色", "color"],
+  ],
+  "control.confirm": [
+    ["icon.show", "警示图标", "bool", true],
+    ["btn.align", "按钮排列", "enum", [["", "右对齐"], ["stretch", "拉伸铺满"]]],
+  ],
+  "feedback.binary": [
+    ["fb.shape", "按钮形状", "enum", [["", "胶囊"], ["square", "方角"]]],
+  ],
+  "feedback.preference": [
+    ["card.gap", "候选卡间距", "num", 4, 16, 8],
+  ],
+  "slider.range": [
+    ["track.height", "轨道高度", "num", 4, 10, 6],
+    ["thumb.size", "滑块尺寸", "num", 14, 22, 18],
+  ],
+  "scale.likert": [
+    ["dot.size", "刻度尺寸", "num", 24, 36, 28],
+    ["dot.gap", "刻度间距", "num", 4, 14, 8],
+  ],
+  "picker.datetime": [
+    ["quick.show", "快捷日期片", "bool", true],
+  ],
+  "rank.priority": [
+    ["no.style", "序号样式", "enum", [["", "圆形"], ["square", "方形"]]],
+    ["handle.show", "拖动把手", "bool", true],
+  ],
 };
 const PRESENT_TYPES = ["table", "chart.line", "chart.bar", "chart.pie", "chart.area", "metric.card", "timeline", "steps",
   "matrix.compare", "list.ordered", "text.emphasis"];
@@ -797,8 +910,47 @@ async function openEditor(cardId, prefill, initStep) {
             semantic_category: "present", trigger_source: "preview", card_ref: null,
             params: DEMO_PRESENT[state.component_type] || {}, style_overrides: state.styleOv }
         : null;
-      node = Components.render(previewWithStyle(pv || buildPreviewEnvelope()), {
-        sendEvent: () => {}, onCollectSubmit: () => UI.toast("预览不产生数据"),
+      const envP = previewWithStyle(pv || buildPreviewEnvelope());
+      if (state.contentMode === "fixed" && envP && envP.params) {
+        // 固定内容实时进预览
+        if (state.component_type === "form.structured") {
+          const ff = (state.fixedFields || "").split("\n").filter(Boolean).map(l => {
+            const [k, lb, rq] = l.split("|"); return { key: k, label: lb || k, required: rq === "必填" };
+          }).filter(f => f.key || f.label);
+          if (ff.length) envP.params.fields = ff;
+        } else {
+          const oo = (state.fixedOptions || "").split("\n").map(x => x.trim()).filter(Boolean);
+          if (oo.length) {
+            if (state.component_type === "rank.priority") envP.params.items = oo;
+            else envP.params.options = oo;
+          }
+        }
+      }
+      node = Components.render(envP, {
+        sendEvent: () => {}, onCollectSubmit: () => {
+          UI.toast("预览不产生数据");
+          if (state.contentMode === "fixed" && state.echo_results) {
+            // 回显示意：让管理员看到「群体分布」长什么样（演示数据）
+            const compEl = previewBox.querySelector(".comp");
+            if (compEl && !compEl.querySelector(".echo-demo")) {
+              const oo = (state.fixedOptions || "").split("\n").map(x => x.trim()).filter(Boolean);
+              const demo = oo.length ? oo : ["选项 A", "选项 B"];
+              const total = demo.length * 37;
+              compEl.appendChild(el("div", { class: "echo-demo" }, [
+                el("div", { class: "muted", style: "font-size:var(--font-caption);margin-bottom:6px" },
+                  [`共 ${total} 人参与（回显示意）`]),
+                ...demo.map((o, i) => {
+                  const pct = Math.round(100 / demo.length + (i === 0 ? 14 : -14 / Math.max(1, demo.length - 1)));
+                  return el("div", { class: "echo-row" }, [
+                    el("span", { class: "echo-name" }, [o]),
+                    el("span", { class: "echo-bar" }, [el("i", { style: `width:${pct}%` })]),
+                    el("span", { class: "echo-pct num" }, [pct + "%"]),
+                  ]);
+                }),
+              ]));
+            }
+          }
+        },
         onControl: () => {}, userId: "preview", preview: true, titleInBubble: true,
       });
     } catch (e) { node = el("div", { class: "muted" }, ["暂不支持预览"]); }
@@ -1080,16 +1232,59 @@ async function openEditor(cardId, prefill, initStep) {
         fixedArea.innerHTML = "";
         if (state.contentMode !== "fixed") return;
         if (ct === "form.structured") {
-          const ta = el("textarea", { rows: "4", spellcheck: "false", placeholder: "每行一个字段：字段标识|字段名|必填\n如 contact_name|联系人|必填",
-            style: "width:100%;font-family:var(--font-mono);font-size:12px" }, [state.fixedFields]);
-          ta.oninput = () => { state.fixedFields = ta.value; upd(); };
-          fixedArea.appendChild(el("div", { class: "field" }, [el("span", { class: "label-text" }, ["固定字段"]), ta]));
+          // 字段三列行编辑：字段标识 / 字段名 / 必填
+          const rows = () => (state.fixedFields || "").split("\n").filter(Boolean)
+            .map(l => { const [k, lb, rq] = l.split("|"); return { k: k || "", lb: lb || "", rq: rq === "必填" }; });
+          const write = (list) => { state.fixedFields = list.map(f => [f.k, f.lb, f.rq ? "必填" : ""].join("|")).join("\n"); upd(); };
+          const listBox = el("div", {});
+          const drawRows = () => {
+            listBox.innerHTML = "";
+            const list = rows();
+            list.forEach((f, i) => {
+              const kIn = el("input", { type: "text", value: f.k, placeholder: "字段标识（英文）", spellcheck: "false",
+                class: "num", style: "width:150px;font-size:12px" });
+              const lIn = el("input", { type: "text", value: f.lb, placeholder: "字段名", maxlength: "10", style: "width:120px" });
+              const rq = el("input", { type: "checkbox", ...(f.rq ? { checked: "" } : {}) });
+              kIn.oninput = () => { const l2 = rows(); l2[i].k = kIn.value.trim(); write(l2); };
+              lIn.oninput = () => { const l2 = rows(); l2[i].lb = lIn.value.trim(); write(l2); };
+              rq.onchange = () => { const l2 = rows(); l2[i].rq = rq.checked; write(l2); };
+              listBox.appendChild(el("div", { class: "fx-row" }, [kIn, lIn,
+                el("label", { class: "sty-bool", style: "margin:0" }, [rq, el("span", {}, ["必填"])]),
+                el("button", { class: "btn small ghost", type: "button", title: "删除字段",
+                  onclick: () => { const l2 = rows(); l2.splice(i, 1); write(l2); drawRows(); } }, ["删除"]),
+              ]));
+            });
+            listBox.appendChild(el("button", { class: "btn small", type: "button", onclick: () => {
+              const l2 = rows(); l2.push({ k: "", lb: "", rq: false }); write(l2); drawRows();
+            } }, ["添加字段"]));
+          };
+          drawRows();
+          fixedArea.appendChild(el("div", { class: "field" }, [el("span", { class: "label-text" }, ["固定字段"]), listBox]));
         } else {
-          const ta = el("textarea", { rows: "4", spellcheck: "false", placeholder: "每行一个选项，如：\n开专票\n开普票",
-            style: "width:100%;font-size:13px" }, [state.fixedOptions]);
-          ta.oninput = () => { state.fixedOptions = ta.value; upd(); };
+          // 选项 / 条目行编辑
+          const items = () => (state.fixedOptions || "").split("\n").filter(Boolean);
+          const write = (list) => { state.fixedOptions = list.join("\n"); upd(); };
+          const listBox = el("div", {});
+          const drawRows = () => {
+            listBox.innerHTML = "";
+            const list = items();
+            list.forEach((o, i) => {
+              const inp = el("input", { type: "text", value: o, maxlength: "30", style: "flex:1;max-width:320px" });
+              inp.oninput = () => { const l2 = items(); l2[i] = inp.value; state.fixedOptions = l2.join("\n"); upd(); };
+              listBox.appendChild(el("div", { class: "fx-row" }, [
+                el("span", { class: "muted num", style: "width:18px;text-align:center" }, [String(i + 1)]),
+                inp,
+                el("button", { class: "btn small ghost", type: "button", title: "删除",
+                  onclick: () => { const l2 = items(); l2.splice(i, 1); write(l2); drawRows(); } }, ["删除"]),
+              ]));
+            });
+            listBox.appendChild(el("button", { class: "btn small", type: "button", onclick: () => {
+              const l2 = items(); l2.push(""); write(l2); drawRows();
+            } }, [ct === "rank.priority" ? "添加条目" : "添加选项"]));
+          };
+          drawRows();
           fixedArea.appendChild(el("div", { class: "field" }, [el("span", { class: "label-text" },
-            [ct === "rank.priority" ? "固定条目" : "固定选项"]), ta]));
+            [ct === "rank.priority" ? "固定条目" : "固定选项"]), listBox]));
         }
         const echo = el("input", { type: "checkbox", ...(state.echo_results ? { checked: "" } : {}) });
         echo.onchange = () => { state.echo_results = echo.checked; upd(); };
@@ -1109,7 +1304,7 @@ async function openEditor(cardId, prefill, initStep) {
     box.appendChild(colorRow("panel.bg", "面板底色"));
     box.appendChild(numRow("radius", "倒角", 0, 28, 16, "组件卡片圆角；控件圆角按比例跟随"));
     box.appendChild(numRow("spacing", "内边距", 8, 24, 16, "面板内边距，同时影响行距节奏"));
-    box.appendChild(cardsRow("shadow", "阴影", [["", "品牌"], ["none", "无"], ["sm", "轻"], ["md", "中"], ["lg", "重"]], shadowDemo));
+    box.appendChild(cardsRow("shadow", "阴影", [["", "主题"], ["none", "无"], ["sm", "轻"], ["md", "中"], ["lg", "重"]], shadowDemo));
 
     if (!IS_PRESENT) {
       box.appendChild(groupHead("交互区"));
@@ -1126,19 +1321,30 @@ async function openEditor(cardId, prefill, initStep) {
         box.appendChild(el("div", { class: "sty-section" }, [
           el("div", { class: "sty-label" }, ["选中态样式"]), seg2]));
       }
-      if (ct.startsWith("select")) box.appendChild(boolRow("rec_chip", "显示「推荐」角标", true, "模型标记推荐项时显示"));
+      if (ct.startsWith("select")) box.appendChild(boolRow("rec_chip", "显示「推荐」角标", true));
     }
 
-    if (ct === "table") {
-      box.appendChild(groupHead("表格样式"));
-      box.appendChild(boolRow("striped", "隔行变色", true));
-      box.appendChild(boolRow("header_bold", "表头加重", true));
-      box.appendChild(boolRow("outline", "外边框", false));
-    }
-    if (ct === "chart.line" || ct === "chart.bar") {
-      box.appendChild(groupHead("图表样式"));
-      box.appendChild(boolRow("grid", "网格线", true));
-      if (ct === "chart.bar") box.appendChild(boolRow("value_labels", "柱顶数值", true));
+    // 组件专属参数（规格表驱动：设计师视角的逐组件细项）
+    const enumRow = (key, label, opts2) => {
+      const seg3 = el("div", { class: "segmented" });
+      const draw3 = () => {
+        seg3.innerHTML = "";
+        opts2.forEach(([v, nm]) => seg3.appendChild(el("button", { type: "button",
+          class: "seg" + ((so[key] || "") === v ? " active" : ""),
+          onclick: () => { if (v) so[key] = v; else delete so[key]; draw3(); upd(); } }, [nm])));
+      };
+      draw3();
+      return el("div", { class: "sty-section" }, [el("div", { class: "sty-label" }, [label]), seg3]);
+    };
+    const specList = COMPONENT_PARAMS[ct] || [];
+    if (specList.length) {
+      box.appendChild(groupHead("组件参数", "只作用于本组件类型的细项"));
+      specList.forEach(([key, label, typ, a, b2, dv]) => {
+        if (typ === "bool") box.appendChild(boolRow(key, label, a !== false));
+        else if (typ === "num") box.appendChild(numRow(key, label, a, b2, dv));
+        else if (typ === "color") box.appendChild(colorRow(key, label));
+        else if (typ === "enum") box.appendChild(enumRow(key, label, a));
+      });
     }
 
     if (HAS_SUBMIT) {
