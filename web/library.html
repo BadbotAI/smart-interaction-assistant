@@ -190,24 +190,27 @@ async function boot() {
         boot();
       } }, [nm])));
   box.appendChild(tabBar);
-  if (libTab === "present") {
-    // 展示类按信息结构分组（会议：图表归图表、表格归表格，指标卡算图表）
-    const GROUPS = [
-      ["图表", ["trend", "bar", "pie", "metric"]],
-      ["表格", ["table", "compare"]],
-      ["流程", ["timeline", "steps"]],
-      ["文本", ["list", "highlight"]],
-    ];
-    GROUPS.forEach(([gname, types]) => {
-      const items = present.filter(t => types.includes(t.type));
-      if (!items.length) return;
-      box.appendChild(el("div", { class: "lib-group" }, [gname,
-        el("span", { class: "muted", style: "font-weight:400;font-size:var(--font-caption)" }, [` ${items.length} 类`])]));
-      box.appendChild(el("div", { class: "grid cols-2" }, items.map(tplCard)));
-    });
-  } else {
-    box.appendChild(el("div", { class: "grid cols-2" }, interact.map(tplCard)));
-  }
+  // 左侧分类标签导航 + 右侧卡片区
+  const CATS = libTab === "present"
+    ? [["all", "全部"], ["chart", "图表", ["trend", "bar", "pie", "metric"]],
+       ["tbl", "表格", ["table", "compare"]], ["flow", "流程", ["timeline", "steps"]],
+       ["text", "文本", ["list", "highlight"]]]
+    : [["all", "全部"], ["input", "选择与输入", ["select", "form", "slider", "rating", "datetime", "rank"]],
+       ["fb", "确认与反馈", ["confirm", "feedback", "preference"]]];
+  if (!window.__libCat || !CATS.some(c => c[0] === window.__libCat)) window.__libCat = "all";
+  const pool = libTab === "present" ? present : interact;
+  const catNav = el("div", { class: "lib-cats" }, CATS.map(([k, nm, types]) => {
+    const n = k === "all" ? pool.length : pool.filter(t => types.includes(t.type)).length;
+    return el("button", { type: "button", class: "lib-cat" + (window.__libCat === k ? " on" : ""),
+      onclick: () => { window.__libCat = k; boot(); } }, [nm,
+      el("span", { class: "muted num", style: "font-size:11px" }, [String(n)])]);
+  }));
+  const cat = CATS.find(c => c[0] === window.__libCat);
+  const items = window.__libCat === "all" ? pool : pool.filter(t => cat[2].includes(t.type));
+  box.appendChild(el("div", { class: "lib-split" }, [
+    catNav,
+    el("div", { class: "grid cols-2", style: "flex:1;align-self:start" }, items.map(tplCard)),
+  ]));
 }
 window.addEventListener("hashchange", () => boot().catch(e => UI.toast("加载失败：" + e.message, true)));
 boot().catch(e => UI.toast("加载失败：" + e.message, true));

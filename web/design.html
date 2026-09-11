@@ -62,7 +62,7 @@
       </div>
     </div>
 
-    <div class="card" style="align-self:start;position:sticky;top:14px;max-height:calc(100vh - 28px);overflow-y:auto">
+    <div class="card" style="align-self:start;position:sticky;top:14px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;max-width:560px">
         <span style="font-weight:600">组件预览</span>
         <div style="flex:1"></div>
@@ -646,15 +646,19 @@ function brandDialog(existing, onClose) {
   }
   host.innerHTML = "";
   host.appendChild(el("div", { class: "style-ed" }, [
-    el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:14px" }, [
+    el("div", { class: "ed-sticky-head" }, [
       el("button", { class: "btn small", type: "button", onclick: close }, ["返回"]),
       el("span", { style: "font-weight:700;font-size:var(--font-title)" }, [existing ? `编辑「${existing.brand_name}」` : "新建主题"]),
+      el("div", { style: "flex:1" }),
+      el("button", { class: "btn small", type: "button", onclick: close }, ["取消"]),
+      (() => { const b = el("button", { class: "btn small primary", type: "button" }, [existing ? "保存修改" : "保存主题"]);
+        b.onclick = () => host.querySelector(".style-ed .ed-save")?.click(); return b; })(),
     ]),
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["主题名称"]), nameIn, nameErr]),
     modeTabs, optPanel, err,
     el("div", { style: "display:flex;justify-content:flex-end;gap:10px;margin-top:14px;border-top:1px solid var(--border);padding-top:12px" }, [
       el("button", { class: "btn", onclick: close }, ["取消"]),
-      el("button", { class: "btn primary", onclick: async (e) => {
+      el("button", { class: "btn primary ed-save", onclick: async (e) => {
         const name = nameIn.value.trim();
         if (!name) { nameErr.textContent = "请填写主题名称"; nameIn.focus(); return; }
         const tokens = buildTokens();
