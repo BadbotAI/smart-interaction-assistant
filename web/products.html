@@ -182,6 +182,21 @@ function draw() {
         el("button", { class: "btn small", onclick: () => configProduct(p) }, ["产品配置"]),
         (() => { const more = el("button", { class: "btn iconic round", title: "更多", "aria-label": "更多操作",
           onclick: () => { UI.menu(more, [
+            { label: "复制产品", onClick: async () => {
+              // 克隆配置（主题 + 组件集），Key 按新产品自动派生
+              const base = (p.name.length > 12 ? p.name.slice(0, 12) : p.name) + " 副本";
+              for (let i = 0; i < 8; i++) {
+                const name = i === 0 ? base : base + (i + 1);
+                try {
+                  await UI.api("/api/products", { method: "POST", body: { name, brand_file: p.brand_file, card_ids: p.card_ids } });
+                  UI.toast(`已复制为「${name}」`); load();
+                  return;
+                } catch (e2) {
+                  if (e2.status !== 409) { UI.toast(e2.data?.error || e2.message, true); return; }
+                }
+              }
+              UI.toast("副本太多了，请先清理", true);
+            } },
             { label: "删除", danger: true, onClick: async () => {
               const ok = await UI.confirm("删除产品", `删除「${p.name}」后，它的接入 Key 与注册表立即失效，已出包的 SDK 将无法工作。`, { okText: "删除", danger: true });
               if (!ok) return;

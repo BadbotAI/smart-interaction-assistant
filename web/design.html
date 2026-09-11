@@ -408,8 +408,9 @@ function brandDialog(existing, onClose) {
     const cur = tok[editMode];
     COLOR_GROUPS.forEach(([gname, items]) => {
       const rows = el("div", { class: "tok-rows" });
+      const TOK_DEF = { bg_elevated: "#FFFFFF", bg_sunken: "#F2F3F5" };
       items.forEach(([key, label]) => {
-        const val = cur[key] || "#000000";
+        const val = cur[key] || TOK_DEF[key] || "#000000";
         const ci = el("input", { type: "color", value: /^#([0-9a-f]{6})$/i.test(val) ? val : "#000000", class: "tok-chip", title: label });
         const hex = el("input", { type: "text", value: val, class: "tok-hex", spellcheck: "false", maxlength: "7" });
         ci.oninput = () => { cur[key] = ci.value; hex.value = ci.value; refreshGroupSwatches(); applyPreview(); };

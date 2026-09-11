@@ -584,7 +584,7 @@ window.Components = (function () {
   function rSlider(env, ctx) {
     const p = env.params;
     const min = p.min ?? 0, max = p.max ?? 100;
-    const init = p.recommended_default ?? Math.round((min + max) / 2);
+    const init = p.default ?? p.recommended_default ?? Math.round((min + max) / 2);
     const display = p.display || "slider";
     let getVal;
     let body;
@@ -729,7 +729,7 @@ window.Components = (function () {
   }
   function rPickerDatetime(env, ctx) {
     const p = env.params;
-    const withTime = (p.display || "date") === "datetime";
+    const withTime = (p.mode || p.display || "date") === "datetime";
     const input = el("input", { type: withTime ? "datetime-local" : "date", style: "max-width:240px" });
     // 快捷选项：多数人约的就是这三天
     const quick = withTime ? null : _quickChips([["今天", 0], ["明天", 1], ["后天", 2]], pr => { input.value = _dstr(pr[1]); });
@@ -1000,7 +1000,7 @@ window.Components = (function () {
 
   function rRank(env, ctx) {
     const p = env.params;
-    let order = [...(p.options || [])];
+    let order = [...(p.items || p.options || [])];
     if (!order.length) return compCard([compTitle(p.prompt), emptyState(env)]);
     const listBox = el("div", { class: "rank-list" });
     function getAfter(y) {
@@ -1209,7 +1209,9 @@ window.Components = (function () {
 
   function rScaleLikert(env, ctx) {
     const p = env.params;
-    const lk = p.likert || { left: "非常不认可", right: "非常认可", steps: 5 };
+    const lk = p.likert || (p.scale
+      ? { from: 1, to: Math.max(2, Math.min(11, p.scale)), left: p.low_label || "", right: p.high_label || "" }
+      : { left: "非常不认可", right: "非常认可", steps: 5 });
     const values = likertRange(lk);
     const display = p.display || "dots";
     let picked = null;

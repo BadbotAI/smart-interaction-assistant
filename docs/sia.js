@@ -102,6 +102,12 @@
     if (Array.isArray(p.candidates)) p.candidates = p.candidates.slice(0, 4);
     if (Array.isArray(p.rows)) p.rows = p.rows.slice(0, 100);
     if (Array.isArray(p.categories)) p.categories = p.categories.slice(0, 24);
+    if (Array.isArray(p.items)) p.items = p.items.slice(0, 12).map(x => String(x).slice(0, 120));
+    if (Array.isArray(p.steps)) p.steps = p.steps.slice(0, 9);
+    if (Array.isArray(p.events)) p.events = p.events.slice(0, 12);
+    if (Array.isArray(p.slices)) p.slices = p.slices.slice(0, 7);
+    if (Array.isArray(p.dimensions)) p.dimensions = p.dimensions.slice(0, 6);
+    if (Array.isArray(p.fields)) p.fields = p.fields.slice(0, 8);
     env.params = { ...env.params, ...p };
     // 图表组件：模型在参数里指定 kind（line / bar），按 kind 切换渲染类型
     if (env.component_type && env.component_type.startsWith("chart.") && (p.kind === "line" || p.kind === "bar"))

@@ -112,8 +112,9 @@ def validate_card_content(payload: dict) -> list:
         if options and len(options) < 2:
             errors.append({"field": "options", "message": "预置选项至少 2 个；留空表示由模型动态给出"})
     elif ct == "rank.priority":
-        if len(options) < 2:
-            errors.append({"field": "options", "message": "至少 2 个选项"})
+        # v2：条目留空 = 模型按对话动态给出（合法）；预置了则至少 2 个
+        if options and len(options) < 2:
+            errors.append({"field": "options", "message": "预置条目至少 2 个；留空表示由模型动态给出"})
     if ct == "commerce.order" and len(options) < 1:
         errors.append({"field": "options", "message": "至少 1 个商品"})
     if ct == "entry.link" and len(options) < 1:

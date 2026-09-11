@@ -482,6 +482,13 @@ def gen_present_params(v2_type: str, query: str) -> dict:
     """展示类组件的演示参数：模拟大模型按对话填入 table / chart 数据。
     生产环境由大模型在组件调用参数里直接给出。"""
     h = _stable_hash(query or "q")
+    if v2_type == "compare":
+        return {"title": "方案对比", "options": ["方案 A", "方案 B"],
+                "dimensions": ["时效", "成本", "稳定"], "values": [[8, 6, 7], [6, 9, 8]]}
+    if v2_type == "list":
+        return {"title": "注意事项", "items": ["保留原包装以便验收", "签收前拍照留证", "异常 24 小时内反馈"]}
+    if v2_type == "highlight":
+        return {"value": "本月履约率 98.6%，创近半年新高", "caption": "对比上月 +1.2 个百分点", "tone": "positive"}
     if v2_type == "table":
         rows = [["华东", str(320 + h % 80), f"{2.1 + (h % 10) / 10:.1f}%"],
                 ["华南", str(280 + h % 60), f"{1.5 + (h % 8) / 10:.1f}%"],

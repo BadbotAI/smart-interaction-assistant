@@ -398,3 +398,18 @@ node tests/mock_smoke.mjs 全过；py_compile + node --check；GET 全端点扫�
 | T19-5 | P3 | 品牌编辑器 ?r= 深链在圆角改 px 后语义漂移（旧档位索引会被当 px 解释） | r≤4 视为旧档位索引映射到 [2,8,16,22,28] |
 
 附带发现（未改）：validate_card 内新增校验触发了 `_re` 作用域问题（import 在另一函数内），已在本批一并补导入并回归。
+
+## 第二十批（2026-09-11 · 组件扩容 19 类之后）
+
+| # | 级别 | 问题 | 修复 |
+|---|------|------|------|
+| T20-1 | P1 | rank 渲染器读 options，注册 schema 是 items——模型按 schema 传参渲染为空态 | items \|\| options 双格式 |
+| T20-2 | P1 | likert 渲染器读 likert{steps}，schema 是 scale/low_label/high_label——刻度与标签全失效 | p.scale 组装 from/to + 标签兼容 |
+| T20-3 | P2 | datetime 渲染器读 display，schema 是 mode——datetime 模式永远退回 date | mode \|\| display |
+| T20-4 | P3 | slider 初始值读 recommended_default，schema 是 default | default 优先 |
+| T20-5 | P2 | present 直渲不认识新 3 类（compare/list/highlight 落到折线兜底渲染降级） | gen_present_params 补三类 |
+| T20-6 | P2 | SDK 截断兜底缺新数组参数（items/steps/events/slices/dimensions/fields 可被放大渲染） | sia.js 全部截断 |
+| T20-7 | P3 | 编辑旧主题时新增 token（卡片面/凹陷底）无值回填成黑色 | 默认值兜底表 |
+| T20-8 | P1 | 「优先级排序」种子发布失败留 draft：v1 校验要求 rank 预置 options ≥2，与 v2「条目由模型给出」冲突 | 校验放开为「预置才校验」，实例已发布，envelope 200 |
+
+方法论沉淀：**新增注册类型时，params_schema 字段名必须以渲染器实际消费的字段为准对齐（或渲染器双格式兼容）**——schema 是模型的调用契约，写错字段名等于组件白做。
