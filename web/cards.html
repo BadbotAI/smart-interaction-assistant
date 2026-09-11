@@ -1122,7 +1122,7 @@ async function openEditor(cardId, prefill, initStep) {
     const upd = () => { autosave(); renderPreview(); };
 
     // 继承说明 + 一键恢复主题默认
-    const resetBtn = el("button", { class: "btn small ghost", type: "button", onclick: () => {
+    const resetBtn = el("button", { class: "btn small ghost", type: "button", style: "color:var(--primary)", onclick: () => {
       Object.keys(so).forEach(k => delete so[k]); state.display = ""; autosave(); rebuild();
     } }, ["恢复主题默认"]);
     box.appendChild(el("div", { class: "sty-inherit" }, [
