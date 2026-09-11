@@ -120,8 +120,6 @@ function configProduct(p) {
       `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`),
     codeBlock("前端 JS/CSS 代码块", "引入 SDK，样式含本产品品牌风格 token（前端公开 Key，页面可见）",
       `<link rel="stylesheet" href="${origin}/v1/products/${p.product_id}/sia.css?key=${p.pub_key}">\n<script src="${origin}/web/sia.js" data-key="${p.pub_key}" defer><\/script>`),
-    codeBlock("渲染调用", "模型返回的组件调用交给 SDK；交互类提交自动按 submit 结构回传",
-      `SIA.render(container, { component_id: "…", params: { … } })`),
     el("div", { class: "drawer-meta", style: "margin:10px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap" }, [
       el("span", { class: "muted", style: "flex:none" }, ["后端私有 Key"]),
       el("span", { class: "cr-id num", style: "cursor:pointer", title: "注册表拉取用，勿放前端；点击复制",
