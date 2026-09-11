@@ -341,7 +341,7 @@ function brandDialog(existing, onClose) {
     } catch (e) {}
   };
 
-  const nameIn = el("input", { type: "text", maxlength: "20", value: existing?.brand_name || "", placeholder: "例如：远洋港航风格主题" });
+  const nameIn = el("input", { type: "text", maxlength: "20", value: existing?.brand_name || "", placeholder: "例如：政企稳重" });
   const nameErr = el("div", { class: "field-error" });
   nameIn.oninput = () => nameErr.textContent = "";
   const err = el("div", { class: "field-error" });
@@ -601,13 +601,13 @@ function brandDialog(existing, onClose) {
       el("button", { class: "btn small", type: "button", onclick: close }, ["返回"]),
       el("span", { style: "font-weight:700;font-size:var(--font-title)" }, [existing ? `编辑「${existing.brand_name}」` : "新建主题"]),
     ]),
-    el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["风格名称"]), nameIn, nameErr]),
+    el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["主题名称"]), nameIn, nameErr]),
     modeTabs, optPanel, err,
     el("div", { style: "display:flex;justify-content:flex-end;gap:10px;margin-top:14px;border-top:1px solid var(--border);padding-top:12px" }, [
       el("button", { class: "btn", onclick: close }, ["取消"]),
       el("button", { class: "btn primary", onclick: async (e) => {
         const name = nameIn.value.trim();
-        if (!name) { nameErr.textContent = "请填写风格名称"; nameIn.focus(); return; }
+        if (!name) { nameErr.textContent = "请填写主题名称"; nameIn.focus(); return; }
         const tokens = buildTokens();
         tokens.brand_name = name;
         // 新建一律生成新 id：baseTokens 克隆自当前预览品牌，其 brand_id（如 default）绝不能继承——否则覆盖既有风格
@@ -625,11 +625,11 @@ function brandDialog(existing, onClose) {
             window._editingStyle = false;
             document.getElementById("demoOne")?.removeAttribute("style");
             renderBrands(); renderDemos();
-            UI.toast(existing ? "风格已更新" : "风格已创建，在「产品与接入」里配给产品即可生效");
+            UI.toast(existing ? "主题已更新" : "主题已创建，在「产品与接入」里配给产品即可生效");
             onClose && onClose();
           } catch (e2) { err.textContent = e2.data?.error || e2.message; }
         }, "保存中……");
-      } }, [existing ? "保存修改" : "保存风格"]),
+      } }, [existing ? "保存修改" : "保存主题"]),
     ]),
   ]));
   document.getElementById("brandLibCard").hidden = true;
@@ -693,15 +693,15 @@ function renderBrands() {
     const users = products.filter(p => p.brand_file === b.file);
     const isSel = b.file === previewFile;
     const editBtn = (b.brand_id !== "default")
-      ? el("span", { class: "sel-ico del-ico", style: "right:38px" }, [UI.iconBtn("edit", "编辑此风格", (e) => {
+      ? el("span", { class: "sel-ico del-ico", style: "right:38px" }, [UI.iconBtn("edit", "编辑此主题", (e) => {
           e?.stopPropagation?.();
           brandDialog(b);
         })])
       : null;
     const delBtn = (b.brand_id !== "default")
-      ? el("span", { class: "sel-ico del-ico" }, [UI.iconBtn("trash", "删除此风格", async (e) => {
+      ? el("span", { class: "sel-ico del-ico" }, [UI.iconBtn("trash", "删除此主题", async (e) => {
           e?.stopPropagation?.();
-          const ok = await UI.confirm("删除风格", `删除「${b.brand_name || b.file}」？使用它的产品将回退到默认风格，不可恢复。`, { okText: "删除", danger: true });
+          const ok = await UI.confirm("删除主题", `删除「${b.brand_name || b.file}」？使用它的产品将回退到默认主题，不可恢复。`, { okText: "删除", danger: true });
           if (!ok) return;
           try {
             await UI.api("/api/brands/delete", { method: "POST", body: { file: b.file } });
@@ -718,7 +718,7 @@ function renderBrands() {
       editBtn, delBtn,
       el("div", { class: "bname" }, [b.brand_name || b.file,
         users.length ? el("span", { class: "chip blue", title: "使用中的产品：" + users.map(p => p.name).join("、") }, [`${users.length} 个产品使用`]) : null]),
-      el("div", { class: "bsub" }, [b.brand_id === "default" ? "平台默认风格" : "已导入的风格主题"]),
+      el("div", { class: "bsub" }, [b.brand_id === "default" ? "平台默认主题" : "自定义主题"]),
     ]);
     if (delBtn) delBtn.onclick = (e) => e.stopPropagation();
     if (editBtn) editBtn.onclick = (e) => e.stopPropagation();

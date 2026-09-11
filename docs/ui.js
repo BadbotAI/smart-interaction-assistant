@@ -104,8 +104,9 @@ window.UI = (function () {
       }, [it.label])));
     document.body.appendChild(pop);
     const r = anchorBtn.getBoundingClientRect();
-    pop.style.top = (r.bottom + window.scrollY + 4) + "px";
-    pop.style.left = Math.min(r.left + window.scrollX, window.innerWidth - pop.offsetWidth - 12) + "px";
+    pop.style.position = "fixed";
+    pop.style.top = (r.bottom + 4) + "px";
+    pop.style.left = Math.min(r.left, window.innerWidth - pop.offsetWidth - 12) + "px";
     const close = (e) => { if (!pop.contains(e.target) && e.target !== anchorBtn) { pop.remove(); document.removeEventListener("click", close, true); } };
     setTimeout(() => document.addEventListener("click", close, true), 0);
     return pop;
@@ -213,7 +214,7 @@ window.UI = (function () {
       groups: [
         // 分组按对象：上组围绕「当前产品」（切换器正下方：接入出口与风格主题），
         // 下组围绕「组件」（模板库与实例工作台，日常主阵地）
-        { title: "产品", inSwitcher: true, items: [
+        { title: "产品", items: [
           ["products", "产品与接入", "./products.html", "box"],
           ["design", "风格主题", "./design.html", "palette"],
         ] },
@@ -340,15 +341,10 @@ window.UI = (function () {
         return a;
       })(),
     ]);
-    // 产品组：标准导航组节奏——组标题「当前产品」+ 轻量切换行 + 产品级入口（接入 / 风格）
-    let prodZone = null;
+    // 全局上下文：当前产品切换条（logo 正下方，作用于全站，不属于任何导航组）
     if (plat.productSwitcher) {
-      prodZone = el("div", { class: "nav-group" }, [
-        el("div", { class: "nav-title" }, ["当前产品"]),
-      ]);
-      const swSlot = el("div", { style: "min-height:36px" });
-      prodZone.appendChild(swSlot);
-      side.appendChild(prodZone);
+      const swSlot = el("div", { class: "np-context", style: "min-height:36px" });
+      side.appendChild(swSlot);
       mountProductSwitcher(swSlot);
     }
     // 二级项按 #hash 高亮；无 hash 时默认该页第一个二级项
@@ -360,12 +356,6 @@ window.UI = (function () {
       return (location.hash || defHash) === "#" + key.split(":")[1];
     };
     NAV_GROUPS.forEach(g => {
-      if (g.inSwitcher && prodZone) {
-        g.items.forEach(([key, name, href, ic]) => prodZone.appendChild(el("a", {
-          class: "navlink" + (isActive(key) ? " active" : ""), href, "data-key": key,
-        }, [icon(ic, 17), el("span", {}, [name])])));
-        return;
-      }
       const box = el("div", { class: "nav-group" }, [g.title ? el("div", { class: "nav-title" }, [g.title]) : null]);
       g.items.forEach(([key, name, href, ic]) => box.appendChild(el("a", {
         class: "navlink" + (isActive(key) ? " active" : ""), href, "data-key": key,

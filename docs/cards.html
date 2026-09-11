@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=54566844">
+<link rel="stylesheet" href="./shared.css?v=3186cba4">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -79,7 +79,7 @@
 <script src="./mock_data.js?v=e21dbbc2"></script>
 <script src="./mock_api.js?v=582ad7ee"></script>
 <script src="./tokens.js?v=be27f7d8"></script>
-<script src="./ui.js?v=fbc0fa45"></script>
+<script src="./ui.js?v=d1a4e948"></script>
 <script src="./components.js?v=0bb2d8f1"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
@@ -138,14 +138,15 @@ function styleSummary(c) {
   if (so["color.primary"]) parts.push("主色 " + so["color.primary"]);
   const isNum = (v) => Number.isFinite(Number(v));
   if (so.radius != null) parts.push(isNum(so.radius) ? `倒角${so.radius}px` : ({ none: "直角", sm: "小倒角", md: "标准倒角", lg: "大倒角", full: "全圆" }[so.radius] || so.radius));
-  if (so.height != null && isNum(so.height)) parts.push(`高度${so.height}px`);
-  if (so.height) parts.push({ compact: "紧凑高度", regular: "标准高度", large: "宽大高度" }[so.height]);
+  if (so.height != null) parts.push(isNum(so.height) ? `高度${so.height}px`
+    : ({ compact: "紧凑高度", regular: "标准高度", large: "宽大高度" }[so.height] || ""));
   if (so.spacing != null) parts.push(isNum(so.spacing) ? `间距${so.spacing}px` : ({ compact: "紧凑", regular: "标准", loose: "宽松" }[so.spacing] || "") + "密度");
   if (so.shadow) parts.push("阴影" + ({ none: "无", sm: "轻", md: "中", lg: "重" }[so.shadow] || ""));
   if (so.font_scale != null) parts.push(Number(so.font_scale) >= 10 ? `字号${so.font_scale}px` : "字号" + ({ "-1": "小一档", "1": "大一档", "2": "大两档" }[so.font_scale] || ""));
   const disp = ((c.field_bindings || {}).config || {}).display;
   if (disp === "card") parts.push("卡片样式");
-  return parts.length ? parts.join(" · ") : "主题默认";
+  const clean = parts.filter(Boolean);
+  return clean.length ? clean.join(" · ") : "主题默认";
 }
 
 async function loadKpisAndTodos() {
@@ -379,11 +380,11 @@ function buildCardRow(c) {
           el("span", { class: "cr-id num static", title: "配置 ID" }, ["ID:" + shortId(c.card_id)]),
           el("span", { class: "name" }, [c.name]),
           el("span", { class: "chip " + color }, [label]),
-          UI.ctChip(c.component_type),
+          (UI.ctName(c.component_type) || "") === c.name ? null : UI.ctChip(c.component_type),
 
           ...cardAnomalies(c, eff).map(x => el("span", { class: "chip red", title: x.title }, [x.label])),
         ]),
-        el("div", { class: "cr-line2" }, ["样式：" + styleSummary(c)]),
+        (() => { const sm = styleSummary(c); return sm === "主题默认" ? null : el("div", { class: "cr-line2" }, ["样式：" + sm]); })(),
         el("div", { class: "cr-line3 muted" }, [
           el("span", {}, ["创建 " + UI.fmtTs(c.created_at)]),
 
@@ -850,7 +851,7 @@ async function openEditor(cardId, prefill, initStep) {
     let pickTab = PRESENT_TYPES.includes(state.component_type) ? "present" : "interactive";
     const gridBox = el("div", { class: "tpl-grid" });
     const tagBox = el("div", { class: "scene-tags" });
-    const tabBar = el("div", { style: "display:flex;gap:16px;margin-bottom:10px" });
+    const tabBar = el("div", { style: "display:flex;gap:16px;margin-bottom:12px;border-bottom:1px solid var(--border)" });
     function drawTabs() {
       tabBar.innerHTML = "";
       const nI = V2_TEMPLATES.filter(t => !PRESENT_TYPES.includes(t.component_type)).length;

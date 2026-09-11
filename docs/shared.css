@@ -1456,7 +1456,8 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .sl-range.unset { opacity: .45; }
 .sl-range.unset::-webkit-slider-thumb { border-color: var(--border-strong); }
 
-.card-row .cr-check { display: flex; align-items: center; padding: 0 2px 0 0; cursor: pointer; }
+.card-row .cr-check { display: flex; align-items: center; padding: 0 2px 0 0; cursor: pointer;
+  align-self: flex-start; margin-top: 3px; }
 .card-row .cr-check input { width: 15px; height: 15px; accent-color: var(--primary); cursor: pointer; }
 .batch-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 26px; z-index: 60;
   display: flex; align-items: center; gap: 10px; padding: 10px 16px;
@@ -1484,3 +1485,5 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 
 .comp .opt-item { border-width: 1px; }
 .comp .opt-item.on { border-width: 1.5px; }
+
+.sidenav .np-context { margin: 2px 0 10px; padding: 0 0 10px; border-bottom: 1px solid var(--border); }

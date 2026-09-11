@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>产品与接入 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=54566844">
+<link rel="stylesheet" href="./shared.css?v=3186cba4">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 </head>
 <body class="has-side">
@@ -25,7 +25,7 @@
 <script src="./mock_data.js?v=e21dbbc2"></script>
 <script src="./mock_api.js?v=582ad7ee"></script>
 <script src="./tokens.js?v=be27f7d8"></script>
-<script src="./ui.js?v=fbc0fa45"></script>
+<script src="./ui.js?v=d1a4e948"></script>
 <script>
 UI.nav("products");
 const { el } = UI;
@@ -227,11 +227,11 @@ function draw() {
           const ago = p.pulled_at ? Math.max(1, Math.round((Date.now() / 1000 - p.pulled_at) / 60)) : null;
           return el("div", { style: "margin-top:6px;font-size:var(--font-caption);color:var(--warning);display:flex;align-items:center;gap:6px" }, [
             UI.icon("info", 13),
-            `配置已变更，线上包落后${ago != null ? `（上次拉取注册表在 ${ago < 60 ? ago + " 分钟" : Math.round(ago / 60) + " 小时"}前）` : ""}——请重新拉取注册表并部署前端`,
+            `配置已变更：请重新拉取注册表并重新部署${ago != null ? `（上次拉取在 ${ago < 60 ? ago + " 分钟" : Math.round(ago / 60) + " 小时"}前）` : ""}`,
           ]);
         }
         if (p.pulled_hash === null || p.pulled_hash === undefined) return el("div", { class: "muted", style: "margin-top:6px;font-size:var(--font-caption)" },
-          ["尚未拉取过注册表：按「产品配置」里的后端 API 接口接入即开始跟踪出包状态"]);
+          ["尚未接入：在「产品配置」获取后端 API 与前端代码块即可开始"]);
         return null;
       })(),
     ]));

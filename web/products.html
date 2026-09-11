@@ -223,11 +223,11 @@ function draw() {
           const ago = p.pulled_at ? Math.max(1, Math.round((Date.now() / 1000 - p.pulled_at) / 60)) : null;
           return el("div", { style: "margin-top:6px;font-size:var(--font-caption);color:var(--warning);display:flex;align-items:center;gap:6px" }, [
             UI.icon("info", 13),
-            `配置已变更，线上包落后${ago != null ? `（上次拉取注册表在 ${ago < 60 ? ago + " 分钟" : Math.round(ago / 60) + " 小时"}前）` : ""}——请重新拉取注册表并部署前端`,
+            `配置已变更：请重新拉取注册表并重新部署${ago != null ? `（上次拉取在 ${ago < 60 ? ago + " 分钟" : Math.round(ago / 60) + " 小时"}前）` : ""}`,
           ]);
         }
         if (p.pulled_hash === null || p.pulled_hash === undefined) return el("div", { class: "muted", style: "margin-top:6px;font-size:var(--font-caption)" },
-          ["尚未拉取过注册表：按「产品配置」里的后端 API 接口接入即开始跟踪出包状态"]);
+          ["尚未接入：在「产品配置」获取后端 API 与前端代码块即可开始"]);
         return null;
       })(),
     ]));
