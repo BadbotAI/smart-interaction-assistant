@@ -116,6 +116,50 @@ const LIKERT_PRESETS = [["1 ~ 5", 1, 5], ["0 ~ 5", 0, 5], ["0 ~ 3", 0, 3], ["1 ~
 
 // ============ 列表（状态 tab + 数据概览合并） ============
 
+// 工作台卡片预览的示例参数：套用实例的样式覆盖与固定内容后渲染成真实缩略预览
+const WB_DEMO = {
+  "select.single": { prompt: "请选择处理方式", options: ["方案 A · 时效优先", "方案 B · 成本优先"], submit_label: "确认" },
+  "select.multi": { prompt: "请勾选适用项", options: ["需要发票", "需要保价"], multi: true, submit_label: "提交" },
+  "select.card": { prompt: "请选择方案", options: ["海运直达", "海铁联运"], submit_label: "确认" },
+  "form.structured": { prompt: "请补充以下信息", fields: [{ key: "n", label: "联系人", required: true }, { key: "p", label: "联系方式", required: true }], submit_label: "提交" },
+  "control.confirm": { prompt: "确认取消本次订单？该操作不可撤销。", submit_label: "确认执行" },
+  "feedback.binary": { prompt: "这条回答怎么样" },
+  "feedback.preference": { candidates: [{ label: "方案 A", content: "优先保证时效，成本上浮约 8%。" }, { label: "方案 B", content: "优先控制成本，预计多用 2 天。" }] },
+  "slider.range": { prompt: "本次预算大约多少？", min: 0, max: 5000, step: 100, unit: "元", default: 2000, submit_label: "确认" },
+  "scale.likert": { prompt: "请为本次服务打分", scale: 5, low_label: "很不满意", high_label: "非常满意", submit_label: "提交" },
+  "picker.datetime": { prompt: "希望什么时间上门取件？", submit_label: "确认" },
+  "rank.priority": { prompt: "请按重要程度排序", items: ["运费成本", "送达时效", "服务质量"], submit_label: "提交" },
+  "table": { title: "分区域概览", columns: ["区域", "数量", "环比"], rows: [["华东", "352", "2.3%"], ["华南", "332", "1.5%"]] },
+  "chart.line": { title: "近半年走势", categories: ["4月", "5月", "6月", "7月", "8月", "9月"], series: [{ name: "金额", values: [122, 165, 148, 161, 178, 190] }] },
+  "chart.bar": { title: "分区域对比", categories: ["华东", "华南", "华北"], series: [{ name: "数量", values: [352, 332, 372] }] },
+  "chart.pie": { title: "构成占比", slices: [{ label: "华东", value: 42 }, { label: "华南", value: 27 }, { label: "其他", value: 31 }] },
+  "chart.waterfall": { title: "利润构成", categories: ["营收", "运费", "仓储", "退款"], values: [420, -86, -54, -32] },
+  "metric.card": { label: "本月累计金额", value: "1,286", unit: "万元", delta: "4.2%" },
+  "timeline": { title: "处理进度", events: [{ ts: "09:20", title: "已受理" }, { ts: "10:05", title: "处理中" }, { ts: "11:40", title: "已完成" }] },
+  "steps": { title: "操作指引", steps: ["填写信息", "上传凭证", "等待审核"], current_index: 1 },
+  "matrix.compare": { title: "方案对比", options: ["方案 A", "方案 B"], dimensions: ["时效", "成本"], values: [[8, 6], [6, 9]] },
+  "list.ordered": { title: "注意事项", items: ["保留原包装以便验收", "签收前拍照留证"] },
+  "text.emphasis": { value: "本月履约率 98.6%，创近半年新高", tone: "positive" },
+};
+function tileEnv(c) {
+  const cfg = (c.field_bindings || {}).config || {};
+  const tt = c.text_templates || {};
+  const params = { ...(WB_DEMO[c.component_type] || {}) };
+  if (tt.prompt) params.prompt = tt.prompt;
+  if (tt.submit) params.submit_label = tt.submit;
+  if (cfg.content_mode === "fixed") {
+    if ((cfg.options || []).length) {
+      if (c.component_type === "rank.priority") params.items = cfg.options;
+      else params.options = cfg.options;
+    }
+    if ((cfg.fields || []).length) params.fields = cfg.fields;
+    if (cfg.recommended_default) params.recommended_default = cfg.recommended_default;
+  }
+  if (cfg.display === "card" || c.component_type === "select.card") params.display = "card";
+  return { schema_version: "1.0.0", render_id: "wb-" + c.card_id, component_type: c.component_type,
+    semantic_category: "present", trigger_source: "wb_preview", card_ref: null,
+    params, style_overrides: c.style_overrides || {} };
+}
 let statusTab = "";
 let wbCat = "all";
 const WB_CATS = [
@@ -428,6 +472,15 @@ function buildCardRow(c) {
           ]),
         ]),
       ]),
+      (() => {
+        const pvBox = el("div", { class: "wb-preview" });
+        try {
+          pvBox.appendChild(el("div", { class: "brand-scope" }, [Components.render(tileEnv(c), {
+            sendEvent: () => {}, onCollectSubmit: () => {}, onControl: () => {}, preview: true, titleInBubble: true,
+          })]));
+        } catch (e) { pvBox.appendChild(el("div", { class: "muted" }, ["预览暂不可用"])); }
+        return pvBox;
+      })(),
       sm === "主题默认" ? null : el("div", { class: "wb-summary" }, ["样式：" + sm]),
       el("div", { class: "wb-foot" }, [
         el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["创建 " + UI.fmtTs(c.created_at)]),

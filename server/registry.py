@@ -256,6 +256,8 @@ def fixed_config_for(card: dict) -> dict:
             fixed["fields"] = cfg.get("fields")
         if v2 == "rank" and cfg.get("options"):
             fixed["items"] = cfg.get("options")
+        if cfg.get("recommended_default"):
+            fixed["recommended_default"] = cfg.get("recommended_default")
     return fixed
 
 

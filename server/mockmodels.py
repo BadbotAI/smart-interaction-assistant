@@ -482,6 +482,8 @@ def gen_present_params(v2_type: str, query: str) -> dict:
     """展示类组件的演示参数：模拟大模型按对话填入 table / chart 数据。
     生产环境由大模型在组件调用参数里直接给出。"""
     h = _stable_hash(query or "q")
+    if v2_type == "waterfall":
+        return {"title": "利润构成", "categories": ["营收", "运费", "仓储", "退款"], "values": [420, -86, -54, -32]}
     if v2_type == "compare":
         return {"title": "方案对比", "options": ["方案 A", "方案 B"],
                 "dimensions": ["时效", "成本", "稳定"], "values": [[8, 6, 7], [6, 9, 8]]}

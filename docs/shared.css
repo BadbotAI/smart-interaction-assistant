@@ -1734,3 +1734,9 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .sidenav > * { position: relative; }
 .prod-cover { background: linear-gradient(120deg, color-mix(in srgb, var(--ctx-p) 8%, var(--bg-elevated)) 0%, var(--bg-elevated) 55%); }
 .prod-cover .pc-name { color: color-mix(in srgb, var(--ctx-p) 72%, var(--text-primary)); }
+
+.wb-preview { background: var(--bg-sunken); border-radius: 10px; padding: 12px; height: 178px;
+  overflow: hidden; position: relative; pointer-events: none; }
+.wb-preview::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 40px;
+  background: linear-gradient(transparent, var(--bg-sunken)); }
+.wb-preview .comp { margin-top: 0; max-width: 100%; }
