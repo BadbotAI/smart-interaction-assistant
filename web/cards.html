@@ -214,78 +214,10 @@ function shortId(cardId) {
   const hex = String(cardId).replace(/-/g, "").slice(0, 8);
   return String(parseInt(hex, 16) % 1000000).padStart(6, "0");
 }
-// 植入代码（GA 式接入）：snippet + 三种触发方式
-function embedSnippet(cardId) {
-  return [
-    `<!-- 第一步：把 SDK 贴进你的产品（data-key 用「产品及风格管理」里该产品的接入 Key） -->`,
-    `<script async src="https://cdn.your-domain.com/sia.js" data-key="你的接入Key"><\/script>`,
-    ``,
-    `<!-- 触发方式一：对话触发（默认）——对话走 /v1/route，命中触发条件自动返回本组件，无需额外代码 -->`,
-    ``,
-    `<!-- 触发方式二：规则触发（GTM 式）——指定页面元素被点击时渲染本组件 -->`,
-    `<script>sia('on', { selector: '#help-btn', event: 'click' }, '${cardId}');<\/script>`,
-    ``,
-    `<!-- 触发方式三：显式调用——业务代码任意时机唤起 -->`,
-    `<script>sia('show', '${cardId}', { mount: '#slot' });<\/script>`,
-    ``,
-    `<!-- 组件在 Shadow DOM 内渲染（样式与你的页面互不影响），交互数据自动回传平台 -->`,
-  ].join("\n");
-}
-function embedDialog(c) {
-  const code = embedSnippet(c.card_id);
-  UI.modal(`获取嵌入代码 · ${c.name}`, el("div", {}, [
-    el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [
-      el("span", { class: "muted" }, ["像接入统计代码一样，把组件嵌入你的产品"]),
-      el("div", { style: "flex:1" }),
-      el("button", { class: "btn small", onclick: () => window.open(`/web/embed-demo.html?card=${c.card_id}`, "_blank") }, ["打开嵌入演示页"]),
-      el("button", { class: "btn small primary", onclick: () => { navigator.clipboard.writeText(code); UI.toast("已复制嵌入代码"); } }, [UI.icon("copy", 14), "复制"]),
-    ]),
-    el("pre", { class: "code", style: "max-height:340px;overflow:auto" }, [code]),
-  ]));
-}
 
 // 导航切换器（localStorage sia_product）优先；工作台内切换仍记 session
 let curProduct = localStorage.getItem("sia_product") || sessionStorage.getItem("wb_product") || null;
 
-function sdkSnippetFor(p) {
-  const origin = location.origin;
-  return [
-    `// 「${p.name}」SDK 接入（v2 组件注册制 · 仅 Web 端）`,
-    `// 配置在出包时固化：平台上修改组件或风格后，需重新拉取注册表并重新部署前端`,
-    ``,
-    `// 第 1 步 · 后端：拉取组件注册表，作为工具声明给你的大模型`,
-    `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`,
-    `// 返回 components[]：每个组件的说明 + params_schema + 提交回传结构`,
-    `// 模型决定出组件时返回 { component_id, params }`,
-    ``,
-    `// 第 2 步 · 前端：引入 SDK（JS + CSS，样式含本产品的风格主题 token）`,
-    `<link rel="stylesheet" href="${origin}/v1/products/${p.product_id}/sia.css?key=${p.mcp_key}">`,
-    `<script src="${origin}/web/sia.js" data-key="${p.mcp_key}" defer><\/script>`,
-    ``,
-    `// 第 3 步 · 渲染与回传：把模型返回的组件调用交给 SDK`,
-    `SIA.render(container, { component_id: "…", params: { … } })`,
-    `// 交互类组件用户点「提交」时自动按 submit 结构回传；展示类组件直接渲染、无提交`,
-  ].join("\n");
-}
-
-function mcpDrawer(p) {
-  const code = sdkSnippetFor(p);
-  UI.drawer("接入配置（SDK）", el("div", {}, [
-    el("div", { class: "muted", style: "margin-bottom:12px" },
-      [`「${p.name}」通过 SDK 接入（仅 Web 端）：后端拉组件注册表声明给大模型，前端引 JS + CSS 渲染；产品绑定的 ${p.card_ids.length} 个组件按风格主题渲染，交互提交自动回传。配置在出包时固化，修改后需重新部署。`]),
-    el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [
-      el("span", { class: "label-text", style: "margin:0" }, ["接入配置（三步）"]),
-      el("div", { style: "flex:1" }),
-      el("button", { class: "btn small primary", onclick: () => { navigator.clipboard.writeText(code); UI.toast("已复制 SDK 接入配置"); } }, [UI.icon("copy", 13), "复制"]),
-    ]),
-    el("pre", { class: "code", style: "max-height:320px;overflow:auto" }, [code]),
-    el("div", { class: "muted", style: "margin-top:12px;line-height:1.8" }, [
-      "1. 后端拉取注册表：组件像工具一样声明给你的大模型，何时出、填什么由模型决定。", el("br"),
-      "2. 前端引入 SDK 与样式：模型返回的组件调用交给 SDK 按风格主题渲染。", el("br"),
-      "3. 交互类组件提交自动回传，数据回流平台看板（展示类无提交）。",
-    ]),
-  ]));
-}
 
 function renderProductCover(products, brands, unboundCount) {
   const box = document.getElementById("prodCover");
@@ -334,7 +266,7 @@ function renderProductCover(products, brands, unboundCount) {
       ]),
     ]),
     el("div", { style: "flex:1" }),
-    el("button", { class: "btn small", onclick: () => mcpDrawer(p) }, [UI.icon("link", 13), "接入配置"]),
+    el("button", { class: "btn small", onclick: () => { location.href = "/web/products.html"; } }, [UI.icon("link", 13), "接入配置"]),
   ]));
 }
 
@@ -960,8 +892,6 @@ async function openEditor(cardId, prefill, initStep) {
       el("span", { class: "label-text req" }, ["选择组件"]),
       el("div", { class: "tpl-scroll" }, [gridBox]),
     ]));
-    box.appendChild(el("div", { class: "muted", style: "margin-top:12px" },
-      ["v2 组件与业务解耦：何时出现由大模型按「组件说明」判断，无需配置触发条件"]));
     drawGrid();
     return box;
   }
@@ -1686,7 +1616,7 @@ async function openEditor(cardId, prefill, initStep) {
     box.appendChild(el("div", { class: "done-hero" + (publishedNow ? "" : " draft") }, [
       el("span", { class: "ico" }, [UI.icon("check", 16)]),
       el("div", {}, [
-        el("div", { style: "font-weight:600" }, [publishedNow ? `「${c.name || state.name}」已发布并加入当前产品注册表` : `「${c.name || state.name}」已保存为草稿`]),
+        el("div", { style: "font-weight:600" }, [publishedNow ? `「${c.name || state.name}」已发布并加入当前产品` : `「${c.name || state.name}」已保存为草稿`]),
         el("div", { style: "font-size:var(--font-small);margin-top:2px" }, [publishedNow
           ? "agent 侧重新拉取注册表并重新出包后生效（嵌入后配置不自动更新）"
           : "发布后才会进入产品注册表"]),
@@ -1762,7 +1692,7 @@ async function openEditor(cardId, prefill, initStep) {
     foot.innerHTML = "";
     if (legacyType) {
       foot.appendChild(el("div", { class: "muted", style: "color:var(--danger)" },
-        ["该组件类型已在 v2 下线，仅可查看与历史数据，不能修改保存"]));
+        ["该组件类型已下线，仅可查看历史数据，不能修改保存"]));
       foot.appendChild(el("div", { style: "flex:1" }));
       foot.appendChild(el("button", { class: "btn", onclick: () => closeEditor() }, ["关闭"]));
       return;
@@ -2000,7 +1930,7 @@ async function openEditor(cardId, prefill, initStep) {
             }
           } catch (e2) {}
         }
-        UI.toast(thenPublish ? "已发布并加入产品注册表" : (card?.status === "published" ? "已存草稿，线上不变" : "已存草稿"));
+        UI.toast(thenPublish ? "已发布并加入当前产品" : (card?.status === "published" ? "已存草稿，线上不变" : "已存草稿"));
       } catch (e) {
         const errs = e.data?.errors || e.data?.error?.errors;
         if (e.status === 409 && errs?.some(x => x.code === "conflict")) {

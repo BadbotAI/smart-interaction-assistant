@@ -46,7 +46,7 @@
     </div>
   </div>
   <div class="panel">
-    <h2>组件调用（v2 注册制）</h2>
+    <h2>组件调用</h2>
     <div class="tip">agent 后端拉注册表声明给大模型 → 模型返回 { component_id, params } → 前端 SIA.render('#slot', call) 渲染，提交自动回传。页面里只暴露前端公开 Key。</div>
     <button class="hbtn" id="render-btn">模拟模型返回组件调用</button>
     <div id="slot" style="margin-top:14px"></div>
@@ -55,7 +55,7 @@
 
 <script src="./sia.js?v=5d356f48"></script>
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=2289a815"></script>
+<script src="./mock_data.js?v=a3f9392f"></script>
 <script src="./mock_api.js?v=13eb79e0"></script>
 <script>
   // v2：信封接口需产品接入 Key——演示页动态取第一个产品的 Key

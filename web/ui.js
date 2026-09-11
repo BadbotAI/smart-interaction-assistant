@@ -646,6 +646,7 @@ window.UI = (function () {
     wand: '<path d="M3.5 20.5 13 11" stroke-width="2"/><path d="M16.5 2.5l1.3 3.2 3.2 1.3-3.2 1.3-1.3 3.2-1.3-3.2L12 7l3.2-1.3z" fill="currentColor" stroke="none"/><circle cx="7" cy="6" r="1" fill="currentColor" stroke="none"/>',
     copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/>',
     thumbup: '<path d="M7 11v9M7 11l3.2-6.4A1.8 1.8 0 0 1 13.6 5v4h4.6a1.8 1.8 0 0 1 1.8 2.1l-1.1 6.4a1.8 1.8 0 0 1-1.8 1.5H7"/>',
+    alert: '<path d="M12 4 21 19.5H3z" stroke-linejoin="round"/><path d="M12 10.2v4M12 16.8h.01"/>',
     thumbdown: '<path d="M17 13V4M17 13l-3.2 6.4A1.8 1.8 0 0 1 10.4 19v-4H5.8A1.8 1.8 0 0 1 4 12.9l1.1-6.4A1.8 1.8 0 0 1 6.9 5H17"/>',
     arrowup: '<path d="M12 19V5M6 11l6-6 6 6"/>',
     arrowdown: '<path d="M12 5v14M6 13l6 6 6-6"/>',

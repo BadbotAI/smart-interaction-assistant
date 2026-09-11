@@ -1259,21 +1259,22 @@ window.Components = (function () {
   // ================= 控制型 =================
 
   function rConfirm(env, ctx) {
+    // v2.4 视觉重做：圆形警示位 + 标题层次 + 右对齐动作行（去红条与 chip 的平铺感）
     const p = env.params;
     return compCard([
-      el("div", { style: "display:flex;align-items:center;gap:8px" }, [
-        el("span", { class: "chip red", style: "flex:none;white-space:nowrap" }, ["高风险"]),
-        el("span", { style: "font-weight:700" }, [p.title || p.prompt || "操作确认"]),
+      el("div", { style: "display:flex;gap:12px;align-items:flex-start" }, [
+        el("span", { class: "confirm-ico" }, [UI.icon("alert", 18)]),
+        el("div", { style: "flex:1;min-width:0" }, [
+          el("div", { class: "confirm-title" }, [p.title || p.prompt || "确认操作"]),
+          p.prompt && p.title ? el("div", { class: "secondary", style: "margin-top:3px" }, [p.prompt]) : null,
+          (p.action_desc || p.summary) ? el("div", { class: "confirm-note" }, [p.action_desc || p.summary]) : null,
+        ]),
       ]),
-      p.prompt && p.title ? el("div", { class: "secondary" }, [p.prompt]) : null,
-      (p.action_desc || p.summary) ? el("div", { class: "secondary", style: "background:var(--bg-surface);border-radius:var(--radius-control,8px);padding:8px 12px" },
-        [p.action_desc || p.summary]) : null,
-      el("div", { style: "margin-top:12px;display:flex;gap:10px;align-items:center" }, [
-        el("button", { class: "btn primary", onclick: (e) => { disableSiblings(e); ctx.onControl("confirm", env); } }, [p.confirm_label || "确认执行"]),
-        el("button", { class: "btn ghost", onclick: (e) => { disableSiblings(e); ctx.onControl("cancel", env); } }, [p.cancel_label || "取消"]),
-        el("span", { class: "muted", style: "font-size:var(--font-caption);margin-left:auto" }, ["此操作需明确确认"]),
+      el("div", { style: "margin-top:14px;display:flex;gap:8px;justify-content:flex-end" }, [
+        el("button", { class: "btn", onclick: (e) => { disableSiblings(e); ctx.onControl("cancel", env); } }, [p.cancel_label || "取消"]),
+        el("button", { class: "btn confirm-danger", onclick: (e) => { disableSiblings(e); ctx.onControl("confirm", env); } }, [p.confirm_label || "确认执行"]),
       ]),
-    ], "confirm-risk");
+    ]);
   }
 
   function disableSiblings(e) {
@@ -1302,36 +1303,24 @@ window.Components = (function () {
   // ================= 评价型 =================
 
   function rFeedbackBinary(env, ctx) {
-    // v2.2 视觉重做：卡容器 + 引导语 + pill 按钮；支持多评价维度（params.dimensions）
+    // v2.4：单组赞踩——一行轻量卡（多维度配置也只展示一组，维度取第一项）
     const p = env.params || {};
-    const dims = (p.dimensions || []).length ? p.dimensions : [{ key: "capability", label: "" }];
-    const mkPair = (dim) => {
-      const wrap = el("span", { class: "fb-pair" });
-      const up = el("button", { class: "fb-btn", title: "赞", onclick: () => {
-        up.disabled = down.disabled = true;
-        up.classList.add("on");
-        emitBinary(env, ctx, { key: dim.key }, 1.0, null);
-      } }, [UI.icon("thumbup", 13), "赞"]);
-      const down = el("button", { class: "fb-btn down", title: "踩", onclick: () => {
-        up.disabled = down.disabled = true;
-        down.classList.add("on");
-        askDownReason(env, ctx);
-      } }, [UI.icon("thumbdown", 13), "踩"]);
-      wrap.append(up, down);
-      return wrap;
-    };
-    if (dims.length === 1 && !dims[0].label) {
-      // 单一赞踩：轻量行内形态（跟随回答，不占一张卡）
-      const row = el("span", { style: "display:inline-flex;gap:6px;align-items:center" });
-      if (p.prompt) row.appendChild(el("span", { class: "muted", style: "font-size:var(--font-caption)" }, [p.prompt]));
-      row.appendChild(mkPair(dims[0]));
-      return row;
-    }
+    const dim = ((p.dimensions || [])[0]) || { key: "capability" };
+    const up = el("button", { class: "fb-btn", title: "赞", onclick: () => {
+      up.disabled = down.disabled = true;
+      up.classList.add("on");
+      emitBinary(env, ctx, { key: dim.key }, 1.0, null);
+    } }, [UI.icon("thumbup", 13), "赞"]);
+    const down = el("button", { class: "fb-btn down", title: "踩", onclick: () => {
+      up.disabled = down.disabled = true;
+      down.classList.add("on");
+      askDownReason(env, ctx);
+    } }, [UI.icon("thumbdown", 13), "踩"]);
     return compCard([
-      compTitle(p.prompt || "这条回答怎么样"),
-      el("div", { style: "display:flex;flex-direction:column;gap:8px" }, dims.map(d =>
-        el("div", { style: "display:flex;align-items:center;gap:12px" }, [
-          el("span", { style: "flex:1" }, [d.label || d.key]), mkPair(d)]))),
+      el("div", { style: "display:flex;align-items:center;gap:12px" }, [
+        el("span", { class: "secondary", style: "flex:1;min-width:0" }, [p.prompt || dim.label || "这条回答怎么样"]),
+        el("span", { class: "fb-pair" }, [up, down]),
+      ]),
     ]);
   }
 
