@@ -195,15 +195,8 @@ body.has-side .inputbar { left: var(--side-w); }
 }
 .btn:hover { background: var(--bg-surface); border-color: var(--border-strong); }
 .btn:active { transform: translateY(1px); }
-.btn.primary {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 86%, #fff) 0%, var(--primary) 100%);
-  border-color: var(--primary); color: #fff;
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--primary) 35%, transparent), inset 0 1px 0 rgba(255, 255, 255, .12);
-}
-.btn.primary:hover {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 74%, #fff) 0%, color-mix(in srgb, var(--primary) 92%, #000) 100%);
-  border-color: var(--primary-hover);
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--primary) 38%, transparent), inset 0 1px 0 rgba(255, 255, 255, .12); }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; box-shadow: none; }
+.btn.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); box-shadow: none; }
 .btn.ai { background: var(--ai-weak); border-color: transparent; color: var(--ai); font-weight: 600; }
 .btn.ai:hover { background: #E4DCF9; }
 .btn.danger { color: var(--danger); border-color: var(--danger-bg); background: var(--bg-surface); }
@@ -1473,3 +1466,10 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 
 .key-chip.static { cursor: default; }
 .key-chip.static:hover { border-color: var(--border); background: var(--bg-elevated); }
+
+.sh-custom { margin-top: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-elevated); }
+.sh-custom summary { cursor: pointer; padding: 8px 12px; font-size: var(--font-small); color: var(--text-secondary); font-weight: 600; user-select: none; }
+.sh-custom[open] summary { border-bottom: 1px solid var(--border); }
+.sh-grid { display: flex; gap: 10px; padding: 10px 12px; flex-wrap: wrap; }
+.sh-field { display: flex; flex-direction: column; gap: 4px; font-size: var(--font-caption); color: var(--text-muted); }
+.sh-field input.sh-num[type=number] { width: 64px; padding: 4px 8px; text-align: right; }

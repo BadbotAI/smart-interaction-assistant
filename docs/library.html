@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件库 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=07b455bd">
+<link rel="stylesheet" href="./shared.css?v=f1f21eaa">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   .tpl-card { display: flex; flex-direction: column; gap: 8px; }
@@ -17,7 +17,7 @@
   .tpl-preview { background: var(--bg-sunken); border-radius: 10px; padding: 14px; height: 230px; overflow: hidden; position: relative; }
   .tpl-preview::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 44px;
     background: linear-gradient(transparent, var(--bg-sunken)); pointer-events: none; }
-  .tpl-card { height: 400px; }
+
   .tpl-desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 44px; }
   .lib-detail-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
   .lib-detail-grid { display: grid; grid-template-columns: minmax(320px, 460px) 1fr; gap: 16px; align-items: start; }
@@ -31,16 +31,15 @@
 <div class="page">
   <div class="page-head" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
     <div class="page-title">组件库</div>
-    <span class="muted">平台提供的泛化组件模板：与业务解耦，注册给大模型后由模型决定何时使用；接入方式见「产品与接入」</span>
     <div style="flex:1"></div>
   </div>
   <div id="libBody"></div>
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=4e1d04a5"></script>
+<script src="./mock_data.js?v=2289a815"></script>
 <script src="./mock_api.js?v=13eb79e0"></script>
-<script src="./tokens.js?v=21c3b631"></script>
+<script src="./tokens.js?v=be27f7d8"></script>
 <script src="./ui.js?v=e112e89b"></script>
 <script src="./components.js?v=aed14e9a"></script>
 <script>
@@ -188,9 +187,6 @@ async function boot() {
         boot();
       } }, [nm])));
   box.appendChild(tabBar);
-  box.appendChild(el("div", { class: "muted", style: "margin:0 0 10px" }, [libTab === "interact"
-    ? "必有提交按钮——用户点提交才与后端交互；提交数据按各卡「提交回传结构」回传给 agent"
-    : "无提交——把模型的长文本翻译成结构化可视化，随回答直接渲染"]));
   box.appendChild(el("div", { class: "grid cols-2" }, (libTab === "interact" ? interact : present).map(tplCard)));
 }
 window.addEventListener("hashchange", () => boot().catch(e => UI.toast("加载失败：" + e.message, true)));

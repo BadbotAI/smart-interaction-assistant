@@ -12,7 +12,9 @@
     "border": "#dbe4e3",
     "success": "#0ca30c",
     "warning": "#fab219",
-    "danger": "#d03b3b"
+    "danger": "#d03b3b",
+    "bg_elevated": "#FFFFFF",
+    "bg_sunken": "#EAF1F3"
   },
   "chart": {
     "categorical": [
@@ -64,5 +66,22 @@
   },
   "shape": {
     "control_style": "square"
+  },
+  "color_dark": {
+    "primary": "#2FB7C9",
+    "primary_weak": "#0D2A30",
+    "accent": "#D8A25A",
+    "ring": "#2FB7C9",
+    "bg_page": "#0B1417",
+    "bg_surface": "#122026",
+    "border": "#24393F",
+    "text_primary": "#E8F2F4",
+    "text_secondary": "#9DB6BC",
+    "text_muted": "#6A8288",
+    "success": "#2FBE7B",
+    "warning": "#DCA43B",
+    "danger": "#ED6A6A",
+    "bg_elevated": "#16262B",
+    "bg_sunken": "#081014"
   }
 }

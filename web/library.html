@@ -16,7 +16,7 @@
   .tpl-preview { background: var(--bg-sunken); border-radius: 10px; padding: 14px; height: 230px; overflow: hidden; position: relative; }
   .tpl-preview::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 44px;
     background: linear-gradient(transparent, var(--bg-sunken)); pointer-events: none; }
-  .tpl-card { height: 400px; }
+
   .tpl-desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 44px; }
   .lib-detail-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
   .lib-detail-grid { display: grid; grid-template-columns: minmax(320px, 460px) 1fr; gap: 16px; align-items: start; }
@@ -30,7 +30,6 @@
 <div class="page">
   <div class="page-head" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
     <div class="page-title">组件库</div>
-    <span class="muted">平台提供的泛化组件模板：与业务解耦，注册给大模型后由模型决定何时使用；接入方式见「产品与接入」</span>
     <div style="flex:1"></div>
   </div>
   <div id="libBody"></div>
@@ -184,9 +183,6 @@ async function boot() {
         boot();
       } }, [nm])));
   box.appendChild(tabBar);
-  box.appendChild(el("div", { class: "muted", style: "margin:0 0 10px" }, [libTab === "interact"
-    ? "必有提交按钮——用户点提交才与后端交互；提交数据按各卡「提交回传结构」回传给 agent"
-    : "无提交——把模型的长文本翻译成结构化可视化，随回答直接渲染"]));
   box.appendChild(el("div", { class: "grid cols-2" }, (libTab === "interact" ? interact : present).map(tplCard)));
 }
 window.addEventListener("hashchange", () => boot().catch(e => UI.toast("加载失败：" + e.message, true)));

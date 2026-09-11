@@ -7,6 +7,8 @@ window.Brand = (function () {
     "color.primary_weak": "--primary-weak",
     "color.bg_page": "--bg-page",
     "color.bg_surface": "--bg-surface",
+    "color.bg_elevated": "--bg-elevated",
+    "color.bg_sunken": "--bg-sunken",
     "color.text_primary": "--text-primary",
     "color.text_secondary": "--text-secondary",
     "color.text_muted": "--text-muted",

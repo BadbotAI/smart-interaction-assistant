@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=07b455bd">
+<link rel="stylesheet" href="./shared.css?v=f1f21eaa">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -76,9 +76,9 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=4e1d04a5"></script>
+<script src="./mock_data.js?v=2289a815"></script>
 <script src="./mock_api.js?v=13eb79e0"></script>
-<script src="./tokens.js?v=21c3b631"></script>
+<script src="./tokens.js?v=be27f7d8"></script>
 <script src="./ui.js?v=e112e89b"></script>
 <script src="./components.js?v=aed14e9a"></script>
 <script src="./testchat.js?v=31ecca24"></script>
@@ -333,9 +333,8 @@ function renderProductCover(products, brands, unboundCount) {
         return el("div", { style: "display:flex;align-items:center;gap:8px" }, [nameAnchor, switchBtn]); })(),
       el("div", { class: "pc-meta" }, [
         el("span", { style: "margin-right:8px" }, ["产品 ID"]),
-        el("button", { class: "key-chip", title: "点击复制完整产品 ID",
-          onclick: () => { navigator.clipboard.writeText(p.product_id); UI.toast("已复制产品 ID"); } },
-          [el("span", { class: "num" }, ["ID:" + shortProductId2(p.product_id)]), UI.icon("copy", 12)]),
+        el("span", { class: "key-chip static", title: "产品 ID" },
+          [el("span", { class: "num" }, ["ID:" + shortProductId2(p.product_id)])]),
       ]),
     ]),
     el("div", { style: "flex:1" }),
@@ -842,16 +841,6 @@ async function openEditor(cardId, prefill, initStep) {
   }
 
   const previewBox = el("div", {});
-  let pvState = "rest";   // rest | selected | submitted：样式验收要看到交互态
-  let pvSimulating = false;
-  const pvSeg = el("div", { class: "segmented", style: "margin-left:auto" });
-  function drawPvSeg() {
-    pvSeg.innerHTML = "";
-    pvSeg.hidden = PRESENT_TYPES.includes(state.component_type);
-    [["rest", "静态"], ["selected", "选中"], ["submitted", "提交后"]].forEach(([v, nm]) =>
-      pvSeg.appendChild(el("button", { type: "button", class: "seg" + (pvState === v ? " active" : ""),
-        onclick: () => { pvState = v; drawPvSeg(); renderPreview(); } }, [nm])));
-  }
   function previewWithStyle(env) { if (env && Object.keys(state.styleOv || {}).length) env.style_overrides = state.styleOv; return env; }
   function renderPreview() {
     previewBox.innerHTML = "";
@@ -867,7 +856,7 @@ async function openEditor(cardId, prefill, initStep) {
             params: DEMO_PRESENT[state.component_type] || {}, style_overrides: state.styleOv }
         : null;
       node = Components.render(previewWithStyle(pv || buildPreviewEnvelope()), {
-        sendEvent: () => {}, onCollectSubmit: () => { if (!pvSimulating) UI.toast("预览不产生数据"); },
+        sendEvent: () => {}, onCollectSubmit: () => UI.toast("预览不产生数据"),
         onControl: () => {}, userId: "preview", preview: true, titleInBubble: true,
       });
     } catch (e) { node = el("div", { class: "muted" }, ["暂不支持预览"]); }
@@ -875,19 +864,6 @@ async function openEditor(cardId, prefill, initStep) {
     const pv = state.component_type === "entry.link" ? state.question.trim()
       : (state.question.trim() || mock.prompt || "");
     previewBox.appendChild(UI.chatMock({ question: state.trigger_examples[0] || mock.q || "", reply: state.reply_text.trim() || mock.reply || "", node, prompt: pv }));
-    if (pvState !== "rest" && !PRESENT_TYPES.includes(state.component_type)) {
-      // 程序化模拟：走真实交互路径（与用户点击同一逻辑），保证态样式所见即所得
-      pvSimulating = true;
-      try {
-        const first = previewBox.querySelector(".opt-item, .fb-cand, .fb-btn");
-        first && first.click();
-        if (pvState === "submitted") {
-          const sub = [...previewBox.querySelectorAll("button")].find(b =>
-            b.classList.contains("primary") && !b.disabled);
-          sub && sub.click();
-        }
-      } finally { pvSimulating = false; }
-    }
   }
 
   function field(key, label, node, hint, required, extraClass = "") {
@@ -1032,11 +1008,20 @@ async function openEditor(cardId, prefill, initStep) {
         SWATCHES.forEach(cx => row.appendChild(el("button", { type: "button",
           class: "sty-swatch" + (so[key] === cx ? " on" : ""), style: `background:${cx}`,
           title: cx, onclick: () => { so[key] = cx; draw(); upd(); } })));
-        const ci = el("input", { type: "color", value: so[key] || "#3E63DD",
-          style: "width:34px;height:34px;padding:2px;border-radius:10px;border:1.5px solid var(--border);cursor:pointer", title: "自定义" });
-        ci.oninput = () => { so[key] = ci.value; draw(); upd(); };
+        const ci = el("input", { type: "color", value: /^#[0-9a-f]{6}$/i.test(so[key] || "") ? so[key] : "#3E63DD",
+          style: "width:34px;height:34px;padding:2px;border-radius:10px;border:1.5px solid var(--border);cursor:pointer", title: "取色器" });
+        const hex = el("input", { type: "text", value: so[key] || "", placeholder: "#3E63DD", maxlength: "7", spellcheck: "false",
+          class: "num", style: "width:86px;padding:5px 8px;font-size:12px;text-transform:uppercase" });
+        ci.oninput = () => { so[key] = ci.value; hex.value = ci.value; draw(); upd(); };
+        hex.onchange = () => {
+          let v = hex.value.trim();
+          if (/^[0-9a-f]{6}$/i.test(v)) v = "#" + v;
+          if (/^#[0-9a-f]{6}$/i.test(v)) { so[key] = v; draw(); upd(); }
+          else if (!v) { delete so[key]; draw(); upd(); }
+          else { hex.value = so[key] || ""; UI.toast("请输入合法 HEX 色值，如 #546496", true); }
+        };
         row.appendChild(ci);
-        row.appendChild(el("span", { class: "muted num", style: "margin-left:2px" }, [so[key] || "跟随主题"]));
+        row.appendChild(hex);
       };
       draw();
       return el("div", { class: "sty-section" }, [el("div", { class: "sty-label" }, [label]), row]);
@@ -1072,7 +1057,7 @@ async function openEditor(cardId, prefill, initStep) {
     function numRow(key, label, min, max, brandVal, hint) {
       const range = el("input", { type: "range", min: String(min), max: String(max), step: "1", class: "sl-range" });
       const num = el("input", { type: "number", min: String(min), max: String(max), class: "sl-num num", placeholder: "品牌" });
-      const clear = el("button", { class: "btn small ghost", type: "button", title: "清除覆盖，跟随风格主题" }, ["重置"]);
+      const clear = el("button", { class: "btn small ghost", type: "button", title: "清除覆盖，跟随风格主题" }, ["恢复默认"]);
       const fill = (v) => range.style.setProperty("--fill", ((v - min) / (max - min) * 100) + "%");
       const sync = () => {
         const has = so[key] != null && so[key] !== "";
@@ -1086,9 +1071,10 @@ async function openEditor(cardId, prefill, initStep) {
       clear.onclick = () => { delete so[key]; sync(); upd(); };
       sync();
       return el("div", { class: "sty-section" }, [
-        el("div", { class: "sty-label" }, [label, hint ? UI.help(hint) : null]),
+        el("div", { class: "sty-label" }, [label, hint ? UI.help(hint) : null,
+          el("span", { style: "flex:1" }), clear]),
         el("div", { class: "sl-row" }, [el("div", { class: "sl-wrap" }, [range]), num,
-          el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["px"]), clear]),
+          el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["px"])]),
       ]);
     }
     const radiusDemo = v => el("i", { class: "sty-radius-demo",
@@ -1823,7 +1809,6 @@ async function openEditor(cardId, prefill, initStep) {
     formCol.scrollTop = resetScroll ? 0 : keepScroll;
   }
 
-  drawPvSeg();
   const body = el("div", { class: "ed-body", style: "display:contents" }, [
     stepBar,
     el("div", { class: "ed-split" }, [
@@ -1831,7 +1816,6 @@ async function openEditor(cardId, prefill, initStep) {
       el("div", { class: "ed-preview" }, [
         el("div", { style: "display:flex;align-items:center;gap:4px;margin-bottom:8px" }, [
           el("span", { style: "font-weight:600" }, ["预览"]), UI.help("用户在对话中看到的效果，与线上同一套渲染器；预览中提交不产生数据"),
-          pvSeg,
         ]),
         previewBox,
       ]),

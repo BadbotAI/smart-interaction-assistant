@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>产品及风格管理 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=07b455bd">
+<link rel="stylesheet" href="./shared.css?v=f1f21eaa">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
@@ -46,15 +46,16 @@
 </head>
 <body class="has-side">
 <div class="page">
-  <div class="page-head"><div class="page-title">风格主题</div></div>
+  <div class="page-head" style="display:flex;justify-content:space-between;align-items:center">
+    <div class="page-title">风格主题</div>
+    <button class="btn primary" id="newBrandBtn" disabled>新建主题</button>
+  </div>
 
   <div class="style-split">
     <div style="align-self:stretch;display:flex;flex-direction:column;gap:14px">
       <div class="card" id="brandLibCard" style="flex:1;display:flex;flex-direction:column;min-height:0">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <span style="font-weight:600;flex:none;white-space:nowrap">风格库</span>
-          <div style="flex:1"></div>
-          <button class="btn small primary" id="newBrandBtn">新建主题</button>
         </div>
         <div id="brandGrid" class="brand-list" style="flex:1;max-height:none"></div>
         <div class="muted" id="libCollapsed" hidden style="font-size:var(--font-caption)">编辑风格主题中，风格库已收起</div>
@@ -67,7 +68,6 @@
     <div class="card" style="align-self:start;position:sticky;top:14px;max-height:calc(100vh - 28px);overflow-y:auto">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;max-width:560px">
         <span style="font-weight:600">组件预览</span>
-        <span id="demoHelp"></span>
         <div style="flex:1"></div>
         <span id="compSelMount"></span>
       </div>
@@ -77,9 +77,9 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=4e1d04a5"></script>
+<script src="./mock_data.js?v=2289a815"></script>
 <script src="./mock_api.js?v=13eb79e0"></script>
-<script src="./tokens.js?v=21c3b631"></script>
+<script src="./tokens.js?v=be27f7d8"></script>
 <script src="./ui.js?v=e112e89b"></script>
 <script src="./components.js?v=aed14e9a"></script>
 <script>
@@ -87,7 +87,6 @@
 if (new URLSearchParams(location.search).get("new")) window._editingStyle = true;
 UI.nav("design");
 const { el } = UI;
-document.getElementById("demoHelp").appendChild(UI.help("与线上同一套渲染器；风格预览后此处实时更新，提交不产生数据"));
 
 
 let brands = [];                 // /api/brands 返回的预设 + 已导入
@@ -205,76 +204,76 @@ function brandDialog(existing, onClose) {
   // 每套预设 = 明暗两份完整语义色板 + 图表序列色；选中预设后任意 token 可单独改。
   const THEME_PRESETS = [
     { name: "墨蓝", light: { primary: "#3E63DD", primary_weak: "#EDF2FE", accent: "#8E4EC6", ring: "#3E63DD",
-        bg_page: "#FFFFFF", bg_surface: "#F9FAFB", border: "#E4E9F0",
+        bg_page: "#FFFFFF", bg_surface: "#F9FAFB", bg_elevated: "#FFFFFF", bg_sunken: "#EEF0F4", border: "#E4E9F0",
         text_primary: "#1C2434", text_secondary: "#57627B", text_muted: "#8D96AA",
         success: "#30A46C", warning: "#D6970A", danger: "#E5484D" },
       dark: { primary: "#5472E4", primary_weak: "#202C55", accent: "#A06FE0", ring: "#5472E4",
-        bg_page: "#101319", bg_surface: "#171B24", border: "#2A3140",
+        bg_page: "#101319", bg_surface: "#171B24", bg_elevated: "#1B2130", bg_sunken: "#0C0F16", border: "#2A3140",
         text_primary: "#EDEFF5", text_secondary: "#A3ACC2", text_muted: "#6E7891",
         success: "#33B074", warning: "#E2A336", danger: "#EB6F76" },
       chart: ["#3E63DD", "#0FA3A3", "#8E4EC6", "#EE7712", "#D6409F"] },
     { name: "青瓷", light: { primary: "#0D9488", primary_weak: "#E6F7F5", accent: "#4C6FE7", ring: "#0D9488",
-        bg_page: "#FFFFFF", bg_surface: "#F7FAF9", border: "#DCE8E5",
+        bg_page: "#FFFFFF", bg_surface: "#F7FAF9", bg_elevated: "#FFFFFF", bg_sunken: "#EDF3F1", border: "#DCE8E5",
         text_primary: "#16302B", text_secondary: "#4A625C", text_muted: "#7C918C",
         success: "#12A150", warning: "#C98A0B", danger: "#DC4C4C" },
       dark: { primary: "#2AB5A5", primary_weak: "#0E2925", accent: "#7C92EE", ring: "#2AB5A5",
-        bg_page: "#0D1514", bg_surface: "#14201D", border: "#263633",
+        bg_page: "#0D1514", bg_surface: "#14201D", bg_elevated: "#192623", bg_sunken: "#0A100F", border: "#263633",
         text_primary: "#E9F2F0", text_secondary: "#9FB5B0", text_muted: "#6C817C",
         success: "#2FBE7B", warning: "#DCA43B", danger: "#ED6A6A" },
       chart: ["#0D9488", "#4C6FE7", "#E0902A", "#C74E68", "#6BA893"] },
     { name: "暮橙", light: { primary: "#D97757", primary_weak: "#FBEFEA", accent: "#7C66C4", ring: "#D97757",
-        bg_page: "#FFFDFB", bg_surface: "#FAF5F1", border: "#EDE1D8",
+        bg_page: "#FFFDFB", bg_surface: "#FAF5F1", bg_elevated: "#FFFFFF", bg_sunken: "#F3EBE4", border: "#EDE1D8",
         text_primary: "#2B211B", text_secondary: "#63544A", text_muted: "#95867C",
         success: "#3F9963", warning: "#C98A0B", danger: "#D64545" },
       dark: { primary: "#E8926F", primary_weak: "#35231B", accent: "#9C86DE", ring: "#E8926F",
-        bg_page: "#171310", bg_surface: "#201A16", border: "#382E27",
+        bg_page: "#171310", bg_surface: "#201A16", bg_elevated: "#251E19", bg_sunken: "#120E0B", border: "#382E27",
         text_primary: "#F5EFEA", text_secondary: "#C4B4A9", text_muted: "#8A7B70",
         success: "#4FAE76", warning: "#DCA43B", danger: "#EA6A5F" },
       chart: ["#D97757", "#7C66C4", "#3F9963", "#C98A0B", "#B85878"] },
     { name: "黛紫", light: { primary: "#6E56CF", primary_weak: "#F1EEFB", accent: "#D6409F", ring: "#6E56CF",
-        bg_page: "#FFFFFF", bg_surface: "#F9F8FC", border: "#E5E1F0",
+        bg_page: "#FFFFFF", bg_surface: "#F9F8FC", bg_elevated: "#FFFFFF", bg_sunken: "#EFECF7", border: "#E5E1F0",
         text_primary: "#201A33", text_secondary: "#584F72", text_muted: "#8C84A3",
         success: "#30A46C", warning: "#D6970A", danger: "#E5484D" },
       dark: { primary: "#9B84EC", primary_weak: "#251E40", accent: "#E070B5", ring: "#9B84EC",
-        bg_page: "#131020", bg_surface: "#1B172B", border: "#302A47",
+        bg_page: "#131020", bg_surface: "#1B172B", bg_elevated: "#211B33", bg_sunken: "#0E0B1A", border: "#302A47",
         text_primary: "#F0EDF8", text_secondary: "#B0A8C8", text_muted: "#786F94",
         success: "#33B074", warning: "#E2A336", danger: "#EB6F76" },
       chart: ["#6E56CF", "#D6409F", "#30A46C", "#EE7712", "#4C6FE7"] },
     { name: "石墨", light: { primary: "#18181B", primary_weak: "#F1F1F3", accent: "#4C6FE7", ring: "#18181B",
-        bg_page: "#FFFFFF", bg_surface: "#FAFAFA", border: "#E5E5E8",
+        bg_page: "#FFFFFF", bg_surface: "#FAFAFA", bg_elevated: "#FFFFFF", bg_sunken: "#EFEFF1", border: "#E5E5E8",
         text_primary: "#111113", text_secondary: "#54545C", text_muted: "#8B8B94",
         success: "#30A46C", warning: "#D6970A", danger: "#E5484D" },
       dark: { primary: "#5C6BC0", primary_weak: "#1E2235", accent: "#8B98D8", ring: "#5C6BC0",
-        bg_page: "#0E0E11", bg_surface: "#17171B", border: "#2A2A30",
+        bg_page: "#0E0E11", bg_surface: "#17171B", bg_elevated: "#1B1B20", bg_sunken: "#0A0A0C", border: "#2A2A30",
         text_primary: "#EDEDEF", text_secondary: "#A5A5AE", text_muted: "#6F6F78",
         success: "#33B074", warning: "#E2A336", danger: "#EB6F76" },
       chart: ["#52525B", "#4C6FE7", "#30A46C", "#D6970A", "#D6409F"] },
     { name: "松绿", light: { primary: "#1E7A50", primary_weak: "#E7F4EC", accent: "#A87F2C", ring: "#1E7A50",
-        bg_page: "#FFFFFF", bg_surface: "#F7FAF8", border: "#DEE9E1",
+        bg_page: "#FFFFFF", bg_surface: "#F7FAF8", bg_elevated: "#FFFFFF", bg_sunken: "#ECF2EE", border: "#DEE9E1",
         text_primary: "#182720", text_secondary: "#4C5F55", text_muted: "#7E8F86",
         success: "#1E7A50", warning: "#C98A0B", danger: "#DC4C4C" },
       dark: { primary: "#34A873", primary_weak: "#10291D", accent: "#C3A050", ring: "#34A873",
-        bg_page: "#0E1512", bg_surface: "#16211B", border: "#283A2F",
+        bg_page: "#0E1512", bg_surface: "#16211B", bg_elevated: "#1B2620", bg_sunken: "#0A100D", border: "#283A2F",
         text_primary: "#EAF3EE", text_secondary: "#A2B8AB", text_muted: "#6D8277",
         success: "#34A873", warning: "#DCA43B", danger: "#ED6A6A" },
       chart: ["#1E7A50", "#A87F2C", "#4C6FE7", "#C74E68", "#58A08C"] },
   ];
   const COLOR_GROUPS = [
     ["品牌色", [["primary", "主色"], ["primary_weak", "主色弱底"], ["accent", "强调色"], ["ring", "焦点环"]]],
-    ["界面色", [["bg_page", "画布底色"], ["bg_surface", "卡片面"], ["border", "描边"]]],
+    ["界面色", [["bg_page", "页面底色"], ["bg_elevated", "卡片面"], ["bg_surface", "区块底色"], ["border", "描边"]]],
     ["文字色", [["text_primary", "正文"], ["text_secondary", "次级"], ["text_muted", "辅助"]]],
     ["状态色", [["success", "成功"], ["warning", "警告"], ["danger", "危险"]]],
   ];
   // 每个字体带自己支持的字重档（宋体 / 楷体等系统字重少，黑体多）
   const FONTS = [
-    ["现代黑体", '-apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif',
+    ["苹方", '"PingFang SC", -apple-system, "Microsoft YaHei", sans-serif',
       [["细", "300"], ["常规", "400"], ["中等", "500"], ["半粗", "600"]]],
-    ["思源黑体", '"Noto Sans SC", "Source Han Sans SC", "PingFang SC", sans-serif',
-      [["常规", "400"], ["中等", "500"], ["半粗", "600"], ["加粗", "700"]]],
-    ["典雅宋体", '"Songti SC", "STSong", "SimSun", serif', [["常规", "400"], ["加粗", "700"]]],
-    ["圆润友好", '"Yuanti SC", "PingFang SC", "Microsoft YaHei", sans-serif', [["常规", "400"], ["中等", "500"]]],
-    ["楷体手写", '"Kaiti SC", "STKaiti", "KaiTi", serif', [["常规", "400"]]],
-    ["极客等宽", '"SF Mono", "JetBrains Mono", Consolas, monospace', [["常规", "400"], ["加粗", "700"]]],
+    ["冬青黑体", '"Hiragino Sans GB", "PingFang SC", sans-serif',
+      [["细", "300"], ["常规", "400"], ["半粗", "600"]]],
+    ["宋体", '"Songti SC", "STSong", "SimSun", serif', [["常规", "400"], ["加粗", "700"]]],
+    ["楷体", '"Kaiti SC", "STKaiti", "KaiTi", serif', [["常规", "400"]]],
+    ["圆体", '"Yuanti SC", "PingFang SC", sans-serif', [["常规", "400"], ["中等", "500"]]],
+    ["Menlo 等宽", 'Menlo, "SF Mono", Consolas, monospace', [["常规", "400"], ["加粗", "700"]]],
   ];
   const curWeights = () => FONTS[opts.font][2];
   const SIZES = [["12px", "12px"], ["13px", "13px"], ["14px", "14px"], ["15px", "15px"]];
@@ -307,17 +306,44 @@ function brandDialog(existing, onClose) {
     const ws = curWeights();
     const wi = Math.min(opts.weight, ws.length - 1);
     t.font = { ...(t.font || {}), family: FONTS[opts.font][1], weight_base: ws[wi][1], size_base: SIZES[opts.size][1] };
-    t.shadow = SHADOWS[opts.shadow][1];
+    const shc = opts.shadow_custom;
+    t.shadow = shc ? `${shc.x}px ${shc.y}px ${shc.blur}px ${shc.spread}px rgba(15, 23, 42, ${(shc.alpha / 100).toFixed(2)})`
+                   : SHADOWS[opts.shadow][1];
     t.density = DENSITIES[opts.density][1];
     t.chart = { ...(t.chart || {}), categorical: [...tok.chart, ...((t.chart || {}).categorical || []).slice(5)] };
     t._options = { ...opts, radius_unit: "px" };
     return t;
   }
+  function applyPreviewVars(host, t, dark) {
+    if (!host) return;
+    const c = dark ? { ...t.color, ...t.color_dark } : t.color;
+    const m = {
+      "--primary": c.primary, "--primary-weak": c.primary_weak, "--primary-hover": c.primary,
+      "--brand-accent": c.accent, "--brand-ring": c.ring,
+      "--bg-page": c.bg_page, "--bg-surface": c.bg_surface,
+      "--bg-elevated": c.bg_elevated || (dark ? c.bg_surface : "#FFFFFF"),
+      "--bg-sunken": c.bg_sunken || c.bg_page,
+      "--text-primary": c.text_primary, "--text-secondary": c.text_secondary, "--text-muted": c.text_muted,
+      "--border": c.border, "--border-strong": c.border,
+      "--success": c.success, "--warning": c.warning, "--danger": c.danger,
+      "--radius-card": t.radius.card, "--radius-control": t.radius.control,
+      "--font-family": t.font.family, "--font-base": t.font.size_base,
+      "--brand-shadow": t.shadow,
+    };
+    const put = (elx) => Object.entries(m).forEach(([k, v]) => { if (v) elx.style.setProperty(k, v); });
+    put(host);
+    // 全局 .brand-scope 类规则优先于容器继承——变量必须直接落在每个 scope 元素上
+    host.querySelectorAll(".brand-scope").forEach(put);
+    host.style.background = c.bg_page || "";
+    host.style.borderRadius = "12px";
+    host.style.padding = "14px";
+  }
   const applyPreview = () => {
     try {
       const t = buildTokens();
-      if (editMode === "dark") t.color = { ...t.color, ...t.color_dark };
-      Brand.apply(t); renderDemos();
+      Brand.apply(t);   // 浅色 token 供全局（图表序列等）；明暗整体观感注入预览容器
+      renderDemos();
+      applyPreviewVars(document.getElementById("demoOne"), t, editMode === "dark");
     } catch (e) {}
   };
 
@@ -400,8 +426,7 @@ function brandDialog(existing, onClose) {
           else { hex.value = cur[key]; UI.toast("请输入合法 HEX 色值，如 #3E63DD", true); }
         };
         rows.appendChild(el("div", { class: "tok-row" }, [ci,
-          el("span", { class: "tok-name" }, [label]),
-          el("span", { class: "tok-key num" }, [key]), hex]));
+          el("span", { class: "tok-name" }, [label]), el("span", { style: "flex:1" }), hex]));
       });
       const swRow = el("span", { class: "tok-sum-sw" });
       const refreshSw = () => {
@@ -426,8 +451,7 @@ function brandDialog(existing, onClose) {
         else hex.value = tok.chart[i];
       };
       rows.appendChild(el("div", { class: "tok-row" }, [ci,
-        el("span", { class: "tok-name" }, ["序列 " + (i + 1)]),
-        el("span", { class: "tok-key num" }, ["chart-" + (i + 1)]), hex]));
+        el("span", { class: "tok-name" }, ["序列 " + (i + 1)]), el("span", { style: "flex:1" }), hex]));
     });
     const swRowC = el("span", { class: "tok-sum-sw" });
     const refreshSwC = () => {
@@ -478,7 +502,37 @@ function brandDialog(existing, onClose) {
     node._sync = () => { input.value = String(getIdx()); lab.textContent = labels[getIdx()][0]; fill(); };
     return node;
   }
-  const shadowSl = stepSlider(SHADOWS, () => opts.shadow, (i) => opts.shadow = i);
+  const shadowSl = stepSlider(SHADOWS, () => opts.shadow, (i) => { opts.shadow = i; opts.shadow_custom = null; syncShadowCustom(); });
+  // Figma 式自定义阴影：X / Y / 模糊 / 扩散 / 不透明度（任一变更即覆盖档位）
+  opts.shadow_custom = opts.shadow_custom || null;
+  const shIn = {};
+  const shField = (key, label, min, max, val) => {
+    const inp = el("input", { type: "number", min: String(min), max: String(max), value: String(val), class: "num sh-num" });
+    shIn[key] = inp;
+    inp.onchange = () => { readShadowCustom(); applyPreview(); };
+    return el("label", { class: "sh-field" }, [el("span", {}, [label]), inp]);
+  };
+  function readShadowCustom() {
+    const g = (k, dv) => { const n = Number(shIn[k].value); return Number.isFinite(n) ? n : dv; };
+    opts.shadow_custom = { x: g("x", 0), y: g("y", 4), blur: g("blur", 12), spread: g("spread", 0), alpha: Math.max(0, Math.min(60, g("alpha", 12))) };
+  }
+  function syncShadowCustom() {
+    const c = opts.shadow_custom;
+    if (shIn.x) {
+      shIn.x.value = String(c ? c.x : 0); shIn.y.value = String(c ? c.y : 4);
+      shIn.blur.value = String(c ? c.blur : 12); shIn.spread.value = String(c ? c.spread : 0);
+      shIn.alpha.value = String(c ? c.alpha : 12);
+    }
+    shadowSl._sync && shadowSl._sync();
+  }
+  const shadowCustom = el("details", { class: "sh-custom" }, [
+    el("summary", {}, ["自定义阴影"]),
+    el("div", { class: "sh-grid" }, [
+      shField("x", "X", -24, 24, 0), shField("y", "Y", -24, 24, 4),
+      shField("blur", "模糊", 0, 64, 12), shField("spread", "扩散", -12, 12, 0),
+      shField("alpha", "不透明度 %", 0, 60, 12),
+    ]),
+  ]);
   const densSl = stepSlider(DENSITIES, () => opts.density, (i) => opts.density = i);
   const wBox = el("div", { class: "fs-cards" });
   const sBox = el("div", { class: "fs-cards" });
@@ -513,25 +567,19 @@ function brandDialog(existing, onClose) {
   const optPanel = el("div", {}, [
     el("div", { class: "field" }, [
       el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:6px" }, [
-        el("span", { class: "label-text", style: "margin:0" }, ["主题预设",
-          UI.help("整套语义 token 起步（含明暗两份色板与图表序列色）；选中后任意 token 可在下方逐项微调")]),
+        el("span", { class: "label-text", style: "margin:0" }, ["主题预设"]),
         el("div", { style: "flex:1" }),
         modeSeg,
       ]),
       palGrid,
     ]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["颜色 token",
-      UI.help("Figma 式细颗粒度：每个语义 token 独立可改（色块或 HEX），当前编辑" + "模式随上方明暗切换")]), tokenPanel]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["圆角",
-      UI.help("组件卡片的圆角（0-28px）：拖动或输入数值，刻度点是常用档位")]), radBox]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["颜色 token"]), tokenPanel]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["圆角"]), radBox]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["字体"]), mountFontSel()]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字重",
-      UI.help("档位随所选字体变化：黑体字重多，宋体 / 楷体等只有常规与加粗")]), wBox]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字重"]), wBox]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字号"]), sBox]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["阴影",
-      UI.help("组件卡片的投影档位；组件级可再覆盖")]), shadowSl]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["紧凑度",
-      UI.help("组件内边距与行距的整体缩放：紧凑 / 标准 / 宽松")]), densSl]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["阴影"]), shadowSl, shadowCustom]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["紧凑度"]), densSl]),
   ]);
   // v2：风格主题只走选项定义（代码导入下线）
   const modeTabs = el("div", {});
@@ -542,6 +590,7 @@ function brandDialog(existing, onClose) {
     document.getElementById("libCollapsed").hidden = true;
     grid.style.display = "";
     window._editingStyle = false;
+    document.getElementById("demoOne")?.removeAttribute("style");
     Brand.load(previewFile).then(() => renderDemos()).catch(() => {});
     onClose && onClose();
   }
@@ -571,20 +620,9 @@ function brandDialog(existing, onClose) {
             document.getElementById("libCollapsed").hidden = true;
             grid.style.display = "";
             window._editingStyle = false;
-            renderBrands();
-  document.getElementById("newBrandBtn").onclick = () => brandDialog(null); renderDemos();
-            if (existing) UI.toast("风格已更新");
-            else {
-              // 动线闭环：新风格要配给产品才生效，给出直达入口
-              const bm = UI.modal("风格已创建", el("div", {}, [
-                el("div", { class: "muted", style: "margin-bottom:14px" },
-                  [`「${name}」已加入风格库。配给某个产品后，该产品的所有组件即按此风格渲染。`]),
-                el("div", { style: "display:flex;justify-content:flex-end;gap:10px" }, [
-                  el("button", { class: "btn", onclick: () => bm.remove() }, ["留在本页"]),
-                  el("button", { class: "btn primary", onclick: () => { location.href = "./products.html"; } }, ["去绑定产品"]),
-                ]),
-              ]));
-            }
+            document.getElementById("demoOne")?.removeAttribute("style");
+            renderBrands(); renderDemos();
+            UI.toast(existing ? "风格已更新" : "风格已创建，在「产品与接入」里配给产品即可生效");
             onClose && onClose();
           } catch (e2) { err.textContent = e2.data?.error || e2.message; }
         }, "保存中……");
@@ -616,8 +654,10 @@ function brandDialog(existing, onClose) {
       if (oo.weight != null) opts.weight = oo.weight;
       if (oo.size != null) opts.size = oo.size;
       if (oo.shadow != null) opts.shadow = oo.shadow;
+      if (oo.shadow_custom) { opts.shadow_custom = oo.shadow_custom; }
       if (oo.density != null) opts.density = oo.density;
       drawPals(); drawTokens(); drawFsCards(); drawSegs();
+      syncShadowCustom();
       syncRad();
       fontSel && fontSel.setValue && fontSel.setValue(String(opts.font));
     }
@@ -702,6 +742,9 @@ async function previewBrand(b) {
   try { brands = (await UI.api("/api/brands")).brands; } catch (e) { brands = []; }
   try { products = (await UI.api("/api/products")).products || []; } catch (e) { products = []; }
   renderBrands();
+  const nb = document.getElementById("newBrandBtn");
+  nb.disabled = false;
+  nb.onclick = () => brandDialog(null);
   mountDemoControls();
   renderDemos();
   // 走查深链：?new=1 直接打开风格编辑器

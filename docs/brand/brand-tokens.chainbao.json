@@ -14,7 +14,9 @@
     "warning": "#C98A0B",
     "danger": "#DC4C4C",
     "accent": "#4C6FE7",
-    "ring": "#0D9488"
+    "ring": "#0D9488",
+    "bg_elevated": "#FFFFFF",
+    "bg_sunken": "#EDF3F1"
   },
   "chart": {
     "categorical": [
@@ -80,7 +82,9 @@
     "text_muted": "#6C817C",
     "success": "#2FBE7B",
     "warning": "#DCA43B",
-    "danger": "#ED6A6A"
+    "danger": "#ED6A6A",
+    "bg_elevated": "#192623",
+    "bg_sunken": "#0A100F"
   },
   "_options": {
     "preset": 1,
