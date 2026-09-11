@@ -63,18 +63,19 @@
   .cs .inner { max-width: 560px; margin: 0 auto; }
   .dots { position: absolute; right: 18px; bottom: 16px; display: flex; gap: 6px; z-index: 2; }
   .onboard { display: flex; align-items: stretch; gap: 10px; max-width: 900px; margin: 26px auto 0; padding: 0 16px; }
-  .ob-step { flex: 1; display: flex; gap: 12px; align-items: flex-start; text-decoration: none;
+  /* 卡内一律左对齐（页面级 text-align:center 会渗进来），行动链接吸底 → 三张卡按钮同一水平线 */
+  .ob-step { flex: 1; display: flex; gap: 12px; align-items: stretch; text-align: left; text-decoration: none;
     border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; background: var(--bg-elevated);
     transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast); }
   .ob-step:hover { border-color: var(--primary); box-shadow: 0 4px 14px rgba(15, 27, 38, .08); transform: translateY(-1px); }
-  .ob-no { width: 26px; height: 26px; border-radius: 50%; background: var(--primary-weak); color: var(--primary);
+  .ob-no { width: 26px; height: 26px; border-radius: 50%; background: var(--primary-weak); color: var(--primary); align-self: flex-start;
     font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; flex: none;
     font-variant-numeric: tabular-nums; }
-  .ob-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .ob-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
   .ob-body b { font-size: var(--font-base); color: var(--text-primary); }
   .ob-body i { font-style: normal; font-size: var(--font-caption); color: var(--text-muted); line-height: 1.5; }
-  .ob-go { margin-top: 6px; font-size: var(--font-caption); color: var(--primary); font-weight: 600;
-    display: inline-flex; align-items: center; gap: 3px; }
+  .ob-go { margin-top: auto; padding-top: 10px; font-size: var(--font-caption); color: var(--primary); font-weight: 600;
+    display: inline-flex; align-items: center; gap: 3px; align-self: flex-start; }
   .ob-go::after { content: ""; width: 7px; height: 7px; border-top: 2px solid currentColor;
     border-right: 2px solid currentColor; transform: rotate(45deg); }
   .ob-arrow { align-self: center; width: 14px; height: 14px; flex: none;

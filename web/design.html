@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="/web/shared.css">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
-  .style-split { display: grid; grid-template-columns: 340px minmax(0, 620px); gap: 14px; align-items: start; }
+  .style-split { display: grid; grid-template-columns: 404px minmax(0, 620px); gap: 14px; align-items: start; }
   @media (max-width: 1000px) { .style-split { grid-template-columns: 1fr; } }
   .brand-list { display: flex; flex-direction: column; gap: 8px; max-height: 372px; overflow-y: auto; padding-right: 2px; }
   /* 定高约 5 张卡（每卡 ~68px + 间距），新导入的风格追加进列表后内部滚动 */
@@ -35,12 +35,25 @@
   .tok-group summary { cursor: pointer; padding: 9px 14px; font-weight: 600; font-size: var(--font-small); color: var(--text-secondary); user-select: none; }
   .tok-group[open] summary { border-bottom: 1px solid var(--border); }
   .tok-rows { padding: 6px 10px 10px; }
-  .tok-row { display: flex; align-items: center; gap: 10px; padding: 4px 4px; border-radius: 8px; }
+  .tok-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) 90px 46px; gap: 3px 9px;
+    align-items: center; padding: 8px 5px; border-radius: 8px; }
+  .tok-row > .tok-chip { grid-column: 1; grid-row: 1; }
+  .tok-row > .tok-name { grid-column: 2; grid-row: 1; }
+  .tok-row > .tok-hex { grid-column: 3; grid-row: 1; }
+  .tok-row > .tok-demo-host { grid-column: 4; grid-row: 1; }
+  .tok-row > .tok-desc { grid-column: 2 / -1; grid-row: 2; }
   .tok-row:hover { background: var(--bg-surface); }
   .tok-chip { width: 26px; height: 26px; padding: 1px; border: 1px solid var(--border); border-radius: 7px; cursor: pointer; flex: none; }
-  .tok-name { font-size: var(--font-small); min-width: 64px; }
+  .tok-name { font-size: var(--font-small); font-weight: 600; white-space: nowrap; }
+  .tok-var { font-family: var(--font-mono, ui-monospace, Menlo, monospace); font-size: 10.5px;
+    color: var(--text-secondary); background: var(--bg-surface); border-radius: 4px; padding: 0 4px; margin-right: 5px; }
+  .tok-desc { font-size: var(--font-caption); color: var(--text-muted); line-height: 1.55; }
+  .tok-demo-host { flex: none; display: inline-flex; }
+  .tok-demo { display: inline-flex; align-items: center; justify-content: center;
+    width: 46px; height: 24px; border-radius: 6px; border: 1px solid var(--border); overflow: hidden; }
+  .tok-demo i { display: block; }
   .tok-key { font-size: 11px; color: var(--text-muted); flex: 1; }
-  .tok-hex { width: 86px; font-family: var(--font-mono, monospace); font-size: 12px; padding: 4px 8px; text-transform: uppercase; }
+  .tok-hex { width: 100%; min-width: 0; font-family: var(--font-mono, monospace); font-size: 11.5px; padding: 4px 6px; text-transform: uppercase; }
 </style>
 </head>
 <body>
@@ -272,18 +285,61 @@ function brandDialog(existing, onClose) {
       chart: ["#1E7A50", "#A87F2C", "#4C6FE7", "#C74E68", "#58A08C", "#8E6FC8", "#B06A3C"] },
   ];
   // 每个 token 标注作用位置（会议：每个属性都要可解释、与组件配套）
+  // 每项：[token, 名称, 用在哪（说白话）, 对应 CSS 变量, 示意图类型]
+  // 命名与说明面向前端开发：标出 CSS 变量名，配置面的每一行都能直接对上代码里的值
   const COLOR_GROUPS = [
-    ["品牌色", [["primary", "主色", "提交按钮 / 选中态 / 滑杆填充"], ["primary_weak", "主色弱底", "选中项底色 / 步骤当前光晕"],
-                ["accent", "强调色", "hover 高亮 / 标签强调"], ["ring", "焦点环", "输入框聚焦描边"]]],
-    ["界面色", [["bg_page", "页面底色", "对话流画布"], ["bg_elevated", "卡片面", "组件面板背景"],
-                ["bg_surface", "区块底色", "输入框 / 摘要块底"], ["border", "描边", "组件与选项边框"]]],
-    ["文字色", [["text_primary", "正文", "标题与选项文字"], ["text_secondary", "次级", "描述与辅助说明"],
-                ["text_muted", "辅助", "时间戳 / 占位符"]]],
-    ["状态色", [["success", "成功", "提交成功 / 上涨"], ["warning", "警告", "线上包落后提示"], ["danger", "危险", "确认执行 / 失败态"]]],
-    // 组件容器层：选项 / 提交按钮各自的一层（组件编辑页不再单独配色，统一在这里定义）
-    ["组件容器", [["opt_bg", "选项底色", "选项行 / 候选卡背景"], ["opt_bc", "选项边框", "选项行 / 候选卡描边"],
-                ["btn_bg", "提交按钮底色", "默认跟随主色"], ["btn_fg", "按钮文字色", "提交按钮文字"]]],
+    ["主色与交互", [
+      ["primary", "主色", "按钮填充、被选中的选项、滑杆已选段", "--primary", "btn"],
+      ["primary_weak", "选中背景", "选中项的浅色底，主色的 8% 版本", "--primary-weak", "optsel"],
+      ["accent", "悬停高亮", "鼠标移到选项上时的描边与文字色", "--brand-accent", "opthover"],
+      ["ring", "聚焦描边", "输入框获得焦点时的描边与光晕", "--brand-ring", "focus"],
+    ]],
+    ["背景与边框", [
+      ["bg_page", "对话区背景", "组件外面那层对话流的底色", "--bg-page", "page"],
+      ["bg_elevated", "卡片背景", "组件白卡本身的底色", "--bg-elevated", "card"],
+      ["bg_surface", "输入框背景", "输入框、摘要块等内嵌区域的底", "--bg-surface", "input"],
+      ["border", "边框", "卡片与选项的描边", "--border", "border"],
+    ]],
+    ["文字", [
+      ["text_primary", "主文字", "标题、选项文字、指标数值", "--text-primary", "t1"],
+      ["text_secondary", "次要文字", "描述、补充说明", "--text-secondary", "t2"],
+      ["text_muted", "弱化文字", "时间戳、占位符、单位", "--text-muted", "t3"],
+    ]],
+    ["状态", [
+      ["success", "成功", "提交成功、上涨、已上线", "--success", "chip"],
+      ["warning", "警告", "需要注意但不阻断的提示", "--warning", "chip"],
+      ["danger", "错误 / 危险", "确认执行、校验失败、下跌", "--danger", "chip"],
+    ]],
+    ["组件内的容器", [
+      ["opt_bg", "选项背景", "每个选项行 / 候选卡的底色", "--opt-bg", "optsel"],
+      ["opt_bc", "选项边框", "每个选项行 / 候选卡的描边", "--opt-bc", "border"],
+      ["btn_bg", "按钮背景", "提交 / 确认按钮的填充色", "--btn-bg", "btn"],
+      ["btn_fg", "按钮文字", "按钮上的文字颜色", "--btn-fg", "btnfg"],
+    ]],
   ];
+  // 「用在哪」的实物示意：直接用该颜色画出它作用的真实元素
+  function tokenDemo(kind, color, cur) {
+    const box = (kids, style) => el("span", { class: "tok-demo", style: style || "" }, kids);
+    const bg = cur.bg_elevated || "#FFFFFF", bd = cur.border || "#E4E9F0", tx = cur.text_primary || "#1C2434";
+    switch (kind) {
+      case "btn": return box([el("i", { style: `background:${color};width:30px;height:13px;border-radius:4px` })], `background:${bg}`);
+      case "btnfg": return box([el("i", { style: `background:${cur.btn_bg || cur.primary};width:30px;height:13px;border-radius:4px;position:relative` },
+        [el("b", { style: `position:absolute;left:5px;top:4px;width:14px;height:4px;border-radius:2px;background:${color}` })])], `background:${bg}`);
+      case "optsel": return box([el("i", { style: `background:${color};border:1px solid ${cur.primary};width:34px;height:13px;border-radius:4px` })], `background:${bg}`);
+      case "opthover": return box([el("i", { style: `background:${bg};border:1.5px solid ${color};width:34px;height:13px;border-radius:4px` })], `background:${bg}`);
+      case "focus": return box([el("i", { style: `background:${bg};border:1.5px solid ${color};box-shadow:0 0 0 2.5px ${color}33;width:30px;height:12px;border-radius:3px` })], `background:${bg}`);
+      case "page": return box([el("i", { style: `background:${bg};border:1px solid ${bd};width:26px;height:13px;border-radius:3px` })], `background:${color}`);
+      case "card": return box([el("i", { style: `background:${color};border:1px solid ${bd};width:30px;height:14px;border-radius:4px` })], `background:${cur.bg_page || "#fff"}`);
+      case "input": return box([el("i", { style: `background:${color};border:1px solid ${bd};width:30px;height:12px;border-radius:3px` })], `background:${bg}`);
+      case "border": return box([el("i", { style: `background:transparent;border:1.5px solid ${color};width:30px;height:14px;border-radius:4px` })], `background:${bg}`);
+      case "t1": return box([el("i", { style: `background:${color};width:26px;height:5px;border-radius:2px` })], `background:${bg}`);
+      case "t2": return box([el("i", { style: `background:${color};width:22px;height:4px;border-radius:2px` })], `background:${bg}`);
+      case "t3": return box([el("i", { style: `background:${color};width:16px;height:3.5px;border-radius:2px` })], `background:${bg}`);
+      case "chip": return box([el("i", { style: `background:${color}22;border:1px solid ${color};width:26px;height:12px;border-radius:999px;position:relative` },
+        [el("b", { style: `position:absolute;left:4px;top:4px;width:5px;height:5px;border-radius:50%;background:${color}` })])], `background:${bg}`);
+      default: return box([el("i", { style: `background:${color};width:26px;height:13px;border-radius:4px` })], `background:${bg}`);
+    }
+  }
   // 每个字体带自己支持的字重档（宋体 / 楷体等系统字重少，黑体多）
   const FONTS = [
     ["苹方", '"PingFang SC", -apple-system, "Microsoft YaHei", sans-serif',
@@ -502,20 +558,33 @@ function brandDialog(existing, onClose) {
       const TOK_DEF = { bg_elevated: "#FFFFFF", bg_sunken: "#F2F3F5",
         opt_bg: cur.bg_elevated || "#FFFFFF", opt_bc: cur.border || "#E4E9F0",
         btn_bg: cur.primary || "#3E63DD", btn_fg: "#FFFFFF" };
-      items.forEach(([key, label, kdesc]) => {
+      items.forEach(([key, label, kdesc, cssVar, demoKind]) => {
         const val = cur[key] || TOK_DEF[key] || "#000000";
         const ci = el("input", { type: "color", value: /^#([0-9a-f]{6})$/i.test(val) ? val : "#000000", class: "tok-chip", title: label });
         const hex = el("input", { type: "text", value: val, class: "tok-hex", spellcheck: "false", maxlength: "7" });
-        ci.oninput = () => { cur[key] = ci.value; hex.value = ci.value; refreshGroupSwatches(); applyPreview(); };
+        let demoHost = el("span", { class: "tok-demo-host" }, [tokenDemo(demoKind, val, { ...TOK_DEF, ...cur })]);
+        const redrawDemo = () => {
+          const fresh = tokenDemo(demoKind, cur[key] || TOK_DEF[key] || "#000000", { ...TOK_DEF, ...cur });
+          demoHost.innerHTML = ""; demoHost.appendChild(fresh);
+        };
+        ci.oninput = () => { cur[key] = ci.value; hex.value = ci.value; redrawDemo(); refreshGroupSwatches(); applyPreview(); };
         hex.onchange = () => {
           let v = hex.value.trim();
           if (/^[0-9a-f]{6}$/i.test(v)) v = "#" + v;
-          if (/^#[0-9a-f]{6}$/i.test(v)) { cur[key] = v; ci.value = v; refreshGroupSwatches(); applyPreview(); }
+          if (/^#[0-9a-f]{6}$/i.test(v)) { cur[key] = v; ci.value = v; redrawDemo(); refreshGroupSwatches(); applyPreview(); }
           else { hex.value = cur[key]; UI.toast("请输入合法 HEX 色值，如 #3E63DD", true); }
         };
-        rows.appendChild(el("div", { class: "tok-row" }, [ci,
+        // 两行网格：上行 色块/名称/HEX/示意图，下行 变量名 + 用途说明（窄栏也不会挤成竖排）
+        rows.appendChild(el("div", { class: "tok-row" }, [
+          ci,
           el("span", { class: "tok-name" }, [label]),
-          el("span", { class: "tok-desc" }, [kdesc || ""]), hex]));
+          hex,
+          demoHost,
+          el("span", { class: "tok-desc" }, [
+            cssVar ? el("code", { class: "tok-var", title: "对应的 CSS 变量，接入后可直接在代码里引用" }, [cssVar]) : null,
+            el("span", {}, [kdesc || ""]),
+          ]),
+        ]));
       });
       const swRow = el("span", { class: "tok-sum-sw" });
       const refreshSw = () => {

@@ -231,8 +231,9 @@ input[type=text], input[type=number], input[type=url], textarea, select {
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
 input:focus, textarea:focus, select:focus {
-  outline: none; border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-weak);
+  
+  outline: none; border-color: var(--brand-ring, var(--primary));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-ring, var(--primary)) 18%, transparent);
 }
 input:hover:not(:focus):not(:disabled), textarea:hover:not(:focus):not(:disabled), select:hover:not(:disabled) { border-color: var(--border-strong); }
 input::placeholder, textarea::placeholder { color: #AAB1BE; }
