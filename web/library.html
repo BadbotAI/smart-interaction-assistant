@@ -97,7 +97,7 @@ function liveCountOf(t) {
 }
 function liveNameOf(t) { const c = liveInstOf(t); return c ? c.name : null; }
 
-const previewCtx = { sendEvent: () => {}, onCollectSubmit: () => UI.toast("示例预览：提交不生效"), onControl: () => {}, titleInBubble: true };
+const previewCtx = { sendEvent: () => {}, onCollectSubmit: () => UI.toast("示例预览：提交不生效"), onControl: () => {}, titleInBubble: true, preview: true };
 
 function tplCard(t) {
   const demo = DEMO_PARAMS[t.type];
@@ -108,11 +108,12 @@ function tplCard(t) {
       card_ref: null, params: demo.params };
     previewBox.appendChild(Components.render(env, previewCtx));
   } catch (e) { previewBox.appendChild(el("div", { class: "muted" }, ["示例预览暂不可用"])); }
+  previewBox.appendChild(el("span", { class: "pv-tag" }, ["演示"]));
   return el("div", { class: "card tpl-card" }, [
     el("div", { class: "tpl-head" }, [
       el("button", { class: "tpl-name tpl-name-link", type: "button", title: "查看组件详情",
         onclick: () => { location.hash = "d-" + t.type; } }, [t.label]),
-      el("span", { class: "chip " + (t.interactive ? "blue" : "gray") }, [t.interactive ? "交互 · 有提交" : "展示 · 无提交"]),
+      el("span", { class: "chip " + (t.interactive ? "blue" : "gray") }, [t.interactive ? "交互组件" : "非交互组件"]),
       el("div", { style: "flex:1" }),
       liveCountOf(t) ? el("span", { class: "muted", style: "font-size:var(--font-caption)",
         title: "当前产品基于该模板的实例，可在组件工作台编辑" }, [`已建 ${liveCountOf(t)} 个`]) : null,
@@ -138,28 +139,36 @@ function renderDetail(t) {
   } catch (e) { previewBox.appendChild(el("div", { class: "muted" }, ["示例预览暂不可用"])); }
   const pre = obj => el("pre", { class: "num", style: "margin:0;background:var(--bg-sunken);border-radius:8px;padding:10px 12px;font-size:var(--font-caption);line-height:1.55;white-space:pre-wrap;overflow:auto;max-height:340px" },
     [JSON.stringify(obj, null, 2)]);
-  const secTitle = (t2, hint) => el("div", { style: "font-weight:600;margin:0 0 8px;display:flex;align-items:center;gap:6px" },
-    [t2, hint ? UI.help(hint) : null]);
+  const secTitle = (t2, hint, copyObj) => el("div", { style: "font-weight:600;margin:0 0 8px;display:flex;align-items:center;gap:6px" },
+    [t2, hint ? UI.help(hint) : null, el("span", { style: "flex:1" }),
+     copyObj !== undefined ? el("button", { class: "btn small", type: "button", onclick: () => {
+       navigator.clipboard.writeText(typeof copyObj === "string" ? copyObj : JSON.stringify(copyObj, null, 2));
+       UI.toast("已复制" + t2);
+     } }, [UI.icon("copy", 13), "复制"]) : null]);
   box.appendChild(el("div", { class: "lib-detail-head" }, [
     el("button", { class: "btn small", onclick: () => { location.hash = t.interactive ? "" : "present"; } }, ["返回组件模板"]),
     el("span", { class: "tpl-name", style: "font-size:20px" }, [t.label]),
-    el("span", { class: "chip " + (t.interactive ? "blue" : "gray") }, [t.interactive ? "交互 · 有提交" : "展示 · 无提交"]),
+    el("span", { class: "chip " + (t.interactive ? "blue" : "gray") }, [t.interactive ? "交互组件" : "非交互组件"]),
     el("span", { class: "muted num" }, [t.component_types[0]]),
     el("div", { style: "flex:1" }),
     liveCountOf(t) ? el("span", { class: "muted", style: "font-size:var(--font-caption)" }, [`当前产品已建 ${liveCountOf(t)} 个实例`]) : null,
     el("a", { class: "btn primary", href: "/web/cards.html?new=1&ct=" + encodeURIComponent(t.component_types[0]) }, ["从模板创建"]),
   ]));
   box.appendChild(el("div", { class: "muted", style: "margin:0 0 14px;max-width:62em" }, [t.desc]));
+  const callObj = { component_id: liveIdOf(t) || "<实例 ID：从模板创建后生成>", params: demo.params };
   box.appendChild(el("div", { class: "lib-detail-grid" }, [
-    el("div", { class: "card" }, [secTitle("示例效果", "内容来自示例参数；实际运行时由模型按参数 schema 填入"), previewBox]),
+    el("div", { class: "card" }, [secTitle("示例效果", "演示数据，交互不产生真实业务；实际运行时内容由模型按参数 schema 填入"),
+      el("span", { class: "pv-tag" }, ["演示"]), previewBox]),
     el("div", {}, [
+      el("div", { class: "muted", style: "font-size:var(--font-caption);margin:0 0 8px" },
+        ["以下是开发接入信息（给研发看）；日常配置在组件工作台完成，不需要读懂这里"]),
       el("div", { class: "card", style: "margin-bottom:12px" }, [
-        secTitle("参数 schema", "模型调用本组件时要填的参数（注册表原文）"), pre(t.params_schema)]),
+        secTitle("参数 schema", "模型调用本组件时要填的参数（注册表原文）", t.params_schema), pre(t.params_schema)]),
       t.interactive && t.submit_schema ? el("div", { class: "card", style: "margin-bottom:12px" }, [
-        secTitle("提交回传结构", "用户点提交后回传给 agent 的数据"), pre(t.submit_schema)]) : null,
+        secTitle("提交回传结构", "用户点提交后回传给 agent 的数据", t.submit_schema), pre(t.submit_schema)]) : null,
       el("div", { class: "card" }, [
-        secTitle("示例调用", "模型返回的组件调用长这样，前端交给 SIA.render 渲染"),
-        pre({ component_id: liveIdOf(t) || "<实例 ID：从模板创建后生成>", params: demo.params }),
+        secTitle("示例调用", "模型返回的组件调用长这样，前端交给 SIA.render 渲染", callObj),
+        pre(callObj),
         liveIdOf(t) ? el("div", { class: "muted", style: "margin-top:6px" }, ["component_id 已填入当前产品「" + (liveNameOf(t) || "") + "」实例，可直接复制使用"]) : null]),
     ]),
   ]));

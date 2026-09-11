@@ -119,6 +119,18 @@ window.Components = (function () {
     cls(so["col.align"] === "left", "col-left");
     cls(so["stepnum.show"] === false, "no-stepnum");
     cls(so["text.align"] === "center", "txt-center");
+    // 三轮规格键
+    // 多容器：面板边框 / 选项容器底色与边框 / 提交按钮容器
+    if (so["panel.bc"]) set("--panel-bc", so["panel.bc"]);
+    if (so["opt.bg"]) set("--opt-bg", so["opt.bg"]);
+    if (so["opt.bc"]) set("--opt-bc", so["opt.bc"]);
+    if (so["btn.bg"]) set("--btn-bg", so["btn.bg"]);
+    if (so["btn.bc"]) set("--btn-bc", so["btn.bc"]);
+    if (so["btn.fg"]) set("--btn-fg", so["btn.fg"]);
+    cls(so["arrows.show"] === false, "no-arrows");
+    cls(so["steps.dir"] === "vertical", "steps-vert");
+    cls(so["connector.show"] === false, "no-connector");
+    if (so["total.color"]) set("--wf-total", so["total.color"]);
   }
 
   function render(envelope, ctx) {
@@ -204,7 +216,7 @@ window.Components = (function () {
         deltaStr ? el("span", { class: "delta-chip " + (up ? "up" : "down"), title: up ? "较基线上升" : "较基线下降" }, [
           UI.icon(up ? "arrowup" : "arrowdown", 11), deltaStr.replace("-", "")]) : null,
       ]),
-      p.baseline ? el("div", { class: "muted metric-baseline", style: "font-size:var(--font-caption);margin-top:4px" }, ["基线：" + p.baseline]) : null,
+      p.baseline ? el("div", { class: "muted metric-baseline", style: "font-size:var(--font-caption);margin-top:4px" }, [p.baseline]) : null,
     ]);
   }
 
@@ -223,17 +235,23 @@ window.Components = (function () {
   function rTimeline(env) {
     // v2.3 视觉重做：节点圆点 + 竖连线，最新一条主色实心强调
     const p = env.params;
-    const evs = p.events || [];
+    const so = env.style_overrides || {};
+    let evs = p.events || [];
+    // 排序方向可配：desc = 最新在上（物流详情惯例）；强调始终打在最新一条上
+    const desc = so["tl.order"] === "desc";
+    if (desc) evs = [...evs].reverse();
+    const newestIdx = desc ? 0 : evs.length - 1;
+    const emph = so["now.emph"] !== false;
     return compCard([
       compTitle(p.title),
       el("div", { class: "tl-list" }, evs.map((e, i) => el("div", { class: "tl-row" }, [
         el("div", { class: "tl-ts" }, [e.ts || ""]),
         el("div", { class: "tl-rail" }, [
-          el("span", { class: "tl-dot" + (i === evs.length - 1 ? " now" : "") }),
+          el("span", { class: "tl-dot" + (emph && i === newestIdx ? " now" : "") }),
           i < evs.length - 1 ? el("span", { class: "tl-line" }) : null,
         ]),
         el("div", { class: "tl-body" }, [
-          el("div", { class: "tl-title" + (i === evs.length - 1 ? " now" : "") }, [e.title || ""]),
+          el("div", { class: "tl-title" + (emph && i === newestIdx ? " now" : "") }, [e.title || ""]),
           e.desc ? el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [e.desc]) : null,
         ]),
       ]))),
@@ -571,7 +589,7 @@ window.Components = (function () {
         onclick: (e) => { picked = o;
           btns.forEach(b => { b.classList.remove("primary"); b.setAttribute("aria-checked", "false"); });
           e.currentTarget.classList.add("primary"); e.currentTarget.setAttribute("aria-checked", "true"); },
-      }, [o + (o === p.recommended_default ? "（推荐）" : "")]));
+      }, [o, o === p.recommended_default ? el("span", { class: "rec-chip chip blue" }, ["推荐"]) : null]));
       body = el("div", { class: display === "composer" ? "quick-float" : "opt-row" }, btns);
     } else if (display === "card") {
       const meta = p.option_meta || {};
@@ -579,7 +597,8 @@ window.Components = (function () {
         const m = meta[o] || {};
         const node = el("div", { class: "opt-card", role: "radio", "aria-checked": "false" }, [
           m.image ? el("img", { src: m.image, alt: o }) : (m.desc ? el("div", { class: "img-ph" }, [o.slice(0, 1)]) : null),
-          el("div", { style: "font-weight:600" }, [o + (o === p.recommended_default ? "（推荐）" : "")]),
+          el("div", { style: "font-weight:600;display:flex;align-items:center;gap:6px" }, [o,
+            o === p.recommended_default ? el("span", { class: "rec-chip chip blue" }, ["推荐"]) : null]),
           m.desc ? el("div", { class: "muted" }, [m.desc]) : null,
         ]);
         node.onclick = () => {
@@ -610,13 +629,17 @@ window.Components = (function () {
     if (!opts.length) return compCard([compTitle(p.prompt), emptyState(env)]);
     const display = p.display || "list";
     const picked = new Set();
+    const maxSel = Number(p.max_select) > 0 ? Number(p.max_select) : 0;
+    const canAdd = () => !maxSel || picked.size < maxSel;
+    const limitTip = () => { if (maxSel) UI.toast(`最多可选 ${maxSel} 项`, true); };
     let body;
     if (display === "inline" || display === "composer") {
       body = el("div", { class: display === "composer" ? "quick-float" : "opt-row" }, opts.map(o => el("button", {
         class: "btn opt", type: "button", role: "checkbox", "aria-checked": "false",
         onclick: (e) => {
           if (picked.has(o)) { picked.delete(o); e.currentTarget.classList.remove("primary"); e.currentTarget.setAttribute("aria-checked", "false"); }
-          else { picked.add(o); e.currentTarget.classList.add("primary"); e.currentTarget.setAttribute("aria-checked", "true"); }
+          else if (canAdd()) { picked.add(o); e.currentTarget.classList.add("primary"); e.currentTarget.setAttribute("aria-checked", "true"); }
+          else limitTip();
         },
       }, [o])));
     } else if (display === "card") {
@@ -629,6 +652,7 @@ window.Components = (function () {
           m.desc ? el("div", { class: "muted" }, [m.desc]) : null,
         ]);
         node.onclick = () => {
+          if (!picked.has(o) && !canAdd()) { limitTip(); return; }
           picked.has(o) ? picked.delete(o) : picked.add(o);
           const on = picked.has(o);
           node.classList.toggle("on", on);
@@ -638,10 +662,14 @@ window.Components = (function () {
       });
       body = el("div", { class: "opt-row", style: "gap:10px" }, cards);
     } else {
-      body = optionList(opts, p, true, () => picked, (o) => { picked.has(o) ? picked.delete(o) : picked.add(o); });
+      body = optionList(opts, p, true, () => picked, (o) => {
+        if (!picked.has(o) && !canAdd()) { limitTip(); return; }
+        picked.has(o) ? picked.delete(o) : picked.add(o);
+      });
     }
     return compCard([
       compTitle(p.prompt),
+      maxSel ? el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [`最多可选 ${maxSel} 项`]) : null,
       body,
       submitBar(env, ctx, () => ({
         options_offered: opts, user_selection: [...picked],
@@ -676,7 +704,8 @@ window.Components = (function () {
           },
         }, [
           m.image ? el("img", { src: m.image, alt: name }) : null,
-          el("div", { class: "oc-name" }, [name + (name === p.recommended_default ? "（推荐）" : "")]),
+          el("div", { class: "oc-name" }, [name,
+            name === p.recommended_default ? el("span", { class: "rec-chip chip blue" }, ["推荐"]) : null]),
           desc ? el("div", { class: "oc-desc" }, [desc]) : null,
         ]);
         return node;
@@ -698,7 +727,7 @@ window.Components = (function () {
     const p = env.params;
     const min = p.min ?? 0, max = p.max ?? 100;
     const init = p.default ?? p.recommended_default ?? Math.round((min + max) / 2);
-    const display = p.display || "slider";
+    const display = (env.style_overrides || {})["sl.style"] || p.display || "slider";
     let getVal;
     let body;
     if (display === "stepper") {
@@ -746,7 +775,10 @@ window.Components = (function () {
     const inputs = {};
     const errBoxes = {};
     const fieldNodes = fields.map(f => {
-      const input = el("input", { type: f.type === "number" ? "number" : "text", placeholder: f.placeholder || "" });
+      const input = f.multiline
+        ? el("textarea", { rows: 3, placeholder: f.placeholder || "" })
+        : el("input", { type: f.type === "number" ? "number" : f.format === "phone" ? "tel" : "text",
+            ...(f.format === "phone" ? { inputmode: "tel" } : {}), placeholder: f.placeholder || "" });
       inputs[f.key] = input;
       const errBox = el("div", { class: "field-error" });
       errBoxes[f.key] = errBox;
@@ -766,9 +798,13 @@ window.Components = (function () {
         let bad = null;
         fields.forEach(f => {
           errBoxes[f.key].textContent = "";
-          if (f.required && !inputs[f.key].value.trim()) {
+          const v = inputs[f.key].value.trim();
+          if (f.required && !v) {
             errBoxes[f.key].textContent = "此项必填";
             bad = bad || "请补全必填字段";
+          } else if (v && f.format === "phone" && !/^[\d+\-\s]{6,20}$/.test(v)) {
+            errBoxes[f.key].textContent = "请输入有效的手机号";
+            bad = bad || "手机号格式不正确";
           }
         });
         return bad;
@@ -1121,12 +1157,25 @@ window.Components = (function () {
       const els = [...listBox.querySelectorAll(".rank-item:not(.dragging)")];
       return els.find(n => y <= n.getBoundingClientRect().top + n.offsetHeight / 2) || null;
     }
+    const move = (i, d) => {
+      const j = i + d;
+      if (j < 0 || j >= order.length) return;
+      [order[i], order[j]] = [order[j], order[i]];
+      draw();
+    };
     function draw() {
       listBox.innerHTML = "";
       order.forEach((o, i) => {
         const item = el("div", { class: "rank-item", draggable: "true" }, [
           el("span", { class: "rank-no num" + (i === 0 ? " top" : "") }, [String(i + 1)]),
           el("span", { class: "opt-text" }, [o]),
+          // 触屏设备原生 drag 不可靠：上移 / 下移按钮保证移动端可用
+          el("span", { class: "rank-arrows" }, [
+            el("button", { class: "icon-btn", type: "button", "aria-label": "上移", ...(i === 0 ? { disabled: "" } : {}),
+              onclick: () => move(i, -1) }, [UI.icon("chevron", 13)]),
+            el("button", { class: "icon-btn", type: "button", "aria-label": "下移", ...(i === order.length - 1 ? { disabled: "" } : {}),
+              onclick: () => move(i, 1) }, [UI.icon("chevron", 13)]),
+          ]),
           el("span", { class: "rank-drag", title: "按住拖动调整顺序" }, [UI.icon("drag", 14)]),
         ]);
         item.dataset.val = o;
@@ -1154,7 +1203,7 @@ window.Components = (function () {
     draw();
     return compCard([
       compTitle(p.prompt),
-      el("div", { class: "muted" }, ["按住右侧把手拖动，按重要程度从上到下排序"]),
+      el("div", { class: "muted" }, ["拖动或用箭头调整顺序，按重要程度从上到下排序"]),
       listBox,
       submitBar(env, ctx, () => ({ options_offered: p.options, user_selection: order })),
     ]);
@@ -1443,17 +1492,21 @@ window.Components = (function () {
 
   function askDownReason(env, ctx) {
     // 原因分组决定标签语义：答得不对 → capability；不合需要 → preference
-    const groups = [
-      { kind: "capability", title: "答得不对", reasons: ["结论错误", "数据不对", "答非所问"] },
-      { kind: "preference", title: "不合需要", reasons: ["风格不合", "太啰嗦", "太简略"] },
-    ];
+    // 业务可在实例配置里自定义原因（config.down_reasons，随 envelope 下发）
+    const custom = (env.params.down_reasons || []).map(String).filter(Boolean).slice(0, 6);
+    const groups = custom.length
+      ? [{ kind: "preference", title: "哪里不好", reasons: custom }]
+      : [
+        { kind: "capability", title: "答得不对", reasons: ["结论错误", "数据不对", "答非所问"] },
+        { kind: "preference", title: "不合需要", reasons: ["风格不合", "太啰嗦", "太简略"] },
+      ];
     const body = el("div", {}, groups.map(g => el("div", { style: "margin-bottom:10px" }, [
       el("div", { class: "muted", style: "margin-bottom:4px" }, [g.title]),
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, g.reasons.map(r =>
         el("button", { class: "btn", onclick: () => {
           emitBinary(env, ctx, { key: g.kind }, 0.0, r);
           mask.remove();
-          UI.toast("已记录，谢谢反馈");
+          UI.toast(ctx && ctx.preview ? "演示预览：反馈不会保存" : "已记录，谢谢反馈");
         } }, [r]))),
     ])));
     const mask = UI.modal("哪里不好", body);
@@ -1465,7 +1518,7 @@ window.Components = (function () {
         label_kind: dim.key === "capability" ? "capability" : "preference",
         polarity: polarityVal >= 0.5 ? 1.0 : -1.0, confidence: 0.6,
         target_models: env.params.target_models || [], source: "explicit_binary" } });
-    UI.toast("反馈已记录，将用于优化模型调度");
+    UI.toast(ctx && ctx.preview ? "演示预览：反馈不会保存" : "反馈已记录，将用于优化模型调度");
   }
 
   function rFeedbackPreference(env, ctx) {
@@ -1544,6 +1597,18 @@ window.Components = (function () {
       }
       const slot = (w - padL - padR) / segs.length;
       const bw = Math.min(40, slot * 0.55);
+      // 柱间连接虚线：表达「上一柱终点 = 下一柱起点」的累计关系（主流瀑布图标配）
+      if (so["connector.show"] !== false) segs.forEach((s2, i) => {
+        if (i >= segs.length - 1) return;
+        const endV = s2[3] ? s2[1] : s2[1];
+        const x1 = padL + i * slot + (slot - bw) / 2 + bw;
+        const x2 = padL + (i + 1) * slot + (slot - bw) / 2;
+        const cl = document.createElementNS(svgNS, "line");
+        cl.setAttribute("x1", x1); cl.setAttribute("x2", x2);
+        cl.setAttribute("y1", y(endV)); cl.setAttribute("y2", y(endV));
+        cl.setAttribute("stroke", "var(--border-strong, #C7D3DC)"); cl.setAttribute("stroke-dasharray", "3 3");
+        svg.appendChild(cl);
+      });
       segs.forEach((s2, i) => {
         const [a, b2, v, isTotal] = s2;
         const x0 = padL + i * slot + (slot - bw) / 2;
@@ -1551,7 +1616,7 @@ window.Components = (function () {
         rect.setAttribute("x", x0); rect.setAttribute("y", Math.min(y(a), y(b2)));
         rect.setAttribute("width", bw); rect.setAttribute("height", Math.max(2, Math.abs(y(a) - y(b2))));
         rect.setAttribute("rx", 3);
-        rect.setAttribute("fill", isTotal ? "var(--text-muted)" : v >= 0 ? posC : negC);
+        rect.setAttribute("fill", isTotal ? (so["total.color"] || "var(--text-muted)") : v >= 0 ? posC : negC);
         const t = document.createElementNS(svgNS, "title");
         t.textContent = `${labels[i]}: ${v >= 0 && !isTotal ? "+" : ""}${v}`;
         rect.appendChild(t);

@@ -333,6 +333,8 @@ def _build_ask_envelope(card: dict, query: str):
               "submit_label": templates.get("submit") or "提交",
               "reply_text": templates.get("reply") or "",
               "echo_results": bool(card.get("echo_results"))}
+    if ct == "feedback.binary" and config.get("down_reasons"):
+        params["down_reasons"] = config["down_reasons"]  # 踩后原因按业务改写
     if ct == "feedback.preference" and not config.get("candidates"):
         # v2：候选由模型按对话给出（params.candidates）——演示生成两份方案
         params["candidates"] = [
@@ -361,6 +363,8 @@ def _build_ask_envelope(card: dict, query: str):
         # 选项后续动作（每个选项可配置提交后的 prompt 与服务接口）随信封下发，前端提交时回传
         if config.get("option_actions"):
             params["option_actions"] = config["option_actions"]
+        if ct == "select.multi" and config.get("max_select"):
+            params["max_select"] = config["max_select"]
     elif ct == "scale.likert":
         params["likert"] = config.get("likert") or {"left": "非常不认可", "right": "非常认可", "steps": 5}
     elif ct == "slider.range":

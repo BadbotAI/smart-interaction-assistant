@@ -29,6 +29,7 @@ UI.nav("audit");
 const { el } = UI;
 
 const ACTION_NAMES = {
+  card_create: "新建组件实例", card_update: "编辑组件实例",
   card_publish: "发布配置", card_offline: "下线配置", card_delete: "删除配置",
   card_rollback: "回滚配置", card_restore_draft: "载入历史版本为草稿", card_republish_same: "原样重新上线",
   echo_toggle: "切换回显", policy_update: "更新路由规则", policy_rollback: "回滚路由规则",
@@ -64,25 +65,41 @@ const ACTION_NAMES = {
   ab_create: "创建 AB 实验", ab_stop: "停止 AB 实验",
 };
 
+// 详情尽量说人话：常见技术键翻译成业务字段名，剩余原样保留
+const DETAIL_KEY_CN = { card_id: "组件 ID", card_name: "组件", product: "产品", product_id: "产品 ID",
+  name: "名称", version: "版本", brand: "主题", brand_file: "主题文件", count: "数量", rows: "行数" };
 function fmtDetail(d) {
   if (!d || typeof d !== "object") return "";
-  return Object.entries(d).map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ");
+  return Object.entries(d).map(([k, v]) =>
+    `${DETAIL_KEY_CN[k] || k}=${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ");
 }
+function fmtActor(a) { return !a || a === "system" || a === "seed" ? "系统" : a === "demo-admin" ? "张三" : a; }
 
+// 动作筛选只列本平台动作（组件 / 产品 / 主题 / 接入）；其余历史动作仍能正常显示名称，只是不进筛选
+const IA_ACTION_KEYS = [
+  "card_create", "card_update", "card_publish", "card_offline", "card_delete",
+  "card_rollback", "card_restore_draft", "card_republish_same", "echo_toggle",
+  "product_create", "product_update", "product_delete", "product_key_reset",
+  "brand_import", "brand_activate", "brand_delete",
+  "apikey_create", "apikey_delete", "export_csv",
+];
 document.getElementById("dlBtn").append(UI.icon("download", 14), "导出 CSV");
 document.getElementById("actionSelMount").appendChild(UI.fancySelect({
   value: "", width: "170px",
-  options: [["", "全部动作"], ...Object.entries(ACTION_NAMES).map(([k, v]) => [k, v])],
+  options: [["", "全部动作"], ...IA_ACTION_KEYS.filter(k => ACTION_NAMES[k]).map(k => [k, ACTION_NAMES[k]])],
   onChange: (v) => { fltAction = v; shown = 50; load(); },
 }));
 document.getElementById("kwInput").oninput = UI.debounce ? UI.debounce(() => {
   fltKw = document.getElementById("kwInput").value; shown = 50; load();
 }, 250) : ((e) => { fltKw = e.target.value; shown = 50; load(); });
 let allAudit = [];
+let curFiltered = [];
 document.getElementById("dlBtn").onclick = () => {
+  // 导出跟随当前筛选：有筛选导出命中行，无筛选导出全部
+  const rows = (fltAction || fltKw.trim()) ? curFiltered : allAudit;
   const lines = [["时间", "操作人", "动作", "详情"].join(",")];
-  allAudit.forEach(r => lines.push([
-    UI.fmtTs(r.ts), r.actor || "", ACTION_NAMES[r.action] || r.action,
+  rows.forEach(r => lines.push([
+    UI.fmtTs(r.ts), fmtActor(r.actor), ACTION_NAMES[r.action] || r.action,
     JSON.stringify(fmtDetail(r.detail)),
   ].join(",")));
   const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -91,7 +108,7 @@ document.getElementById("dlBtn").onclick = () => {
   a.download = "操作日志.csv";
   a.click();
   URL.revokeObjectURL(a.href);
-  UI.toast("已导出操作日志");
+  UI.toast(`已导出 ${rows.length} 条操作日志`);
 };
 let shown = 50;
 let fltAction = "";
@@ -102,9 +119,13 @@ async function load() {
   const kw = fltKw.trim().toLowerCase();
   const audit = raw.filter(r =>
     (!fltAction || r.action === fltAction) &&
-    (!kw || (fmtDetail(r.detail) + " " + (ACTION_NAMES[r.action] || r.action) + " " + (r.actor || "")).toLowerCase().includes(kw)));
+    (!kw || (fmtDetail(r.detail) + " " + (ACTION_NAMES[r.action] || r.action) + " " + fmtActor(r.actor)).toLowerCase().includes(kw)));
+  curFiltered = audit;
   document.getElementById("auditCount").textContent = (fltAction || kw)
     ? `命中 ${audit.length} 条 / 共 ${raw.length} 条` : `共 ${raw.length} 条（最近 200 条内）`;
+  const dl = document.getElementById("dlBtn");
+  dl.textContent = "";
+  dl.append(UI.icon("download", 14), (fltAction || kw) ? `导出当前筛选（${audit.length} 条）` : "导出 CSV");
   const box = document.getElementById("auditBox");
   box.innerHTML = "";
   if (!audit.length) {
@@ -121,7 +142,7 @@ async function load() {
     el("thead", {}, [el("tr", {}, ["时间", "操作人", "动作", "对象与详情"].map(h => el("th", { class: h === "对象与详情" ? "w-main" : "" }, [h])))]),
     el("tbody", {}, audit.slice(0, shown).map(r => el("tr", {}, [
       el("td", { class: "num", style: "white-space:nowrap" }, [UI.fmtTs(r.ts)]),
-      el("td", {}, [r.actor || "-"]),
+      el("td", {}, [fmtActor(r.actor)]),
       el("td", {}, [ACTION_NAMES[r.action] || r.action]),
       el("td", { class: "muted num w-main", style: "max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: fmtDetail(r.detail) }, [fmtDetail(r.detail)]),
     ]))),

@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>产品与接入 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=36789036">
-<link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
+<link rel="stylesheet" href="./shared.css?v=49b0cd9e">
+<link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./products.html">
 </head>
 <body class="has-side">
 <div class="page">
@@ -19,10 +19,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=e1d4f4ca"></script>
-<script src="./mock_api.js?v=1d681082"></script>
+<script src="./mock_data.js?v=f817ac25"></script>
+<script src="./mock_api.js?v=e09d5330"></script>
 <script src="./tokens.js?v=be27f7d8"></script>
-<script src="./ui.js?v=d24c8709"></script>
+<script src="./ui.js?v=bc2760db"></script>
 <script>
 UI.nav("products");
 const { el } = UI;
@@ -109,13 +109,18 @@ function configProduct(p) {
   ]);
   const access = el("div", { class: "field", style: "margin-top:4px" }, [
     el("div", { style: "display:flex;align-items:center;gap:6px;margin-bottom:2px" }, [
-      el("span", { class: "label-text", style: "margin:0" }, ["产品配置",
-        UI.help("每个产品对应：一个后端 API 接口 + 一个前端 JS/CSS 代码块 + 一份数据块 Schema；配置出包时固化，平台修改后需重新拉取部署")]),
+      el("span", { class: "label-text", style: "margin:0" }, ["接入信息",
+        UI.help("接入代码出包时固化；平台上修改配置后，需要开发重新拉取部署才会生效")]),
       el("div", { style: "flex:1" }),
+      el("button", { class: "btn small", onclick: () => viewSchemas(p) }, ["数据 Schema"]),
+      el("a", { class: "btn small", href: "./embed-demo.html", target: "_blank", title: "在一个模拟业务页面里验证接入效果" }, ["接入自测页"]),
     ]),
-    codeBlock("后端 API 接口", null,
+    el("div", { class: "muted", style: "font-size:var(--font-caption);margin-bottom:8px;line-height:1.7" }, [
+      "接入分两步：把「后端注册表」交给你的 agent 服务（作为工具声明），把「前端代码」贴进业务页面。组件会在对话里渲染，用户提交的结果回传给 agent。",
+    ]),
+    codeBlock("后端注册表接口", "agent 服务端拉取，作为工具声明给大模型",
       `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`),
-    codeBlock("前端代码块", null,
+    codeBlock("前端代码", "贴进业务页面的 HTML 里",
       `<link rel="stylesheet" href="${origin}/v1/products/${p.product_id}/sia.css?key=${p.pub_key}">\n<script src="${origin}/web/sia.js" data-key="${p.pub_key}" defer><\/script>`),
   ]);
   const foot = el("div", { style: "display:flex;gap:8px;justify-content:flex-end;align-items:center;width:100%" }, [
@@ -127,12 +132,12 @@ function configProduct(p) {
         try {
           await UI.api(`/api/products/${p.product_id}`, { method: "PUT", body: {
             name: form.st.name.trim(), brand_file: form.st.brand_file } });
-          UI.toast("已保存应用");
+          UI.toast("产品配置已保存");
           mask.querySelector(".close-btn")?.click();
           load();
         } catch (e2) { err.textContent = e2.data?.error || e2.message; }
       }, "保存中……");
-    } }, ["保存应用"]),
+    } }, ["保存配置"]),
   ]);
   const mask = UI.drawer("产品配置", el("div", {}, [form.node, access]), foot);
 }
@@ -153,7 +158,7 @@ function newProductDialog() {
             await load();
             const p = products.find(x => x.product_id === r.product_id);
             if (p) configProduct(p);
-            UI.toast("产品已创建，MCP 接入信息见抽屉");
+            UI.toast("产品已创建，接入信息见右侧抽屉");
           } catch (e2) { form.nameErr.textContent = e2.data?.error || e2.message; }
         }, "创建中……");
       } }, ["创建产品"]),
@@ -168,7 +173,7 @@ function draw() {
   if (!products.length) {
     box.appendChild(el("div", { class: "card empty-state" }, [
       el("div", { class: "empty-title" }, ["还没有产品"]),
-      el("div", {}, ["新建产品，把组件和风格主题打包成一个 MCP 接入点"]),
+      el("div", {}, ["新建产品，把组件和风格主题打包成一个接入点"]),
       el("button", { class: "btn primary", style: "margin-top:12px", onclick: newProductDialog }, ["新建产品"]),
     ]));
     return;

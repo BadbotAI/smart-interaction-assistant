@@ -72,7 +72,8 @@ def validate_card(payload: dict, strict: bool = False) -> list:
                  "point.show", "area.fill", "axis.show", "delta.show", "baseline.show", "ts.show", "desc.show",
                  "halo", "best.highlight", "sum.show", "legend.show", "legend.pct", "quick.show", "handle.show",
                  "caption.show", "tone.color", "opt.border", "icon.show", "total.show",
-                 "y.zero", "last.emph", "bar.horizontal", "pie.sort", "delta.invert", "stepnum.show", "radio.show"}
+                 "y.zero", "last.emph", "bar.horizontal", "pie.sort", "delta.invert", "stepnum.show", "radio.show",
+                 "arrows.show", "now.emph", "connector.show"}
     SPEC_NUM = {"line.width": (1, 4), "point.size": (2, 6), "area.opacity": (4, 40), "bar.width": (20, 75),
                 "bar.radius": (0, 8), "pie.height": (10, 28), "value.size": (22, 40), "hl.size": (16, 30),
                 "node.size": (20, 32), "stepline.width": (1, 4), "list.gap": (4, 16), "opt.gap": (4, 16),
@@ -86,10 +87,13 @@ def validate_card(payload: dict, strict: bool = False) -> list:
                  "marker.style": ("number", "dot", "none"), "btn.align": ("right", "stretch"),
                  "fb.shape": ("pill", "square"), "no.style": ("circle", "square"),
                  "bar.sort": ("asc", "desc"), "metric.align": ("left", "center"),
-                 "col.align": ("smart", "left"), "text.align": ("left", "center"), "lk.style": ("dots", "bar")}
+                 "col.align": ("smart", "left"), "text.align": ("left", "center"), "lk.style": ("dots", "bar"),
+                 "sl.style": ("slider", "stepper", "input"), "tl.order": ("asc", "desc"),
+                 "steps.dir": ("horizontal", "vertical")}
     SPEC_COLOR = {"color.primary", "color.accent", "panel.bg", "line.color", "axis.color", "bar.color",
                   "done.color", "marker.color", "header.bg", "dot.color", "input.bg", "tlline.color", "icon.color",
-                  "wf.pos", "wf.neg"}
+                  "wf.pos", "wf.neg", "total.color",
+                  "panel.bc", "opt.bg", "opt.bc", "btn.bg", "btn.bc", "btn.fg"}
     allowed_tokens = ({"height", "radius", "spacing", "shadow", "font_scale",
                       # 旧 token 兼容读取（编辑器已不再写入）
                       "radius.card", "radius.control", "font.size_base", "spacing.card_padding", "density"}

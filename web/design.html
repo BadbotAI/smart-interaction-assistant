@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
-<title>产品及风格管理 · 智能交互平台</title>
+<title>风格主题 · 智能交互平台</title>
 <link rel="stylesheet" href="/web/shared.css">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
@@ -51,7 +51,7 @@
     <div style="align-self:stretch;display:flex;flex-direction:column;gap:14px">
       <div class="card" id="brandLibCard" style="flex:1;display:flex;flex-direction:column;min-height:0">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-          <span style="font-weight:600;flex:none;white-space:nowrap">主题风格</span>
+          <span style="font-weight:600;flex:none;white-space:nowrap">风格主题</span>
           <div style="flex:1"></div>
           <button class="btn small primary" id="newBrandBtn" disabled>新建主题</button>
         </div>
@@ -62,13 +62,16 @@
       </div>
     </div>
 
-    <div class="card" style="align-self:start;position:sticky;top:14px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;max-width:560px">
-        <span style="font-weight:600">组件预览</span>
-        <div style="flex:1"></div>
-        <span id="compSelMount"></span>
+    <div class="card" style="align-self:stretch">
+      <!-- 外壳与左侧模块等高；内容自身 sticky，长表单滚动时预览仍常驻 -->
+      <div style="position:sticky;top:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;max-width:560px">
+          <span style="font-weight:600">组件预览</span>
+          <div style="flex:1"></div>
+          <span id="compSelMount"></span>
+        </div>
+        <div id="demoOne" class="demo-one"></div>
       </div>
-      <div id="demoOne" class="demo-one"></div>
     </div>
   </div>
 </div>
@@ -141,7 +144,7 @@ function buildEnvelope(ct, config, prompt) {
   return { schema_version: "1.0.0", render_id: "ds-" + Math.random().toString(36).slice(2), component_type: ct,
     semantic_category: "collect", trigger_source: "model_tool_call", card_ref: null, params, group_mode: null, degraded_text: params.prompt };
 }
-const previewCtx = { sendEvent: () => {}, onCollectSubmit: () => UI.toast("预览不产生数据"), onControl: () => {}, titleInBubble: true };
+const previewCtx = { sendEvent: () => {}, onCollectSubmit: () => UI.toast("演示预览：提交不会保存"), onControl: () => {}, titleInBubble: true, preview: true };
 
 // 单组件预览：下拉选组件，选一个看一个
 const TRACK_ENV = { schema_version: "1.0.0", render_id: "ds-track", component_type: "track.map",
@@ -221,7 +224,7 @@ function brandDialog(existing, onClose) {
         bg_page: "#101319", bg_surface: "#171B24", bg_elevated: "#1B2130", bg_sunken: "#0C0F16", border: "#2A3140",
         text_primary: "#EDEFF5", text_secondary: "#A3ACC2", text_muted: "#6E7891",
         success: "#33B074", warning: "#E2A336", danger: "#EB6F76" },
-      chart: ["#3E63DD", "#0FA3A3", "#8E4EC6", "#EE7712", "#D6409F"] },
+      chart: ["#3E63DD", "#0FA3A3", "#8E4EC6", "#EE7712", "#D6409F", "#5B8C51", "#B08968"] },
     { name: "青瓷", light: { primary: "#0D9488", primary_weak: "#E6F7F5", accent: "#4C6FE7", ring: "#0D9488",
         bg_page: "#FFFFFF", bg_surface: "#F7FAF9", bg_elevated: "#FFFFFF", bg_sunken: "#EDF3F1", border: "#DCE8E5",
         text_primary: "#16302B", text_secondary: "#4A625C", text_muted: "#7C918C",
@@ -230,7 +233,7 @@ function brandDialog(existing, onClose) {
         bg_page: "#0D1514", bg_surface: "#14201D", bg_elevated: "#192623", bg_sunken: "#0A100F", border: "#263633",
         text_primary: "#E9F2F0", text_secondary: "#9FB5B0", text_muted: "#6C817C",
         success: "#2FBE7B", warning: "#DCA43B", danger: "#ED6A6A" },
-      chart: ["#0D9488", "#4C6FE7", "#E0902A", "#C74E68", "#6BA893"] },
+      chart: ["#0D9488", "#4C6FE7", "#E0902A", "#C74E68", "#6BA893", "#8E6FC8", "#A3A03A"] },
     { name: "暮橙", light: { primary: "#D97757", primary_weak: "#FBEFEA", accent: "#7C66C4", ring: "#D97757",
         bg_page: "#FFFDFB", bg_surface: "#FAF5F1", bg_elevated: "#FFFFFF", bg_sunken: "#F3EBE4", border: "#EDE1D8",
         text_primary: "#2B211B", text_secondary: "#63544A", text_muted: "#95867C",
@@ -239,7 +242,7 @@ function brandDialog(existing, onClose) {
         bg_page: "#171310", bg_surface: "#201A16", bg_elevated: "#251E19", bg_sunken: "#120E0B", border: "#382E27",
         text_primary: "#F5EFEA", text_secondary: "#C4B4A9", text_muted: "#8A7B70",
         success: "#4FAE76", warning: "#DCA43B", danger: "#EA6A5F" },
-      chart: ["#D97757", "#7C66C4", "#3F9963", "#C98A0B", "#B85878"] },
+      chart: ["#D97757", "#7C66C4", "#3F9963", "#C98A0B", "#B85878", "#4E8FB8", "#8C8C5A"] },
     { name: "黛紫", light: { primary: "#6E56CF", primary_weak: "#F1EEFB", accent: "#D6409F", ring: "#6E56CF",
         bg_page: "#FFFFFF", bg_surface: "#F9F8FC", bg_elevated: "#FFFFFF", bg_sunken: "#EFECF7", border: "#E5E1F0",
         text_primary: "#201A33", text_secondary: "#584F72", text_muted: "#8C84A3",
@@ -248,7 +251,7 @@ function brandDialog(existing, onClose) {
         bg_page: "#131020", bg_surface: "#1B172B", bg_elevated: "#211B33", bg_sunken: "#0E0B1A", border: "#302A47",
         text_primary: "#F0EDF8", text_secondary: "#B0A8C8", text_muted: "#786F94",
         success: "#33B074", warning: "#E2A336", danger: "#EB6F76" },
-      chart: ["#6E56CF", "#D6409F", "#30A46C", "#EE7712", "#4C6FE7"] },
+      chart: ["#6E56CF", "#D6409F", "#30A46C", "#EE7712", "#4C6FE7", "#B0862F", "#4FA5A0"] },
     { name: "石墨", light: { primary: "#18181B", primary_weak: "#F1F1F3", accent: "#4C6FE7", ring: "#18181B",
         bg_page: "#FFFFFF", bg_surface: "#FAFAFA", bg_elevated: "#FFFFFF", bg_sunken: "#EFEFF1", border: "#E5E5E8",
         text_primary: "#111113", text_secondary: "#54545C", text_muted: "#8B8B94",
@@ -257,7 +260,7 @@ function brandDialog(existing, onClose) {
         bg_page: "#0E0E11", bg_surface: "#17171B", bg_elevated: "#1B1B20", bg_sunken: "#0A0A0C", border: "#2A2A30",
         text_primary: "#EDEDEF", text_secondary: "#A5A5AE", text_muted: "#6F6F78",
         success: "#33B074", warning: "#E2A336", danger: "#EB6F76" },
-      chart: ["#52525B", "#4C6FE7", "#30A46C", "#D6970A", "#D6409F"] },
+      chart: ["#52525B", "#4C6FE7", "#30A46C", "#D6970A", "#D6409F", "#7C66C4", "#3E8FA0"] },
     { name: "松绿", light: { primary: "#1E7A50", primary_weak: "#E7F4EC", accent: "#A87F2C", ring: "#1E7A50",
         bg_page: "#FFFFFF", bg_surface: "#F7FAF8", bg_elevated: "#FFFFFF", bg_sunken: "#ECF2EE", border: "#DEE9E1",
         text_primary: "#182720", text_secondary: "#4C5F55", text_muted: "#7E8F86",
@@ -266,7 +269,7 @@ function brandDialog(existing, onClose) {
         bg_page: "#0E1512", bg_surface: "#16211B", bg_elevated: "#1B2620", bg_sunken: "#0A100D", border: "#283A2F",
         text_primary: "#EAF3EE", text_secondary: "#A2B8AB", text_muted: "#6D8277",
         success: "#34A873", warning: "#DCA43B", danger: "#ED6A6A" },
-      chart: ["#1E7A50", "#A87F2C", "#4C6FE7", "#C74E68", "#58A08C"] },
+      chart: ["#1E7A50", "#A87F2C", "#4C6FE7", "#C74E68", "#58A08C", "#8E6FC8", "#B06A3C"] },
   ];
   // 每个 token 标注作用位置（会议：每个属性都要可解释、与组件配套）
   const COLOR_GROUPS = [
@@ -328,7 +331,7 @@ function brandDialog(existing, onClose) {
     t.density = DENSITIES[opts.density][1];
     t.spacing = { ...(t.spacing || {}), card_padding: DENSITIES[opts.density][2] };
     t._options && (t._options.density_scale = "v2");
-    t.chart = { ...(t.chart || {}), categorical: [...tok.chart, ...((t.chart || {}).categorical || []).slice(5)] };
+    t.chart = { ...(t.chart || {}), categorical: [...tok.chart, ...((t.chart || {}).categorical || []).slice(7)] };
     t._options = { ...opts, radius_unit: "px", density_scale: "v2" };
     return t;
   }
@@ -423,11 +426,45 @@ function brandDialog(existing, onClose) {
   drawModeSeg();
 
   // —— 逐 token 细颗粒度编辑（Figma 式：分组 · 色块 + HEX 双向同步） ——
-  // 快速配色：主色 / 正文色 / 页面底色 / 成功色——同步写入对应 token 并联动弱底
+  // HEX 与 HSL 互转：深色模式自动推导用
+  const hex2hsl = (hx) => {
+    const n = parseInt(hx.slice(1), 16);
+    const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b2 = (n & 255) / 255;
+    const mx = Math.max(r, g, b2), mn = Math.min(r, g, b2), d = mx - mn;
+    let h = 0;
+    if (d) h = mx === r ? ((g - b2) / d + (g < b2 ? 6 : 0)) : mx === g ? (b2 - r) / d + 2 : (r - g) / d + 4;
+    return [h * 60, mx + mn === 0 || mx + mn === 2 ? 0 : d / (1 - Math.abs(mx + mn - 1)), (mx + mn) / 2];
+  };
+  const hsl2hex = (h, s2, l) => {
+    const a = s2 * Math.min(l, 1 - l);
+    const f = (n2) => { const k = (n2 + h / 30) % 12; const c = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+      return Math.round(c * 255).toString(16).padStart(2, "0"); };
+    return "#" + f(0) + f(8) + f(4);
+  };
+  // 按浅色自动生成深色：背景压暗保留色相，文字反转，主色提亮一档；生成后仍可逐项手调
+  function genDarkFromLight() {
+    const L = tok.light, D2 = tok.dark;
+    const set2 = (k, h, s2, l) => { D2[k] = hsl2hex(h, s2, l); };
+    const from = (k, fb) => hex2hsl(/^#[0-9a-f]{6}$/i.test(L[k] || "") ? L[k] : fb);
+    let [h, s2, l] = from("primary", "#3E63DD");
+    set2("primary", h, Math.min(1, s2 * 0.95), Math.min(0.72, l + 0.1)); D2.ring = D2.primary;
+    set2("primary_weak", h, Math.min(1, s2 * 0.6), 0.17);
+    const [ha, sa, la] = from("accent", "#8E4EC6"); set2("accent", ha, sa, Math.min(0.74, la + 0.1));
+    const [hb, sb] = from("bg_page", "#FFFFFF");
+    set2("bg_page", hb, Math.min(0.3, sb), 0.075); set2("bg_surface", hb, Math.min(0.3, sb), 0.105);
+    set2("bg_elevated", hb, Math.min(0.3, sb), 0.13); set2("bg_sunken", hb, Math.min(0.3, sb), 0.055);
+    set2("border", hb, Math.min(0.25, sb), 0.21);
+    const [ht] = from("text_primary", "#1C2434");
+    set2("text_primary", ht, 0.12, 0.93); set2("text_secondary", ht, 0.1, 0.7); set2("text_muted", ht, 0.08, 0.5);
+    ["success", "warning", "danger"].forEach(k => { const [h3, s3, l3] = from(k, "#30A46C"); set2(k, h3, s3, Math.min(0.66, l3 + 0.08)); });
+    refreshGroupSwatches(); drawTokens(); drawQuick(); applyPreview();
+    UI.toast("已按浅色配色生成深色模式，可继续逐项微调");
+  }
+  // 快速配色：主色 / 正文色 / 页面底色 / 危险色——同步写入对应 token 并联动弱底
   const quickPanel = el("div", { class: "quick-colors" });
   function drawQuick() {
     quickPanel.innerHTML = "";
-    [["primary", "主色"], ["text_primary", "文字颜色"], ["bg_page", "背景色"], ["success", "成功色"]].forEach(([key, label]) => {
+    [["primary", "主色"], ["text_primary", "文字颜色"], ["bg_page", "背景色"], ["danger", "危险色"]].forEach(([key, label]) => {
       const cur = tok[editMode];
       const ci = el("input", { type: "color", class: "tok-chip",
         value: /^#[0-9a-f]{6}$/i.test(cur[key] || "") ? cur[key] : "#3E63DD" });
@@ -435,13 +472,17 @@ function brandDialog(existing, onClose) {
         cur[key] = ci.value;
         if (key === "primary") {
           cur.ring = ci.value;
+          // 选中底色联动：浅色调白，深色调暗——两个模式都要跟着主色走
           if (editMode === "light") cur.primary_weak = "#" + ci.value.slice(1).replace(/../g,
             m2 => Math.min(255, Math.round(parseInt(m2, 16) * 0.12 + 236)).toString(16).padStart(2, "0"));
+          else { const [h4, s4] = hex2hsl(ci.value); cur.primary_weak = hsl2hex(h4, Math.min(1, s4 * 0.6), 0.17); }
         }
         refreshGroupSwatches(); drawTokens(); applyPreview();
       };
       quickPanel.appendChild(el("label", { class: "quick-color" }, [ci, el("span", {}, [label])]));
     });
+    if (editMode === "dark") quickPanel.appendChild(el("button", { class: "btn small", type: "button",
+      title: "按当前浅色配色推导一套深色，不用逐项手调", onclick: genDarkFromLight }, ["按浅色自动生成"]));
   }
   const tokenPanel = el("div", {});
   let grpRefreshers = [];

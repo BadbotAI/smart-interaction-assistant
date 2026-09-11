@@ -197,6 +197,9 @@
             display: cfg.display || "", recommended_default: cfg.recommended_default || null,
             fields: cfg.fields || [], likert: cfg.likert || null, slider: cfg.slider || null,
             dimensions: cfg.dimensions || [], values: cfg.values || null, placeholder: cfg.placeholder || "",
+            ...(cfg.max_select ? { max_select: cfg.max_select } : {}),
+            ...(cfg.down_reasons ? { down_reasons: cfg.down_reasons } : {}),
+            ...((card.text_templates || {}).cancel ? { cancel_label: card.text_templates.cancel } : {}),
             echo_results: false } },
           card: { card_id: card.card_id, name: card.name, version: card.version } };
       }
@@ -437,6 +440,9 @@
         display: cfg.display || "", recommended_default: cfg.recommended_default || null,
         fields: cfg.fields || [], likert: cfg.likert || null, slider: cfg.slider || null,
         dimensions: cfg.dimensions || [], values: cfg.values || null, placeholder: cfg.placeholder || "",
+        ...(cfg.max_select ? { max_select: cfg.max_select } : {}),
+        ...(cfg.down_reasons ? { down_reasons: cfg.down_reasons } : {}),
+        ...((card.text_templates || {}).cancel ? { cancel_label: card.text_templates.cancel } : {}),
         echo_results: false } };
   }
 

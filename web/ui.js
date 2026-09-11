@@ -194,12 +194,12 @@ window.UI = (function () {
 
   // 组件类型中文名（走查 G3）：运营人员不该面对 select.single 这类内部 ID
   const CT_NAMES = {
-    "select.single": "文本选择（单选）", "select.multi": "文本选择（多选）", "select.card": "卡片选择", "scale.likert": "评分",
-    "matrix.compare+select": "对比选择", "form.structured": "表单收集", "input.followup": "备注填写",
-    "slider.range": "数值滑杆", "picker.datetime": "日期时间", "picker.timerange": "时间段选择", "picker.location": "地址卡片", "rank.priority": "优先级排序", "chart.waterfall": "瀑布图", "upload.file": "文件上传", "upload.image": "图片上传", "suggest.followup": "追问引导", "commerce.order": "商品下单", "entry.link": "入口跳转", "guide.steps": "步骤说明书", "track.map": "物流轨迹", "feedback.binary": "赞踩反馈", "feedback.preference": "偏好选择",
-    "control.confirm": "操作确认", "control.interrupt": "中断", "control.retry": "重试", "text.emphasis": "重点结论",
-    "metric.card": "指标卡", "table": "表格", "chart.line": "折线图", "chart.area": "面积图", "chart.bar": "柱状图", "chart.pie": "占比图",
-    "matrix.compare": "方案对比", "timeline": "时间线", "citation.card": "引用卡", "list.ordered": "要点清单", "steps": "步骤条",
+    "select.single": "选择器（单选）", "select.multi": "选择器（多选）", "select.card": "卡片选择器", "scale.likert": "评分",
+    "matrix.compare+select": "对比选择", "form.structured": "表单", "input.followup": "备注填写",
+    "slider.range": "数值滑杆", "picker.datetime": "日期时间", "picker.timerange": "时间段选择", "picker.location": "地址卡片", "rank.priority": "排序器", "chart.waterfall": "瀑布图", "upload.file": "文件上传", "upload.image": "图片上传", "suggest.followup": "追问引导", "commerce.order": "商品下单", "entry.link": "入口跳转", "guide.steps": "步骤说明书", "track.map": "物流轨迹", "feedback.binary": "赞踩反馈", "feedback.preference": "偏好选择器",
+    "control.confirm": "确认器", "control.interrupt": "中断", "control.retry": "重试", "text.emphasis": "重点结论",
+    "metric.card": "指标卡", "table": "表格", "chart.line": "折线图", "chart.area": "面积图", "chart.bar": "柱状图", "chart.pie": "饼图",
+    "matrix.compare": "对比矩阵", "timeline": "时间线", "citation.card": "引用卡", "list.ordered": "要点清单", "steps": "步骤条",
     "flow.reasoning": "推理过程", "control.branch": "分支选择", "implicit.behavior": "隐式行为",
   };
   function ctName(ct) { return CT_NAMES[ct] || ct || "-"; }
@@ -860,6 +860,7 @@ window.UI = (function () {
     upload: '<path d="M12 15V4"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/>',
     sparkles: '<path d="M9 3.5 10.4 7 14 8.4 10.4 9.8 9 13.3 7.6 9.8 4 8.4 7.6 7z" fill="currentColor" stroke="none"/><path d="M17 11.5l1.1 2.6 2.6 1.1-2.6 1.1L17 19l-1.1-2.7-2.6-1.1 2.6-1.1z" fill="currentColor" stroke="none"/>',
     power: '<path d="M12 3v8"/><path d="M6.3 6.5a8 8 0 1 0 11.4 0"/>',
+    pipette: '<path d="m14.5 6.5 3 3"/><path d="M17.8 3.2a2.1 2.1 0 0 1 3 3l-2.8 2.8-3-3z"/><path d="M15 8 6.2 16.8a1.6 1.6 0 0 0-.5 1.1v1.3l-1.2 1.2a.8.8 0 0 0 1.1 1.1l1.2-1.2h1.3c.4 0 .8-.2 1.1-.5L18 11"/>',
   };
   function icon(name, size = 16) {
     const span = document.createElement("span");
