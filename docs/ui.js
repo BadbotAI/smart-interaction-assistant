@@ -683,6 +683,94 @@ window.UI = (function () {
     container.appendChild(legend);
   }
 
+  // ---------- Figma 式色盘：SV 面板 + 色相条 + 透明度条 + HEX 输入 ----------
+  function hsvToRgb(h, s, v) {
+    const f = (n) => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+    return [f(5), f(3), f(1)].map(x => Math.round(x * 255));
+  }
+  function rgbToHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    let h = 0;
+    if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    h = Math.round(h * 60); if (h < 0) h += 360;
+    return [h, mx ? d / mx : 0, mx];
+  }
+  function hexParse(hex) {
+    const m = String(hex || "").trim().match(/^#?([0-9a-f]{6})([0-9a-f]{2})?$/i);
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    return { r: n >> 16, g: (n >> 8) & 255, b: n & 255, a: m[2] ? parseInt(m[2], 16) / 255 : 1 };
+  }
+  function toHex(r, g, b, a) {
+    const p = (x) => x.toString(16).padStart(2, "0");
+    return "#" + p(r) + p(g) + p(b) + (a < 1 ? p(Math.round(a * 255)) : "");
+  }
+  function colorPicker(anchorEl, { value = "#3E63DD", alpha = true, onChange } = {}) {
+    document.querySelectorAll(".cp-pop").forEach(n => n.remove());
+    const init = hexParse(value) || { r: 62, g: 99, b: 221, a: 1 };
+    let [h, s, v] = rgbToHsv(init.r, init.g, init.b);
+    let a = init.a;
+    const pop = el("div", { class: "menu-pop cp-pop" });
+    const sv = el("div", { class: "cp-sv" }, [el("i", { class: "cp-cursor" })]);
+    const hue = el("div", { class: "cp-slider cp-hue" }, [el("i", { class: "cp-knob" })]);
+    const al = alpha ? el("div", { class: "cp-slider cp-alpha" }, [el("i", { class: "cp-knob" })]) : null;
+    const hexIn = el("input", { type: "text", class: "num cp-hex", spellcheck: "false", maxlength: "9" });
+    const alIn = alpha ? el("input", { type: "number", class: "num cp-a", min: "0", max: "100" }) : null;
+    const prev = el("span", { class: "cp-prev" });
+    const emit = () => {
+      const [r, g, b] = hsvToRgb(h, s, v);
+      const hex = toHex(r, g, b, a);
+      hexIn.value = hex.toUpperCase();
+      if (alIn) alIn.value = String(Math.round(a * 100));
+      prev.style.background = hex;
+      sv.style.background = `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${h},100%,50%))`;
+      sv.querySelector(".cp-cursor").style.cssText = `left:${s * 100}%;top:${(1 - v) * 100}%`;
+      hue.querySelector(".cp-knob").style.left = (h / 360 * 100) + "%";
+      if (al) {
+        al.style.setProperty("--cp-c", `rgb(${r},${g},${b})`);
+        al.querySelector(".cp-knob").style.left = (a * 100) + "%";
+      }
+      onChange && onChange(hex);
+    };
+    const drag = (elx, fn) => {
+      const move = (e) => {
+        const r2 = elx.getBoundingClientRect();
+        fn(Math.max(0, Math.min(1, (e.clientX - r2.left) / r2.width)),
+           Math.max(0, Math.min(1, (e.clientY - r2.top) / r2.height)));
+        emit();
+      };
+      elx.addEventListener("mousedown", (e) => {
+        e.preventDefault(); move(e);
+        const up = () => { document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up); };
+        document.addEventListener("mousemove", move);
+        document.addEventListener("mouseup", up);
+      });
+    };
+    drag(sv, (x, y) => { s = x; v = 1 - y; });
+    drag(hue, (x) => { h = Math.round(x * 360); });
+    if (al) drag(al, (x) => { a = Math.round(x * 100) / 100; });
+    hexIn.onchange = () => {
+      const p2 = hexParse(hexIn.value);
+      if (p2) { [h, s, v] = rgbToHsv(p2.r, p2.g, p2.b); a = p2.a; }
+      emit();
+    };
+    if (alIn) alIn.onchange = () => { a = Math.max(0, Math.min(100, Number(alIn.value) || 0)) / 100; emit(); };
+    pop.append(sv, hue);
+    if (al) pop.appendChild(al);
+    pop.appendChild(el("div", { class: "cp-inputs" }, [prev, hexIn,
+      ...(alIn ? [alIn, el("span", { class: "muted", style: "font-size:11px" }, ["%"])] : [])]));
+    document.body.appendChild(pop);
+    const r3 = anchorEl.getBoundingClientRect();
+    pop.style.position = "fixed";
+    pop.style.top = Math.min(r3.bottom + 6, window.innerHeight - pop.offsetHeight - 12) + "px";
+    pop.style.left = Math.min(r3.left, window.innerWidth - pop.offsetWidth - 12) + "px";
+    const close = (e) => { if (!pop.contains(e.target) && e.target !== anchorEl) { pop.remove(); document.removeEventListener("mousedown", close, true); } };
+    setTimeout(() => document.addEventListener("mousedown", close, true), 0);
+    emit();
+    return pop;
+  }
+
   function debounce(fn, ms = 250) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
   // ---------- 内联 SVG 图标（无 emoji，描边 1.6，随 currentColor 着色） ----------
@@ -839,7 +927,7 @@ window.UI = (function () {
   }
 
 
-  return { api, el, toast, modal, drawer, confirm: confirmDialog, withBusy, loading, menu, fancySelect, tagSelect, ctName, ctChip, debounce,
+  return { api, el, toast, modal, drawer, confirm: confirmDialog, withBusy, loading, menu, fancySelect, tagSelect, ctName, ctChip, debounce, colorPicker,
     icon, iconBtn, shortId, idChip, keyField, chatMock, tagInput, toggle, help,
     nav, fmtCost, fmtMs, fmtTs, fmtPct, lineChart, barChart, stackedBars };
 })();

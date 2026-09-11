@@ -549,110 +549,116 @@ const DEMO_PRESENT = {
 // —— 组件参数规格表：每个组件专属的可调项（type: color/num/bool/enum），设计器按表自动渲染 ——
 const COMPONENT_PARAMS = {
   "chart.line": [
-    ["line.color", "折线颜色", "color"],
+    ["line.color", "折线颜色", "color", { hint: "单序列时生效；多序列走主题图表色板" }],
     ["line.width", "线宽", "num", 1, 4, 2],
-    ["line.style", "线型", "enum", [["", "实线"], ["dashed", "虚线"], ["dotted", "点线"]]],
     ["line.smooth", "平滑曲线", "bool", false],
     ["point.show", "数据点", "bool", true],
-    ["point.shape", "点形状", "enum", [["", "圆形"], ["square", "方形"], ["diamond", "菱形"]]],
-    ["point.size", "点大小", "num", 2, 6, 3],
+    ["point.size", "点大小", "num", 2, 6, 3, { deps: ["point.show", true] }],
     ["area.fill", "面积填充", "bool", true],
-    ["area.opacity", "面积浓度", "num", 4, 40, 16],
-    ["grid", "网格线", "bool", true],
-    ["grid.style", "网格线型", "enum", [["", "实线"], ["dashed", "虚线"]]],
-    ["axis.show", "底部轴线", "bool", false],
-    ["axis.color", "轴线颜色", "color"],
+    ["area.opacity", "面积浓度", "num", 4, 40, 16, { unit: "%", deps: ["area.fill", true] }],
+    ["legend.show", "系列名标注", "bool", true, { hint: "多序列时在线尾标注系列名" }],
     ["value_labels", "数值标签", "bool", false],
-    ["y.zero", "纵轴从 0 起", "bool", true],
-    ["grid.count", "网格密度", "num", 2, 5, 3],
-    ["last.emph", "末点强调", "bool", true],
+    ["line.style", "线型", "enum", [["", "实线"], ["dashed", "虚线"], ["dotted", "点线"]], { adv: true }],
+    ["point.shape", "点形状", "enum", [["", "圆形"], ["square", "方形"], ["diamond", "菱形"]], { adv: true, deps: ["point.show", true] }],
+    ["grid", "网格线", "bool", true, { adv: true }],
+    ["grid.style", "网格线型", "enum", [["", "实线"], ["dashed", "虚线"]], { adv: true, deps: ["grid", true] }],
+    ["grid.count", "网格密度", "num", 2, 5, 3, { adv: true, unit: "条", deps: ["grid", true] }],
+    ["axis.show", "底部轴线", "bool", false, { adv: true }],
+    ["axis.color", "轴线颜色", "color", { adv: true, deps: ["axis.show", true] }],
+    ["y.zero", "纵轴从 0 起", "bool", true, { adv: true }],
+    ["last.emph", "突出最新数据点", "bool", true, { adv: true }],
   ],
   "chart.bar": [
     ["bar.color", "柱体颜色", "color"],
-    ["bar.width", "柱宽占比", "num", 20, 75, 55],
-    ["bar.radius", "柱顶圆角", "num", 0, 8, 4],
+    ["bar.width", "柱宽占比", "num", 20, 75, 55, { unit: "%" }],
+    ["bar.radius", "柱端圆角", "num", 0, 8, 4],
     ["value_labels", "柱顶数值", "bool", true],
-    ["grid", "网格线", "bool", true],
-    ["grid.style", "网格线型", "enum", [["", "实线"], ["dashed", "虚线"]]],
-    ["axis.color", "轴线颜色", "color"],
-    ["bar.sort", "排序", "enum", [["", "原始顺序"], ["asc", "升序"], ["desc", "降序"]]],
     ["bar.horizontal", "横向条形", "bool", false],
+    ["bar.sort", "排序", "enum", [["", "原始顺序"], ["asc", "升序"], ["desc", "降序"]], { hint: "类目为时间时请保持原始顺序" }],
+    ["grid", "网格线", "bool", true, { adv: true }],
+    ["grid.style", "网格线型", "enum", [["", "实线"], ["dashed", "虚线"]], { adv: true, deps: ["grid", true] }],
+    ["axis.color", "轴线颜色", "color", { adv: true }],
   ],
   "chart.pie": [
     ["pie.style", "形态", "enum", [["", "百分比条"], ["donut", "环形图"]]],
-    ["pie.height", "条高", "num", 10, 28, 18],
+    ["pie.height", "条高", "num", 10, 28, 18, { deps: ["pie.style", ""] }],
+    ["donut.thickness", "环形厚度", "num", 12, 28, 20, { deps: ["pie.style", "donut"] }],
+    ["pie.sort", "按占比排序", "bool", true],
     ["legend.show", "图例", "bool", true],
-    ["legend.pct", "图例带百分比", "bool", true],
-    ["donut.thickness", "环形厚度", "num", 12, 28, 20],
-    ["pie.sort", "按占比排序", "bool", false],
+    ["legend.pct", "图例带百分比", "bool", true, { deps: ["legend.show", true] }],
   ],
   "metric.card": [
     ["value.size", "数值字号", "num", 22, 40, 30],
     ["delta.show", "涨跌标签", "bool", true],
-    ["delta.invert", "红涨绿跌", "bool", false],
+    ["delta.invert", "红涨绿跌", "bool", false, { deps: ["delta.show", true] }],
     ["metric.align", "对齐", "enum", [["", "左对齐"], ["center", "居中"]]],
     ["baseline.show", "基线说明", "bool", true],
   ],
   "table": [
     ["striped", "隔行变色", "bool", true],
-    ["header_bold", "表头加重", "bool", true],
+    ["header_bold", "表头加粗", "bool", true],
     ["header.bg", "表头底色", "color"],
+    ["row.height", "行高", "num", 32, 52, 40],
     ["outline", "外边框", "bool", false],
-    ["row.divider", "行分隔线", "enum", [["", "横线"], ["none", "无"], ["all", "全框"]]],
-    ["tbl.font", "表格字号", "num", 11, 14, 12],
-    ["col.align", "列对齐", "enum", [["", "智能（数字右对齐）"], ["left", "全部左对齐"]]],
+    ["row.divider", "行分隔线", "enum", [["", "横线"], ["none", "无"], ["all", "全框"]], { hint: "全框时建议关闭隔行变色" }],
+    ["tbl.font", "表格字号", "num", 11, 14, 12, { adv: true, hint: "覆盖通用「字号」在表格内的取值" }],
+    ["col.align", "列对齐", "enum", [["", "智能（数字右对齐）"], ["left", "全部左对齐"]], { adv: true }],
   ],
   "timeline": [
     ["dot.shape", "节点形状", "enum", [["", "圆形"], ["square", "方形"]]],
     ["dot.color", "节点颜色", "color"],
     ["tlline.style", "连线线型", "enum", [["", "实线"], ["dashed", "虚线"]]],
+    ["tlline.color", "连线颜色", "color"],
     ["ts.show", "时间戳", "bool", true],
     ["desc.show", "描述文字", "bool", true],
-    ["tlline.color", "连线颜色", "color"],
   ],
   "steps": [
     ["node.size", "节点尺寸", "num", 20, 32, 26],
     ["done.color", "完成色", "color"],
     ["halo", "当前步光晕", "bool", true],
-    ["stepline.width", "连线粗细", "num", 1, 4, 2],
     ["stepnum.show", "节点数字", "bool", true],
-    ["steplabel.size", "标签字号", "num", 10, 13, 11],
+    ["stepline.width", "连线粗细", "num", 1, 4, 2, { adv: true }],
+    ["steplabel.size", "标签字号", "num", 11, 13, 11, { adv: true }],
   ],
   "matrix.compare": [
-    ["best.highlight", "最优项高亮", "bool", true],
+    ["best.highlight", "最优项高亮", "bool", true, { hint: "高亮色使用成功色" }],
     ["sum.show", "综合列", "bool", true],
     ["header.bg", "表头底色", "color"],
+    ["striped", "隔行变色", "bool", false],
+    ["tbl.font", "表格字号", "num", 11, 14, 12, { adv: true }],
   ],
   "list.ordered": [
     ["marker.style", "序号样式", "enum", [["", "数字圆标"], ["dot", "圆点"], ["none", "无"]]],
-    ["marker.color", "序号颜色", "color"],
+    ["marker.color", "序号颜色", "color", { deps: ["marker.style", ["", "dot"]] }],
     ["list.gap", "条目间距", "num", 4, 16, 8],
-    ["text.align", "对齐", "enum", [["", "左对齐"], ["center", "居中"]]],
   ],
   "text.emphasis": [
     ["hl.size", "文字字号", "num", 16, 30, 20],
-    ["tone.color", "跟随语气配色", "bool", true],
+    ["tone.color", "按内容语气着色", "bool", true, { hint: "正向绿 / 警示红；关闭后使用主题文字色" }],
     ["caption.show", "补充说明", "bool", true],
     ["text.align", "对齐", "enum", [["", "左对齐"], ["center", "居中"]]],
   ],
   "select.single": [
     ["opt.gap", "选项间距", "num", 4, 16, 8],
     ["opt.border", "选项描边", "bool", true],
-    ["opt.radius", "选项圆角", "num", 0, 16, 10],
-    ["radio.show", "选择指示器", "bool", true],
+    ["opt.radius", "选项圆角", "num", 0, 16, 10, { hint: "覆盖通用「倒角」推导的控件圆角" }],
+    ["radio.show", "显示勾选标记", "bool", true],
   ],
   "select.multi": [
     ["opt.gap", "选项间距", "num", 4, 16, 8],
     ["opt.border", "选项描边", "bool", true],
-    ["opt.radius", "选项圆角", "num", 0, 16, 10],
-    ["radio.show", "选择指示器", "bool", true],
+    ["opt.radius", "选项圆角", "num", 0, 16, 10, { hint: "覆盖通用「倒角」推导的控件圆角" }],
+    ["radio.show", "显示勾选标记", "bool", true, { hint: "多选场景建议保留，否则选中态只剩底色区分" }],
   ],
   "form.structured": [
+    ["label.pos", "标签位置", "enum", [["", "上方"], ["left", "左侧"]]],
+    ["input.border", "输入框描边", "bool", true],
     ["input.bg", "输入框底色", "color"],
   ],
   "control.confirm": [
+    ["danger", "危险操作样式", "bool", true, { hint: "确认按钮使用警示红；关闭后用主题主色" }],
     ["icon.show", "警示图标", "bool", true],
-    ["icon.color", "图标颜色", "color"],
+    ["icon.color", "图标颜色", "color", { deps: ["icon.show", true] }],
     ["btn.align", "按钮排列", "enum", [["", "右对齐"], ["stretch", "拉伸铺满"]]],
   ],
   "feedback.binary": [
@@ -660,22 +666,23 @@ const COMPONENT_PARAMS = {
   ],
   "feedback.preference": [
     ["card.gap", "候选卡间距", "num", 4, 16, 8],
+    ["opt.radius", "候选卡圆角", "num", 0, 16, 10],
   ],
   "slider.range": [
-    ["track.height", "轨道高度", "num", 4, 10, 6],
-    ["thumb.size", "滑块尺寸", "num", 14, 22, 18],
+    ["track.height", "轨道高度", "num", 4, 10, 6, { adv: true }],
+    ["thumb.size", "滑块尺寸", "num", 14, 22, 18, { adv: true }],
   ],
   "scale.likert": [
     ["lk.style", "形态", "enum", [["", "圆点"], ["bar", "条段"]]],
-    ["dot.size", "刻度尺寸", "num", 24, 36, 28],
-    ["dot.gap", "刻度间距", "num", 4, 14, 8],
+    ["dot.size", "刻度尺寸", "num", 24, 36, 28, { deps: ["lk.style", ""] }],
+    ["dot.gap", "刻度间距", "num", 4, 14, 8, { deps: ["lk.style", ""] }],
   ],
   "picker.datetime": [
     ["quick.show", "快捷日期片", "bool", true],
   ],
   "rank.priority": [
     ["no.style", "序号样式", "enum", [["", "圆形"], ["square", "方形"]]],
-    ["handle.show", "拖动把手", "bool", true],
+    ["handle.show", "拖动把手", "bool", true, { hint: "关闭后整行仍可拖，但建议保留把手提示" }],
   ],
 };
 const PRESENT_TYPES = ["table", "chart.line", "chart.bar", "chart.pie", "chart.area", "metric.card", "timeline", "steps",
@@ -1129,8 +1136,8 @@ async function openEditor(cardId, prefill, initStep) {
     ]));
 
     // —— 颜色：主色 / 强调色（品牌 + 预设 + 自定义） ——
-    const SWATCHES = ["#3E63DD", "#0D9488", "#D97757", "#6E56CF", "#18181B", "#1E7A50"];
-    function colorRow(key, label) {
+    const SWATCHES = ["#3E63DD", "#0EA5A5", "#30A46C", "#D6970A", "#D97757", "#E5484D", "#7C5CD6", "#64748B"];
+    function colorRow(key, label, hintC) {
       const row = el("div", { class: "sty-swatches" });
       const draw = () => {
         row.innerHTML = "";
@@ -1139,23 +1146,23 @@ async function openEditor(cardId, prefill, initStep) {
         SWATCHES.forEach(cx => row.appendChild(el("button", { type: "button",
           class: "sty-swatch" + (so[key] === cx ? " on" : ""), style: `background:${cx}`,
           title: cx, onclick: () => { so[key] = cx; draw(); upd(); } })));
-        const ci = el("input", { type: "color", value: /^#[0-9a-f]{6}$/i.test(so[key] || "") ? so[key] : "#3E63DD",
-          style: "width:34px;height:34px;padding:2px;border-radius:10px;border:1.5px solid var(--border);cursor:pointer", title: "取色器" });
-        const hex = el("input", { type: "text", value: so[key] || "", placeholder: "#3E63DD", maxlength: "7", spellcheck: "false",
-          class: "num", style: "width:86px;padding:5px 8px;font-size:12px;text-transform:uppercase" });
-        ci.oninput = () => { so[key] = ci.value; hex.value = ci.value; draw(); upd(); };
+        const wheel = el("button", { type: "button", class: "sty-swatch cp-open", title: "打开色盘" });
+        wheel.onclick = () => UI.colorPicker(wheel, { value: so[key] || "#3E63DD", alpha: true,
+          onChange: (hex2) => { so[key] = hex2; upd(); } });
+        const hex = el("input", { type: "text", value: so[key] || "", placeholder: "#3E63DD", maxlength: "9", spellcheck: "false",
+          class: "num", style: "width:92px;padding:5px 8px;font-size:12px;text-transform:uppercase" });
         hex.onchange = () => {
           let v = hex.value.trim();
-          if (/^[0-9a-f]{6}$/i.test(v)) v = "#" + v;
-          if (/^#[0-9a-f]{6}$/i.test(v)) { so[key] = v; draw(); upd(); }
+          if (/^[0-9a-f]{6}([0-9a-f]{2})?$/i.test(v)) v = "#" + v;
+          if (/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(v)) { so[key] = v; draw(); upd(); }
           else if (!v) { delete so[key]; draw(); upd(); }
           else { hex.value = so[key] || ""; UI.toast("请输入合法 HEX 色值，如 #546496", true); }
         };
-        row.appendChild(ci);
+        row.appendChild(wheel);
         row.appendChild(hex);
       };
       draw();
-      return el("div", { class: "sty-section" }, [el("div", { class: "sty-label" }, [label]), row]);
+      return el("div", { class: "sty-section" }, [el("div", { class: "sty-label" }, [label, hintC ? UI.help(hintC) : null]), row]);
     }
 
     // —— 通用档位卡 ——
@@ -1180,12 +1187,12 @@ async function openEditor(cardId, prefill, initStep) {
       radius: { none: 0, sm: 8, md: 16, lg: 22, full: 28 },
       height: { compact: 32, regular: 40, large: 48 },
       spacing: { compact: 10, regular: 16, loose: 22 },
-      font_scale: { "-1": 12, "1": 15, "2": 16 },
+      font_scale: { "-1": 13, "1": 15, "2": 16 },
     };
     Object.entries(MIGRATE).forEach(([k, m]) => { if (so[k] in m) so[k] = m[so[k]]; });
 
     // 数值属性行：滑块 + 数字输入 + 重置（未覆盖 = 跟随主题，滑块停在主题默认位、半透明）
-    function numRow(key, label, min, max, brandVal, hint) {
+    function numRow(key, label, min, max, brandVal, hint, unit) {
       const range = el("input", { type: "range", min: String(min), max: String(max), step: "1", class: "sl-range" });
       const num = el("input", { type: "number", min: String(min), max: String(max), class: "sl-num num", placeholder: "品牌" });
       const clear = el("button", { class: "btn small ghost", type: "button", title: "清除覆盖，跟随风格主题" }, ["恢复默认"]);
@@ -1205,7 +1212,7 @@ async function openEditor(cardId, prefill, initStep) {
         el("div", { class: "sty-label" }, [label, hint ? UI.help(hint) : null,
           el("span", { style: "flex:1" }), clear]),
         el("div", { class: "sl-row" }, [el("div", { class: "sl-wrap" }, [range]), num,
-          el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["px"])]),
+          el("span", { class: "muted", style: "font-size:var(--font-caption)" }, [unit === undefined ? "px" : unit])]),
       ]);
     }
     const radiusDemo = v => el("i", { class: "sty-radius-demo",
@@ -1226,25 +1233,29 @@ async function openEditor(cardId, prefill, initStep) {
     const FIXED_OK = ["select.single", "select.multi", "form.structured", "rank.priority"].includes(ct);
     const groupHead = (t, d) => el("div", { class: "sty-group" }, [el("span", {}, [t]),
       d ? el("span", { class: "muted", style: "font-size:var(--font-caption);font-weight:400" }, [d]) : null]);
-    const boolRow = (key, label, defOn, hint) => {
+    const boolRow = (key, label, defOn, hint, onAfter) => {
       const cb = el("input", { type: "checkbox", ...(so[key] === undefined ? (defOn ? { checked: "" } : {}) : (so[key] ? { checked: "" } : {})) });
       cb.onchange = () => {
         if (cb.checked === defOn) delete so[key]; else so[key] = cb.checked;
-        upd();
+        (onAfter || upd)();
       };
       return el("label", { class: "sty-bool" }, [cb, el("span", {}, [label]), hint ? UI.help(hint) : null]);
     };
 
     // 内容模式（固定 / 动态）——仅业务内容型组件
     if (FIXED_OK) {
-      box.appendChild(groupHead("内容", "固定 = 业务选项在平台定死并可开群体回显；动态 = 内容由模型按对话给出"));
-      const cmSeg = el("div", { class: "segmented" });
+      box.appendChild(groupHead("内容"));
+      const cmSeg = el("div", { class: "cm-cards" });
       const fixedArea = el("div", { style: "margin-top:10px" });
       const drawCM = () => {
         cmSeg.innerHTML = "";
-        [["dynamic", "动态（模型给出）"], ["fixed", "固定（平台定死）"]].forEach(([v, nm]) =>
-          cmSeg.appendChild(el("button", { type: "button", class: "seg" + (state.contentMode === v ? " active" : ""),
-            onclick: () => { state.contentMode = v; if (v !== "fixed") state.echo_results = false; drawCM(); drawFixed(); upd(); } }, [nm])));
+        [["dynamic", "AI 生成内容", "选项由 AI 根据对话自动给出，每次可能不同"],
+         ["fixed", "手动固定内容", "选项由你在下方填写，AI 不能改，可统计大家的选择"]].forEach(([v, nm, sub]) =>
+          cmSeg.appendChild(el("button", { type: "button", class: "cm-card" + (state.contentMode === v ? " on" : ""),
+            onclick: () => { state.contentMode = v; if (v !== "fixed") state.echo_results = false; drawCM(); drawFixed(); upd(); } }, [
+            el("span", { class: "cm-name" }, [nm]),
+            el("span", { class: "cm-sub" }, [sub]),
+          ])));
       };
       const drawFixed = () => {
         fixedArea.innerHTML = "";
@@ -1314,6 +1325,23 @@ async function openEditor(cardId, prefill, initStep) {
       box.appendChild(el("div", { class: "sty-section" }, [cmSeg, fixedArea]));
     }
 
+    // 选择类：展现变体（可视化两卡）
+    if (["select.single", "select.multi", "select.card"].includes(state.component_type)) {
+      const row = el("div", { class: "sty-cards" });
+      const drawV = () => {
+        row.innerHTML = "";
+        [["text", "文本样式", () => el("i", { style: "display:block;width:44px;height:8px;border:1.5px solid var(--text-secondary);border-radius:4px" })],
+         ["card", "卡片样式", () => el("i", { style: "display:block;width:44px;height:26px;border:1.5px solid var(--text-secondary);border-radius:6px" })]]
+          .forEach(([v, nm, demo]) => row.appendChild(el("button", { type: "button",
+            class: "sty-card" + ((state.display || "text") === v ? " on" : ""),
+            onclick: () => { state.display = v; drawV(); autosave(); rebuild(); } },
+            [el("div", { class: "demo" }, [demo()]), el("span", { class: "nm" }, [nm])])));
+      };
+      drawV();
+      box.appendChild(el("div", { class: "sty-section" }, [
+        el("div", { class: "sty-label" }, ["选项展现", UI.help("同一选择表单的两种展现：文本行 / 图文卡片；不影响参数 schema")]), row]));
+    }
+
     box.appendChild(groupHead("颜色"));
     box.appendChild(colorRow("color.primary", HAS_SUBMIT ? "主色（按钮 / 选中态）" : "主色（选中 / 强调）"));
     box.appendChild(colorRow("color.accent", "强调色（hover / 高亮）"));
@@ -1324,8 +1352,12 @@ async function openEditor(cardId, prefill, initStep) {
     box.appendChild(numRow("spacing", "内边距", 8, 24, 16, "面板内边距，同时影响行距节奏"));
     box.appendChild(cardsRow("shadow", "阴影", [["", "主题"], ["none", "无"], ["sm", "轻"], ["md", "中"], ["lg", "重"]], shadowDemo));
 
+    box.appendChild(groupHead("文字"));
+    box.appendChild(numRow("font_scale", "字号", 12, 16, 13, "组件内正文字号"));
+
     if (!IS_PRESENT) {
       box.appendChild(groupHead("交互区"));
+
       box.appendChild(numRow("height", "控件高度", 28, 56, 40, "选项行 / 输入框等可点控件的高度"));
       if (SEL_STYLE_OK) {
         const seg2 = el("div", { class: "segmented" });
@@ -1343,30 +1375,65 @@ async function openEditor(cardId, prefill, initStep) {
     }
 
     // 组件专属参数（规格表驱动：设计师视角的逐组件细项）
-    const enumRow = (key, label, opts2) => {
+    const enumRow = (key, label, opts2, onAfter, hint) => {
       const seg3 = el("div", { class: "segmented" });
       const draw3 = () => {
         seg3.innerHTML = "";
         opts2.forEach(([v, nm]) => seg3.appendChild(el("button", { type: "button",
           class: "seg" + ((so[key] || "") === v ? " active" : ""),
-          onclick: () => { if (v) so[key] = v; else delete so[key]; draw3(); upd(); } }, [nm])));
+          onclick: () => { if (v) so[key] = v; else delete so[key]; draw3(); (onAfter || upd)(); } }, [nm])));
       };
       draw3();
-      return el("div", { class: "sty-section" }, [el("div", { class: "sty-label" }, [label]), seg3]);
+      return el("div", { class: "sty-section" }, [el("div", { class: "sty-label" }, [label, hint ? UI.help(hint) : null]), seg3]);
     };
     const specList = COMPONENT_PARAMS[ct] || [];
-    if (specList.length) {
-      box.appendChild(groupHead("组件参数", "只作用于本组件类型的细项"));
-      specList.forEach(([key, label, typ, a, b2, dv]) => {
-        if (typ === "bool") box.appendChild(boolRow(key, label, a !== false));
-        else if (typ === "num") box.appendChild(numRow(key, label, a, b2, dv));
-        else if (typ === "color") box.appendChild(colorRow(key, label));
-        else if (typ === "enum") box.appendChild(enumRow(key, label, a));
-      });
+    const specHost = el("div", {});
+    const specOpts = (item) => (typeof item[item.length - 1] === "object" && !Array.isArray(item[item.length - 1])) ? item[item.length - 1] : {};
+    const specDefault = (key) => {
+      const it = specList.find(x => x[0] === key);
+      if (!it) return undefined;
+      if (it[2] === "bool") return it[3] !== false;
+      if (it[2] === "enum") return "";
+      if (it[2] === "num") return it[5];
+      return undefined;
+    };
+    const depOK = (deps) => {
+      if (!deps) return true;
+      const [dk, dv2] = deps;
+      const cur2 = so[dk] === undefined ? specDefault(dk) : so[dk];
+      return Array.isArray(dv2) ? dv2.includes(cur2 === undefined ? "" : cur2) : cur2 === dv2;
+    };
+    function drawSpecArea() {
+      specHost.innerHTML = "";
+      if (!specList.length) return;
+      specHost.appendChild(groupHead("组件参数"));
+      const upd2 = () => { upd(); drawSpecArea(); };
+      const renderItem = (item, host) => {
+        const [key, label, typ] = item;
+        const o = specOpts(item);
+        if (!depOK(o.deps)) return;   // 主参数未开启时子参数不出现（面板不骗人）
+        let rowEl = null;
+        if (typ === "bool") rowEl = boolRow(key, label, item[3] !== false, o.hint, upd2);
+        else if (typ === "num") rowEl = numRow(key, label, item[3], item[4], item[5], o.hint, o.unit || "px");
+        else if (typ === "color") rowEl = colorRow(key, label + (o.hint ? "" : ""), o.hint);
+        else if (typ === "enum") rowEl = enumRow(key, label, item[3], upd2, o.hint);
+        if (rowEl) host.appendChild(rowEl);
+      };
+      const basic = specList.filter(it => !specOpts(it).adv);
+      const advanced = specList.filter(it => specOpts(it).adv);
+      basic.forEach(it => renderItem(it, specHost));
+      if (advanced.length) {
+        const advBody = el("div", { style: "padding-top:4px" });
+        advanced.forEach(it => renderItem(it, advBody));
+        if (advBody.children.length) specHost.appendChild(el("details", { class: "sty-adv" }, [
+          el("summary", {}, [`高级（${advBody.children.length} 项）`]), advBody]));
+      }
     }
+    drawSpecArea();
+    box.appendChild(specHost);
 
     if (HAS_SUBMIT) {
-      box.appendChild(groupHead("提交区", "按钮自带 提交中 / 已提交 / 失败 状态样式"));
+      box.appendChild(groupHead("提交区"));
       const sub = el("input", { type: "text", maxlength: "8", value: state.submitLabel || "",
         placeholder: ct === "control.confirm" ? "确认执行" : "提交", style: "max-width:200px" });
       sub.oninput = () => { state.submitLabel = sub.value; upd(); };
@@ -1374,25 +1441,8 @@ async function openEditor(cardId, prefill, initStep) {
         el("div", { class: "sty-label" }, ["按钮文案"]), sub]));
     }
 
-    box.appendChild(groupHead("文字"));
-    box.appendChild(numRow("font_scale", "字号", 12, 16, 13, "组件内正文字号"));
 
-    // 选择类：展现变体（可视化两卡）
-    if (["select.single", "select.multi", "select.card"].includes(state.component_type)) {
-      const row = el("div", { class: "sty-cards" });
-      const drawV = () => {
-        row.innerHTML = "";
-        [["text", "文本样式", () => el("i", { style: "display:block;width:44px;height:8px;border:1.5px solid var(--text-secondary);border-radius:4px" })],
-         ["card", "卡片样式", () => el("i", { style: "display:block;width:44px;height:26px;border:1.5px solid var(--text-secondary);border-radius:6px" })]]
-          .forEach(([v, nm, demo]) => row.appendChild(el("button", { type: "button",
-            class: "sty-card" + ((state.display || "text") === v ? " on" : ""),
-            onclick: () => { state.display = v; drawV(); autosave(); rebuild(); } },
-            [el("div", { class: "demo" }, [demo()]), el("span", { class: "nm" }, [nm])])));
-      };
-      drawV();
-      box.appendChild(el("div", { class: "sty-section" }, [
-        el("div", { class: "sty-label" }, ["选项展现", UI.help("同一选择表单的两种展现：文本行 / 图文卡片；不影响参数 schema")]), row]));
-    }
+
 
     // 数据 schema 折叠（对接契约放底部，不抢样式的主舞台）
     const schemaBody = el("div", { hidden: true, style: "margin-top:8px" }, [el("div", { class: "muted" }, ["加载中……"])]);

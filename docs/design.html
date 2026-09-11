@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>产品及风格管理 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=5bba6667">
+<link rel="stylesheet" href="./shared.css?v=6ecde968">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
@@ -78,7 +78,7 @@
 <script src="./mock_data.js?v=4147c496"></script>
 <script src="./mock_api.js?v=582ad7ee"></script>
 <script src="./tokens.js?v=be27f7d8"></script>
-<script src="./ui.js?v=31ba1a3a"></script>
+<script src="./ui.js?v=a5ffc9b9"></script>
 <script src="./components.js?v=b08f2cc2"></script>
 <script>
 // 深链直开编辑器时，先行标记以免生效风格覆盖预览
@@ -280,14 +280,15 @@ function brandDialog(existing, onClose) {
   const curWeights = () => FONTS[opts.font][2];
   const SIZES = [["12px", "12px"], ["13px", "13px"], ["14px", "14px"], ["15px", "15px"]];   // 兼容旧档位索引
   const SHADOWS = [["无", "none"], ["轻", "0 1px 3px rgba(15,27,38,.08)"], ["中", "0 4px 12px rgba(15,27,38,.12)"], ["重", "0 8px 24px rgba(15,27,38,.18)"]];
-  const DENSITIES = [["紧凑", "compact"], ["标准", "regular"], ["宽松", "loose"]];
+  const DENSITIES = [["极紧凑", "tight", "10px"], ["紧凑", "compact", "13px"], ["标准", "regular", "16px"],
+                     ["宽松", "loose", "20px"], ["极宽松", "airy", "24px"]];
 
   const q0 = new URLSearchParams(location.search);
   const RAD_STOPS = [[0, "直角"], [8, "轻微"], [16, "标准"], [22, "圆润"], [28, "全圆"]];
   const radName = (px) => { let best = RAD_STOPS[0]; RAD_STOPS.forEach(s => { if (Math.abs(s[0] - px) < Math.abs(best[0] - px)) best = s; }); return Math.abs(best[0] - px) <= 2 ? best[1] : px + "px"; };
   const _r0 = q0.get("r") != null ? Number(q0.get("r")) : 16;
   const opts = { preset: Number(q0.get("c")) || 0, radius: _r0 <= 4 ? [2, 8, 16, 22, 28][_r0] ?? 16 : _r0,
-    font: 0, weight: 1, size: 1, shadow: 1, density: 1 };
+    font: 0, weight: 1, size: 1, shadow: 1, density: 2 };
   let editMode = "light";                 // 当前编辑的明暗模式
   // token 状态：明暗两套 + 图表序列（预设整套填充；之后任意 token 可单独细调）
   let tok = null;
@@ -313,8 +314,10 @@ function brandDialog(existing, onClose) {
     t.shadow = shc ? `${shc.x}px ${shc.y}px ${shc.blur}px ${shc.spread}px rgba(15, 23, 42, ${(shc.alpha / 100).toFixed(2)})`
                    : SHADOWS[opts.shadow][1];
     t.density = DENSITIES[opts.density][1];
+    t.spacing = { ...(t.spacing || {}), card_padding: DENSITIES[opts.density][2] };
+    t._options && (t._options.density_scale = "v2");
     t.chart = { ...(t.chart || {}), categorical: [...tok.chart, ...((t.chart || {}).categorical || []).slice(5)] };
-    t._options = { ...opts, radius_unit: "px" };
+    t._options = { ...opts, radius_unit: "px", density_scale: "v2" };
     return t;
   }
   function applyPreviewVars(host, t, dark) {
@@ -620,11 +623,12 @@ function brandDialog(existing, onClose) {
       ]),
       palGrid,
     ]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["快速配色"]),
-      el("div", { class: "muted", style: "font-size:var(--font-caption);margin:-2px 0 8px" },
-        ["只改这四个就能出一套能用的主题；更细的调整在下方逐项展开"]),
-      quickPanel]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["高级 · 逐项细调"]), tokenPanel]),
+    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["快速配色"]), quickPanel]),
+    el("div", { class: "field" }, [
+      el("details", { class: "adv-colors" }, [
+        el("summary", {}, ["高级配色"]),
+        el("div", { style: "padding-top:10px" }, [tokenPanel]),
+      ])]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["圆角"]), radBox]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["字体"]), mountFontSel()]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字重"]), wBox]),
@@ -709,7 +713,7 @@ function brandDialog(existing, onClose) {
       setSz(opts.size_px);
       if (oo.shadow != null) opts.shadow = oo.shadow;
       if (oo.shadow_custom) { opts.shadow_custom = oo.shadow_custom; }
-      if (oo.density != null) opts.density = oo.density;
+      if (oo.density != null) opts.density = oo.density_scale === "v2" ? oo.density : ({ 0: 1, 1: 2, 2: 3 }[oo.density] ?? 2);
       drawPals(); drawTokens(); drawQuick(); drawFsCards(); drawSegs();
       syncShadowCustom();
       syncRad();
