@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=e9ab4ec0">
+<link rel="stylesheet" href="./shared.css?v=5bba6667">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -79,8 +79,8 @@
 <script src="./mock_data.js?v=4147c496"></script>
 <script src="./mock_api.js?v=582ad7ee"></script>
 <script src="./tokens.js?v=be27f7d8"></script>
-<script src="./ui.js?v=90eb1bd5"></script>
-<script src="./components.js?v=f696a00b"></script>
+<script src="./ui.js?v=31ba1a3a"></script>
+<script src="./components.js?v=b08f2cc2"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
 UI.nav("cards");
@@ -567,6 +567,9 @@ const COMPONENT_PARAMS = {
     ["axis.show", "底部轴线", "bool", false],
     ["axis.color", "轴线颜色", "color"],
     ["value_labels", "数值标签", "bool", false],
+    ["y.zero", "纵轴从 0 起", "bool", true],
+    ["grid.count", "网格密度", "num", 2, 5, 3],
+    ["last.emph", "末点强调", "bool", true],
   ],
   "chart.bar": [
     ["bar.color", "柱体颜色", "color"],
@@ -576,16 +579,22 @@ const COMPONENT_PARAMS = {
     ["grid", "网格线", "bool", true],
     ["grid.style", "网格线型", "enum", [["", "实线"], ["dashed", "虚线"]]],
     ["axis.color", "轴线颜色", "color"],
+    ["bar.sort", "排序", "enum", [["", "原始顺序"], ["asc", "升序"], ["desc", "降序"]]],
+    ["bar.horizontal", "横向条形", "bool", false],
   ],
   "chart.pie": [
     ["pie.style", "形态", "enum", [["", "百分比条"], ["donut", "环形图"]]],
     ["pie.height", "条高", "num", 10, 28, 18],
     ["legend.show", "图例", "bool", true],
     ["legend.pct", "图例带百分比", "bool", true],
+    ["donut.thickness", "环形厚度", "num", 12, 28, 20],
+    ["pie.sort", "按占比排序", "bool", false],
   ],
   "metric.card": [
     ["value.size", "数值字号", "num", 22, 40, 30],
     ["delta.show", "涨跌标签", "bool", true],
+    ["delta.invert", "红涨绿跌", "bool", false],
+    ["metric.align", "对齐", "enum", [["", "左对齐"], ["center", "居中"]]],
     ["baseline.show", "基线说明", "bool", true],
   ],
   "table": [
@@ -594,6 +603,8 @@ const COMPONENT_PARAMS = {
     ["header.bg", "表头底色", "color"],
     ["outline", "外边框", "bool", false],
     ["row.divider", "行分隔线", "enum", [["", "横线"], ["none", "无"], ["all", "全框"]]],
+    ["tbl.font", "表格字号", "num", 11, 14, 12],
+    ["col.align", "列对齐", "enum", [["", "智能（数字右对齐）"], ["left", "全部左对齐"]]],
   ],
   "timeline": [
     ["dot.shape", "节点形状", "enum", [["", "圆形"], ["square", "方形"]]],
@@ -601,12 +612,15 @@ const COMPONENT_PARAMS = {
     ["tlline.style", "连线线型", "enum", [["", "实线"], ["dashed", "虚线"]]],
     ["ts.show", "时间戳", "bool", true],
     ["desc.show", "描述文字", "bool", true],
+    ["tlline.color", "连线颜色", "color"],
   ],
   "steps": [
     ["node.size", "节点尺寸", "num", 20, 32, 26],
     ["done.color", "完成色", "color"],
     ["halo", "当前步光晕", "bool", true],
     ["stepline.width", "连线粗细", "num", 1, 4, 2],
+    ["stepnum.show", "节点数字", "bool", true],
+    ["steplabel.size", "标签字号", "num", 10, 13, 11],
   ],
   "matrix.compare": [
     ["best.highlight", "最优项高亮", "bool", true],
@@ -617,25 +631,32 @@ const COMPONENT_PARAMS = {
     ["marker.style", "序号样式", "enum", [["", "数字圆标"], ["dot", "圆点"], ["none", "无"]]],
     ["marker.color", "序号颜色", "color"],
     ["list.gap", "条目间距", "num", 4, 16, 8],
+    ["text.align", "对齐", "enum", [["", "左对齐"], ["center", "居中"]]],
   ],
   "text.emphasis": [
     ["hl.size", "文字字号", "num", 16, 30, 20],
     ["tone.color", "跟随语气配色", "bool", true],
     ["caption.show", "补充说明", "bool", true],
+    ["text.align", "对齐", "enum", [["", "左对齐"], ["center", "居中"]]],
   ],
   "select.single": [
     ["opt.gap", "选项间距", "num", 4, 16, 8],
     ["opt.border", "选项描边", "bool", true],
+    ["opt.radius", "选项圆角", "num", 0, 16, 10],
+    ["radio.show", "选择指示器", "bool", true],
   ],
   "select.multi": [
     ["opt.gap", "选项间距", "num", 4, 16, 8],
     ["opt.border", "选项描边", "bool", true],
+    ["opt.radius", "选项圆角", "num", 0, 16, 10],
+    ["radio.show", "选择指示器", "bool", true],
   ],
   "form.structured": [
     ["input.bg", "输入框底色", "color"],
   ],
   "control.confirm": [
     ["icon.show", "警示图标", "bool", true],
+    ["icon.color", "图标颜色", "color"],
     ["btn.align", "按钮排列", "enum", [["", "右对齐"], ["stretch", "拉伸铺满"]]],
   ],
   "feedback.binary": [
@@ -649,6 +670,7 @@ const COMPONENT_PARAMS = {
     ["thumb.size", "滑块尺寸", "num", 14, 22, 18],
   ],
   "scale.likert": [
+    ["lk.style", "形态", "enum", [["", "圆点"], ["bar", "条段"]]],
     ["dot.size", "刻度尺寸", "num", 24, 36, 28],
     ["dot.gap", "刻度间距", "num", 4, 14, 8],
   ],

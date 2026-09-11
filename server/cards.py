@@ -72,20 +72,24 @@ def validate_card(payload: dict, strict: bool = False) -> list:
     SPEC_BOOL = {"rec_chip", "striped", "header_bold", "outline", "grid", "value_labels", "line.smooth",
                  "point.show", "area.fill", "axis.show", "delta.show", "baseline.show", "ts.show", "desc.show",
                  "halo", "best.highlight", "sum.show", "legend.show", "legend.pct", "quick.show", "handle.show",
-                 "caption.show", "tone.color", "opt.border", "icon.show", "fb.shape.x"}
+                 "caption.show", "tone.color", "opt.border", "icon.show",
+                 "y.zero", "last.emph", "bar.horizontal", "pie.sort", "delta.invert", "stepnum.show", "radio.show"}
     SPEC_NUM = {"line.width": (1, 4), "point.size": (2, 6), "area.opacity": (4, 40), "bar.width": (20, 75),
                 "bar.radius": (0, 8), "pie.height": (10, 28), "value.size": (22, 40), "hl.size": (16, 30),
                 "node.size": (20, 32), "stepline.width": (1, 4), "list.gap": (4, 16), "opt.gap": (4, 16),
                 "card.gap": (4, 16), "track.height": (4, 10), "thumb.size": (14, 22), "dot.size": (24, 36),
-                "dot.gap": (4, 14)}
+                "dot.gap": (4, 14), "grid.count": (2, 5), "donut.thickness": (12, 28),
+                "tbl.font": (11, 14), "steplabel.size": (10, 13), "opt.radius": (0, 16)}
     SPEC_ENUM = {"sel_style": ("fill", "outline"), "line.style": ("solid", "dashed", "dotted"),
                  "grid.style": ("solid", "dashed"), "point.shape": ("circle", "square", "diamond"),
                  "pie.style": ("bar", "donut"), "row.divider": ("line", "none", "all"),
                  "dot.shape": ("circle", "square"), "tlline.style": ("solid", "dashed"),
                  "marker.style": ("number", "dot", "none"), "btn.align": ("right", "stretch"),
-                 "fb.shape": ("pill", "square"), "no.style": ("circle", "square")}
+                 "fb.shape": ("pill", "square"), "no.style": ("circle", "square"),
+                 "bar.sort": ("asc", "desc"), "metric.align": ("left", "center"),
+                 "col.align": ("smart", "left"), "text.align": ("left", "center"), "lk.style": ("dots", "bar")}
     SPEC_COLOR = {"color.primary", "color.accent", "panel.bg", "line.color", "axis.color", "bar.color",
-                  "done.color", "marker.color", "header.bg", "dot.color", "input.bg"}
+                  "done.color", "marker.color", "header.bg", "dot.color", "input.bg", "tlline.color", "icon.color"}
     allowed_tokens = ({"height", "radius", "spacing", "shadow", "font_scale",
                       # 旧 token 兼容读取（编辑器已不再写入）
                       "radius.card", "radius.control", "font.size_base", "spacing.card_padding", "density"}

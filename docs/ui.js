@@ -480,6 +480,7 @@ window.UI = (function () {
   }
 
   function lineChart(container, { series, labels, height = 180, unit = "", grid = true, gridStyle = "solid",
+    gridCount = 3, yZero = true, lastEmph = true,
     lineWidth = 2, lineStyle = "solid", smooth = false, pointShow = true, pointShape = "circle", pointSize = 3,
     areaFill = true, areaOpacity = 0.16, axisShow = false, axisColor, valueLabels = false, lineColor }) {
     container.innerHTML = "";
@@ -487,13 +488,15 @@ window.UI = (function () {
     const w = 560, h = height, padL = 44, padR = 12, padT = 14, padB = 26;
     const svg = chartFrame(w, h);
     const all = series.flatMap(s => s.values);
-    const maxV = (Math.max(...all) || 0) > 0 ? Math.max(...all) : 1, minV = Math.min(...all, 0);
+    const maxV = (Math.max(...all) || 0) > 0 ? Math.max(...all) : 1;
+    const minV = yZero ? Math.min(...all, 0) : Math.min(...all);
     const span = (maxV - minV) || 1;
     const x = i => padL + i * (w - padL - padR) / Math.max(1, labels.length - 1);
     const y = v => padT + (h - padT - padB) * (1 - (v - minV) / span);
     const dashOf = st => st === "dashed" ? "6 4" : st === "dotted" ? "2 4" : null;
-    for (let g = 0; g <= 3; g++) {
-      const gy = padT + g * (h - padT - padB) / 3;
+    const GN = Math.max(2, Math.min(5, gridCount));
+    for (let g = 0; g <= GN; g++) {
+      const gy = padT + g * (h - padT - padB) / GN;
       if (grid) {
         const gl = svgEl("line", { x1: padL, y1: gy, x2: w - padR, y2: gy, stroke: GRID(), "stroke-width": 1 });
         const dg = dashOf(gridStyle);
@@ -501,7 +504,7 @@ window.UI = (function () {
         svg.appendChild(gl);
       }
       const tl = svgEl("text", { x: padL - 6, y: gy + 4, "text-anchor": "end", "font-size": 10, fill: INK() });
-      tl.textContent = fmtTick(maxV - g * span / 3);
+      tl.textContent = fmtTick(maxV - g * span / GN);
       svg.appendChild(tl);
     }
     if (axisShow) svg.appendChild(svgEl("line", { x1: padL, y1: h - padB, x2: w - padR, y2: h - padB,
@@ -543,7 +546,7 @@ window.UI = (function () {
       if (dl) ln.setAttribute("stroke-dasharray", dl);
       svg.appendChild(ln);
       s.values.forEach((v, i) => {
-        const last = i === s.values.length - 1;
+        const last = lastEmph && i === s.values.length - 1;
         if (!pointShow && !last) return;
         const r0 = last ? pointSize + 1.5 : pointSize;
         let c;

@@ -109,6 +109,16 @@ window.Components = (function () {
     cls(so["legend.show"] === false, "no-legend");
     cls(so["legend.pct"] === false, "no-legendpct");
     cls(so["quick.show"] === false, "no-quick");
+    // 二轮规格键
+    pxv("opt.radius", "--opt-radius"); pxv("tbl.font", "--tbl-font"); pxv("steplabel.size", "--stp-label");
+    if (so["tlline.color"]) set("--tl-line-c", so["tlline.color"]);
+    if (so["icon.color"]) set("--cicon-c", so["icon.color"]);
+    cls(so["radio.show"] === false, "no-radio");
+    cls(so["metric.align"] === "center", "metric-center");
+    cls(so["delta.invert"] === true, "delta-invert");
+    cls(so["col.align"] === "left", "col-left");
+    cls(so["stepnum.show"] === false, "no-stepnum");
+    cls(so["text.align"] === "center", "txt-center");
   }
 
   function render(envelope, ctx) {
@@ -282,6 +292,7 @@ window.Components = (function () {
     requestAnimationFrame(() => UI.lineChart(chartBox, {
       series: p.series || [], labels: p.categories || p.x_axis || [], unit: p.unit || "",
       grid: so.grid !== false, gridStyle: so["grid.style"] || "solid",
+      gridCount: Number(so["grid.count"]) || 3, yZero: so["y.zero"] !== false, lastEmph: so["last.emph"] !== false,
       lineColor: so["line.color"], lineWidth: Number(so["line.width"]) || 2,
       lineStyle: so["line.style"] || "solid", smooth: so["line.smooth"] === true,
       pointShow: so["point.show"] !== false, pointShape: so["point.shape"] || "circle",
@@ -300,8 +311,14 @@ window.Components = (function () {
     box.appendChild(chartBox);
     const so = env.style_overrides || {};
     const series0 = (p.series || [])[0] || { values: [] };
+    let cats = [...(p.categories || [])], vals = [...(series0.values || [])];
+    if (so["bar.sort"] === "asc" || so["bar.sort"] === "desc") {
+      const idx = vals.map((v, i) => i).sort((a, b2) => so["bar.sort"] === "asc" ? vals[a] - vals[b2] : vals[b2] - vals[a]);
+      cats = idx.map(i => cats[i]); vals = idx.map(i => vals[i]);
+    }
     requestAnimationFrame(() => UI.barChart(chartBox, {
-      categories: p.categories || [], values: series0.values || [], unit: p.unit || "",
+      categories: cats, values: vals, unit: p.unit || "",
+      horizontal: so["bar.horizontal"] === true,
       color: so["bar.color"], grid: so.grid !== false, gridStyle: so["grid.style"] || "solid",
       valueLabels: so.value_labels !== false,
       barWidthPct: (Number(so["bar.width"]) || 55) / 100, barRadius: so["bar.radius"] != null ? Number(so["bar.radius"]) : 4,
@@ -313,7 +330,8 @@ window.Components = (function () {
   function rChartPie(env) {
     const p = env.params;
     const so = env.style_overrides || {};
-    const slices = (p.slices || []).slice(0, 7);
+    let slices = (p.slices || []).slice(0, 7);
+    if (so["pie.sort"] === true) slices = [...slices].sort((a, b2) => b2.value - a.value);
     const total = slices.reduce((s, x) => s + x.value, 0) || 1;
     const pal = (window.Brand ? Brand.chartPalette() : {}).categorical
       || ["#3E63DD", "#0FA3A3", "#8E4EC6", "#EE7712", "#D6409F"];
@@ -334,7 +352,7 @@ window.Components = (function () {
         const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         ring.setAttribute("cx", "70"); ring.setAttribute("cy", "70"); ring.setAttribute("r", String(R));
         ring.setAttribute("fill", "none"); ring.setAttribute("stroke", pal[i % pal.length]);
-        ring.setAttribute("stroke-width", "20");
+        ring.setAttribute("stroke-width", String(Number(so["donut.thickness"]) || 20));
         ring.setAttribute("stroke-dasharray", `${Math.max(0, frac * C - 2)} ${C}`);
         ring.setAttribute("stroke-dashoffset", String(-acc * C));
         ring.setAttribute("transform", "rotate(-90 70 70)");
@@ -1309,7 +1327,8 @@ window.Components = (function () {
       ? { from: 1, to: Math.max(2, Math.min(11, p.scale)), left: p.low_label || "", right: p.high_label || "" }
       : { left: "非常不认可", right: "非常认可", steps: 5 });
     const values = likertRange(lk);
-    const display = p.display || "dots";
+    const soL = env.style_overrides || {};
+    const display = soL["lk.style"] || p.display || "dots";
     let picked = null;
     let body;
     if (display === "bar") {

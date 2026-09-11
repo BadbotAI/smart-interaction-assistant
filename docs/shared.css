@@ -1589,3 +1589,20 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .echo-bar { flex: 1; height: 8px; border-radius: 999px; background: var(--bg-surface); overflow: hidden; }
 .echo-bar i { display: block; height: 100%; border-radius: 999px; background: var(--primary); }
 .echo-pct { width: 40px; text-align: right; color: var(--text-muted); font-size: var(--font-caption); }
+
+.comp .opt-item { border-radius: var(--opt-radius, var(--radius-control, 10px)); gap: 10px; }
+.comp.no-radio .sel-dot { display: none; }
+.comp.metric-center { text-align: center; }
+.comp.metric-center > div { justify-content: center; }
+.comp.delta-invert .delta-chip.up { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.comp.delta-invert .delta-chip.down { color: var(--success); background: color-mix(in srgb, var(--success) 11%, transparent); }
+.comp table.data { font-size: var(--tbl-font, var(--font-small)); }
+.comp.col-left table.data th.num-col, .comp.col-left table.data td.num-col { text-align: left; font-variant-numeric: normal; }
+.comp .tl-line { background: var(--tl-line-c, var(--border)); }
+.comp.tl-dashed .tl-line { border-left-color: var(--tl-line-c, var(--border)); }
+.comp.no-stepnum .step-node { color: transparent; }
+.comp.no-stepnum .step-node.done { color: #fff; }
+.comp .step-label { font-size: var(--stp-label, var(--font-caption)); }
+.comp.txt-center { text-align: center; }
+.comp.txt-center .ol-row { justify-content: center; }
+.comp .confirm-ico { color: var(--cicon-c, var(--danger)); background: color-mix(in srgb, var(--cicon-c, var(--danger)) 11%, transparent); }
