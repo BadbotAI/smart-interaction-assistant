@@ -909,12 +909,20 @@ async def update_product(product_id: str, request: Request):
 @app.post("/api/products/{product_id}/delete")
 async def delete_product(product_id: str):
     conn = db.get_conn()
-    row = conn.execute("SELECT name FROM products WHERE product_id=?", (product_id,)).fetchone()
+    row = conn.execute("SELECT name, card_ids FROM products WHERE product_id=?", (product_id,)).fetchone()
     if not row:
         return JSONResponse({"error": "产品不存在"}, status_code=404)
+    # 级联清理本产品的预置实例（名称带产品后缀），避免删产品后孤儿组件堆积
+    suffix = "-" + product_id[-4:]
+    removed = 0
+    for cid in (db.dj(row["card_ids"], []) or []):
+        c = conn.execute("SELECT name FROM cards WHERE card_id=? AND status!='deleted'", (cid,)).fetchone()
+        if c and c["name"].endswith(suffix):
+            conn.execute("UPDATE cards SET status='deleted' WHERE card_id=?", (cid,))
+            removed += 1
     conn.execute("DELETE FROM products WHERE product_id=?", (product_id,))
     conn.commit()
-    db.audit("demo-admin", "product_delete", {"product_id": product_id, "name": row["name"]})
+    db.audit("demo-admin", "product_delete", {"product_id": product_id, "name": row["name"], "presets_removed": removed})
     return {"ok": True}
 
 

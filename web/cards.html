@@ -79,17 +79,6 @@ const SELECT_TYPES = ["select.single", "select.multi", "select.card", "matrix.co
 const ECHO_TYPES = [...SELECT_TYPES, "commerce.order", "entry.link"];
 const OPTION_TYPES = [...SELECT_TYPES, "rank.priority", "picker.location", "suggest.followup", "commerce.order", "entry.link"];
 // 每种基础类型的显示样式（MECE：本质定类型，展现做样式）
-const DISPLAY_VARIANTS = {
-  "select.single": [["list", "列表"], ["inline", "胶囊"], ["composer", "输入框浮现"]],
-  "select.multi": [["list", "列表"], ["inline", "胶囊"], ["composer", "输入框浮现"]],
-  "select.card": [["card", "卡片"], ["list", "列表"]],
-  "scale.likert": [["dots", "数字圆点"], ["bar", "分段条"]],
-  "slider.range": [["slider", "滑杆"], ["stepper", "步进器"], ["input", "直接填写"]],
-  "form.structured": [["stacked", "逐字段"], ["compact", "两列"]],
-  "input.followup": [["box", "多行文本"], ["mini", "单行"]],
-  "picker.datetime": [["date", "日期"], ["datetime", "日期+时间"]],
-  "picker.timerange": [["date", "日期段"], ["time", "时间段"]],
-};
 const LIKERT_PRESETS = [["1 ~ 5", 1, 5], ["0 ~ 5", 0, 5], ["0 ~ 3", 0, 3], ["1 ~ 10", 1, 10], ["0 ~ 10", 0, 10], ["-2 ~ +2", -2, 2]];
 
 // ============ 列表（状态 tab + 数据概览合并） ============
@@ -2046,44 +2035,6 @@ async function openEditor(cardId, prefill, initStep) {
     return box;
   }
 
-  // ---------- 第 2 步：基本信息（v2：触发条件下线，组件说明是模型判断何时用它的依据） ----------
-  function stepTrigger() {
-    const box = el("div", {});
-    const descTa = textarea("description", 4, { placeholder: "写清楚这个组件适用于什么情况——大模型靠这段说明判断何时使用它。\n例如：需要用户在若干候选中做单项选择时使用：处理方式、方案、时间段等。", maxlength: "256" });
-    const wandBtn = el("button", { class: "btn small", type: "button",
-      title: "AI 改写为规范的组件说明（先预览，采用才生效）",
-      onclick: async () => {
-        const desc = state.description.trim();
-        if (!desc) { UI.toast("请先写一句组件说明", true); descTa.focus(); return; }
-        wandBtn.disabled = true; wandBtn.classList.add("busy");
-        try {
-          const r = await UI.api("/api/scenarios/rewrite-trigger", { method: "POST", body: { description: desc } });
-          pendingRewrite = { text: r.trigger_description, examples: [] };
-          rebuild();
-        } catch (err) { UI.toast("AI 改写失败：" + err.message, true); }
-        finally { wandBtn.disabled = false; wandBtn.classList.remove("busy"); }
-      } }, [UI.icon("sparkles", 14), "AI 改写"]);
-    const rewriteCard = !pendingRewrite ? null : el("div", { class: "ai-suggest" }, [
-      el("div", { class: "head" }, [
-        el("span", { class: "chip ai" }, ["AI 改写建议"]),
-        el("div", { style: "flex:1" }),
-        el("button", { class: "btn small", type: "button", onclick: () => { pendingRewrite = null; rebuild(); } }, ["不用"]),
-        el("button", { class: "btn small primary", type: "button", onclick: () => {
-          state.description = pendingRewrite.text; pendingRewrite = null; autosave(); rebuild();
-        } }, ["采用"]),
-      ]),
-      el("div", { class: "body" }, [pendingRewrite.text]),
-    ]);
-    const descWrap = el("div", { class: "input-wrap ta ta-mid" }, [descTa, el("span", { class: "input-action" }, [wandBtn])]);
-    box.appendChild(el("div", { class: "editor-section" }, [
-      field("name", "组件名称", input("name", { placeholder: "例如：通用选择（1-15 字）", maxlength: "15" }), null, true),
-      field("description", "组件说明", descWrap,
-        "注册给大模型的使用说明：什么情况下用它。说明写得越清楚，模型出组件越准", true),
-      rewriteCard,
-    ]));
-    return box;
-  }
-
   // ---------- 第 3 步：配置组件 ----------
   // 选项行：文案 + 跳转链接（选填）；卡片选择器另配标题 / 文案 / 配图
   function optionRowsEditor(withAct) {
@@ -2302,162 +2253,6 @@ async function openEditor(cardId, prefill, initStep) {
     return outer;
   }
 
-  function stepComp() {
-    const box = el("div", { class: "editor-section" });
-    // 组件：下拉切换（编辑已有配置时锁定，避免历史数据口径混乱）
-    const tplCt = state.component_type === "select.multi" ? "select.single" : state.component_type;
-    const ctSel = el("select", { ...(card ? { disabled: "" } : {}) }, [
-      ...(!state.component_type ? [el("option", { value: "" }, ["请选择组件"])] : []),
-      ...V2_TEMPLATES.map(t => el("option", { value: t.component_type, ...(t.component_type === tplCt ? { selected: "" } : {}) }, [t.name])),
-    ]);
-    ctSel.onchange = () => { applyTemplate(ctSel.value); autosave(); rebuild(); };
-    const ctErr = el("div", { class: "field-error" });
-    fieldErrs.component_type = ctErr;
-    box.appendChild(el("div", { class: "field" }, [
-      el("span", { class: "label-text req" }, ["交互组件",
-        card ? UI.help("已有配置的组件类型不可变更（否则历史数据口径混乱），换组件请新建配置") : null]),
-      ctSel,
-      el("div", { class: "muted", style: "margin-bottom:10px" }, [WIZ_DESC[tplCt] || ""]),
-      ctErr,
-    ]));
-    if (state.component_type === "select.single" || state.component_type === "select.multi") {
-      // 单/多选影响数据口径（user_selection 字符串 vs 列表），已有配置与组件类型一样锁定
-      const modeSeg = el("div", { class: "segmented" });
-      [["select.single", "单选"], ["select.multi", "多选"]].forEach(([key, name]) => modeSeg.appendChild(el("button", {
-        type: "button", class: "seg" + (key === state.component_type ? " active" : ""),
-        ...(card ? { disabled: "" } : { onclick: () => { state.component_type = key; autosave(); rebuild(); } }),
-      }, [name])));
-      box.appendChild(el("div", { class: "field" }, [
-        el("span", { class: "label-text" }, ["选择方式",
-          UI.help(card ? "单选：选一项即提交；多选：可勾选多项后提交。已有配置不可变更（数据口径不同），如需调整请新建配置"
-                       : "单选：选一项即提交；多选：可勾选多项后提交")]),
-        modeSeg,
-      ]));
-    }
-    const variants = DISPLAY_VARIANTS[state.component_type] || [];
-    if (variants.length > 1) {
-      const seg = el("div", { class: "segmented" });
-      const cur = state.display || variants[0][0];
-      variants.forEach(([key, name]) => seg.appendChild(el("button", {
-        type: "button", class: "seg" + (key === cur ? " active" : ""),
-        onclick: () => { state.display = key; autosave(); rebuild(); },
-      }, [name])));
-      box.appendChild(el("div", { class: "field" }, [
-        el("span", { class: "label-text" }, ["显示样式", UI.help("同一组件在对话里的不同展现形式，右侧预览实时切换")]),
-        seg,
-      ]));
-    }
-    if (!PRESENT_TYPES.includes(state.component_type)) {
-      box.appendChild(field("question", "提问（兜底文案）", input("question", { class: "q-input", placeholder: "组件标题；运行时模型可用 params.prompt 覆盖", maxlength: "80" }), null, true));
-      box.appendChild(field("reply_text", "说明文案",
-        textarea("reply_text", 2, { placeholder: "组件上方先说的话，选填" })));
-    } else {
-      box.appendChild(el("div", { class: "info-strip" }, [
-        el("span", { class: "chip gray" }, ["展示类"]),
-        el("span", { class: "muted" }, ["无内容可配：标题与数据由模型运行时按参数 schema 填入，随回答直接渲染，无提交按钮"]),
-      ]));
-    }
-    const ct = state.component_type;
-    if (ct) {
-      const contentFields = [];
-      if (OPTION_TYPES.includes(ct)) contentFields.push(optionRowsEditor(SELECT_TYPES.includes(ct) || ct === "suggest.followup"));
-      if (ct === "commerce.order") contentFields.push(el("div", { class: "muted", style: "margin-top:2px" }, ["原价高于现价时自动显示折扣角标；多件下单自动合计"]));
-      if (SELECT_TYPES.includes(ct)) {
-        const opts = getOptions();
-        const defSel = el("select", { style: "max-width:220px", "aria-label": "选择推荐的选项" },
-          opts.map(o => el("option", { value: o, ...(state.recommended_default === o ? { selected: "" } : {}) }, [o])));
-        defSel.onchange = () => { state.recommended_default = defSel.value; autosave(); };
-        const recRow = el("div", { style: "display:flex;align-items:center;gap:12px" }, [
-          UI.toggle({ checked: !!state.recommended_default, label: "推荐一个选项",
-            hint: state.recommended_default ? null : "开启后所选选项会带「推荐」标，引导用户选择",
-            onChange: (v) => {
-              state.recommended_default = v ? (opts[0] || "") : "";
-              autosave(); rebuild();
-              return true;
-            } }),
-          state.recommended_default ? defSel : null,
-        ]);
-        contentFields.push(el("div", { class: "form-grid" }, [
-          field("recommended_default", "推荐选项", recRow),
-          ct === "matrix.compare+select" ? (() => {
-            const ta2 = textarea("dimensions", 3, { placeholder: "价格\n时效\n风险" });
-            ta2.onchange = () => rebuild();
-            return field("dimensions", "对比维度（每行一个）", ta2, null, true);
-          })() : null,
-        ]));
-      }
-      if (ct === "matrix.compare+select") {
-        const dims2 = state.dimensions.split("\n").map(x => x.trim()).filter(Boolean);
-        const opts2 = getOptions();
-        if (dims2.length && opts2.length) {
-          if (!Array.isArray(state.matrixValues)) state.matrixValues = [];
-          opts2.forEach((o, i) => {
-            if (!Array.isArray(state.matrixValues[i])) state.matrixValues[i] = [];
-          });
-          const tbl = el("table", { class: "data mxe-table" }, [
-            el("thead", {}, [el("tr", {}, [el("th", {}, ["方案 \\ 维度"]), ...dims2.map(d => el("th", {}, [d]))])]),
-            el("tbody", {}, opts2.map((o, i) => el("tr", {}, [
-              el("td", { style: "font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: o }, [o]),
-              ...dims2.map((d, j) => {
-                const n = el("input", { type: "number", step: "0.1", value: state.matrixValues[i]?.[j] ?? "",
-                  placeholder: "-", style: "padding:4px 6px;font-size:var(--font-small);max-width:72px" });
-                n.oninput = () => { state.matrixValues[i][j] = n.value === "" ? null : Number(n.value); autosave(); };
-                return el("td", {}, [n]);
-              }),
-            ]))),
-          ]);
-          contentFields.push(el("div", { class: "field" }, [
-            el("span", { class: "label-text" }, ["对比值",
-              UI.help("每个方案在各维度上的评分或数值，用户端按此表展示并计算综合分；留空的格子展示为 -")]),
-            el("div", { style: "overflow-x:auto" }, [tbl]),
-          ]));
-        }
-      }
-      if (ct === "scale.likert") {
-        const scaleSel = el("select", {}, LIKERT_PRESETS.map(([name, f, t]) =>
-          el("option", { value: `${f}|${t}`, ...(state.likert_from === f && state.likert_to === t ? { selected: "" } : {}) }, [name])));
-        scaleSel.onchange = () => { const [f, t] = scaleSel.value.split("|").map(Number); state.likert_from = f; state.likert_to = t; autosave(); renderPreview(); };
-        contentFields.push(el("div", { class: "form-grid cols-3" }, [
-          field("likert_left", "左端文案", input("likert_left")),
-          field("likert_right", "右端文案", input("likert_right")),
-          field("likert_scale", "刻度", scaleSel, "如 -2~+2 适合净推荐值类测量"),
-        ]));
-      }
-      if (ct === "upload.file") contentFields.push(field("placeholder", "文件说明", input("placeholder", { placeholder: "请上传报关单或合同文件（PDF / Excel）" })));
-      if (ct === "upload.image") contentFields.push(field("placeholder", "拍摄说明", input("placeholder", { placeholder: "请拍摄或上传清晰照片" })));
-      if (ct === "picker.location") contentFields.push(field("placeholder", "搜索框提示（选填）", input("placeholder", { placeholder: "搜索地址，或从常用地点选择" })));
-      if (ct === "form.structured") contentFields.push(fieldRowsEditor());
-      if (ct === "guide.steps") contentFields.push(guideStepsEditor());
-      if (ct === "input.followup") contentFields.push(field("placeholder", "输入框提示", input("placeholder", { placeholder: "请输入你的回答" })));
-      if (ct === "slider.range") {
-        contentFields.push(el("div", { class: "form-grid cols-3" }, [
-          field("slider_min", "最小值", input("slider_min", { type: "number" })),
-          field("slider_max", "最大值", input("slider_max", { type: "number" })),
-          field("slider_unit", "单位（选填）", input("slider_unit", { placeholder: "天 / 元 / %" })),
-        ]));
-      }
-      if (ct === "commerce.order" && !card && state.submit === "提交") state.submit = "下单";
-      if (ct === "feedback.binary") contentFields.push((() => {
-        const ta3 = textarea("fb_dims", 2, { placeholder: "答得准确吗\n对你有帮助吗" });
-        ta3.value = (state.fbDims || []).join("\n");
-        ta3.oninput = () => { state.fbDims = ta3.value.split("\n").map(x => x.trim()).filter(Boolean); autosave(); };
-        return field("fb_dims", "评价维度（每行一个）", ta3, "留空则为单一的赞 / 踩");
-      })());
-      if (ct === "feedback.preference") contentFields.push(el("div", { class: "muted", style: "margin-top:2px" },
-        ["候选回答由模型运行时给出（params.candidates，2-4 份）；此处只需配置名称与说明"]));
-      if (!["suggest.followup", "entry.link", ...PRESENT_TYPES].includes(ct)) contentFields.push(el("div", { class: "form-grid" }, [
-        field("submit", "按钮文案", input("submit", { maxlength: "8" }), "默认「提交」，最多 8 字，直接显示为当前值"),
-      ]));
-      else if (ct === "suggest.followup") contentFields.push(el("div", { class: "muted", style: "margin-top:2px" },
-        ["每个引导项三种去向：不配动作 = 作为追问发给 AI；配「AI 跟进」= 按你的话术接管回答；配「跳转链接」= 打开网站或服务入口"]));
-      else contentFields.push(el("div", { class: "muted", style: "margin-top:2px" },
-        ["每个入口配「跳转链接」直达专区 / 服务页；「提问」留空则不显示标题，横条紧跟在回答下方"]));
-      box.appendChild(el("div", { style: "margin-top:4px" }, contentFields));
-    }
-    box.appendChild(styleOverrideBlock());
-    return box;
-  }
-
   // ---------- 组件级样式覆盖（v2 两层风格体系第二层：只开语义化覆盖口，空 = 跟随主题） ----------
   function styleOverrideBlock() {
     const so = state.styleOv;
@@ -2491,110 +2286,6 @@ async function openEditor(cardId, prefill, initStep) {
       body.hidden = !body.hidden; btn.classList.toggle("active", !body.hidden);
     } }, ["样式覆盖（在风格主题基础上微调）", UI.icon("chevron", 13)]);
     return el("div", { class: "editor-section", style: "margin-top:12px" }, [btn, body]);
-  }
-
-  // ---------- 第 4 步：数据收集（基础信息回顾 + 回收设置） ----------
-  function stepConfirm() {
-    const box = el("div", {});
-    const tpl = templateLibrary.find(t => t.component_type === (state.component_type === "select.multi" ? "select.single" : state.component_type)) || {};
-    const variants = DISPLAY_VARIANTS[state.component_type] || [];
-    const dispName = (variants.find(([k]) => k === (state.display || (variants[0] || [])[0])) || [])[1];
-    const contentSummary = () => {
-      const ct = state.component_type;
-      if (ct === "commerce.order") return `${getOptions().length} 个商品`;
-      if (ct === "entry.link") return `${getOptions().length} 个入口`;
-      if (ct === "suggest.followup") return `${getOptions().length} 个引导项`;
-      if (OPTION_TYPES.includes(ct)) return `${getOptions().length} 个${ct === "select.card" ? "卡片" : "选项"}`;
-      if (ct === "form.structured") return `${state.fieldRows.filter(f => f.key || f.label).length} 个采集字段`;
-      if (ct === "guide.steps") return `${state.guideSteps.filter(st => st.title || st.body).length} 个步骤`;
-      if (ct === "scale.likert") return `刻度 ${state.likert_from} ~ ${state.likert_to}`;
-      if (ct === "slider.range") return `区间 ${state.slider_min} ~ ${state.slider_max}${state.slider_unit ? " " + state.slider_unit : ""}`;
-      return "";
-    };
-    const val = v => v || el("span", { class: "muted" }, ["（未填写）"]);
-    const infoCard = (title, stepKey, rows) => el("div", { class: "info-card" }, [
-      el("div", { class: "ic-head" }, [
-        el("span", { class: "ic-title" }, [title]),
-        el("div", { style: "flex:1" }),
-        el("button", { class: "btn small ghost", type: "button", onclick: () => gotoStep(stepKey) }, ["修改"]),
-      ]),
-      el("div", { class: "sum-rows" }, rows.flatMap(([k, v]) => [
-        el("span", { class: "k" }, [k]),
-        el("div", { class: "v" }, Array.isArray(v) ? v : [val(v)]),
-      ])),
-    ]);
-    box.appendChild(el("div", { class: "editor-section" }, [
-      el("div", { class: "sec-head" }, ["基础信息"]),
-      infoCard("基本信息", "trigger", [
-        ["组件名称", state.name.trim()],
-        ["组件说明", state.description.trim()],
-      ]),
-      infoCard("组件内容", "comp", [
-        ["交互组件", (tpl.name || UI.ctName(state.component_type) || "")
-          + (state.component_type === "select.multi" ? "（多选）" : state.component_type === "select.single" ? "（单选）" : "")
-          + (dispName ? " · " + dispName : "")],
-        ["提问", state.question.trim()],
-        ...(contentSummary() ? [["内容", contentSummary()]] : []),
-      ]),
-    ]));
-
-    // 数据 schema 展现：注册给大模型的参数 schema 与提交回传结构（对接契约）
-    const schemaBox = el("div", { class: "editor-section" }, [
-      el("div", { class: "sec-head" }, ["数据 schema（注册给大模型的）"]),
-      el("div", { class: "muted" }, ["加载中……"]),
-    ]);
-    (async () => {
-      try {
-        const r = await UI.api("/api/components/schema-preview", { method: "POST",
-          body: { component_type: state.component_type, config: collectPayload().field_bindings.config } });
-        schemaBox.innerHTML = "";
-        schemaBox.appendChild(el("div", { class: "sec-head" }, ["数据 schema（注册给大模型的）"]));
-        schemaBox.appendChild(el("div", { class: "muted", style: "margin-bottom:8px" },
-          ["params_schema = 模型调用时要填的参数；fixed = 平台定死模型不可改；submit = 用户提交后回传给 agent 的结构"]));
-        const mk = (t2, o2) => o2 && Object.keys(o2).length ? el("div", { style: "margin-bottom:8px" }, [
-          el("div", { class: "muted", style: "font-weight:600;margin-bottom:2px" }, [t2]),
-          el("pre", { class: "code", style: "max-height:200px;overflow:auto" }, [JSON.stringify(o2, null, 2)]),
-        ]) : null;
-        schemaBox.appendChild(mk("params_schema", r.params_schema));
-        const fx = mk("fixed（平台定死）", r.fixed);
-        if (fx) schemaBox.appendChild(fx);
-        const sb = mk("submit（提交回传）", r.submit_schema);
-        if (sb) schemaBox.appendChild(sb);
-      } catch (e2) { schemaBox.appendChild(el("div", { class: "field-error" }, ["schema 预览加载失败：" + e2.message])); }
-    })();
-    box.appendChild(schemaBox);
-
-    if (PRESENT_TYPES.includes(state.component_type)) {
-      box.appendChild(el("div", { class: "editor-section" }, [
-        el("div", { class: "sec-head" }, ["数据收集"]),
-        el("div", { class: "muted" }, ["展示类组件无提交，不产生回收数据；渲染次数计入看板曝光统计"]),
-      ]));
-      return box;
-    }
-    const webhookIn = input("webhook", { type: "url", placeholder: "https://your-service.example.com/hooks/interaction" });
-    box.appendChild(el("div", { class: "editor-section" }, [
-      el("div", { class: "sec-head" }, ["数据收集"]),
-      ECHO_TYPES.includes(state.component_type) ? el("div", { class: "recv-row" }, [
-        el("div", { class: "recv-main" }, [
-          el("div", { class: "recv-t" }, ["群体回显"]),
-          el("div", { class: "muted" }, [state.component_type === "entry.link"
-            ? "统计并展示有多少人点开过各入口"
-            : "用户提交后看到大家的选择分布，如「71% 的用户和你选了一样」"]),
-        ]),
-        UI.toggle({ checked: !!state.echo_results,
-          onChange: (v) => { state.echo_results = v; autosave(); renderPreview(); } }),
-      ]) : (() => { state.echo_results = false; return null; })(),
-      el("div", { class: "recv-row" }, [
-        el("div", { class: "recv-main" }, [
-          el("div", { class: "recv-t" }, ["数据推送 Webhook", el("span", { class: "muted", style: "font-weight:400;margin-left:6px" }, ["选填"])]),
-          webhookIn,
-          el("div", { class: "muted", style: "margin-top:4px" }, ["仅 https；每次提交实时 POST 一条记录（演示环境不外发）"]),
-          (() => { const e2 = el("div", { class: "field-error" }); fieldErrs.webhook = e2; return e2; })(),
-        ]),
-      ]),
-      el("div", { class: "muted", style: "margin-top:8px" }, ["配置 ID 与接口契约在发布后生成，可直接复制"]),
-    ]));
-    return box;
   }
 
   // ---------- 第 3 步：获取接入信息（v2：实例 ID + 注册表片段 + SIA.render 示例） ----------
@@ -2985,8 +2676,8 @@ async function openEditor(cardId, prefill, initStep) {
     if (cerrs.length) {
       // 错误可能在前面的步骤：跳回第一个有错的步骤
       const stepOf = (e) => Object.keys(STEP_FIELDS).find(k => STEP_FIELDS[k].includes(fieldKeyOf(e)));
-      const firstStep = ["trigger", "comp", "confirm"].find(k => cerrs.some(e => stepOf(e) === k || (k === "comp" && stepOf(e) === "pick")));
-      if (firstStep && firstStep !== step) { step = firstStep; rebuild(true); }
+      const firstStep = ["pick", "content", "style"].find(k => cerrs.some(e => stepOf(e) === k));
+      if (firstStep && firstStep !== step && steps().some(s2 => s2.key === firstStep)) { step = firstStep; rebuild(true); }
       showFieldErrors(cerrs);
       UI.toast(`还有 ${cerrs.length} 处需要修正`, true);
       return;
@@ -3083,8 +2774,8 @@ async function openEditor(cardId, prefill, initStep) {
         } else if (errs) {
           // 跳回出错字段所在的步骤（如配置名称重名 → 触发条件步）
           const stepOf2 = (er) => Object.keys(STEP_FIELDS).find(k => STEP_FIELDS[k].includes(fieldKeyOf(er)));
-          const firstStep2 = ["trigger", "comp", "confirm"].find(k => errs.some(er => stepOf2(er) === k || (k === "comp" && stepOf2(er) === "pick")));
-          if (firstStep2 && firstStep2 !== step) { step = firstStep2; rebuild(true); }
+          const firstStep2 = ["pick", "content", "style"].find(k => errs.some(er => stepOf2(er) === k));
+          if (firstStep2 && firstStep2 !== step && steps().some(s2 => s2.key === firstStep2)) { step = firstStep2; rebuild(true); }
           showFieldErrors(errs);
           UI.toast("保存失败：请修正表单中标红的字段", true);
         } else {

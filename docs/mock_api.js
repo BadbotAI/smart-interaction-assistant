@@ -384,9 +384,16 @@
     }
     if (/^\/api\/products\/[^/]+\/delete$/.test(pn)) {
       const pid = pn.split("/")[3];
-      const nm = ((getMock("/api/products").products.find(p => p.product_id === pid) || {}).name) || pid;
+      const prod = getMock("/api/products").products.find(p => p.product_id === pid) || {};
+      // 级联清理本产品的预置实例（名称带产品后缀）
+      const suffix = "-" + pid.slice(-4);
+      let removed = 0;
+      (prod.card_ids || []).forEach(cid => {
+        const c = allCardsMerged().find(x => x.card_id === cid);
+        if (c && (c.name || "").endsWith(suffix)) { deadCards.add(cid); removed++; }
+      });
       prodLocal.deleted.add(pid);
-      auditLog("product_delete", { 产品: nm });
+      auditLog("product_delete", { 产品: prod.name || pid, 清理预置: removed });
       return { ok: true };
     }
     if (/^\/api\/cards\/[^/]+\/delete$/.test(pn)) {
