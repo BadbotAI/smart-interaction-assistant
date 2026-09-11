@@ -60,7 +60,7 @@
     border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-secondary); opacity: 0; text-align: center; }
   .cs.active .cap { animation: csIn .4s ease-out .2s forwards; }
   .cap b { display: block; color: var(--text-primary); font-size: 13.5px; margin-bottom: 2px; }
-  .cs .inner { max-width: 720px; margin: 0 auto; }
+  .cs .inner { max-width: 560px; margin: 0 auto; }
   .dots { position: absolute; right: 18px; bottom: 16px; display: flex; gap: 6px; z-index: 2; }
   .onboard { display: flex; align-items: stretch; gap: 10px; max-width: 900px; margin: 26px auto 0; padding: 0 16px; }
   .ob-step { flex: 1; display: flex; gap: 12px; align-items: flex-start; text-decoration: none;
@@ -106,20 +106,21 @@
           <div class="cw"><div class="card2"><div class="ttl">选择表单 · 模型动态给出选项</div>
             <div class="opt">加急催办</div><div class="opt picked">改约取件时间</div><div class="opt">申请赔付</div>
             <span class="sbtn">确认</span></div>
-            <div class="ok">提交成功 · 结构化回传给 agent</div></div>
+            <div class="ok">提交成功，用户的选择回传给 AI 继续办</div></div>
         </div>
-        <div class="cap"><b>组件注册制</b>组件像工具一样注册给大模型：何时出、给什么选项，由模型按对话决定</div>
+        <div class="cap"><b>组件注册制</b>组件注册给 AI：什么时候出卡片、给哪些选项，AI 按对话自己决定</div>
       </div>
       <div class="cs">
         <div class="inner">
           <span class="bub bu">帮我登记一下联系方式</span>
           <span class="bub ba">请补充以下信息：</span>
-          <div class="cw"><div class="card2"><div class="ttl">信息表单 · 字段由调用参数定义</div>
-            <div class="opt">联系人 *</div><div class="opt">联系方式 *</div>
+          <div class="cw"><div class="card2"><div class="ttl">信息表单 · 缺的信息一次补齐</div>
+            <div class="frow"><div class="flab">联系人 *</div><div class="fin f1"><i></i></div></div>
+            <div class="frow"><div class="flab">联系方式 *</div><div class="fin f2"><i></i></div></div>
             <span class="sbtn">提交</span></div>
-            <div class="ok">提交成功 · 按 submit 结构回传</div></div>
+            <div class="ok">提交成功，资料已结构化登记</div></div>
         </div>
-        <div class="cap"><b>内容全参数化</b>平台零内容配置：字段、文案、候选项都是模型调用参数，业务逻辑留在 agent 侧</div>
+        <div class="cap"><b>内容可动态可固定</b>字段和选项既能让 AI 按对话生成，也能手动固定下来做统计——都不用写前端</div>
       </div>
       <div class="cs">
         <div class="inner">
@@ -133,9 +134,9 @@
               <i style="flex:1;background:var(--primary);opacity:.8;height:64%;border-radius:3px 3px 0 0"></i>
               <i style="flex:1;background:var(--primary);height:82%;border-radius:3px 3px 0 0"></i>
             </div></div>
-            <div class="ok">无提交 · 长文本变成结构化可视化</div></div>
+            <div class="ok">不用提交，大段文字变成一眼能读的图</div></div>
         </div>
-        <div class="cap"><b>展示类组件</b>表格、图表、时间线等 7 类：把模型的大段文字翻译成一眼能读的可视化</div>
+        <div class="cap"><b>展示类组件</b>表格、图表、时间线等 11 类：把 AI 的大段文字翻译成一眼能读的可视化</div>
       </div>
       <div class="cs">
         <div class="inner">
@@ -162,9 +163,9 @@
             </div>
             <div class="opt">倒角 · 高度 · 密度 · 阴影 · 字号</div>
           </div>
-            <div class="ok">Figma 级 token 定制 · SDK 直接接入</div></div>
+            <div class="ok">每个圆角、颜色、字号都能调，一行代码接入</div></div>
         </div>
-        <div class="cap"><b>样式即产品</b>六套主题预设起步，逐 token 细调，组件实例还能再覆盖——设计一次，处处一致</div>
+        <div class="cap"><b>样式即产品</b>六套主题预设起步，逐项细调，组件实例还能再覆盖——设计一次，处处一致</div>
       </div>
       <div class="dots"><button class="dot on" aria-label="case 1"></button><button class="dot" aria-label="case 2"></button><button class="dot" aria-label="case 3"></button><button class="dot" aria-label="case 4"></button><button class="dot" aria-label="case 5"></button></div>
     </div>

@@ -21,20 +21,6 @@
   .card-row .main { flex: 1; min-width: 0; }
   .card-row .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 7px; }
   .card-row .actions { display: flex; gap: 6px; align-items: center; flex: none; }
-  .tpl-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-  @media (max-width: 900px) { .tpl-grid { grid-template-columns: 1fr 1fr; } }
-  .tpl-pick { position: relative; border: 1px solid var(--border); border-radius: var(--radius-control); padding: 10px 12px; cursor: pointer; background: var(--bg-surface); }
-  .tpl-pick .sel-ico { position: absolute; top: 7px; right: 9px; color: var(--primary); }
-  .tpl-pick.recommended { border-color: var(--ai); animation: aiPulse 1.8s ease-in-out infinite; }
-  .tpl-pick .t { display: flex; align-items: center; gap: 6px; min-height: 18px; }
-  .tpl-pick.recommended .rec-chip { font-size: var(--font-caption); padding: 0 7px; line-height: 16px; flex: none; }
-  @keyframes aiPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(110, 75, 216, 0.30); } 50% { box-shadow: 0 0 0 7px rgba(110, 75, 216, 0); } }
-  .tpl-pick:hover { border-color: var(--primary-border); }
-  .tpl-pick.selected { border-color: var(--primary); background: var(--primary-weak); box-shadow: inset 0 0 0 1px var(--primary); }
-  .tpl-pick.locked { cursor: not-allowed; opacity: 0.45; }
-  .tpl-pick.locked.selected { opacity: 1; }
-  .tpl-pick .t { font-weight: 600; font-size: var(--font-small); }
-  .tpl-pick .d { color: var(--text-muted); font-size: var(--font-caption); line-height: 1.4; margin-top: 3px; min-height: 2.8em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr 48px 32px; gap: 6px; align-items: center; margin-bottom: 6px; }
   .field-row input[type=text] { padding: 5px 8px; font-size: var(--font-small); }
   .field-row .muted { font-size: var(--font-caption); }
@@ -891,13 +877,16 @@ async function openEditor(cardId, prefill, initStep) {
   // 步骤：新建走全流程；编辑只有三步（done 在发布后出现）
   const steps = () => STEP_DEFS.filter(s => {
     if (s.key === "pick") return isNew;
+    if (s.key === "content") return !PRESENT_TYPES.includes(state.component_type);   // 展示类内容全由模型给出，无内容步
     if (s.key === "done") return !!savedCard && (isNew || publishedNow);
     return true;
   });
+  const entryStep = () => PRESENT_TYPES.includes(state.component_type) ? "style" : "content";
   let step = initStep && STEP_FIELDS[initStep] ? initStep
     : restore?.step && STEP_FIELDS[restore.step] ? restore.step
-    : (isNew ? (state.component_type ? "content" : "pick") : "content");
-  if (step === "done") step = "content";
+    : (isNew ? (state.component_type ? entryStep() : "pick") : entryStep());
+  if (step === "done") step = entryStep();
+  if (step === "content" && PRESENT_TYPES.includes(state.component_type)) step = "style";
 
   function autosave() {
     clearTimeout(autosaveTimer);
@@ -1139,7 +1128,7 @@ async function openEditor(cardId, prefill, initStep) {
     let pickTab = PRESENT_TYPES.includes(state.component_type) ? "present" : "interactive";
     const gridBox = el("div", { class: "tpl-grid" });
     const tagBox = el("div", { class: "scene-tags" });
-    const tabBar = el("div", { style: "display:flex;gap:16px;margin-bottom:12px;border-bottom:1px solid var(--border)" });
+    const tabBar = el("div", { class: "tab-bar", style: "margin-bottom:14px" });
     function drawTabs() {
       tabBar.innerHTML = "";
       const nI = V2_TEMPLATES.filter(t => !PRESENT_TYPES.includes(t.component_type)).length;
@@ -1165,7 +1154,6 @@ async function openEditor(cardId, prefill, initStep) {
         gridBox.appendChild(el("div", {
           class: "tpl-pick" + (selAny ? " selected" : "") + (r && !selAny ? " recommended" : ""),
           role: "radio", "aria-checked": selAny ? "true" : "false", tabindex: "0",
-          title: r ? r.s.reason : (WIZ_DESC[t.component_type] || t.desc || ""),
           onclick: pick,
           onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } } },
           [selAny ? el("span", { class: "sel-ico" }, [UI.icon("check", 14)]) : null,
@@ -1380,6 +1368,19 @@ async function openEditor(cardId, prefill, initStep) {
       el("span", {}, ["未覆盖的样式项跟随产品的风格主题；以下调整只作用于本组件实例"]),
       el("div", { style: "flex:1" }), resetBtn,
     ]));
+    if (PRESENT_TYPES.includes(state.component_type)) {
+      // 展示类无内容步：名称在此填写
+      const tplName2 = (V2_TEMPLATES.find(t => t.component_type === state.component_type) || {}).name || "";
+      if (!state.name.trim() && tplName2) {
+        const taken2 = new Set((window.__allCards || []).map(x => x.name));
+        let nm2 = tplName2, i3 = 2;
+        while (taken2.has(nm2)) nm2 = tplName2 + " " + (i3++);
+        state.name = nm2;
+      }
+      box.appendChild(el("div", { class: "field", style: "max-width:360px" }, [
+        el("span", { class: "label-text req" }, ["实例名称"]), (() => { const n = input("name", { maxlength: "15" }); return n; })(),
+      ]));
+    }
 
     // —— 颜色：主色 / 强调色（品牌 + 预设 + 自定义） ——
     const SWATCHES = ["#3E63DD", "#0EA5A5", "#30A46C", "#D6970A", "#D97757", "#E5484D", "#7C5CD6", "#64748B"];
@@ -2269,8 +2270,9 @@ async function openEditor(cardId, prefill, initStep) {
       return;
     }
     const spacer = el("div", { style: "flex:1" });
-    const nextTo = { pick: ["content", "下一步"], content: ["style", "下一步"] };
-    const backTo = { content: isNew ? "pick" : null, style: "content" };
+    const isPresent2 = PRESENT_TYPES.includes(state.component_type);
+    const nextTo = { pick: [isPresent2 ? "style" : "content", "下一步"], content: ["style", "下一步"] };
+    const backTo = { content: isNew ? "pick" : null, style: isPresent2 ? (isNew ? "pick" : null) : "content" };
     if (step === "done") {
       foot.append(spacer,
 
@@ -2628,6 +2630,10 @@ loadCards().then(async () => {
     localStorage.removeItem("config_prefill");
     // 深链：?new=1&ct=select.single 直接带组件进入（组件模板「创建配置」也走这里）
     if (!prefill && params.get("ct")) prefill = { component_type: params.get("ct") };
+    if (prefill && prefill.component_type && !V2_TEMPLATES.some(t => t.component_type === prefill.component_type)) {
+      // 非法 / 已下线类型的深链：回落到选择组件步，而不是进入残缺编辑器
+      prefill = null;
+    }
     if (prefill && prefill.component_type) {
       if (!templateLibrary) templateLibrary = (await UI.api("/api/templates")).templates;
       const tpl = templateLibrary.find(t => t.component_type === prefill.component_type);

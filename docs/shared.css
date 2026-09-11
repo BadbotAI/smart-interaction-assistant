@@ -622,7 +622,7 @@ input[type=date]:invalid, input[type=time]:invalid, input[type=datetime-local]:i
 .modal.editor .ed-preview { min-height: 0; overflow: auto; margin: 16px 24px 16px 0; padding: 14px; background: var(--bg-page); border: 1px solid var(--border); border-radius: var(--radius-card); }
 .modal.editor .ed-preview .chat-mock { min-height: 300px; }
 .modal.editor .modal-foot { position: static; flex: none; margin: 0; padding: 12px 24px; border-top: 1px solid var(--border); background: var(--bg-elevated); }
-.modal.editor .tpl-grid { grid-template-columns: repeat(3, 1fr); }
+
 .modal.editor .ed-form .editor-section + .editor-section { margin-top: 20px; padding-top: 18px; }
 
 .q-input { font-size: var(--font-title); font-weight: 600; padding: 10px 14px; background: var(--bg-surface); border-color: var(--border-strong); }
@@ -1009,8 +1009,11 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: a
 .editor-inline .modal.editor {
   width: 100%; max-width: none; height: auto; min-height: calc(100vh - 120px); max-height: none;
   box-shadow: none; border: 1px solid var(--border); border-radius: var(--radius-card);
+  overflow: visible; 
 }
-.editor-inline .modal-foot { position: sticky; bottom: 0; }
+.editor-inline .modal.editor .ed-form { overflow: visible; }
+.editor-inline .modal.editor .ed-preview { overflow: visible; position: sticky; top: 112px; align-self: start; }
+.editor-inline .modal.editor .modal-foot { position: sticky; bottom: 0; z-index: 5; border-radius: 0 0 var(--radius-card) var(--radius-card); }
 
 .v-sep { width: 1px; height: 18px; background: var(--border); flex: none; }
 
@@ -1740,3 +1743,10 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .wb-preview::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 40px;
   background: linear-gradient(transparent, var(--bg-sunken)); }
 .wb-preview .comp { margin-top: 0; max-width: 100%; }
+
+.tpl-pick { position: relative; }
+.tpl-pick .sel-ico { position: absolute; top: 9px; right: 11px; color: var(--primary); }
+.tpl-pick.recommended { border-color: var(--ai); animation: aiPulse 1.8s ease-in-out infinite; }
+@keyframes aiPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(110, 75, 216, .3); } 50% { box-shadow: 0 0 0 7px rgba(110, 75, 216, 0); } }
+.tpl-pick.locked { cursor: not-allowed; opacity: .45; }
+.tpl-pick.locked.selected { opacity: 1; }

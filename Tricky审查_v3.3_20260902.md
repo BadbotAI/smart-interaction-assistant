@@ -425,3 +425,15 @@ node tests/mock_smoke.mjs 全过；py_compile + node --check；GET 全端点扫�
 | T21-E | P3 | 注册表 fixed 元数据缺 recommended_default（渲染走 envelope 不受影响，但 agent 侧可见性不完整） | 已修 |
 | T21-F | 数据 | 官网智能客服 brand_file 被此前测试残留改为 harbor | 已修回默认墨蓝 |
 | T21-G | 记录 | 固定模式题目未显式填写时用默认兜底（编辑器已必填标注）；服务端不强拦——保持宽松 | 不改 |
+
+## 第二十二批（2026-09-11 · 用户实盘截图触发：以真实 UI 逐屏走查为核心）
+
+| # | 级别 | 检查项 / 问题 | 结果 |
+|---|------|------|------|
+| T22-1 | P1 | 选择组件步 UI 崩坏：tab 容器缺 `tab-bar` 类致裸描边按钮；`.tpl-grid` 三处定义打架（内嵌 4 列 > shared 2 列 > modal 3 列）；tpl-pick 内嵌旧样式压制新大卡；卡片 title 属性产生原生 tooltip 噪音 | 已修（删两处冗余定义、shared 唯一源、去 title），截图验收通过 |
+| T22-2 | P1 | 展示类组件的内容配置步整页只有一个名称框（空步骤） | 已修：展示类 steps() 跳过内容步，名称字段移到样式步顶部，截图验收通过 |
+| T22-3 | P0 | 页面式编辑器「上一步/下一步/保存」永远沉在页底看不见：`.modal.editor{overflow:hidden}` 把 sticky foot 困在容器内，且 `.modal.editor .modal-foot{position:static}`(0,3,0) 特异性一直压过 `.editor-inline .modal-foot{sticky}`(0,2,0)——吸底从未生效过 | 已修：inline 模式 overflow:visible + 足特异性重写 sticky；同时预览列 sticky 也因此恢复（top:112 对齐步骤条下沿），双截图验收 |
+| T22-4 | P2 | 非法 / 已下线组件类型深链（?new=1&ct=xxx）进入残缺编辑器：无内容面板、预览降级为文本 | 已修：对照 V2_TEMPLATES 校验，非法回落到选择组件步；注意 /api/templates 只含交互类，不能拿它当全量校验表（曾误伤 table 深链，已改） |
+| T22-5 | P1 | 首页 hero 轮播（用户截图怒斥）：案例二「信息表单」偷懒复用选项按钮样式，两个方框写「联系人 *」不像表单（现成的 .frow/.flab/.fin 字段样式没用上）；演示区 720px 宽但卡片只占左 300px 右侧大片空白；文案全是开发黑话（「字段由调用参数定义」「按 submit 结构回传」「内容全参数化」「token 定制」）；展示类数量写 7 类实为 11 类 | 已修：真实表单字段+填充动画、inner 收窄 560px、五个案例文案全部改人话、类数改 11，截图验收通过 |
+
+方法论沉淀：**sticky 失效必查两件事——祖先链上的 overflow（hidden/auto 都会把 sticky 困在该容器）和特异性（后写的规则可能一直被更高特异性的旧规则压着，「看起来生效过」可能从未生效）**。UI 验收必须以真实截图为准，DOM 里有元素不等于用户看得见。
