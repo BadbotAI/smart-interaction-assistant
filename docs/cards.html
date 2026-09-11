@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=49b0cd9e">
-<link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./products.html">
+<link rel="stylesheet" href="./shared.css?v=d55a8962">
+<link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
   .card-row .cr-line1 { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -61,11 +61,11 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=f817ac25"></script>
-<script src="./mock_api.js?v=e09d5330"></script>
-<script src="./tokens.js?v=be27f7d8"></script>
-<script src="./ui.js?v=bc2760db"></script>
-<script src="./components.js?v=d4c293ba"></script>
+<script src="./mock_data.js?v=49cff671"></script>
+<script src="./mock_api.js?v=94835855"></script>
+<script src="./tokens.js?v=aba04afb"></script>
+<script src="./ui.js?v=d95ee44c"></script>
+<script src="./components.js?v=253ce9e4"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
 UI.nav("cards");
@@ -136,7 +136,14 @@ function tileEnv(c) {
     }
     if ((cfg.fields || []).length) params.fields = cfg.fields;
     if (cfg.recommended_default) params.recommended_default = cfg.recommended_default;
+    if (cfg.present_params) Object.assign(params, cfg.present_params);
   }
+  if (cfg.slider) {
+    ["min", "max", "step", "unit", "default"].forEach(k => { if (cfg.slider[k] != null && cfg.slider[k] !== "") params[k] = cfg.slider[k]; });
+  }
+  if (cfg.likert) params.likert = cfg.likert;
+  if (cfg.max_select) params.max_select = cfg.max_select;
+  if (cfg.down_reasons) params.down_reasons = cfg.down_reasons;
   if (cfg.display === "card" || c.component_type === "select.card") params.display = "card";
   return { schema_version: "1.0.0", render_id: "wb-" + c.card_id, component_type: c.component_type,
     semantic_category: "present", trigger_source: "wb_preview", card_ref: null,
@@ -390,7 +397,7 @@ async function loadCards() {
         el("div", { class: "empty-title" }, ["还没有交互配置"]),
         el("div", { style: "display:flex;gap:8px;justify-content:center;margin-top:10px" }, [
           el("button", { class: "btn primary", onclick: () => newConfigWizard() }, ["新建第一条配置"]),
-          el("a", { class: "btn", href: "./library.html" }, ["去组件模板"]),
+
         ]),
       ]));
     }
@@ -674,7 +681,8 @@ const COMPONENT_PARAMS = {
   "metric.card": [
     ["value.size", "数值字号", "num", 22, 40, 30],
     ["delta.show", "涨跌标签", "bool", true],
-    ["delta.invert", "红涨绿跌", "bool", false, { deps: ["delta.show", true] }],
+    ["delta.good", "涨跌语义", "enum", [["", "越高越好"], ["lower", "越低越好"], ["neutral", "中性"]],
+      { deps: ["delta.show", true], hint: "决定涨跌颜色的业务含义：如投诉量下降应显示为改善（绿）" }],
     ["metric.align", "对齐", "enum", [["", "左对齐"], ["center", "居中"]]],
     ["baseline.show", "对比说明", "bool", true, { hint: "数值下方的一行小字，如「对比上月同期」" }],
   ],
@@ -710,7 +718,7 @@ const COMPONENT_PARAMS = {
   ],
   "matrix.compare": [
     ["best.highlight", "最优项高亮", "bool", true, { hint: "高亮色使用成功色" }],
-    ["sum.show", "综合列", "bool", true],
+    ["sum.show", "综合列", "bool", false, { hint: "各维度分直加；确保所有维度都是「分数越高越好」且量纲一致再开启" }],
     ["header.bg", "表头底色", "color"],
     ["striped", "隔行变色", "bool", false],
     ["tbl.font", "表格字号", "num", 11, 14, 12, { adv: true }],
@@ -727,6 +735,8 @@ const COMPONENT_PARAMS = {
     ["text.align", "对齐", "enum", [["", "左对齐"], ["center", "居中"]]],
   ],
   "select.single": [
+    ["pick.submit", "提交方式", "enum", [["", "点击按钮提交"], ["auto", "选择即提交"]],
+      { hint: "选择即提交适合快捷追问；正式表态建议保留按钮" }],
     ["opt.gap", "选项间距", "num", 4, 16, 8],
     ["opt.border", "选项描边", "bool", true],
     ["opt.radius", "选项圆角", "num", 0, 16, 10, { hint: "覆盖通用「圆角」推导的控件圆角" }],
@@ -901,16 +911,15 @@ async function openEditor(cardId, prefill, initStep) {
   // 步骤：新建走全流程；编辑只有三步（done 在发布后出现）
   const steps = () => STEP_DEFS.filter(s => {
     if (s.key === "pick") return isNew;
-    if (s.key === "content") return !PRESENT_TYPES.includes(state.component_type);   // 展示类内容全由模型给出，无内容步
+    if (s.key === "content") return true;   // 展示类同样有内容步（固定数据 / AI 生成二选一）
     if (s.key === "done") return !!savedCard && (isNew || publishedNow);
     return true;
   });
-  const entryStep = () => PRESENT_TYPES.includes(state.component_type) ? "style" : "content";
+  const entryStep = () => "content";
   let step = initStep && STEP_FIELDS[initStep] ? initStep
     : restore?.step && STEP_FIELDS[restore.step] ? restore.step
     : (isNew ? (state.component_type ? entryStep() : "pick") : entryStep());
   if (step === "done") step = entryStep();
-  if (step === "content" && PRESENT_TYPES.includes(state.component_type)) step = "style";
 
   function autosave() {
     clearTimeout(autosaveTimer);
@@ -1050,7 +1059,9 @@ async function openEditor(cardId, prefill, initStep) {
       const pv = PRESENT_TYPES.includes(state.component_type)
         ? { schema_version: "1.0.0", render_id: "pv-present", component_type: state.component_type,
             semantic_category: "present", trigger_source: "preview", card_ref: null,
-            params: DEMO_PRESENT[state.component_type] || {}, style_overrides: state.styleOv }
+            params: (state.contentMode === "fixed" && state.presentParams)
+              ? JSON.parse(JSON.stringify(state.presentParams))
+              : (DEMO_PRESENT[state.component_type] || {}), style_overrides: state.styleOv }
         : null;
       const envP = previewWithStyle(pv || buildPreviewEnvelope());
       if (state.contentMode === "fixed" && envP && envP.params) {
@@ -1081,6 +1092,19 @@ async function openEditor(cardId, prefill, initStep) {
           const drs = (state.downReasons || "").split("\n").map(s => s.trim()).filter(Boolean).slice(0, 6);
           if (drs.length) envP.params.down_reasons = drs;
         }
+        if (state.component_type === "slider.range" && state.sliderCfg) {
+          const sc = state.sliderCfg;
+          if (sc.min !== "" && sc.min != null) envP.params.min = Number(sc.min);
+          if (sc.max !== "" && sc.max != null) envP.params.max = Number(sc.max);
+          if (sc.step !== "" && Number(sc.step) > 0) envP.params.step = Number(sc.step);
+          if ((sc.unit || "").trim()) envP.params.unit = sc.unit.trim();
+          if (sc.def !== "" && sc.def != null) envP.params.default = Number(sc.def);
+        }
+        if (state.component_type === "scale.likert" && state.likertCfg) {
+          envP.params.likert = { from: 1, to: Number(state.likertCfg.to) || 5,
+            left: state.likertCfg.left || "", right: state.likertCfg.right || "" };
+        }
+        if (state.component_type === "picker.datetime" && state.display) envP.params.mode = state.display;
       }
       node = Components.render(envP, {
         sendEvent: () => {}, onCollectSubmit: () => { UI.toast("预览不产生数据"); toggleEchoDemo(true); },
@@ -1095,7 +1119,8 @@ async function openEditor(cardId, prefill, initStep) {
       const ct3 = state.component_type;
       const oo3 = (state.fixedOptions || "").split("\n").map(x => x.trim()).filter(Boolean);
       const ff3 = (state.fixedFields || "").split("\n").filter(Boolean);
-      const incomplete = ct3 === "form.structured" ? !ff3.length
+      const incomplete = PRESENT_TYPES.includes(ct3) ? !state.presentParams
+        : ct3 === "form.structured" ? !ff3.length
         : ct3 === "scale.likert" ? !(state.fixedPrompt || "").trim()
         : (!(state.fixedPrompt || "").trim() || oo3.length < 2);
       if (incomplete) previewBox.appendChild(el("div", { class: "pv-demo-note" },
@@ -1104,7 +1129,7 @@ async function openEditor(cardId, prefill, initStep) {
           [!(state.fixedPrompt || "").trim() ? "待补：题目" : "", oo3.length < 2 ? "待补：至少 2 个选项" : ""].filter(Boolean).join("、"), "）"]));
     }
     previewBox.appendChild(UI.chatMock({ question: state.trigger_examples[0] || mock.q || "", reply: state.reply_text.trim() || mock.reply || "", node, prompt: pv }));
-    if (state.contentMode === "fixed" && state.echo_results) {
+    if (state.contentMode === "fixed" && state.echo_results && !PRESENT_TYPES.includes(state.component_type)) {
       previewBox.appendChild(el("div", { style: "display:flex;justify-content:center;margin-top:10px" }, [
         el("button", { class: "btn small", type: "button", onclick: () => toggleEchoDemo() }, ["查看群体回显样式"]),
       ]));
@@ -1226,18 +1251,31 @@ async function openEditor(cardId, prefill, initStep) {
           if (r && r.s.prefill_prompt && !state.question) state.question = r.s.prefill_prompt;
           autosave(); drawGrid(); renderPreview(); updateFoot();
         };
+        // 组件模板式富卡：名称 + 类别 chip + 描述 + 真实示例预览（原组件模板页整体并入本步）
+        const isP2 = PRESENT_TYPES.includes(t.component_type);
+        const pv2 = el("div", { class: "tpl-preview pick-pv" });
+        try {
+          pv2.appendChild(el("div", { class: "brand-scope" }, [Components.render({
+            schema_version: "1.0.0", render_id: "pick-" + t.component_type, component_type: t.component_type,
+            semantic_category: isP2 ? "present" : "collect", trigger_source: "pick_preview", card_ref: null,
+            params: WB_DEMO[t.component_type] || DEMO_PRESENT[t.component_type] || {},
+          }, { sendEvent: () => {}, onCollectSubmit: () => {}, onControl: () => {}, preview: true, titleInBubble: true })]));
+        } catch (e) { pv2.appendChild(el("div", { class: "muted" }, ["示例预览暂不可用"])); }
         gridBox.appendChild(el("div", {
-          class: "tpl-pick" + (selAny ? " selected" : "") + (r && !selAny ? " recommended" : ""),
+          class: "tpl-rich" + (selAny ? " selected" : "") + (r && !selAny ? " recommended" : ""),
           role: "radio", "aria-checked": selAny ? "true" : "false", tabindex: "0",
           onclick: pick,
           onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } } },
-          [selAny ? el("span", { class: "sel-ico" }, [UI.icon("check", 14)]) : null,
-           el("span", { class: "tpl-ico" }, [UI.icon(CT_ICONS[t.component_type] || "grid", 20)]),
-           el("div", { class: "tpl-txt" }, [
-             el("div", { class: "t" }, [el("span", {}, [t.name]),
-               r ? el("span", { class: (r.top ? "chip ai" : "chip gray") + " rec-chip" }, [r.top ? "最推荐" : "推荐"]) : null]),
-             el("div", { class: "d" }, [WIZ_DESC[t.component_type] || t.desc]),
-           ])]));
+          [el("div", { class: "tpl-head" }, [
+             selAny ? el("span", { class: "sel-ico", style: "position:static;color:var(--primary);display:inline-flex" }, [UI.icon("check", 15)]) : null,
+             el("span", { class: "tpl-ico", style: "width:30px;height:30px" }, [UI.icon(CT_ICONS[t.component_type] || "grid", 16)]),
+             el("span", { style: "font-weight:700" }, [t.name]),
+             el("span", { class: "chip " + (isP2 ? "gray" : "blue") }, [isP2 ? "非交互组件" : "交互组件"]),
+             r ? el("span", { class: (r.top ? "chip ai" : "chip gray") + " rec-chip" }, [r.top ? "最推荐" : "推荐"]) : null,
+           ]),
+           el("div", { class: "d", style: "color:var(--text-muted);font-size:var(--font-caption);line-height:1.55;margin:4px 0 8px" },
+             [WIZ_DESC[t.component_type] || t.desc]),
+           pv2]));
       });
     }
     function drawTags() {
@@ -1271,7 +1309,7 @@ async function openEditor(cardId, prefill, initStep) {
       el("span", { class: "label-text req" }, ["选择组件"]),
       tabBar,
       catBar,
-      el("div", { class: "tpl-scroll" }, [gridBox]),
+      gridBox,
     ]));
     drawTabs();
     drawCats();
@@ -1297,6 +1335,10 @@ async function openEditor(cardId, prefill, initStep) {
       if (state.fixedRec === undefined) state.fixedRec = cfg1.recommended_default || "";
       if (state.downReasons === undefined) state.downReasons = (cfg1.down_reasons || []).join("\n");
       if (state.maxSelect === undefined) state.maxSelect = cfg1.max_select || "";
+      if (state.presentParams === undefined)
+        state.presentParams = cfg1.present_params ? JSON.parse(JSON.stringify(cfg1.present_params)) : null;
+      if (state.sliderCfg === undefined) state.sliderCfg = { min: 0, max: 100, step: 1, unit: "", def: "", ...(cfg1.slider || {}) };
+      if (state.likertCfg === undefined) state.likertCfg = { to: 5, left: "很不满意", right: "非常满意", ...(cfg1.likert || {}) };
     }
     const tplName = (V2_TEMPLATES.find(t => t.component_type === ct) || {}).name || "";
     if (!state.name.trim() && tplName) {
@@ -1312,15 +1354,171 @@ async function openEditor(cardId, prefill, initStep) {
       el("span", { class: "label-text req" }, ["组件名称"]), (() => { const n = input("name", { maxlength: "15" }); return n; })(),
     ]));
 
-    // 内容模式（固定 / 动态）——仅业务内容型组件
-    if (FIXED_OK) {
+    // 内容模式（固定 / 动态）——业务内容型组件 + 全部展示类（固定数据可直接嵌入）
+    const IS_PRESENT_C = PRESENT_TYPES.includes(ct);
+    if (FIXED_OK || IS_PRESENT_C) {
       box.appendChild(groupHead("内容"));
       const cmSeg = el("div", { class: "cm-cards" });
       const fixedArea = el("div", { style: "margin-top:10px" });
+      const CM_COPY = IS_PRESENT_C
+        ? [["dynamic", "AI 生成内容", "数据由 AI 按对话实时给出，每次可能不同"],
+           ["fixed", "固定配置内容", "数据由你在下方配置，随组件直接展示，AI 不能改"]]
+        : [["dynamic", "AI 生成内容", "选项由 AI 根据对话自动给出，每次可能不同"],
+           ["fixed", "固定配置内容", "内容由你在下方配置，AI 不能改，可统计大家的选择"]];
+      // —— 展示类固定数据编辑器：每类一个轻量编辑器，写 state.presentParams（与渲染参数同构） ——
+      function drawPresentEditor(host, fxSec) {
+        if (!state.presentParams) state.presentParams = JSON.parse(JSON.stringify(DEMO_PRESENT[ct] || {}));
+        const pp = state.presentParams;
+        const tIn = (val, oninput, opts2 = {}) => {
+          const n = el("input", { type: opts2.num ? "number" : "text", value: val == null ? "" : String(val),
+            maxlength: String(opts2.max || 40), style: opts2.style || "width:150px" });
+          n.oninput = () => oninput(opts2.num ? (n.value === "" ? "" : Number(n.value)) : n.value);
+          return n;
+        };
+        // 行编辑器：cols=[{k,label,num,w}]，rows 为对象数组
+        const grid = (cols, rows, write, addLabel, maxRows) => {
+          const boxG = el("div", {});
+          const draw = () => {
+            boxG.innerHTML = "";
+            rows().forEach((r, i) => {
+              boxG.appendChild(el("div", { class: "fx-row" }, [
+                el("span", { class: "muted num", style: "width:18px;text-align:center" }, [String(i + 1)]),
+                ...cols.map(c2 => tIn(r[c2.k], v => { const l2 = rows(); l2[i][c2.k] = v; write(l2); },
+                  { num: c2.num, style: "width:" + (c2.w || 120) + "px", max: 40 })),
+                el("button", { class: "btn small ghost", type: "button", title: "删除",
+                  onclick: () => { const l2 = rows(); l2.splice(i, 1); write(l2); draw(); } }, ["删除"]),
+              ]));
+            });
+            const add = el("button", { class: "btn small", type: "button", onclick: () => {
+              const l2 = rows(); if (maxRows && l2.length >= maxRows) return;
+              l2.push(Object.fromEntries(cols.map(c2 => [c2.k, c2.num ? 0 : ""]))); write(l2); draw();
+            } }, [addLabel || "添加一行"]);
+            if (maxRows && rows().length >= maxRows) { add.disabled = true; add.title = "最多 " + maxRows + " 行"; }
+            boxG.appendChild(add);
+          };
+          draw();
+          return boxG;
+        };
+        const field = (sec, node) => host.appendChild(el("div", { class: "field" }, [sec, node]));
+        const titleField = (label2) => field(fxSec(label2 || "标题", "可留空", false),
+          tIn(pp.title || "", v => { pp.title = v; upd(); }, { style: "max-width:320px", max: 20 }));
+        if (ct === "table") {
+          titleField("表格标题");
+          pp.columns = pp.columns || []; pp.rows = pp.rows || [];
+          const colBox = grid([{ k: "v", label: "列名", w: 150 }],
+            () => pp.columns.map(c2 => ({ v: c2 })),
+            l2 => { const old = pp.columns.length; pp.columns = l2.map(x => x.v);
+              if (pp.columns.length !== old) pp.rows = pp.rows.map(r => { const r2 = [...r]; r2.length = pp.columns.length; return r2.map(x => x ?? ""); });
+              upd(); redraw(); }, "添加列", 6);
+          let rowHost = el("div", {});
+          const redraw = () => {
+            rowHost.innerHTML = "";
+            rowHost.appendChild(grid(pp.columns.map((c2, j) => ({ k: "c" + j, label: c2, w: 110 })),
+              () => pp.rows.map(r => Object.fromEntries(r.map((x, j) => ["c" + j, x]))),
+              l2 => { pp.rows = l2.map(o => pp.columns.map((c2, j) => String(o["c" + j] ?? ""))); upd(); }, "添加行", 12));
+          };
+          redraw();
+          field(fxSec("列", "2-6 列", true), colBox);
+          field(fxSec("数据行", "每行按列填写", true), rowHost);
+        } else if (ct === "chart.line" || ct === "chart.bar") {
+          titleField("图表标题");
+          pp.categories = pp.categories || []; pp.series = pp.series && pp.series.length ? pp.series : [{ name: "", values: [] }];
+          const s0 = pp.series[0];
+          field(fxSec("系列名", "含单位更清楚，如「金额（万元）」", false),
+            tIn(s0.name || "", v => { s0.name = v; upd(); }, { style: "max-width:260px", max: 16 }));
+          field(fxSec("数据", "类目 + 数值，2-12 行", true),
+            grid([{ k: "cat", label: "类目", w: 120 }, { k: "val", label: "数值", num: true, w: 100 }],
+              () => pp.categories.map((c2, i) => ({ cat: c2, val: (s0.values || [])[i] })),
+              l2 => { pp.categories = l2.map(x => x.cat); s0.values = l2.map(x => Number(x.val) || 0); upd(); }, "添加数据", 12));
+        } else if (ct === "chart.pie") {
+          titleField("图表标题");
+          pp.slices = pp.slices || [];
+          field(fxSec("占比数据", "名称 + 数值（原始数量即可，占比自动计算），2-7 行", true),
+            grid([{ k: "label", label: "名称", w: 130 }, { k: "value", label: "数值", num: true, w: 100 }],
+              () => pp.slices, l2 => { pp.slices = l2.map(x => ({ label: x.label, value: Number(x.value) || 0 })); upd(); }, "添加一项", 7));
+        } else if (ct === "chart.waterfall") {
+          titleField("图表标题");
+          pp.categories = pp.categories || []; pp.values = pp.values || [];
+          field(fxSec("增减条目", "正数=增加，负数=减少；合计自动计算", true),
+            grid([{ k: "cat", label: "名称", w: 130 }, { k: "val", label: "数值", num: true, w: 100 }],
+              () => pp.categories.map((c2, i) => ({ cat: c2, val: pp.values[i] })),
+              l2 => { pp.categories = l2.map(x => x.cat); pp.values = l2.map(x => Number(x.val) || 0); upd(); }, "添加条目", 10));
+        } else if (ct === "metric.card") {
+          field(fxSec("指标名", "", true), tIn(pp.label || "", v => { pp.label = v; upd(); }, { style: "max-width:240px", max: 16 }));
+          host.appendChild(el("div", { class: "fx-row" }, [
+            el("span", { class: "fx-sec-t", style: "width:64px" }, ["数值"]),
+            tIn(pp.value || "", v => { pp.value = v; upd(); }, { style: "width:130px", max: 12 }),
+            el("span", { class: "fx-sec-t" }, ["单位"]),
+            tIn(pp.unit || "", v => { pp.unit = v; upd(); }, { style: "width:80px", max: 6 }),
+            el("span", { class: "fx-sec-t" }, ["涨跌"]),
+            tIn(pp.delta || "", v => { pp.delta = v; upd(); }, { style: "width:90px", max: 8 }),
+          ]));
+          field(fxSec("对比说明", "如「对比上月同期」，留空不显示", false),
+            tIn(pp.baseline || "", v => { pp.baseline = v; upd(); }, { style: "max-width:240px", max: 16 }));
+        } else if (ct === "timeline") {
+          titleField();
+          pp.events = pp.events || [];
+          field(fxSec("事件", "时间 + 标题 + 说明（说明可空）", true),
+            grid([{ k: "ts", label: "时间", w: 90 }, { k: "title", label: "标题", w: 120 }, { k: "desc", label: "说明", w: 170 }],
+              () => pp.events, l2 => { pp.events = l2; upd(); }, "添加事件", 12));
+        } else if (ct === "steps") {
+          titleField();
+          pp.steps = pp.steps || [];
+          field(fxSec("步骤", "2-6 步", true),
+            grid([{ k: "v", label: "步骤名", w: 220 }],
+              () => pp.steps.map(x => ({ v: x })), l2 => { pp.steps = l2.map(x => x.v);
+                pp.current_index = Math.min(pp.current_index || 0, Math.max(0, pp.steps.length - 1)); upd(); if (curHost) curHost.replaceWith(curSel()); }, "添加步骤", 6));
+          let curHost;
+          const curSel = () => {
+            const sel = el("select", { style: "height:32px;border:1px solid var(--border);border-radius:8px;padding:0 8px;background:var(--bg-elevated)" },
+              pp.steps.map((s2, i) => el("option", { value: String(i), ...(i === (pp.current_index || 0) ? { selected: "" } : {}) }, [String(i + 1) + " · " + (s2 || "步骤")])));
+            sel.onchange = () => { pp.current_index = Number(sel.value); upd(); };
+            curHost = sel; return sel;
+          };
+          field(fxSec("当前进行到", "", false), curSel());
+        } else if (ct === "matrix.compare") {
+          titleField("对比标题");
+          pp.dimensions = pp.dimensions || []; pp.options = pp.options || []; pp.values = pp.values || [];
+          let vHost = el("div", {});
+          const redrawV = () => {
+            vHost.innerHTML = "";
+            vHost.appendChild(grid([{ k: "name", label: "方案", w: 110 },
+                ...pp.dimensions.map((d2, j) => ({ k: "d" + j, label: d2, num: true, w: 76 }))],
+              () => pp.options.map((o, i) => ({ name: o, ...Object.fromEntries(pp.dimensions.map((d2, j) => ["d" + j, (pp.values[i] || [])[j]])) })),
+              l2 => { pp.options = l2.map(x => x.name);
+                pp.values = l2.map(x => pp.dimensions.map((d2, j) => Number(x["d" + j]) || 0)); upd(); }, "添加方案", 5));
+          };
+          field(fxSec("维度", "1-5 个，注意保持「分数越高越好」的同一方向", true),
+            grid([{ k: "v", label: "维度名", w: 130 }], () => pp.dimensions.map(x => ({ v: x })),
+              l2 => { pp.dimensions = l2.map(x => x.v); pp.values = pp.values.map(r => { const r2 = [...(r || [])]; r2.length = pp.dimensions.length; return r2.map(x => Number(x) || 0); }); upd(); redrawV(); }, "添加维度", 5));
+          redrawV();
+          field(fxSec("方案与打分", "", true), vHost);
+        } else if (ct === "list.ordered") {
+          titleField("清单标题");
+          pp.items = pp.items || [];
+          field(fxSec("条目", "1-12 条", true),
+            grid([{ k: "v", label: "条目", w: 300 }], () => pp.items.map(x => ({ v: x })),
+              l2 => { pp.items = l2.map(x => x.v); upd(); }, "添加条目", 12));
+        } else if (ct === "text.emphasis") {
+          field(fxSec("结论正文", "一句话，60 字内", true),
+            tIn(pp.value || "", v => { pp.value = v; upd(); }, { style: "max-width:420px;width:100%", max: 60 }));
+          field(fxSec("补充说明", "小字辅助信息，留空不显示", false),
+            tIn(pp.caption || "", v => { pp.caption = v; upd(); }, { style: "max-width:420px;width:100%", max: 40 }));
+          const seg = el("div", { class: "segmented" });
+          const TONES = [["neutral", "中性"], ["positive", "正向"], ["warning", "提示"], ["negative", "警示"]];
+          const drawT = () => {
+            seg.innerHTML = "";
+            TONES.forEach(([v, nm]) => seg.appendChild(el("button", { type: "button",
+              class: "seg" + ((pp.tone || "neutral") === v ? " active" : ""),
+              onclick: () => { pp.tone = v; drawT(); upd(); } }, [nm])));
+          };
+          drawT();
+          field(fxSec("用途语气", "决定着色：正向绿 / 提示黄 / 警示红；中性用主题文字色", false), seg);
+        }
+      }
       const drawCM = () => {
         cmSeg.innerHTML = "";
-        [["dynamic", "AI 生成内容", "选项由 AI 根据对话自动给出，每次可能不同"],
-         ["fixed", "固定配置内容", "内容由你在下方配置，AI 不能改，可统计大家的选择"]].forEach(([v, nm, sub]) =>
+        CM_COPY.forEach(([v, nm, sub]) =>
           cmSeg.appendChild(el("button", { type: "button", class: "cm-card" + (state.contentMode === v ? " on" : ""),
             onclick: () => { state.contentMode = v; if (v !== "fixed") state.echo_results = false; drawCM(); drawFixed(); upd(); } }, [
             el("span", { class: "cm-name" }, [nm]),
@@ -1336,6 +1534,7 @@ async function openEditor(cardId, prefill, initStep) {
           el("span", { class: "fx-sec-t" + (req2 ? " label-text req" : "") }, [t]),
           hint ? el("span", { class: "fx-sec-d" }, [hint]) : null,
         ]);
+        if (IS_PRESENT_C) { drawPresentEditor(fixedArea, fxSec); return; }
         if (ct === "scale.likert") {
           // 评分量表：固定一道题（档位由样式步的形态与默认 1-5 决定），常配合群体回显
           const qIn3 = el("input", { type: "text", maxlength: "30", value: state.fixedPrompt,
@@ -1345,7 +1544,7 @@ async function openEditor(cardId, prefill, initStep) {
             fxSec("题目", "30 字内；档位与两端说明在样式设计步调整", true), qIn3]));
         } else if (ct === "form.structured") {
           // 字段行编辑：字段名 / 类型 / 占位提示 / 必填（字段代号自动生成，进阶可改）
-          const FT = [["", "文本"], ["number", "数字"], ["phone", "手机号"], ["textarea", "多行文本"]];
+          const FT = [["", "文本"], ["number", "数字"], ["phone", "手机号"], ["email", "邮箱"], ["date", "日期"], ["textarea", "多行文本"]];
           const rows = () => (state.fixedFields || "").split("\n").filter(Boolean)
             .map(l => { const [k, lb, rq, tp, ph] = l.split("|"); return { k: k || "", lb: lb || "", rq: rq === "必填", tp: tp || "", ph: ph || "" }; });
           const write = (list) => { state.fixedFields = list.map(f => [f.k, f.lb, f.rq ? "必填" : "", f.tp || "", f.ph || ""].join("|")).join("\n"); upd(); };
@@ -1431,7 +1630,8 @@ async function openEditor(cardId, prefill, initStep) {
                 : "2-8 项，每项 30 字内；可把一项设为「推荐」，选项右侧出现角标", true),
             listBox]));
         }
-        // 群体回显：完整说明的开关行（仅固定内容可开）
+        // 群体回显：完整说明的开关行（仅固定内容的交互组件可开）
+        if (IS_PRESENT_C) return;
         const echo = el("input", { type: "checkbox", ...(state.echo_results ? { checked: "" } : {}) });
         echo.onchange = () => { state.echo_results = echo.checked; upd(); };
         fixedArea.appendChild(el("label", { class: "fx-echo" }, [echo,
@@ -1442,6 +1642,71 @@ async function openEditor(cardId, prefill, initStep) {
       };
       drawCM(); drawFixed();
       box.appendChild(el("div", { class: "sty-section" }, [cmSeg, fixedArea]));
+    }
+
+    // 内容规则：滑杆数值范围（此前只存在于未接入的旧函数，现接回当前向导）
+    if (ct === "slider.range") {
+      box.appendChild(groupHead("数值范围"));
+      const sc = state.sliderCfg;
+      const numIn = (key, w) => { const n = el("input", { type: "number", class: "num", style: "width:" + w + "px",
+          value: sc[key] === "" || sc[key] == null ? "" : String(sc[key]) });
+        n.oninput = () => { sc[key] = n.value === "" ? "" : Number(n.value); upd(); }; return n; };
+      const unitIn = el("input", { type: "text", maxlength: "6", style: "width:80px", value: sc.unit || "" });
+      unitIn.oninput = () => { sc.unit = unitIn.value; upd(); };
+      box.appendChild(el("div", { class: "sty-section" }, [
+        el("div", { class: "sty-label" }, ["范围与步长", UI.help("用户可选的最小值 / 最大值与步进；初始值留空则取中间值")]),
+        el("div", { class: "fx-row" }, [
+          el("span", { class: "muted" }, ["最小"]), numIn("min", 90),
+          el("span", { class: "muted" }, ["最大"]), numIn("max", 90),
+          el("span", { class: "muted" }, ["步长"]), numIn("step", 70),
+        ]),
+        el("div", { class: "fx-row" }, [
+          el("span", { class: "muted" }, ["单位"]), unitIn,
+          el("span", { class: "muted" }, ["初始值"]), numIn("def", 90),
+        ]),
+      ]));
+    }
+
+    // 内容规则：评分量表定义（档位 + 两端标签）
+    if (ct === "scale.likert") {
+      box.appendChild(groupHead("量表定义"));
+      const lc = state.likertCfg;
+      const seg = el("div", { class: "segmented" });
+      const drawSeg = () => {
+        seg.innerHTML = "";
+        [[5, "1-5 分"], [7, "1-7 分"], [10, "1-10 分"]].forEach(([v, nm]) => seg.appendChild(el("button", {
+          type: "button", class: "seg" + ((lc.to || 5) === v ? " active" : ""),
+          onclick: () => { lc.to = v; drawSeg(); upd(); } }, [nm])));
+      };
+      drawSeg();
+      const lIn = el("input", { type: "text", maxlength: "8", style: "width:120px", value: lc.left || "" });
+      lIn.oninput = () => { lc.left = lIn.value; upd(); };
+      const rIn = el("input", { type: "text", maxlength: "8", style: "width:120px", value: lc.right || "" });
+      rIn.oninput = () => { lc.right = rIn.value; upd(); };
+      box.appendChild(el("div", { class: "sty-section" }, [
+        el("div", { class: "sty-label" }, ["档位", UI.help("改档位会改变统计口径，已发布后慎改")]), seg]));
+      box.appendChild(el("div", { class: "sty-section" }, [
+        el("div", { class: "sty-label" }, ["两端标签"]),
+        el("div", { class: "fx-row" }, [
+          el("span", { class: "muted" }, ["低分端"]), lIn,
+          el("span", { class: "muted" }, ["高分端"]), rIn,
+        ]),
+      ]));
+    }
+
+    // 内容规则：日期时间选择模式
+    if (ct === "picker.datetime") {
+      box.appendChild(groupHead("选择模式"));
+      const seg = el("div", { class: "segmented" });
+      const drawSeg = () => {
+        seg.innerHTML = "";
+        [["date", "仅日期"], ["datetime", "日期 + 时间"]].forEach(([v, nm]) => seg.appendChild(el("button", {
+          type: "button", class: "seg" + ((state.display || "date") === v ? " active" : ""),
+          onclick: () => { state.display = v; drawSeg(); upd(); } }, [nm])));
+      };
+      drawSeg();
+      box.appendChild(el("div", { class: "sty-section" }, [
+        el("div", { class: "sty-label" }, ["收集什么", UI.help("先决定收集日期还是精确时刻，再考虑快捷项等展示")]), seg]));
     }
 
     // 交互规则：多选的数量上限（0 = 不限）
@@ -1512,19 +1777,6 @@ async function openEditor(cardId, prefill, initStep) {
       UI.icon("palette", 14),
       el("span", {}, ["未覆盖的样式项跟随产品的风格主题；以下调整只作用于本组件实例"]),
     ]));
-    if (PRESENT_TYPES.includes(state.component_type)) {
-      // 展示类无内容步：名称在此填写
-      const tplName2 = (V2_TEMPLATES.find(t => t.component_type === state.component_type) || {}).name || "";
-      if (!state.name.trim() && tplName2) {
-        const taken2 = new Set((window.__allCards || []).map(x => x.name));
-        let nm2 = tplName2, i3 = 2;
-        while (taken2.has(nm2)) nm2 = tplName2 + " " + (i3++);
-        state.name = nm2;
-      }
-      box.appendChild(el("div", { class: "field", style: "max-width:360px" }, [
-        el("span", { class: "label-text req" }, ["组件名称"]), (() => { const n = input("name", { maxlength: "15" }); return n; })(),
-      ]));
-    }
 
     // —— 颜色：主色 / 强调色（品牌 + 预设 + 自定义） ——
     const SWATCHES = ["#3E63DD", "#0EA5A5", "#30A46C", "#D6970A", "#D97757", "#E5484D", "#7C5CD6", "#64748B"];
@@ -1650,29 +1902,13 @@ async function openEditor(cardId, prefill, initStep) {
         el("div", { class: "sty-label" }, ["选项展现", UI.help("同一选择表单的两种展现：文本行 / 图文卡片；不影响参数 schema")]), row]));
     }
 
-    if (!IS_PRESENT) {
-      // 主色 / 强调色只被交互组件消费（选中态 / 按钮 / hover）；展示类各有专项颜色参数
-      box.appendChild(groupHead("颜色"));
-      box.appendChild(colorRow("color.primary", "主色（按钮 / 选中态）"));
-      box.appendChild(colorRow("color.accent", "强调色（hover / 高亮）"));
-    }
 
-    box.appendChild(groupHead("外层容器（面板）", "包住整个组件的大容器"));
-    box.appendChild(colorRow("panel.bg", "面板底色"));
-    box.appendChild(colorRow("panel.bc", "面板边框色"));
+    // 配色（面板 / 选项 / 按钮 / 文字）统一在「风格主题」定义；这里只调本组件的形态
+    box.appendChild(groupHead("容器", "圆角 / 内边距 / 阴影，只作用于本组件"));
     box.appendChild(numRow("radius", "圆角", 0, 28, 16, "组件卡片圆角；控件圆角按比例跟随"));
     box.appendChild(numRow("spacing", "内边距", 8, 24, 16, "面板内边距，同时影响行距节奏"));
     box.appendChild(cardsRow("shadow", "阴影", [["", "主题"], ["none", "无"], ["sm", "轻"], ["md", "中"], ["lg", "重"]], shadowDemo));
 
-    // 选项容器：面板内每个可点的选项 / 条目 / 候选卡自己的一层
-    if (["select.single", "select.multi", "select.card", "rank.priority", "feedback.preference"].includes(ct)) {
-      box.appendChild(groupHead("选项容器", "面板内每个选项 / 条目自己的底色与边框"));
-      box.appendChild(colorRow("opt.bg", "选项底色"));
-      box.appendChild(colorRow("opt.bc", "选项边框色"));
-    }
-
-    box.appendChild(groupHead("文字"));
-    box.appendChild(numRow("font_scale", "字号", 12, 16, 13, "组件内正文字号"));
 
     if (!IS_PRESENT) {
       box.appendChild(groupHead("交互区"));
@@ -1753,20 +1989,17 @@ async function openEditor(cardId, prefill, initStep) {
 
     // 提交按钮容器：文案 + 底色 / 边框 / 文字颜色（顺序在组件参数之后）
     if (!IS_PRESENT && !["feedback.binary", "feedback.preference"].includes(ct)) {
-      box.appendChild(groupHead("提交按钮", "按钮的文案与配色；文案与内容配置步保持同步"));
+      box.appendChild(groupHead("提交按钮", "文案与内容配置步保持同步；按钮配色在风格主题里定义"));
       const subIn = el("input", { type: "text", maxlength: "8", value: state.submitLabel || "",
         placeholder: ct === "control.confirm" ? "确认执行" : "提交", style: "max-width:200px" });
       subIn.oninput = () => { state.submitLabel = subIn.value; upd(); };
       box.appendChild(el("div", { class: "sty-section" }, [
         el("div", { class: "sty-label" }, ["按钮文案"]), subIn]));
-      box.appendChild(colorRow("btn.bg", "按钮底色"));
-      box.appendChild(colorRow("btn.bc", "按钮边框色"));
-      box.appendChild(colorRow("btn.fg", "按钮文字颜色"));
     }
 
     // —— 折叠分组：配置项多时也好配——每组可收起，默认只展开高频组 ——
     (function accordionize() {
-      const OPEN = new Set(["外层容器（面板）", "组件参数"]);
+      const OPEN = new Set(["容器", "组件参数"]);
       const kids = [...box.children];
       const out = [];
       let cur = null;
@@ -2406,7 +2639,7 @@ async function openEditor(cardId, prefill, initStep) {
           } }, [UI.icon("copy", 14), "复制"]),
         ]),
         el("pre", { class: "code" }, ["SIA.render(container, " + callDemo + ")"]),
-        el("div", { class: "muted" }, ["参数 schema 与提交回传结构：见「组件模板 → 组件详情」，或产品配置里的「数据 Schema」"]),
+        el("div", { class: "muted" }, ["参数 schema 与提交回传结构：见「产品与接入 → 产品配置 → 数据 Schema」"]),
       ]));
       box.appendChild(el("div", { class: "muted", style: "margin-top:8px" },
         ["接入代码（注册表 API + 前端两行）在「产品与接入」页一键复制；样式修改后需重新出包"]));
@@ -2467,9 +2700,8 @@ async function openEditor(cardId, prefill, initStep) {
       return;
     }
     const spacer = el("div", { style: "flex:1" });
-    const isPresent2 = PRESENT_TYPES.includes(state.component_type);
-    const nextTo = { pick: [isPresent2 ? "style" : "content", "下一步"], content: ["style", "下一步"] };
-    const backTo = { content: isNew ? "pick" : null, style: isPresent2 ? (isNew ? "pick" : null) : "content" };
+    const nextTo = { pick: ["content", "下一步"], content: ["style", "下一步"] };
+    const backTo = { content: isNew ? "pick" : null, style: "content" };
     if (step === "done") {
       foot.append(spacer,
 
@@ -2499,6 +2731,13 @@ async function openEditor(cardId, prefill, initStep) {
     formCol.innerHTML = "";
     formCol.appendChild({ pick: stepPick, content: stepContent, style: stepStyle, done: stepDone }[step]());
     if (window.__pvResetBtn) window.__pvResetBtn.hidden = step !== "style";
+    // 选择组件步：卡片自带示例预览，右侧预览列整列隐藏
+    const splitEl = formCol.closest(".ed-split") || document.querySelector(".ed-split");
+    if (splitEl) {
+      splitEl.classList.toggle("pick-mode", step === "pick");
+      const pvCol = splitEl.querySelector(".ed-preview");
+      if (pvCol) pvCol.hidden = step === "pick";
+    }
     drawStepBar();
     drawFoot();
     renderPreview();
@@ -2651,7 +2890,12 @@ async function openEditor(cardId, prefill, initStep) {
     delete config.options;
     delete config.fields;
     delete config.recommended_default;
-    if (config.content_mode === "fixed") {
+    delete config.present_params;
+    const IS_P = PRESENT_TYPES.includes(state.component_type);
+    if (IS_P && config.content_mode === "fixed" && state.presentParams) {
+      config.present_params = JSON.parse(JSON.stringify(state.presentParams));
+    }
+    if (!IS_P && config.content_mode === "fixed") {
       if (state.fixedRec && (state.fixedOptions || "").split("\n").includes(state.fixedRec))
         config.recommended_default = state.fixedRec;
       if (state.component_type === "form.structured") {
@@ -2659,6 +2903,8 @@ async function openEditor(cardId, prefill, initStep) {
           const [k, lb, rq, tp, ph] = l.split("|").map(x => (x || "").trim());
           const f = { key: k, label: lb || k, type: tp === "number" ? "number" : "text", required: rq === "必填" || rq === "required" };
           if (tp === "phone") { f.type = "text"; f.format = "phone"; }
+          if (tp === "email") { f.type = "text"; f.format = "email"; }
+          if (tp === "date") { f.type = "date"; }
           if (tp === "textarea") { f.type = "text"; f.multiline = true; }
           if (ph) f.placeholder = ph;
           return f;
@@ -2667,6 +2913,23 @@ async function openEditor(cardId, prefill, initStep) {
         config.options = (state.fixedOptions || "").split("\n").map(l => l.trim()).filter(Boolean);
       }
     }
+    // 内容规则：滑杆范围 / 量表定义（display 已由通用逻辑写入）
+    if (state.component_type === "slider.range" && state.sliderCfg) {
+      const sc = state.sliderCfg;
+      const sl = {};
+      if (sc.min !== "" && sc.min != null) sl.min = Number(sc.min);
+      if (sc.max !== "" && sc.max != null) sl.max = Number(sc.max);
+      if (sc.step !== "" && sc.step != null && Number(sc.step) > 0) sl.step = Number(sc.step);
+      if ((sc.unit || "").trim()) sl.unit = sc.unit.trim();
+      if (sc.def !== "" && sc.def != null) sl.default = Number(sc.def);
+      if (sl.min != null && sl.max != null && sl.min >= sl.max) delete sl.min;
+      config.slider = sl;
+    }
+    if (state.component_type === "scale.likert" && state.likertCfg) {
+      const lc = state.likertCfg;
+      config.likert = { from: 1, to: Number(lc.to) || 5,
+        left: (lc.left || "").trim() || "很不满意", right: (lc.right || "").trim() || "非常满意" };
+    }
     // 组件级交互规则 / 内容补充
     delete config.max_select; delete config.down_reasons;
     if (state.component_type === "select.multi" && Number(state.maxSelect) > 0) config.max_select = Number(state.maxSelect);
@@ -2674,7 +2937,7 @@ async function openEditor(cardId, prefill, initStep) {
       const drs = (state.downReasons || "").split("\n").map(s => s.trim()).filter(Boolean).slice(0, 6);
       if (drs.length) config.down_reasons = drs;
     }
-    const fixedEcho = config.content_mode === "fixed" && !!state.echo_results;
+    const fixedEcho = config.content_mode === "fixed" && !!state.echo_results && !IS_P;
     return {
       card_id: clientCardId,
       name: state.name.trim(),
@@ -2745,6 +3008,22 @@ async function openEditor(cardId, prefill, initStep) {
         if (!fs2.length) miss = "还没有添加固定字段";
       } else if (ct2 === "scale.likert" && !(state.fixedPrompt || "").trim()) {
         miss = "题目还没填写";
+      } else if (PRESENT_TYPES.includes(ct2)) {
+        const pp2 = state.presentParams || {};
+        const need = {
+          "table": () => (pp2.columns || []).filter(Boolean).length < 2 || !(pp2.rows || []).length ? "至少 2 列和 1 行数据" : "",
+          "chart.line": () => (pp2.categories || []).filter(Boolean).length < 2 ? "至少 2 个数据点" : "",
+          "chart.bar": () => (pp2.categories || []).filter(Boolean).length < 2 ? "至少 2 个数据点" : "",
+          "chart.pie": () => (pp2.slices || []).filter(x => x.label).length < 2 ? "至少 2 个占比项" : "",
+          "chart.waterfall": () => (pp2.categories || []).filter(Boolean).length < 2 ? "至少 2 个增减条目" : "",
+          "metric.card": () => !(pp2.label || "").trim() || pp2.value == null || pp2.value === "" ? "指标名与数值必填" : "",
+          "timeline": () => !(pp2.events || []).filter(e => e.title).length ? "至少 1 条事件" : "",
+          "steps": () => (pp2.steps || []).filter(Boolean).length < 2 ? "至少 2 个步骤" : "",
+          "matrix.compare": () => (pp2.options || []).filter(Boolean).length < 2 || !(pp2.dimensions || []).filter(Boolean).length ? "至少 2 个方案和 1 个维度" : "",
+          "list.ordered": () => !(pp2.items || []).filter(Boolean).length ? "至少 1 条条目" : "",
+          "text.emphasis": () => !(pp2.value || "").trim() ? "结论正文必填" : "",
+        }[ct2];
+        if (need) miss = need();
       }
       if (miss) {
         step = "content"; rebuild(true);

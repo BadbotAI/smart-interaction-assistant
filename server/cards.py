@@ -89,7 +89,8 @@ def validate_card(payload: dict, strict: bool = False) -> list:
                  "bar.sort": ("asc", "desc"), "metric.align": ("left", "center"),
                  "col.align": ("smart", "left"), "text.align": ("left", "center"), "lk.style": ("dots", "bar"),
                  "sl.style": ("slider", "stepper", "input"), "tl.order": ("asc", "desc"),
-                 "steps.dir": ("horizontal", "vertical")}
+                 "steps.dir": ("horizontal", "vertical"),
+                 "delta.good": ("higher", "lower", "neutral"), "pick.submit": ("button", "auto")}
     SPEC_COLOR = {"color.primary", "color.accent", "panel.bg", "line.color", "axis.color", "bar.color",
                   "done.color", "marker.color", "header.bg", "dot.color", "input.bg", "tlline.color", "icon.color",
                   "wf.pos", "wf.neg", "total.color",

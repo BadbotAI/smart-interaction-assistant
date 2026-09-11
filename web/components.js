@@ -196,7 +196,7 @@ window.Components = (function () {
 
   function rText(env) {
     const p = env.params;
-    const toneColor = { positive: "var(--success)", negative: "var(--danger)", neutral: "var(--text-primary)" }[p.tone || "neutral"];
+    const toneColor = { positive: "var(--success)", negative: "var(--danger)", warning: "var(--warning)", neutral: "var(--text-primary)" }[p.tone || "neutral"];
     return compCard([
       p.caption ? el("div", { class: "muted hl-caption" }, [p.caption]) : null,
       el("div", { class: "hl-value", style: `font-size:var(--hl-size, 20px);font-weight:600;color:${toneColor}` },
@@ -208,12 +208,16 @@ window.Components = (function () {
     const p = env.params;
     const deltaStr = p.delta != null ? String(p.delta) : null;
     const up = deltaStr && !deltaStr.startsWith("-");
+    // 涨跌语义：越高越好（默认）/ 越低越好（如投诉量）/ 中性——颜色表达业务好坏，不只表达数学方向
+    const soM = env.style_overrides || {};
+    const good = soM["delta.good"] || (soM["delta.invert"] ? "lower" : "");
+    const deltaCls = good === "neutral" ? "neutral" : (up === (good !== "lower")) ? "up" : "down";
     return compCard([
       el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [p.label || ""]),
       el("div", { style: "display:flex;align-items:baseline;gap:10px;margin-top:2px" }, [
         el("span", { class: "metric-value", style: "font-size:var(--mv-size, 30px)" }, [String(p.value)]),
         p.unit ? el("span", { class: "secondary" }, [p.unit]) : null,
-        deltaStr ? el("span", { class: "delta-chip " + (up ? "up" : "down"), title: up ? "较基线上升" : "较基线下降" }, [
+        deltaStr ? el("span", { class: "delta-chip " + deltaCls, title: up ? "较基线上升" : "较基线下降" }, [
           UI.icon(up ? "arrowup" : "arrowdown", 11), deltaStr.replace("-", "")]) : null,
       ]),
       p.baseline ? el("div", { class: "muted metric-baseline", style: "font-size:var(--font-caption);margin-top:4px" }, [p.baseline]) : null,
@@ -394,13 +398,15 @@ window.Components = (function () {
     ]);
   }
 
-  function matrixTable(p, interactive, onPick, picked) {
+  function matrixTable(p, interactive, onPick, picked, so2) {
     // 表格对比工具：整行可点选择；紧凑列宽 + 单元格省略，窄容器不再乱换行
+    // 综合列默认关闭（属性对比模式）：各维度直加只有在同向同量纲时才成立，需显式开启
+    const showSum = (so2 || {})["sum.show"] === true;
     const dims = p.dimensions || [];
     const head = el("tr", {}, [
       el("th", { class: "mx-name" }, ["方案"]),
       ...dims.map(d => el("th", { class: "mx-v", title: d }, [d])),
-      el("th", { class: "mx-sum" }, ["综合"]),
+      showSum ? el("th", { class: "mx-sum" }, ["综合"]) : null,
     ]);
     const sums = (p.options || []).map((_, i) => (p.values[i] || []).reduce((a2, b2) => a2 + (Number(b2) || 0), 0));
     const best = Math.max(...sums, 0);
@@ -419,14 +425,14 @@ window.Components = (function () {
           isRec ? el("span", { class: "chip blue", style: "flex:none" }, ["推荐"]) : null,
         ]),
         ...dims.map((d, j) => el("td", { class: "mx-v num" }, [vals[j] == null ? "-" : String(vals[j])])),
-        el("td", { class: "mx-sum num" + (sums[i] === best && best > 0 ? " best" : "") }, [sums[i] ? sums[i].toFixed(1) : "-"]),
+        showSum ? el("td", { class: "mx-sum num" + (sums[i] === best && best > 0 ? " best" : "") }, [sums[i] ? sums[i].toFixed(1) : "-"]) : null,
       ]);
     });
     return el("table", { class: "data mx-table" }, [el("thead", {}, [head]), el("tbody", {}, rows)]);
   }
 
   function rMatrixCompare(env) {
-    return compCard([compTitle(env.params.title || "方案对比"), matrixTable(env.params, false)]);
+    return compCard([compTitle(env.params.title || "方案对比"), matrixTable(env.params, false, null, null, env.style_overrides)]);
   }
 
   function rFlowReasoning(env) {
@@ -613,7 +619,7 @@ window.Components = (function () {
     } else {
       body = optionList(opts, p, false, () => picked, (o) => picked = o);
     }
-    return compCard([
+    const cardEl = compCard([
       compTitle(p.prompt),
       body,
       submitBar(env, ctx, () => ({
@@ -621,6 +627,15 @@ window.Components = (function () {
         user_selection: picked, modified_from_default: picked !== p.recommended_default,
       }), () => picked == null ? "请先选择一项" : null),
     ]);
+    // 选择即提交：点选后自动触发提交（快捷追问场景）；默认仍是显式按钮提交
+    if ((env.style_overrides || {})["pick.submit"] === "auto") {
+      cardEl.classList.add("auto-submit");
+      cardEl.addEventListener("click", (e) => {
+        if (!e.target.closest(".opt-item, .btn.opt, .opt-card")) return;
+        setTimeout(() => { if (picked != null) cardEl.querySelector(".submit-bar .btn.primary:not(:disabled)")?.click(); }, 160);
+      });
+    }
+    return cardEl;
   }
 
   function rSelectMulti(env, ctx) {
@@ -777,7 +792,8 @@ window.Components = (function () {
     const fieldNodes = fields.map(f => {
       const input = f.multiline
         ? el("textarea", { rows: 3, placeholder: f.placeholder || "" })
-        : el("input", { type: f.type === "number" ? "number" : f.format === "phone" ? "tel" : "text",
+        : el("input", { type: f.type === "number" ? "number" : f.type === "date" ? "date"
+              : f.format === "phone" ? "tel" : f.format === "email" ? "email" : "text",
             ...(f.format === "phone" ? { inputmode: "tel" } : {}), placeholder: f.placeholder || "" });
       inputs[f.key] = input;
       const errBox = el("div", { class: "field-error" });
@@ -805,6 +821,9 @@ window.Components = (function () {
           } else if (v && f.format === "phone" && !/^[\d+\-\s]{6,20}$/.test(v)) {
             errBoxes[f.key].textContent = "请输入有效的手机号";
             bad = bad || "手机号格式不正确";
+          } else if (v && f.format === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+            errBoxes[f.key].textContent = "请输入有效的邮箱地址";
+            bad = bad || "邮箱格式不正确";
           }
         });
         return bad;
@@ -1348,7 +1367,7 @@ window.Components = (function () {
     const tableBox = el("div", {});
     const rerender = () => {
       tableBox.innerHTML = "";
-      tableBox.appendChild(matrixTable(p, true, (opt) => { picked = opt; rerender(); }, picked));
+      tableBox.appendChild(matrixTable(p, true, (opt) => { picked = opt; rerender(); }, picked, env.style_overrides));
     };
     rerender();
     box.appendChild(tableBox);

@@ -280,6 +280,9 @@ function brandDialog(existing, onClose) {
     ["文字色", [["text_primary", "正文", "标题与选项文字"], ["text_secondary", "次级", "描述与辅助说明"],
                 ["text_muted", "辅助", "时间戳 / 占位符"]]],
     ["状态色", [["success", "成功", "提交成功 / 上涨"], ["warning", "警告", "线上包落后提示"], ["danger", "危险", "确认执行 / 失败态"]]],
+    // 组件容器层：选项 / 提交按钮各自的一层（组件编辑页不再单独配色，统一在这里定义）
+    ["组件容器", [["opt_bg", "选项底色", "选项行 / 候选卡背景"], ["opt_bc", "选项边框", "选项行 / 候选卡描边"],
+                ["btn_bg", "提交按钮底色", "默认跟随主色"], ["btn_fg", "按钮文字色", "提交按钮文字"]]],
   ];
   // 每个字体带自己支持的字重档（宋体 / 楷体等系统字重少，黑体多）
   const FONTS = [
@@ -350,6 +353,7 @@ function brandDialog(existing, onClose) {
       "--radius-card": t.radius.card, "--radius-control": t.radius.control,
       "--font-family": t.font.family, "--font-base": t.font.size_base,
       "--brand-shadow": t.shadow,
+      "--opt-bg": c.opt_bg, "--opt-bc": c.opt_bc, "--btn-bg": c.btn_bg, "--btn-fg": c.btn_fg,
     };
     const put = (elx) => Object.entries(m).forEach(([k, v]) => { if (v) elx.style.setProperty(k, v); });
     put(host);
@@ -493,7 +497,9 @@ function brandDialog(existing, onClose) {
     const cur = tok[editMode];
     COLOR_GROUPS.forEach(([gname, items]) => {
       const rows = el("div", { class: "tok-rows" });
-      const TOK_DEF = { bg_elevated: "#FFFFFF", bg_sunken: "#F2F3F5" };
+      const TOK_DEF = { bg_elevated: "#FFFFFF", bg_sunken: "#F2F3F5",
+        opt_bg: cur.bg_elevated || "#FFFFFF", opt_bc: cur.border || "#E4E9F0",
+        btn_bg: cur.primary || "#3E63DD", btn_fg: "#FFFFFF" };
       items.forEach(([key, label, kdesc]) => {
         const val = cur[key] || TOK_DEF[key] || "#000000";
         const ci = el("input", { type: "color", value: /^#([0-9a-f]{6})$/i.test(val) ? val : "#000000", class: "tok-chip", title: label });
@@ -512,7 +518,7 @@ function brandDialog(existing, onClose) {
       const swRow = el("span", { class: "tok-sum-sw" });
       const refreshSw = () => {
         swRow.innerHTML = "";
-        items.forEach(([key]) => swRow.appendChild(el("i", { style: "background:" + (cur[key] || "#000") })));
+        items.forEach(([key]) => swRow.appendChild(el("i", { style: "background:" + (cur[key] || TOK_DEF[key] || "#000") })));
       };
       refreshSw();
       grpRefreshers.push(refreshSw);

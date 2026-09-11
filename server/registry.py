@@ -101,6 +101,9 @@ def params_schema_for(card: dict) -> dict:
     schema = {"type": "object", "properties": {}, "required": []}
     props, req = schema["properties"], schema["required"]
     S = lambda d: {"type": "string", "description": d}
+    if fixed_mode and not (V2_META.get(v2) or {}).get("interactive", True):
+        schema["description"] = "内容已由平台固定配置，模型只需选用本组件，无需传数据参数"
+        return schema
     if v2 == "select":
         props["prompt"] = S("向用户提出的问题")
         if fixed_mode:
@@ -258,6 +261,8 @@ def fixed_config_for(card: dict) -> dict:
             fixed["items"] = cfg.get("options")
         if cfg.get("recommended_default"):
             fixed["recommended_default"] = cfg.get("recommended_default")
+        if cfg.get("present_params") and not (V2_META.get(v2) or {}).get("interactive", True):
+            fixed["present_params"] = cfg.get("present_params")
     return fixed
 
 

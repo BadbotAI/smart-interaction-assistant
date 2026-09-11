@@ -1840,3 +1840,15 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .wb-foot { margin-top: auto; }
 
 .sty-acc summary::marker { content: ""; }
+
+.comp .delta-chip.neutral { background: var(--bg-sunken); color: var(--text-secondary); }
+
+.comp.auto-submit .submit-bar .btn.primary { display: none; }
+
+.ed-split.pick-mode { grid-template-columns: 1fr; }
+.tpl-rich { border: 1.5px solid var(--border); border-radius: 12px; background: var(--bg-elevated);
+  padding: 12px 14px 10px; cursor: pointer; position: relative;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
+.tpl-rich:hover { border-color: var(--primary-border); box-shadow: 0 2px 8px rgba(16, 24, 40, .06); }
+.tpl-rich.selected { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
+.tpl-rich .tpl-preview.pick-pv { height: 168px; pointer-events: none; }

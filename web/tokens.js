@@ -37,6 +37,11 @@ window.Brand = (function () {
     "color.ring": "--brand-ring",
     "shadow": "--brand-shadow",
     "density": "--brand-density",
+    // v3 组件容器层 token：选项容器 / 提交按钮（组件编辑页不再配色，统一由主题定义）
+    "color.opt_bg": "--opt-bg",
+    "color.opt_bc": "--opt-bc",
+    "color.btn_bg": "--btn-bg",
+    "color.btn_fg": "--btn-fg",
   };
 
   function get(obj, path) {

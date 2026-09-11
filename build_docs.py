@@ -16,7 +16,7 @@ RSITE = os.path.expanduser("~/Desktop/smart-model-router")  # 模型路由平台
 ROUTER_URL = "https://badbotai.github.io/smart-model-router/"
 ASSETS = ["tokens.js", "ui.js", "components.js", "testchat.js", "sia.js", "sia.css", "shared.css"]
 MOCKS = ["mock_data.js", "mock_api.js"]
-IA_PAGES = ["index.html", "cards.html", "library.html", "design.html", "products.html",
+IA_PAGES = ["index.html", "cards.html", "design.html", "products.html",
             "audit.html", "embed-demo.html"]
 ROUTER_PAGES = ["home-router.html", "router.html", "playground.html", "dashboard.html", "audit.html", "trace.html"]
 
@@ -145,7 +145,7 @@ def sync_brand():
 def build():
     sync_brand()
     # 清掉 docs/ 里已退役的页面（dashboard/playground 属模型路由平台，交互平台站不再带）
-    for stale in ["apikeys.html", "router.html", "chat.html", "trace.html", "dashboard.html", "playground.html"]:
+    for stale in ["apikeys.html", "router.html", "chat.html", "trace.html", "dashboard.html", "playground.html", "library.html"]:
         p = os.path.join(DOCS, stale)
         if os.path.exists(p):
             os.remove(p)

@@ -215,7 +215,6 @@ window.UI = (function () {
         // 切换器（全局上下文）之下 = 当前产品维度的三页一组；全局管理沉到底部区
         { title: "当前产品", items: [
           ["cards", "组件工作台", "/web/cards.html", "sliders"],
-          ["library", "组件模板", "/web/library.html", "grid"],
           ["design", "风格主题", "/web/design.html", "palette"],
         ] },
       ],

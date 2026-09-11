@@ -2008,3 +2008,17 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 
 /* 手风琴 summary 去默认 marker（Chrome ::marker） */
 .sty-acc summary::marker { content: ""; }
+
+/* 指标卡中性涨跌 */
+.comp .delta-chip.neutral { background: var(--bg-sunken); color: var(--text-secondary); }
+/* 选择即提交：隐藏提交按钮（点选即触发） */
+.comp.auto-submit .submit-bar .btn.primary { display: none; }
+
+/* 选择组件步：组件模板式富卡（并入原组件模板页模块） */
+.ed-split.pick-mode { grid-template-columns: 1fr; }
+.tpl-rich { border: 1.5px solid var(--border); border-radius: 12px; background: var(--bg-elevated);
+  padding: 12px 14px 10px; cursor: pointer; position: relative;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
+.tpl-rich:hover { border-color: var(--primary-border); box-shadow: 0 2px 8px rgba(16, 24, 40, .06); }
+.tpl-rich.selected { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
+.tpl-rich .tpl-preview.pick-pv { height: 168px; pointer-events: none; }

@@ -138,7 +138,11 @@ async def _handle_turn(body: dict, emit):
         if hit and hit.get("semantic_category") == "present":
             # v2 展示类组件：模型判定用它「翻译」结构化内容——带数据直接渲染，无提交、不等待用户
             v2t = registry.V2_TYPE_MAP.get(hit["component_type"], "table")
-            params = mockmodels.gen_present_params(v2t, text)
+            cfg_hit = (hit.get("field_bindings") or {}).get("config") or {}
+            if cfg_hit.get("content_mode") == "fixed" and cfg_hit.get("present_params"):
+                params = dict(cfg_hit["present_params"])   # 平台固定数据，模型不改
+            else:
+                params = mockmodels.gen_present_params(v2t, text)
             ct_out = hit["component_type"]
             envelope = _envelope(ct_out, "model_tool_call", params,
                                  card={"card_id": hit["card_id"], "version": hit["version"]})
@@ -372,6 +376,10 @@ def _build_ask_envelope(card: dict, query: str):
         params["min"] = slider.get("min", 0)
         params["max"] = slider.get("max", 100)
         params["unit"] = slider.get("unit", "")
+        if slider.get("step"):
+            params["step"] = slider["step"]
+        if slider.get("default") is not None:
+            params["default"] = slider["default"]
     elif ct == "matrix.compare+select":
         options, degraded = get_options()
         preset = _load_preset()
@@ -843,6 +851,21 @@ async def create_product(request: Request):
     if conn.execute("SELECT 1 FROM products WHERE name=?", (name,)).fetchone():
         return JSONResponse({"error": "已有同名产品"}, status_code=409)
     pid = "prod-" + db.new_id()[:8]
+    # 新产品预置全套组件模板实例（已下线）：用户从「上线需要的」开始，而不是从零配置
+    if not card_ids:
+        suffix = pid[-4:]
+        for v2t, ct0 in registry.V2_DEFAULT_CT.items():
+            label = (registry.V2_META.get(v2t) or {}).get("label") or ct0
+            preset_name = f"{label}-{suffix}"
+            c0, errs0 = cards.create_card("tenant-demo", {
+                "name": preset_name, "component_type": ct0, "description": "",
+                "model_invokable": True, "field_bindings": {"config": {}},
+                "text_templates": {}, "emit_targets": ["model", "dashboard"],
+            })
+            if c0 and not errs0:
+                conn.execute("UPDATE cards SET status='offline', version=1 WHERE card_id=?", (c0["card_id"],))
+                card_ids.append(c0["card_id"])
+        conn.commit()
     conn.execute("INSERT INTO products (product_id, name, brand_file, card_ids, created_at) VALUES (?,?,?,?,?)",
                  (pid, name, brand_file, db.j(card_ids), db.now_ts()))
     conn.commit()

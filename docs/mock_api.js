@@ -198,6 +198,8 @@
             fields: cfg.fields || [], likert: cfg.likert || null, slider: cfg.slider || null,
             dimensions: cfg.dimensions || [], values: cfg.values || null, placeholder: cfg.placeholder || "",
             ...(cfg.max_select ? { max_select: cfg.max_select } : {}),
+            ...(cfg.present_params || {}),
+            ...(cfg.slider ? Object.fromEntries(["min","max","step","unit","default"].filter(k => cfg.slider[k] != null && cfg.slider[k] !== "").map(k => [k, cfg.slider[k]])) : {}),
             ...(cfg.down_reasons ? { down_reasons: cfg.down_reasons } : {}),
             ...((card.text_templates || {}).cancel ? { cancel_label: card.text_templates.cancel } : {}),
             echo_results: false } },
@@ -322,12 +324,26 @@
       const taken = getMock("/api/products").products.some(p => p.name === name);
       if (taken) return { error: "已有同名产品，请换一个名称", __status: 409 };
       const pid = "prod-demo-" + Math.random().toString(36).slice(2, 8);
+      let cardIds = (body && body.card_ids) || [];
+      if (!cardIds.length) {
+        // 新产品预置全套组件模板实例（已下线）：从「上线需要的」开始，而不是从零配置
+        const suffix = pid.slice(-4);
+        const cat = ((D["/api/components/catalog"] || {}).catalog) || [];
+        cardIds = cat.map(t => {
+          const cid = "demo-" + Math.random().toString(36).slice(2, 8);
+          S.cardCreated.unshift({ card_id: cid, name: (t.label || t.type) + "-" + suffix,
+            component_type: (t.component_types || [])[0] || t.type, status: "offline", version: 1,
+            lock_version: 0, field_bindings: { config: {} }, text_templates: {},
+            created_at: Date.now() / 1000, updated_at: Date.now() / 1000 });
+          return cid;
+        });
+      }
       prodLocal.created.push({ product_id: pid, name, brand_file: (body && body.brand_file) || "brand-tokens.default.json",
-        card_ids: (body && body.card_ids) || [], created_at: Date.now() / 1000,
+        card_ids: cardIds, created_at: Date.now() / 1000,
         mcp_key: "sk-mcp-demo" + Math.random().toString(36).slice(2, 10),
         pub_key: "pk-web-demo" + Math.random().toString(36).slice(2, 8) });
       persist();
-      auditLog("product_create", { 产品: name });
+      auditLog("product_create", { 产品: name, 预置组件: cardIds.length });
       return { product_id: pid, mcp_key: prodLocal.created[prodLocal.created.length - 1].mcp_key };
     }
     if (/^\/api\/products\/[^/]+$/.test(pn)) {
@@ -441,6 +457,8 @@
         fields: cfg.fields || [], likert: cfg.likert || null, slider: cfg.slider || null,
         dimensions: cfg.dimensions || [], values: cfg.values || null, placeholder: cfg.placeholder || "",
         ...(cfg.max_select ? { max_select: cfg.max_select } : {}),
+        ...(cfg.present_params || {}),
+        ...(cfg.slider ? Object.fromEntries(["min","max","step","unit","default"].filter(k => cfg.slider[k] != null && cfg.slider[k] !== "").map(k => [k, cfg.slider[k]])) : {}),
         ...(cfg.down_reasons ? { down_reasons: cfg.down_reasons } : {}),
         ...((card.text_templates || {}).cancel ? { cancel_label: card.text_templates.cancel } : {}),
         echo_results: false } };
