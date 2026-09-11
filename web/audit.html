@@ -65,13 +65,30 @@ const ACTION_NAMES = {
   ab_create: "创建 AB 实验", ab_stop: "停止 AB 实验",
 };
 
-// 详情尽量说人话：常见技术键翻译成业务字段名，剩余原样保留
-const DETAIL_KEY_CN = { card_id: "组件 ID", card_name: "组件", product: "产品", product_id: "产品 ID",
-  name: "名称", version: "版本", brand: "主题", brand_file: "主题文件", count: "数量", rows: "行数" };
+// 详情说人话：ID 换成名称、技术键翻译、纯内部字段隐藏
+const DETAIL_KEY_CN = { card_id: "组件", card_name: "组件", product: "产品", product_id: "产品",
+  name: "名称", version: "版本", brand: "主题", brand_file: "主题文件", count: "数量", rows: "行数",
+  note: "说明", cards: "组件数", presets_removed: "清理预置", 预置组件: "预置组件" };
+// 这些是实现细节，对使用者没有信息量
+const DETAIL_HIDE = new Set(["force", "refs", "products_reset", "added", "tenant_id", "actor"]);
+const nameMap = {};   // id -> 展示名（组件与产品共用）
+function idLabel(v) {
+  const id = String(v);
+  const nm = nameMap[id];
+  return nm ? `${nm}（${id.slice(0, 8)}）` : id.slice(0, 8);
+}
 function fmtDetail(d) {
   if (!d || typeof d !== "object") return "";
-  return Object.entries(d).map(([k, v]) =>
-    `${DETAIL_KEY_CN[k] || k}=${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ");
+  // id 已能解析出名称时，同条里的 name 字段是重复信息
+  const idv = d.card_id || d.product_id;
+  const dup = idv && d.name && nameMap[String(idv)] === d.name;
+  return Object.entries(d)
+    .filter(([k]) => !DETAIL_HIDE.has(k) && !(dup && k === "name"))
+    .map(([k, v]) => {
+      const label = DETAIL_KEY_CN[k] || k;
+      if (k === "card_id" || k === "product_id") return `${label}=${idLabel(v)}`;
+      return `${label}=${typeof v === "object" ? JSON.stringify(v) : v}`;
+    }).join(" · ");
 }
 function fmtActor(a) { return !a || a === "system" || a === "seed" ? "系统" : a === "demo-admin" ? "张三" : a; }
 
@@ -114,6 +131,15 @@ let shown = 50;
 let fltAction = "";
 let fltKw = "";
 async function load() {
+  // 先补齐 id -> 名称映射，日志里的 UUID 才能显示成业务对象名
+  if (!Object.keys(nameMap).length) {
+    const [cs, ps] = await Promise.all([
+      UI.api("/api/cards").catch(() => ({ cards: [] })),
+      UI.api("/api/products").catch(() => ({ products: [] })),
+    ]);
+    (cs.cards || []).forEach(c => { nameMap[c.card_id] = c.name; });
+    (ps.products || []).forEach(p2 => { nameMap[p2.product_id] = p2.name; });
+  }
   const { audit: raw } = await UI.api("/api/audit?limit=200");
   allAudit = raw;
   const kw = fltKw.trim().toLowerCase();

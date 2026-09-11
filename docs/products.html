@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>产品与接入 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=d55a8962">
+<link rel="stylesheet" href="./shared.css?v=4f075a46">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 </head>
 <body class="has-side">
@@ -19,7 +19,7 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=8011b4cc"></script>
+<script src="./mock_data.js?v=6ebeeda6"></script>
 <script src="./mock_api.js?v=22be0b24"></script>
 <script src="./tokens.js?v=aba04afb"></script>
 <script src="./ui.js?v=d95ee44c"></script>
@@ -71,8 +71,8 @@ async function viewSchemas(p) {
       el("div", { style: "flex:1" }),
       el("button", { class: "btn small", onclick: () => { navigator.clipboard.writeText(JSON.stringify(reg, null, 2)); UI.toast("已复制完整注册表 JSON"); } }, [UI.icon("copy", 13), "复制完整注册表"]),
     ]),
-    comps.length ? el("div", {}, blocks) : el("div", { class: "muted" }, ["该产品还没有绑定组件，先在上方「绑定组件」里添加"]),
-  ]), { width: "640px" });
+    comps.length ? el("div", {}, blocks) : el("div", { class: "muted" }, ["该产品还没有绑定组件，去组件工作台新建并上线组件实例"]),
+  ]), null, { width: "640px" });
 }
 
 // 产品表单（新建与配置共用）：名称 / 风格主题单选 / 组件多选（标签可删）

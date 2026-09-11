@@ -12,19 +12,19 @@
   .home h1 { font-size: 32px; font-weight: 800; letter-spacing: 2px; margin: 0 0 12px; color: var(--text-primary); }
   .home .slogan { font-size: 15px; color: var(--text-secondary); letter-spacing: 6px; margin: 0 0 36px; }
   /* ---- 大轮播展示卡 ---- */
-  .stage { position: relative; height: 368px; background: var(--bg-elevated); border: 1px solid var(--border);
+  .stage { position: relative; height: 404px; background: var(--bg-elevated); border: 1px solid var(--border);
     border-radius: var(--radius-card); overflow: hidden; text-align: left; box-shadow: var(--shadow-card); }
   .stage * { box-sizing: border-box; }
   .cs { position: absolute; inset: 0; display: none; }
   .cs.active { display: block; }
-  .cs .inner { position: relative; max-width: 620px; height: 284px; margin: 0 auto; }
+  .cs .inner { position: relative; max-width: 620px; height: 320px; margin: 0 auto; }
   .bub { position: absolute; font-size: 12.5px; line-height: 1.5; padding: 8px 13px; border-radius: 12px; opacity: 0; }
   .cs .bu { right: 0; top: 18px; background: var(--panel-deep); color: #fff; border-bottom-right-radius: 4px; }
   .cs .ba { left: 0; top: 58px; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-secondary); border-bottom-left-radius: 4px; }
   .cs.active .bu { animation: csIn .4s ease-out forwards; }
   .cs.active .ba { animation: csIn .4s ease-out .5s forwards; }
   @keyframes csIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  .cs .cw { position: absolute; left: 0; top: 96px; width: 300px; }
+  .cs .cw { position: absolute; left: 0; top: 88px; width: 300px; }
   .cs .card2 { background: var(--bg-elevated); border: 1px solid var(--border);
     border-radius: 12px; padding: 11px; opacity: 0; box-shadow: var(--shadow-card); }
   .cs.active .card2 { animation: csIn .4s ease-out 1s forwards; }

@@ -367,6 +367,8 @@ input:disabled, select:disabled, textarea:disabled { background: var(--bg-page);
 .comp-meta { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: var(--font-caption); color: var(--text-muted); }
 
 .comp {
+  
+  color: var(--text-primary);
   --comp-amount: 16px;
   
   background: var(--bg-elevated); border: 1px solid var(--border);
@@ -1462,7 +1464,7 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .card-row .cr-check { display: flex; align-items: center; padding: 0 2px 0 0; cursor: pointer;
   align-self: flex-start; margin-top: 3px; }
 .card-row .cr-check input { width: 15px; height: 15px; accent-color: var(--primary); cursor: pointer; }
-.batch-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 26px; z-index: 60;
+.batch-bar { position: fixed; left: calc(50% + var(--side-w) / 2); transform: translateX(-50%); bottom: 26px; z-index: 60;
   display: flex; align-items: center; gap: 10px; padding: 10px 16px;
   background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px;
   box-shadow: 0 8px 28px rgba(16, 24, 40, .16); }
@@ -1796,7 +1798,8 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .prod-cover { background: linear-gradient(120deg, color-mix(in srgb, var(--ctx-p) 8%, var(--bg-elevated)) 0%, var(--bg-elevated) 55%); }
 .prod-cover .pc-name { color: color-mix(in srgb, var(--ctx-p) 72%, var(--text-primary)); }
 
-.wb-preview { background: var(--bg-sunken); border-radius: 10px; padding: 12px; height: 178px;
+.wb-preview { background: var(--bg-sunken); border-radius: 10px; padding: 12px;
+  min-height: 108px; max-height: 178px;
   overflow: hidden; position: relative; pointer-events: none; }
 .wb-preview::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 40px;
   background: linear-gradient(transparent, var(--bg-sunken)); }
@@ -1852,3 +1855,5 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .tpl-rich:hover { border-color: var(--primary-border); box-shadow: 0 2px 8px rgba(16, 24, 40, .06); }
 .tpl-rich.selected { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
 .tpl-rich .tpl-preview.pick-pv { height: 168px; pointer-events: none; }
+
+body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }

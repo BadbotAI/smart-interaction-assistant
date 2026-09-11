@@ -354,6 +354,8 @@ function brandDialog(existing, onClose) {
       "--font-family": t.font.family, "--font-base": t.font.size_base,
       "--brand-shadow": t.shadow,
       "--opt-bg": c.opt_bg, "--opt-bc": c.opt_bc, "--btn-bg": c.btn_bg, "--btn-fg": c.btn_fg,
+      // 图表的网格与轴色随明暗走，否则深色底上图表几乎看不见
+      "--chart-grid": c.border, "--chart-axis": c.text_muted,
     };
     const put = (elx) => Object.entries(m).forEach(([k, v]) => { if (v) elx.style.setProperty(k, v); });
     put(host);

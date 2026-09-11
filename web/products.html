@@ -67,8 +67,8 @@ async function viewSchemas(p) {
       el("div", { style: "flex:1" }),
       el("button", { class: "btn small", onclick: () => { navigator.clipboard.writeText(JSON.stringify(reg, null, 2)); UI.toast("已复制完整注册表 JSON"); } }, [UI.icon("copy", 13), "复制完整注册表"]),
     ]),
-    comps.length ? el("div", {}, blocks) : el("div", { class: "muted" }, ["该产品还没有绑定组件，先在上方「绑定组件」里添加"]),
-  ]), { width: "640px" });
+    comps.length ? el("div", {}, blocks) : el("div", { class: "muted" }, ["该产品还没有绑定组件，去组件工作台新建并上线组件实例"]),
+  ]), null, { width: "640px" });
 }
 
 // 产品表单（新建与配置共用）：名称 / 风格主题单选 / 组件多选（标签可删）

@@ -501,12 +501,66 @@ function buildCardRow(c) {
 }
 
 function moreButton(c, eff) {
-  // 统一菜单：测试 / 查看数据 / 复制 / 删除（版本历史入口在编辑器步骤条）
+  // 统一菜单：复制 / 接入信息 / 删除。已上线实例不可直接删，给出「先下线」的明确路径
   const moreBtn = el("button", { class: "btn small", onclick: () => UI.menu(moreBtn, [
-
-    eff !== "published" ? { label: c.version >= 1 ? "删除配置（含线上版本）" : "删除配置", danger: true, onClick: () => doTransition(c, "delete") } : null,
+    { label: "复制为新实例", onClick: () => duplicateCard(c) },
+    { label: "接入信息", onClick: () => showEmbedInfo(c, eff) },
+    eff === "published"
+      ? { label: "下线后删除", danger: true, onClick: async () => {
+          const ok = await UI.confirm("下线并删除", `「${c.name}」正在线上。需要先下线才能删除，下线后 AI 将不再触发它。`,
+            { okText: "下线并删除", danger: true });
+          if (!ok) return;
+          try {
+            await UI.api(`/api/cards/${c.card_id}/transition`, { method: "POST", body: { action: "offline" } });
+            await UI.api(`/api/cards/${c.card_id}/transition`, { method: "POST", body: { action: "delete" } });
+            UI.toast("已下线并删除"); loadCards(); loadKpisAndTodos();
+          } catch (e) { UI.toast(e.data?.error?.message || e.message, true); }
+        } }
+      : { label: c.version >= 1 ? "删除配置（含线上版本）" : "删除配置", danger: true, onClick: () => doTransition(c, "delete") },
   ]) }, ["更多"]);
   return moreBtn;
+}
+
+// 复制实例：克隆内容与样式，生成不重名的草稿
+async function duplicateCard(c) {
+  const base = (c.name.length > 12 ? c.name.slice(0, 12) : c.name) + " 副本";
+  const taken = new Set((window.__allCards || []).map(x => x.name));
+  let name = base, i = 2;
+  while (taken.has(name)) name = base + " " + (i++);
+  try {
+    const r = await UI.api("/api/cards", { method: "POST", body: {
+      name, component_type: c.component_type, description: c.description || "",
+      model_invokable: true, style_overrides: c.style_overrides || {},
+      field_bindings: c.field_bindings || { config: {} },
+      text_templates: c.text_templates || {}, emit_targets: c.emit_targets || ["model", "dashboard"],
+    } });
+    UI.toast(`已复制为「${name}」（草稿）`);
+    loadCards(); loadKpisAndTodos();
+    if (r && r.card) openEditor(r.card.card_id);
+  } catch (e) { UI.toast(e.data?.error?.message || e.message, true); }
+}
+
+// 接入信息：实例 ID + 渲染调用示例（未发布时标注发布后可用）
+function showEmbedInfo(c, eff) {
+  const demo = JSON.stringify({ component_id: c.card_id, params: { "…": "模型按参数 schema 填入" } }, null, 2);
+  const code = "SIA.render(container, " + demo + ")";
+  UI.modal(`接入信息 · ${c.name}`, el("div", {}, [
+    eff !== "published" ? el("div", { class: "sty-inherit", style: "margin-bottom:10px" }, [
+      UI.icon("alert", 14), el("span", {}, ["该实例尚未上线，接入后不会被 AI 触发；上线后即可使用"])]) : null,
+    el("div", { class: "field" }, [
+      el("span", { class: "label-text" }, ["组件实例 ID"]), UI.keyField(null, c.card_id)]),
+    el("div", { class: "field" }, [
+      el("div", { style: "display:flex;align-items:center;margin-bottom:4px" }, [
+        el("span", { class: "label-text", style: "margin-bottom:0" }, ["渲染调用示例"]),
+        el("div", { style: "flex:1" }),
+        el("button", { class: "btn small", type: "button", onclick: () => {
+          navigator.clipboard.writeText(code); UI.toast("已复制渲染调用示例");
+        } }, [UI.icon("copy", 14), "复制"]),
+      ]),
+      el("pre", { class: "code" }, [code]),
+    ]),
+    el("div", { class: "muted" }, ["完整接入代码（注册表接口 + 前端两行）在「产品与接入 → 产品配置」里"]),
+  ]), null, { width: "520px" });
 }
 
 async function doTransition(c, action, force = false, btn = null) {
@@ -835,6 +889,10 @@ async function openEditor(cardId, prefill, initStep) {
     localStorage.removeItem(draftKey(cardId));
     restore = null;
   } else if (restore) UI.toast("已恢复上次未保存的编辑");
+  // 旧草稿里 fixedOptions 是换行字符串，现在按数组存；恢复时归一化，避免老草稿打不开
+  if (restore?.form && typeof restore.form.fixedOptions === "string") {
+    restore.form.fixedOptions = restore.form.fixedOptions ? restore.form.fixedOptions.split("\n") : [];
+  }
 
   const cfg = prefill ? (prefill.config || {}) : ((card?.field_bindings || {}).config || {});
   const state = restore?.form || {
@@ -869,7 +927,7 @@ async function openEditor(cardId, prefill, initStep) {
     slider_max: cfg.slider?.max ?? 100,
     slider_unit: cfg.slider?.unit || "",
     submit: card?.text_templates?.submit || "提交",
-    echo_results: card ? !!card.echo_results : true,
+    echo_results: card ? !!card.echo_results : false,   // 新建默认关闭：回显会改变统计口径，须显式开启
     webhook: cfg.webhook || "",
   };
   if (typeof state.trigger_examples === "string") state.trigger_examples = state.trigger_examples.split("\n").map(s => s.trim()).filter(Boolean);
@@ -1057,7 +1115,7 @@ async function openEditor(cardId, prefill, initStep) {
           }).filter(f => f.key || f.label);
           if (ff.length) envP.params.fields = ff;
         } else {
-          const oo = (state.fixedOptions || "").split("\n").map(x => x.trim()).filter(Boolean);
+          const oo = (state.fixedOptions || []).map(x => String(x).trim()).filter(Boolean);
           if (oo.length) {
             if (state.component_type === "rank.priority") envP.params.items = oo;
             else {
@@ -1102,7 +1160,7 @@ async function openEditor(cardId, prefill, initStep) {
     // 固定内容还没配完时，预览显示的是兜底示例——明确标出，避免误以为已配置
     if (state.contentMode === "fixed") {
       const ct3 = state.component_type;
-      const oo3 = (state.fixedOptions || "").split("\n").map(x => x.trim()).filter(Boolean);
+      const oo3 = (state.fixedOptions || []).map(x => String(x).trim()).filter(Boolean);
       const ff3 = (state.fixedFields || "").split("\n").filter(Boolean);
       const incomplete = PRESENT_TYPES.includes(ct3) ? !state.presentParams
         : ct3 === "form.structured" ? !ff3.length
@@ -1125,7 +1183,7 @@ async function openEditor(cardId, prefill, initStep) {
     if (!compEl) return;
     const exist = compEl.querySelector(".echo-demo");
     if (exist) { if (!forceOn) exist.remove(); return; }
-    const oo = (state.fixedOptions || "").split("\n").map(x => x.trim()).filter(Boolean);
+    const oo = (state.fixedOptions || []).map(x => String(x).trim()).filter(Boolean);
     const demo = oo.length ? oo : ["选项 A", "选项 B"];
     const total = demo.length * 37;
     compEl.appendChild(el("div", { class: "echo-demo" }, [
@@ -1311,7 +1369,7 @@ async function openEditor(cardId, prefill, initStep) {
     {
       const cfg1 = card ? (((card.field_bindings || {}).config) || {}) : {};
       if (state.contentMode === undefined) state.contentMode = cfg1.content_mode || "dynamic";
-      if (state.fixedOptions === undefined) state.fixedOptions = (cfg1.options || []).join("\n");
+      if (state.fixedOptions === undefined) state.fixedOptions = [...(cfg1.options || [])];
       if (state.fixedFields === undefined) state.fixedFields = (cfg1.fields || [])
         .map(f => [f.key, f.label, f.required ? "必填" : "", f.type || "", f.placeholder || ""].join("|")).join("\n");
       if (state.submitLabel === undefined) state.submitLabel = ((card || {}).text_templates || {}).submit || "";
@@ -1578,8 +1636,9 @@ async function openEditor(cardId, prefill, initStep) {
             fxSec("题目", "30 字内，作为组件的提问文案", true), qIn]));
           // 选项 / 条目行编辑（2-8 项，每项 ≤30 字；选择题可指定推荐项）
           const isSelect = ct !== "rank.priority";
-          const items = () => (state.fixedOptions || "").split("\n").filter(Boolean);
-          const write = (list) => { state.fixedOptions = list.join("\n"); upd(); };
+          // 保留空行：新增的空选项必须能停留在表单里等用户填写（filter(Boolean) 会把它吃掉）
+          const items = () => [...(state.fixedOptions || [])];
+          const write = (list) => { state.fixedOptions = list; upd(); };
           const listBox = el("div", {});
           const drawRows = () => {
             listBox.innerHTML = "";
@@ -1589,10 +1648,10 @@ async function openEditor(cardId, prefill, initStep) {
               inp.oninput = () => {
                 const l2 = items();
                 if (state.fixedRec && state.fixedRec === l2[i]) state.fixedRec = inp.value;
-                l2[i] = inp.value; state.fixedOptions = l2.join("\n"); upd();
+                l2[i] = inp.value; state.fixedOptions = l2; upd();
               };
               const recBtn = isSelect ? el("button", { type: "button",
-                class: "btn small" + (state.fixedRec && state.fixedRec === o ? " primary" : " ghost"),
+                class: "btn small" + (state.fixedRec && state.fixedRec === o ? " primary" : ""),
                 title: state.fixedRec === o ? "取消推荐" : "设为推荐项（选项右侧显示「推荐」角标）",
                 onclick: () => { state.fixedRec = state.fixedRec === o ? "" : o; drawRows(); upd(); } }, ["推荐"]) : null;
               listBox.appendChild(el("div", { class: "fx-row" }, [
@@ -1743,7 +1802,7 @@ async function openEditor(cardId, prefill, initStep) {
     {
       const cfg1 = card ? (((card.field_bindings || {}).config) || {}) : {};
       if (state.contentMode === undefined) state.contentMode = cfg1.content_mode || "dynamic";
-      if (state.fixedOptions === undefined) state.fixedOptions = (cfg1.options || []).join("\n");
+      if (state.fixedOptions === undefined) state.fixedOptions = [...(cfg1.options || [])];
       if (state.fixedFields === undefined) state.fixedFields = (cfg1.fields || [])
         .map(f => [f.key, f.label, f.required ? "必填" : ""].filter(Boolean).join("|")).join("\n");
       if (state.submitLabel === undefined) state.submitLabel = ((card || {}).text_templates || {}).submit || "";
@@ -2483,7 +2542,7 @@ async function openEditor(cardId, prefill, initStep) {
           (() => el("button", { class: "btn small ghost", type: "button", title: "查看用户提交后回传给 agent 的数据结构（按当前配置生成）",
             onclick: () => {
               const ct4 = state.component_type || "";
-              const oo4 = (state.fixedOptions || "").split("\n").map(x => x.trim()).filter(Boolean);
+              const oo4 = (state.fixedOptions || []).map(x => String(x).trim()).filter(Boolean);
               const sample = ct4.startsWith("select.") ? { user_selection: ct4 === "select.multi" ? oo4.slice(0, 2) : (oo4[0] || "选项 A"), options_offered: oo4.length ? oo4 : ["（动态内容：运行时由 AI 给出）"] }
                 : ct4 === "form.structured" ? { form_values: Object.fromEntries((state.fixedFields || "").split("\n").filter(Boolean).map(l => { const [k] = l.split("|"); return [k || "field_1", "（用户填写值）"]; })) }
                 : ct4 === "rank.priority" ? { user_selection: oo4.length ? oo4 : ["条目 A", "条目 B"] }
@@ -2603,7 +2662,7 @@ async function openEditor(cardId, prefill, initStep) {
       config.present_params = JSON.parse(JSON.stringify(state.presentParams));
     }
     if (!IS_P && config.content_mode === "fixed") {
-      if (state.fixedRec && (state.fixedOptions || "").split("\n").includes(state.fixedRec))
+      if (state.fixedRec && (state.fixedOptions || []).includes(state.fixedRec))
         config.recommended_default = state.fixedRec;
       if (state.component_type === "form.structured") {
         config.fields = (state.fixedFields || "").split("\n").map(l => l.trim()).filter(Boolean).map(l => {
@@ -2617,7 +2676,7 @@ async function openEditor(cardId, prefill, initStep) {
           return f;
         }).filter(f => f.key);
       } else if (state.component_type !== "scale.likert") {
-        config.options = (state.fixedOptions || "").split("\n").map(l => l.trim()).filter(Boolean);
+        config.options = (state.fixedOptions || []).map(l => String(l).trim()).filter(Boolean);
       }
     }
     // 内容规则：滑杆范围 / 量表定义（display 已由通用逻辑写入）
@@ -2707,7 +2766,7 @@ async function openEditor(cardId, prefill, initStep) {
       const ct2 = state.component_type;
       let miss = "";
       if (["select.single", "select.multi", "rank.priority"].includes(ct2)) {
-        const opts2 = (state.fixedOptions || "").split("\n").map(s => s.trim()).filter(Boolean);
+        const opts2 = (state.fixedOptions || []).map(s => String(s).trim()).filter(Boolean);
         if (!(state.fixedPrompt || "").trim()) miss = "题目还没填写";
         else if (opts2.length < 2) miss = ct2 === "rank.priority" ? "固定条目至少 2 项" : "固定选项至少 2 项";
       } else if (ct2 === "form.structured") {
