@@ -526,8 +526,10 @@ table.data tr.clickable:hover { background: var(--primary-weak); cursor: pointer
 .modal .modal-foot { position: sticky; bottom: -20px; background: var(--bg-surface); margin: 8px -20px -20px; padding: 12px 20px 16px; border-top: 1px solid var(--border); }
 .modal .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .modal .modal-title { font-size: var(--font-title); font-weight: 600; }
-.modal .close-btn { border: none; background: none; font-size: var(--font-hero); color: var(--text-muted); }
-.modal .close-btn:hover { color: var(--text-primary); }
+.close-btn { border: none; background: none; font-size: 18px; line-height: 1; color: var(--text-muted);
+  width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background var(--dur-fast), color var(--dur-fast); flex: none; }
+.close-btn:hover { color: var(--text-primary); background: var(--bg-surface); }
 
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);

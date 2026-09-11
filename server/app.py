@@ -715,7 +715,7 @@ async def reset_product_key(product_id: str):
 
 @app.get("/v1/products/{product_id}/sia.css")
 def product_sia_css(product_id: str, key: str = None):
-    """SDK 三件套之 CSS：按产品品牌风格 token 实时生成（兑现「品牌风格出包固化」）。"""
+    """SDK 三件套之 CSS：按产品风格主题 token 实时生成（兑现「风格主题出包固化」）。"""
     from fastapi.responses import PlainTextResponse
     conn = db.get_conn()
     row = conn.execute("SELECT * FROM products WHERE product_id=?", (product_id,)).fetchone()
@@ -757,7 +757,7 @@ def product_sia_css(product_id: str, key: str = None):
     }
     dark_decls = "".join(f"{k}:{v};" for k, v in dark_vars.items() if v)
     dark_block = ("@media (prefers-color-scheme: dark){.brand-scope{%s}}\n" % dark_decls) if dark_decls else ""
-    body = ("/* Smart Interaction SDK CSS — 产品「%s」的品牌风格 token（出包固化：平台改风格后需重新拉取部署） */\n"
+    body = ("/* Smart Interaction SDK CSS — 产品「%s」的风格主题 token（出包固化：平台改风格后需重新拉取部署） */\n"
             ".brand-scope{%s}\n%ssia-card{display:block;}\n") % (row["name"], decls, dark_block)
     return PlainTextResponse(body, media_type="text/css")
 
@@ -822,7 +822,7 @@ def list_products():
 
 @app.post("/api/products")
 async def create_product(request: Request):
-    """新建产品：名称 + 品牌风格（单选） + 绑定组件（多选）。每个产品一个 MCP 接入点。"""
+    """新建产品：名称 + 风格主题（单选） + 绑定组件（多选）。每个产品一个 MCP 接入点。"""
     body = await request.json()
     name = (body.get("name") or "").strip()
     if not name or len(name) > 15:
@@ -866,7 +866,7 @@ async def update_product(product_id: str, request: Request):
         import os as _os
         if _os.path.basename(str(_bf)) != str(_bf) or not str(_bf).endswith(".json") or not _os.path.exists(
                 _os.path.join(BASE, "brand", str(_bf))):
-            return JSONResponse({"error": "品牌风格文件不合法"}, status_code=422)
+            return JSONResponse({"error": "风格主题文件不合法"}, status_code=422)
     conn.execute("UPDATE products SET name=?, brand_file=?, card_ids=? WHERE product_id=?",
                  (name, brand_file, card_ids, product_id))
     conn.commit()

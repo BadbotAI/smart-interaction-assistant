@@ -211,11 +211,11 @@ window.UI = (function () {
     ia: {
       name: "智能交互平台", home: "./index.html", productSwitcher: true,
       groups: [
-        // 分组按对象：上组围绕「当前产品」（切换器正下方：接入出口与品牌风格），
+        // 分组按对象：上组围绕「当前产品」（切换器正下方：接入出口与风格主题），
         // 下组围绕「组件」（模板库与实例工作台，日常主阵地）
         { title: "产品", inSwitcher: true, items: [
           ["products", "产品与接入", "./products.html", "box"],
-          ["design", "品牌风格", "./design.html", "palette"],
+          ["design", "风格主题", "./design.html", "palette"],
         ] },
         { title: "组件", items: [
           ["library", "组件库", "./library.html", "grid"],
@@ -249,11 +249,26 @@ window.UI = (function () {
   }
   // v2.1：导航顶部产品切换器——展示当前产品，点击下拉切换（存 localStorage sia_product，工作台等按其聚焦）
   async function mountProductSwitcher(host) {
+    // 首帧：用上次缓存的产品名立即画切换行（避免拉取期间导航下移抖动）；数据回来后原位替换
+    let ghost = null;
+    try {
+      const meta = JSON.parse(localStorage.getItem("sia_product_meta") || "null");
+      if (meta && meta.name) {
+        ghost = el("button", { class: "np-btn", type: "button", disabled: "" }, [
+          el("span", { class: "np-avatar", style: "width:22px;height:22px;background:var(--border)" }, [String(meta.name).slice(0, 1)]),
+          el("span", { class: "np-meta" }, [el("span", { class: "np-name" }, [meta.name])]),
+          el("span", { class: "fsel-caret" }, [icon("chevron", 13)]),
+        ]);
+        host.appendChild(ghost);
+      }
+    } catch (e) {}
     try {
       const { products } = await api("/api/products");
+      if (ghost) { ghost.remove(); ghost = null; }
       if (!products || !products.length) return;
       const saved = localStorage.getItem("sia_product");
       let cur = products.find(p => p.product_id === saved) || products[0];
+      try { localStorage.setItem("sia_product_meta", JSON.stringify({ name: cur.name })); } catch (e) {}
       const HUES = [["#3E63DD", "#8E4EC6"], ["#0FA968", "#1D7FBF"], ["#FF6B4A", "#D97706"],
                     ["#4F5BD5", "#D9569B"], ["#D97706", "#B85C38"], ["#334155", "#5B7A9D"]];
       const hueOf = (name) => { let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return HUES[h % HUES.length]; };
@@ -282,7 +297,8 @@ window.UI = (function () {
             onclick: () => {
               pop.remove();
               localStorage.setItem("sia_product", p.product_id);
-              // 切产品 = 切它的品牌风格：平台内预览（工作台 / 编辑器 / 组件库）立即跟随
+              localStorage.setItem("sia_product_meta", JSON.stringify({ name: p.name }));
+              // 切产品 = 切它的风格主题：平台内预览（工作台 / 编辑器 / 组件库）立即跟随
               if (p.brand_file) localStorage.setItem("brand_file", p.brand_file);
               cur = p;
               location.reload();
@@ -330,7 +346,7 @@ window.UI = (function () {
       prodZone = el("div", { class: "nav-group" }, [
         el("div", { class: "nav-title" }, ["当前产品"]),
       ]);
-      const swSlot = el("div", {});
+      const swSlot = el("div", { style: "min-height:36px" });
       prodZone.appendChild(swSlot);
       side.appendChild(prodZone);
       mountProductSwitcher(swSlot);

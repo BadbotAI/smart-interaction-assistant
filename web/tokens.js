@@ -61,7 +61,7 @@ window.Brand = (function () {
   }
 
   async function init() {
-    // 优先级：当前产品的品牌风格（切产品 = 切风格）> 租户级 active > 本地记录
+    // 优先级：当前产品的风格主题（切产品 = 切风格）> 租户级 active > 本地记录
     let file = localStorage.getItem("brand_file") || "brand-tokens.default.json";
     const pid = localStorage.getItem("sia_product");
     let fromProduct = null;

@@ -609,7 +609,7 @@
     return sseStream(steps, 420);
   }
 
-  // —— 品牌风格 mock：静态站也能新建 / 编辑 / 删除 / 预览（sessionStorage 会话内持久） ——
+  // —— 风格主题 mock：静态站也能新建 / 编辑 / 删除 / 预览（sessionStorage 会话内持久） ——
   const BRAND_BUILTIN = [
     { file: "brand-tokens.default.json", brand_id: "default", brand_name: "默认风格 · 墨蓝" },
     { file: "brand-tokens.chainbao.json", brand_id: "chainbao", brand_name: "自然清新" },

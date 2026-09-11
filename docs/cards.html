@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=1521a4f4">
+<link rel="stylesheet" href="./shared.css?v=07b455bd">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./dashboard.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./library.html"><link rel="prefetch" href="./playground.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -76,11 +76,11 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=3394fb86"></script>
-<script src="./mock_api.js?v=ba5d41a5"></script>
-<script src="./tokens.js?v=f1cb69ae"></script>
-<script src="./ui.js?v=a71b5a76"></script>
-<script src="./components.js?v=aa9aff84"></script>
+<script src="./mock_data.js?v=4e1d04a5"></script>
+<script src="./mock_api.js?v=13eb79e0"></script>
+<script src="./tokens.js?v=21c3b631"></script>
+<script src="./ui.js?v=e112e89b"></script>
+<script src="./components.js?v=aed14e9a"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
 UI.nav("cards");
@@ -145,7 +145,7 @@ function styleSummary(c) {
   if (so.font_scale != null) parts.push(Number(so.font_scale) >= 10 ? `字号${so.font_scale}px` : "字号" + ({ "-1": "小一档", "1": "大一档", "2": "大两档" }[so.font_scale] || ""));
   const disp = ((c.field_bindings || {}).config || {}).display;
   if (disp === "card") parts.push("卡片样式");
-  return parts.length ? parts.join(" · ") : "品牌默认";
+  return parts.length ? parts.join(" · ") : "主题默认";
 }
 
 async function loadKpisAndTodos() {
@@ -262,7 +262,7 @@ function sdkSnippetFor(p) {
     `// 返回 components[]：每个组件的说明 + params_schema + 提交回传结构`,
     `// 模型决定出组件时返回 { component_id, params }`,
     ``,
-    `// 第 2 步 · 前端：引入 SDK（JS + CSS，样式含本产品的品牌风格 token）`,
+    `// 第 2 步 · 前端：引入 SDK（JS + CSS，样式含本产品的风格主题 token）`,
     `<link rel="stylesheet" href="${origin}/v1/products/${p.product_id}/sia.css?key=${p.mcp_key}">`,
     `<script src="${origin}/web/sia.js" data-key="${p.mcp_key}" defer><\/script>`,
     ``,
@@ -276,7 +276,7 @@ function mcpDrawer(p) {
   const code = sdkSnippetFor(p);
   UI.drawer("接入配置（SDK）", el("div", {}, [
     el("div", { class: "muted", style: "margin-bottom:12px" },
-      [`「${p.name}」通过 SDK 接入（仅 Web 端）：后端拉组件注册表声明给大模型，前端引 JS + CSS 渲染；产品绑定的 ${p.card_ids.length} 个组件按品牌风格渲染，交互提交自动回传。配置在出包时固化，修改后需重新部署。`]),
+      [`「${p.name}」通过 SDK 接入（仅 Web 端）：后端拉组件注册表声明给大模型，前端引 JS + CSS 渲染；产品绑定的 ${p.card_ids.length} 个组件按风格主题渲染，交互提交自动回传。配置在出包时固化，修改后需重新部署。`]),
     el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [
       el("span", { class: "label-text", style: "margin:0" }, ["接入配置（三步）"]),
       el("div", { style: "flex:1" }),
@@ -285,7 +285,7 @@ function mcpDrawer(p) {
     el("pre", { class: "code", style: "max-height:320px;overflow:auto" }, [code]),
     el("div", { class: "muted", style: "margin-top:12px;line-height:1.8" }, [
       "1. 后端拉取注册表：组件像工具一样声明给你的大模型，何时出、填什么由模型决定。", el("br"),
-      "2. 前端引入 SDK 与样式：模型返回的组件调用交给 SDK 按品牌风格渲染。", el("br"),
+      "2. 前端引入 SDK 与样式：模型返回的组件调用交给 SDK 按风格主题渲染。", el("br"),
       "3. 交互类组件提交自动回传，数据回流平台看板（展示类无提交）。",
     ]),
   ]));
@@ -1007,13 +1007,13 @@ async function openEditor(cardId, prefill, initStep) {
     }
     const upd = () => { autosave(); renderPreview(); };
 
-    // 继承说明 + 一键恢复品牌默认
+    // 继承说明 + 一键恢复主题默认
     const resetBtn = el("button", { class: "btn small ghost", type: "button", onclick: () => {
       Object.keys(so).forEach(k => delete so[k]); state.display = ""; autosave(); rebuild();
-    } }, ["恢复品牌默认"]);
+    } }, ["恢复主题默认"]);
     box.appendChild(el("div", { class: "sty-inherit" }, [
       UI.icon("palette", 14),
-      el("span", {}, ["未覆盖的样式项跟随产品的品牌风格；以下调整只作用于本组件实例"]),
+      el("span", {}, ["未覆盖的样式项跟随产品的风格主题；以下调整只作用于本组件实例"]),
       el("div", { style: "flex:1" }), resetBtn,
     ]));
 
@@ -1028,7 +1028,7 @@ async function openEditor(cardId, prefill, initStep) {
       const draw = () => {
         row.innerHTML = "";
         row.appendChild(el("button", { type: "button", class: "sty-swatch brand" + (!so[key] ? " on" : ""),
-          title: "跟随品牌", onclick: () => { delete so[key]; draw(); upd(); } }, ["品牌"]));
+          title: "跟随主题", onclick: () => { delete so[key]; draw(); upd(); } }, ["品牌"]));
         SWATCHES.forEach(cx => row.appendChild(el("button", { type: "button",
           class: "sty-swatch" + (so[key] === cx ? " on" : ""), style: `background:${cx}`,
           title: cx, onclick: () => { so[key] = cx; draw(); upd(); } })));
@@ -1036,7 +1036,7 @@ async function openEditor(cardId, prefill, initStep) {
           style: "width:34px;height:34px;padding:2px;border-radius:10px;border:1.5px solid var(--border);cursor:pointer", title: "自定义" });
         ci.oninput = () => { so[key] = ci.value; draw(); upd(); };
         row.appendChild(ci);
-        row.appendChild(el("span", { class: "muted num", style: "margin-left:2px" }, [so[key] || "跟随品牌"]));
+        row.appendChild(el("span", { class: "muted num", style: "margin-left:2px" }, [so[key] || "跟随主题"]));
       };
       draw();
       return el("div", { class: "sty-section" }, [el("div", { class: "sty-label" }, [label]), row]);
@@ -1068,11 +1068,11 @@ async function openEditor(cardId, prefill, initStep) {
     };
     Object.entries(MIGRATE).forEach(([k, m]) => { if (so[k] in m) so[k] = m[so[k]]; });
 
-    // 数值属性行：滑块 + 数字输入 + 重置（未覆盖 = 跟随品牌，滑块停在品牌默认位、半透明）
+    // 数值属性行：滑块 + 数字输入 + 重置（未覆盖 = 跟随主题，滑块停在主题默认位、半透明）
     function numRow(key, label, min, max, brandVal, hint) {
       const range = el("input", { type: "range", min: String(min), max: String(max), step: "1", class: "sl-range" });
       const num = el("input", { type: "number", min: String(min), max: String(max), class: "sl-num num", placeholder: "品牌" });
-      const clear = el("button", { class: "btn small ghost", type: "button", title: "清除覆盖，跟随品牌风格" }, ["重置"]);
+      const clear = el("button", { class: "btn small ghost", type: "button", title: "清除覆盖，跟随风格主题" }, ["重置"]);
       const fill = (v) => range.style.setProperty("--fill", ((v - min) / (max - min) * 100) + "%");
       const sync = () => {
         const has = so[key] != null && so[key] !== "";
@@ -1558,11 +1558,11 @@ async function openEditor(cardId, prefill, initStep) {
     return box;
   }
 
-  // ---------- 组件级样式覆盖（v2 两层风格体系第二层：只开语义化覆盖口，空 = 跟随品牌） ----------
+  // ---------- 组件级样式覆盖（v2 两层风格体系第二层：只开语义化覆盖口，空 = 跟随主题） ----------
   function styleOverrideBlock() {
     const so = state.styleOv;
     const selRow = (key, label, opts, hint) => {
-      const s2 = el("select", {}, [el("option", { value: "" }, ["跟随品牌"]),
+      const s2 = el("select", {}, [el("option", { value: "" }, ["跟随主题"]),
         ...opts.map(([v, n]) => el("option", { value: v, ...(so[key] === v ? { selected: "" } : {}) }, [n]))]);
       s2.onchange = () => { if (s2.value) so[key] = s2.value; else delete so[key]; autosave(); renderPreview(); };
       return el("label", { class: "field" }, [el("span", { class: "label-text" }, [label, hint ? UI.help(hint) : null]), s2]);
@@ -1573,8 +1573,8 @@ async function openEditor(cardId, prefill, initStep) {
       ci.oninput = () => { so[key] = ci.value; autosave(); renderPreview(); rebuildStyleTag(); };
       const clear = el("button", { class: "btn small ghost", type: "button", hidden: !cur,
         onclick: () => { delete so[key]; autosave(); renderPreview(); rebuild(); } }, ["恢复品牌色"]);
-      const tag = el("span", { class: "muted num" }, [cur || "跟随品牌"]);
-      function rebuildStyleTag() { tag.textContent = so[key] || "跟随品牌"; clear.hidden = !so[key]; }
+      const tag = el("span", { class: "muted num" }, [cur || "跟随主题"]);
+      function rebuildStyleTag() { tag.textContent = so[key] || "跟随主题"; clear.hidden = !so[key]; }
       return el("label", { class: "field" }, [el("span", { class: "label-text" }, [label]),
         el("div", { style: "display:flex;align-items:center;gap:8px" }, [ci, tag, clear])]);
     };
@@ -1589,7 +1589,7 @@ async function openEditor(cardId, prefill, initStep) {
     ]);
     const btn = el("button", { class: "btn small ghost", type: "button", onclick: () => {
       body.hidden = !body.hidden; btn.classList.toggle("active", !body.hidden);
-    } }, ["样式覆盖（在品牌风格基础上微调）", UI.icon("chevron", 13)]);
+    } }, ["样式覆盖（在风格主题基础上微调）", UI.icon("chevron", 13)]);
     return el("div", { class: "editor-section", style: "margin-top:12px" }, [btn, body]);
   }
 

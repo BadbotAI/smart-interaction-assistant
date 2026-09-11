@@ -122,7 +122,7 @@ window.Components = (function () {
   };
 
   function compCard(children, cls = "") {
-    // brand-scope：品牌 design token 的作用域（导入品牌风格只改组件）
+    // brand-scope：品牌 design token 的作用域（导入风格主题只改组件）
     return el("div", { class: "comp brand-scope " + cls }, children);
   }
   function compTitle(text) {

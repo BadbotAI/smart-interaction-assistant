@@ -15,7 +15,7 @@
     <button class="btn primary" id="newBtn"></button>
   </div>
   <div class="muted" style="margin-bottom:14px">
-    产品是接入的基本单位：每个产品有自己的品牌风格、组件注册表和接入 Key，对应一个后端 API 接口、一个前端 JS/CSS 代码块和一份数据块 Schema。
+    产品是接入的基本单位：每个产品有自己的风格主题与组件注册表，对应一个专属的后端 API 接口、一个前端 JS/CSS 代码块和一份数据块 Schema。
   </div>
   <div id="listBox"></div>
 </div>
@@ -74,7 +74,7 @@ async function viewSchemas(p) {
   ]), { width: "640px" });
 }
 
-// 产品表单（新建与配置共用）：名称 / 品牌风格单选 / 组件多选（标签可删）
+// 产品表单（新建与配置共用）：名称 / 风格主题单选 / 组件多选（标签可删）
 function productForm(init, opts = {}) {
   const st = { name: init.name || "", brand_file: init.brand_file || (brands[0] && brands[0].file) || "",
     cardIds: new Set(init.card_ids || []) };
@@ -86,8 +86,8 @@ function productForm(init, opts = {}) {
     onChange: (v) => st.brand_file = v });
   const node = el("div", { class: "policy-form" }, [
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["产品名称"]), nameIn, nameErr]),
-    el("label", { class: "field" }, [el("span", { class: "label-text" }, ["品牌风格",
-      UI.help("该产品里所有组件渲染时使用的风格；在「品牌风格」页新建与编辑")]), brandSel]),
+    el("label", { class: "field" }, [el("span", { class: "label-text" }, ["风格主题",
+      UI.help("该产品里所有组件渲染时使用的风格；在「风格主题」页新建与编辑")]), brandSel]),
   ]);
   return { node, st, nameIn, nameErr };
 }
@@ -107,48 +107,16 @@ function configProduct(p) {
     el("pre", { class: "sdk-code num" }, [code]),
   ]);
   const access = el("div", { class: "field", style: "margin-top:4px" }, [
-    el("span", { class: "label-text" }, ["产品配置",
-      UI.help("每个产品对应：一个后端 API 接口 + 一个前端 JS/CSS 代码块 + 一份数据块 Schema；配置出包时固化，平台修改后需重新拉取部署")]),
+    el("div", { style: "display:flex;align-items:center;gap:6px;margin-bottom:2px" }, [
+      el("span", { class: "label-text", style: "margin:0" }, ["产品配置",
+        UI.help("每个产品对应：一个后端 API 接口 + 一个前端 JS/CSS 代码块 + 一份数据块 Schema；配置出包时固化，平台修改后需重新拉取部署")]),
+      el("div", { style: "flex:1" }),
+      el("button", { class: "btn small", onclick: () => viewSchemas(p) }, ["查看数据 Schema"]),
+    ]),
     codeBlock("后端 API 接口", null,
       `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`),
     codeBlock("前端 JS/CSS 代码块", null,
       `<link rel="stylesheet" href="${origin}/v1/products/${p.product_id}/sia.css?key=${p.pub_key}">\n<script src="${origin}/web/sia.js" data-key="${p.pub_key}" defer><\/script>`),
-    el("div", { class: "drawer-meta", style: "margin:10px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap" }, [
-      el("span", { class: "muted", style: "flex:none" }, ["后端私有 Key"]),
-      el("span", { class: "cr-id num", style: "cursor:pointer", title: "注册表拉取用，勿放前端；点击复制",
-        onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制后端私有 Key"); } },
-        [p.mcp_key.slice(0, 12) + "…"]),
-      el("span", { class: "muted", style: "flex:none" }, ["前端公开 Key"]),
-      el("span", { class: "cr-id num", style: "cursor:pointer", title: "页面里引 CSS/JS 用，泄露不暴露配置；点击复制",
-        onclick: () => { navigator.clipboard.writeText(p.pub_key); UI.toast("已复制前端公开 Key"); } },
-        [(p.pub_key || "").slice(0, 12) + "…"]),
-      el("div", { style: "flex:1" }),
-      el("button", { class: "btn small", onclick: () => viewSchemas(p) }, ["查看数据 Schema"]),
-      el("button", { class: "btn small danger-text", onclick: async () => {
-        const ok = await UI.confirm("重置产品接入 Key",
-          `为「${p.name}」生成新 Key：旧 Key 立即失效，agent 后端与前端 SDK 都会开始报错，需更新配置并重新出包。适用于 Key 泄露或人员变动。`,
-          { okText: "重置", danger: true });
-        if (!ok) return;
-        try {
-          const r = await UI.api(`/api/products/${p.product_id}/reset-key`, { method: "POST" });
-          const km = UI.modal("新的产品接入 Key", el("div", {}, [
-            el("div", { class: "muted", style: "margin-bottom:10px" }, ["两把 Key 已同时轮换，旧 Key 立即失效。请更新 agent 后端与前端 SDK 配置并重新出包："]),
-            el("div", { class: "muted", style: "font-size:var(--font-caption);margin-bottom:4px" }, ["后端私有 Key"]),
-            el("button", { class: "key-chip", style: "width:100%;justify-content:space-between",
-              onclick: () => { navigator.clipboard.writeText(r.mcp_key); UI.toast("已复制后端私有 Key"); } },
-              [el("span", { class: "num" }, [r.mcp_key]), UI.icon("copy", 12)]),
-            el("div", { class: "muted", style: "font-size:var(--font-caption);margin:8px 0 4px" }, ["前端公开 Key"]),
-            el("button", { class: "key-chip", style: "width:100%;justify-content:space-between",
-              onclick: () => { navigator.clipboard.writeText(r.pub_key); UI.toast("已复制前端公开 Key"); } },
-              [el("span", { class: "num" }, [r.pub_key || ""]), UI.icon("copy", 12)]),
-            el("div", { style: "display:flex;justify-content:flex-end;margin-top:14px" }, [
-              el("button", { class: "btn primary", onclick: () => { km.remove(); location.reload(); } }, ["我已保存"]),
-            ]),
-          ]));
-        } catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
-      } }, ["重置 Key"]),
-    ]),
-
   ]);
   const foot = el("div", { style: "display:flex;gap:8px;justify-content:flex-end;align-items:center;width:100%" }, [
     err, el("div", { style: "flex:1" }),
@@ -200,7 +168,7 @@ function draw() {
   if (!products.length) {
     box.appendChild(el("div", { class: "card empty-state" }, [
       el("div", { class: "empty-title" }, ["还没有产品"]),
-      el("div", {}, ["新建产品，把组件和品牌风格打包成一个 MCP 接入点"]),
+      el("div", {}, ["新建产品，把组件和风格主题打包成一个 MCP 接入点"]),
       el("button", { class: "btn primary", style: "margin-top:12px", onclick: newProductDialog }, ["新建产品"]),
     ]));
     return;
@@ -225,15 +193,13 @@ function draw() {
       el("div", { style: "display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap" }, [
         el("span", { class: "key-chip static", title: "产品 ID" },
           [el("span", { class: "num" }, ["ID:" + shortProductId(p.product_id)])]),
-        el("button", { class: "key-chip", title: "产品接入 Key（点击复制完整 Key）",
-          onclick: () => { navigator.clipboard.writeText(p.mcp_key); UI.toast("已复制产品接入 Key"); } },
-          [el("span", { class: "num" }, ["接入 Key = sk-mcp-••••" + p.mcp_key.slice(-4)]), UI.icon("copy", 12)]),
+
       ]),
       (() => {
         const bound = p.card_ids || [];
         const online = bound.filter(cid => (allCards.find(x => x.card_id === cid) || {}).status === "published").length;
         return el("div", { class: "muted", style: "margin-top:8px" }, [
-          `品牌风格 ${brandName(p.brand_file)} · 组件实例 ${bound.length} 个` +
+          `风格主题 ${brandName(p.brand_file)} · 组件实例 ${bound.length} 个` +
           (bound.length ? `（${online} 个在线）` : " · 在组件工作台创建，发布后自动加入"),
         ]);
       })(),
