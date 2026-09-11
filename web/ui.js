@@ -257,6 +257,18 @@ window.UI = (function () {
     }
     return _brandColors[file];
   }
+  // —— 轻量数据联动：任何页面改了产品 / 主题后，广播给同页其它区域即时刷新 ——
+  let _swSlot = null;
+  const _subs = {};   // { event: [handler] }
+  function on(evt, fn) { (_subs[evt] = _subs[evt] || []).push(fn); return fn; }
+  function emit(evt, payload) {
+    if (evt === "products-changed" && _swSlot) {
+      _swSlot.innerHTML = "";
+      mountProductSwitcher(_swSlot);   // 切换器自身总是跟随产品变更重绘
+    }
+    (_subs[evt] || []).forEach(fn => { try { fn(payload); } catch (e) {} });
+  }
+
   async function mountProductSwitcher(host) {
     // 首帧：用上次缓存的产品名立即画切换行（避免拉取期间导航下移抖动）；数据回来后原位替换
     let ghost = null;
@@ -373,6 +385,7 @@ window.UI = (function () {
     if (plat.productSwitcher) {
       const swSlot = el("div", { class: "np-context", style: "min-height:36px" });
       side.appendChild(swSlot);
+      _swSlot = swSlot;
       mountProductSwitcher(swSlot);
     }
     // 二级项按 #hash 高亮；无 hash 时默认该页第一个二级项
@@ -967,5 +980,5 @@ window.UI = (function () {
 
   return { api, el, toast, modal, drawer, confirm: confirmDialog, withBusy, loading, menu, fancySelect, tagSelect, ctName, ctChip, debounce, colorPicker,
     icon, iconBtn, shortId, idChip, keyField, chatMock, tagInput, toggle, help,
-    nav, fmtCost, fmtMs, fmtTs, fmtPct, lineChart, barChart, stackedBars };
+    nav, fmtCost, fmtMs, fmtTs, fmtPct, lineChart, barChart, stackedBars, on, emit, brandColorOf };
 })();

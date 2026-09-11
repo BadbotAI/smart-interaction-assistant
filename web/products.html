@@ -130,7 +130,7 @@ function configProduct(p) {
             name: form.st.name.trim(), brand_file: form.st.brand_file } });
           UI.toast("产品配置已保存");
           mask.querySelector(".close-btn")?.click();
-          load();
+          load(); UI.emit("products-changed");
         } catch (e2) { err.textContent = e2.data?.error || e2.message; }
       }, "保存中……");
     } }, ["保存配置"]),
@@ -152,6 +152,7 @@ function newProductDialog() {
               name: form.st.name.trim(), brand_file: form.st.brand_file } });
             mask.remove();
             await load();
+            UI.emit("products-changed");   // 侧栏产品切换器同页即时刷新
             const p = products.find(x => x.product_id === r.product_id);
             if (p) configProduct(p);
             UI.toast("产品已创建，接入信息见右侧抽屉");
@@ -190,7 +191,7 @@ function draw() {
                 const name = i === 0 ? base : base + (i + 1);
                 try {
                   await UI.api("/api/products", { method: "POST", body: { name, brand_file: p.brand_file, card_ids: p.card_ids } });
-                  UI.toast(`已复制为「${name}」`); load();
+                  UI.toast(`已复制为「${name}」`); load(); UI.emit("products-changed");
                   return;
                 } catch (e2) {
                   if (e2.status !== 409) { UI.toast(e2.data?.error || e2.message, true); return; }
@@ -201,7 +202,7 @@ function draw() {
             { label: "删除", danger: true, onClick: async () => {
               const ok = await UI.confirm("删除产品", `删除「${p.name}」后，它的接入 Key 与注册表立即失效，已出包的 SDK 将无法工作。`, { okText: "删除", danger: true });
               if (!ok) return;
-              try { await UI.api(`/api/products/${p.product_id}/delete`, { method: "POST" }); UI.toast("已删除"); load().then(() => {
+              try { await UI.api(`/api/products/${p.product_id}/delete`, { method: "POST" }); UI.toast("已删除"); UI.emit("products-changed"); load().then(() => {
   // ?new=1 深链（切换器「新建产品」）：自动打开新建弹窗
   if (new URLSearchParams(location.search).get("new")) newProductDialog();
 }); }
@@ -238,6 +239,7 @@ async function load() {
   products = pr.products || [];
   draw();
 }
+UI.on("brands-changed", () => load());   // 主题增删后，产品页的主题下拉同页更新
 const nb = document.getElementById("newBtn");
 nb.append(UI.icon("plus", 14), "新建产品");
 nb.onclick = newProductDialog;

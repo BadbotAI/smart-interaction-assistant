@@ -743,6 +743,7 @@ function brandDialog(existing, onClose) {
             window._editingStyle = false;
             document.getElementById("demoOne")?.removeAttribute("style");
             renderBrands(); renderDemos();
+            UI.emit("brands-changed", { file: (saved || {}).file });
             UI.toast(existing ? "主题已更新" : "主题已创建，在「产品与接入」里配给产品即可生效");
             onClose && onClose();
           } catch (e2) { err.textContent = e2.data?.error || e2.message; }
@@ -827,7 +828,7 @@ function renderBrands() {
           try {
             await UI.api("/api/brands/delete", { method: "POST", body: { file: b.file } });
             brands = (await UI.api("/api/brands")).brands;
-            renderBrands(); UI.toast("已删除");
+            renderBrands(); UI.emit("brands-changed"); UI.toast("已删除");
           } catch (err) { UI.toast(err.data?.error || err.message, true); }
         })])
       : null;

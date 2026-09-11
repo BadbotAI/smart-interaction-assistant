@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=4f075a46">
+<link rel="stylesheet" href="./shared.css?v=fb668b05">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -38,7 +38,7 @@
       <div class="page-title">组件工作台</div>
           </div>
     <div style="display:flex;gap:8px">
-      <button class="btn primary" id="newBtn" style="white-space:nowrap">新建组件实例</button>
+      <button class="btn primary" id="newBtn" style="white-space:nowrap">新建组件</button>
     </div>
   </div>
 
@@ -48,12 +48,14 @@
     <div id="prodCover"></div>
   </div>
   <!-- 与组件模板页同构：tab 与筛选直接放在页面背景上，卡片各自成卡 -->
-  <div class="wb-toolbar">
-    <div id="statusTabs"></div>
+  <div class="wb-search-row">
+    <input type="text" id="searchInput" placeholder="搜索组件实例" style="width:260px;height:32px;padding:4px 12px" aria-label="搜索配置">
+    <button class="btn small" id="searchBtn">搜索</button>
     <div style="flex:1"></div>
     <span class="muted" id="listCount" style="font-size:var(--font-caption)"></span>
-    <input type="text" id="searchInput" placeholder="搜索组件实例" style="width:230px;height:32px;padding:4px 12px" aria-label="搜索配置">
-    <button class="btn small" id="searchBtn">搜索</button>
+  </div>
+  <div class="wb-toolbar">
+    <div id="statusTabs"></div>
   </div>
   <div id="cardList"></div>
 </div>
@@ -61,10 +63,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=6ebeeda6"></script>
+<script src="./mock_data.js?v=407273db"></script>
 <script src="./mock_api.js?v=22be0b24"></script>
 <script src="./tokens.js?v=aba04afb"></script>
-<script src="./ui.js?v=d95ee44c"></script>
+<script src="./ui.js?v=582d0a80"></script>
 <script src="./components.js?v=253ce9e4"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
@@ -278,49 +280,61 @@ function renderProductCover(products, brands, unboundCount) {
   const p = products.find(x => x.product_id === curProduct);
   const pickProduct = (v) => { curProduct = v; sessionStorage.setItem("wb_product", v);
     if (v && v !== "__unbound") localStorage.setItem("sia_product", v); statusTab = ""; loadCards(); };
-  let nameAnchor = null;
-  const switchBtn = el("button", { class: "pc-switch", title: "换一换：切换产品", "aria-label": "切换产品",
-    onclick: (e) => { e.stopPropagation(); UI.menu(nameAnchor || switchBtn, opts.map(([v, name]) => ({
-      label: (v === curProduct ? "· " : "") + name, onClick: () => { if (v !== curProduct) pickProduct(v); } }))); } },
-    [UI.icon("refresh", 14)]);
+  // 产品名本身就是切换入口（点名字换产品），不再用一个语义不明的图标按钮
+  const nameBtn = (label) => {
+    const b = el("button", { class: "pc-name", type: "button", title: "点击切换产品",
+      onclick: () => UI.menu(b, opts.map(([v, name]) => ({
+        label: (v === curProduct ? "· " : "") + name,
+        onClick: () => { if (v !== curProduct) pickProduct(v); } }))) },
+      [el("span", {}, [label]), el("span", { class: "pc-caret" }, [UI.icon("chevron", 14)])]);
+    return b;
+  };
   if (isUnbound || !p) {
     box.appendChild(el("div", { class: "prod-cover unbound" }, [
+      el("div", { class: "pc-id" }, ["·"]),
       el("div", { class: "pc-main" }, [
-        el("div", { class: "pc-name" }, ["未绑定产品"]),
-        el("div", { class: "pc-meta" }, ["这些组件还没归入任何产品；在「产品及风格管理」里绑定后即可通过 MCP 对外使用"]),
+        nameBtn("未绑定产品"),
+        el("div", { class: "pc-meta" }, ["这些组件还没归入任何产品，不会随任何产品的注册表下发"]),
       ]),
-      el("div", { style: "flex:1" }),
-      switchBtn,
       el("a", { class: "btn small", href: "./products.html" }, ["管理产品"]),
     ]));
     return;
   }
-  const brandSel = UI.fancySelect({ value: p.brand_file, width: "195px",
+  const brandSel = UI.fancySelect({ value: p.brand_file, width: "180px",
     options: brands.map(b => [b.file, b.brand_name || b.file]),
     onChange: async (v) => {
       try {
         await UI.api(`/api/products/${p.product_id}`, { method: "PUT", body: { brand_file: v } });
         UI.toast(`「${p.name}」已切换风格`);
+        // 切风格后，产品卡自身（头像与强调色）与下方组件预览一起跟随新主题
+        const c2 = await UI.brandColorOf(v);
+        document.documentElement.style.setProperty("--ctx-p", c2.p);
+        document.documentElement.style.setProperty("--ctx-a", c2.a);
+        localStorage.setItem("brand_file", v);
+        await Brand.load(v).catch(() => {});
+        UI.emit("brands-changed", { file: v });
         loadCards();
       } catch (e) { UI.toast(e.data?.error || e.message, true); loadCards(); }
     } });
   const inProd = allCardsOf();
   const onlineN = inProd.filter(x => x.status === "published").length;
   box.appendChild(el("div", { class: "prod-cover" }, [
+    el("div", { class: "pc-id", title: "产品首字" }, [String(p.name).slice(0, 1)]),
     el("div", { class: "pc-main" }, [
-      (() => { nameAnchor = el("div", { class: "pc-name" }, [p.name]); return nameAnchor; })(),
+      nameBtn(p.name),
       el("div", { class: "pc-meta" }, [
-        el("span", { class: "key-chip static" }, [el("span", { class: "num" }, ["ID:" + shortProductId2(p.product_id)])]),
-        el("span", { class: "pc-stat" }, [`组件实例 ${inProd.length} 个 · ${onlineN} 个在线`]),
+        el("span", { class: "num" }, ["ID " + shortProductId2(p.product_id)]),
+        el("span", { class: "pc-dot" }, ["·"]),
+        el("span", {}, [`${inProd.length} 个组件`]),
+        el("span", { class: "pc-dot" }, ["·"]),
+        el("span", { class: onlineN ? "pc-on" : "" }, [`${onlineN} 个在线`]),
       ]),
     ]),
-    el("div", { style: "flex:1" }),
-    el("div", { class: "pc-side" }, [
-      el("div", { class: "pc-side-label" }, ["风格主题"]),
-      brandSel,
+    el("div", { class: "pc-actions" }, [
+      el("label", { class: "pc-field" }, [
+        el("span", { class: "pc-field-label" }, ["风格主题"]), brandSel]),
+      el("a", { class: "btn small", href: "./products.html" }, [UI.icon("link", 13), "接入配置"]),
     ]),
-    switchBtn,
-    el("a", { class: "btn small", href: "./products.html" }, [UI.icon("link", 13), "接入配置"]),
   ]));
 }
 
@@ -379,7 +393,7 @@ async function loadCards() {
       list.appendChild(el("div", { class: "empty-state" }, [
         el("div", { class: "empty-title" }, [emptyCopy[0]]),
         el("div", {}, [emptyCopy[1]]),
-        el("button", { class: "btn primary", style: "margin-top:10px", onclick: () => newConfigWizard() }, ["新建组件实例"]),
+        el("button", { class: "btn primary", style: "margin-top:10px", onclick: () => newConfigWizard() }, ["新建组件"]),
       ]));
     } else {
       list.appendChild(el("div", { class: "empty-state" }, [
@@ -461,9 +475,20 @@ function buildCardRow(c) {
         ]));
       }
     };
-    const statusBtn = eff === "published"
-      ? el("button", { class: "btn small", title: "下线后组件从产品注册表移除", onclick: () => doTransition(c, "offline") }, ["下线"])
-      : el("button", { class: "btn small primary", title: "发布并加入当前产品注册表", onclick: doPublish }, ["上线"]);
+    // 上下线开关：状态与操作合一（开关旁常驻状态文字，不靠一个孤立圆点表意）
+    const stText = { published: "已上线", offline: "已下线", draft: "草稿", archived: "历史版本" }[eff] || eff;
+    const swInput = el("input", { type: "checkbox", role: "switch", "aria-label": "上线开关",
+      ...(eff === "published" ? { checked: "" } : {}) });
+    swInput.onchange = () => {
+      swInput.disabled = true;
+      if (swInput.checked) doPublish(); else doTransition(c, "offline");
+    };
+    const statusBtn = el("label", { class: "wb-switch" + (eff === "published" ? " on" : ""),
+      title: eff === "published" ? "关闭即下线：组件从产品注册表移除" : "打开即上线：发布并加入当前产品注册表" }, [
+      swInput,
+      el("span", { class: "sw-track" }, [el("span", { class: "sw-knob" })]),
+      el("span", { class: "sw-text" }, [stText]),
+    ]);
     return el("div", { class: "wb-card card-row", "data-cid": c.card_id }, [
       el("div", { class: "wb-head" }, [
         chk,
@@ -472,7 +497,6 @@ function buildCardRow(c) {
           onclick: () => { if (editable) openEditor(c.card_id); else UI.toast("已上线的配置不可编辑，请先下线", true); } }, [
           el("div", { class: "wb-name" }, [c.name]),
           el("div", { class: "wb-chips" }, [
-            el("span", { class: "chip " + color }, [label]),
             (UI.ctName(c.component_type) || "") === c.name ? null : UI.ctChip(c.component_type),
             (((c.field_bindings || {}).config || {}).content_mode === "fixed")
               ? el("span", { class: "chip blue" }, ["固定内容"]) : null,
@@ -860,6 +884,7 @@ const STEP_DEFS = [
   { key: "pick", label: "选择组件" },
   { key: "content", label: "内容配置" },
   { key: "style", label: "样式设计" },
+  { key: "schema", label: "数据 Schema" },
   { key: "done", label: "获取接入信息" },
 ];
 // 每步负责校验的字段（下一步前只拦本步的错）
@@ -867,6 +892,7 @@ const STEP_FIELDS = {
   content: ["name"],
   pick: ["component_type"],
   style: ["name"],
+  schema: [],
 };
 
 async function newConfigWizard(preset = {}) { return openEditor(undefined, preset); }
@@ -1891,7 +1917,11 @@ async function openEditor(cardId, prefill, initStep) {
       const sync = () => {
         const has = so[key] != null && so[key] !== "";
         const v = has ? Number(so[key]) : brandVal;
-        range.value = String(v); num.value = has ? String(v) : "";
+        range.value = String(v);
+        // 未覆盖时也显示主题的实际生效值（灰显），避免「拖了却看不出变化」的错觉
+        num.value = String(v);
+        num.classList.toggle("inherited", !has);
+        num.title = has ? "本组件已覆盖为 " + v : "跟随风格主题：" + v;
         fill(v); range.classList.toggle("unset", !has); clear.hidden = !has;
       };
       const setV = (v) => { so[key] = Math.max(min, Math.min(max, Math.round(Number(v) || 0))); sync(); upd(); };
@@ -1924,13 +1954,52 @@ async function openEditor(cardId, prefill, initStep) {
     const FIXED_OK = ["select.single", "select.multi", "form.structured", "rank.priority"].includes(ct);
     const groupHead = (t, d) => el("div", { class: "sty-group" }, [el("span", {}, [t]),
       d ? el("span", { class: "muted", style: "font-size:var(--font-caption);font-weight:400" }, [d]) : null]);
+    // 开关的「开启后长什么样」缩略图：文字说不清的视觉参数，用一眼可辨的示意图补齐
+    const BOOL_DEMO = {
+      "line.smooth": '<path d="M2 11C7 11 7 4 12 4s5 7 10 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+      "point.show": '<path d="M2 11 8 6l5 3 7-6" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="6" r="1.9" fill="currentColor"/><circle cx="13" cy="9" r="1.9" fill="currentColor"/><circle cx="20" cy="3" r="1.9" fill="currentColor"/>',
+      "area.fill": '<path d="M2 12 8 6l5 3 7-6v9z" fill="currentColor" opacity=".28"/><path d="M2 12 8 6l5 3 7-6" fill="none" stroke="currentColor" stroke-width="1.4"/>',
+      "grid": '<path d="M2 4h20M2 8h20M2 12h20" stroke="currentColor" stroke-width="1" opacity=".5"/><path d="M3 11 9 6l5 3 7-6" fill="none" stroke="currentColor" stroke-width="1.4"/>',
+      "value_labels": '<text x="2" y="6" font-size="5" fill="currentColor">12</text><text x="13" y="5" font-size="5" fill="currentColor">18</text><path d="M2 12 8 8l6 2 8-4" fill="none" stroke="currentColor" stroke-width="1.3"/>',
+      "axis.show": '<path d="M3 2v10h19" fill="none" stroke="currentColor" stroke-width="1.4"/>',
+      "y.zero": '<path d="M3 12h19" stroke="currentColor" stroke-width="1.4"/><rect x="5" y="5" width="4" height="7" fill="currentColor" opacity=".5"/><rect x="13" y="2" width="4" height="10" fill="currentColor" opacity=".5"/>',
+      "last.emph": '<path d="M2 11 8 6l5 3 7-6" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="20" cy="3" r="2.6" fill="currentColor"/>',
+      "striped": '<rect x="2" y="2" width="20" height="3" fill="currentColor" opacity=".5"/><rect x="2" y="6" width="20" height="3" fill="currentColor" opacity=".15"/><rect x="2" y="10" width="20" height="3" fill="currentColor" opacity=".5"/>',
+      "header_bold": '<rect x="2" y="2" width="20" height="3.4" fill="currentColor" opacity=".8"/><rect x="2" y="7" width="20" height="2" fill="currentColor" opacity=".25"/><rect x="2" y="11" width="20" height="2" fill="currentColor" opacity=".25"/>',
+      "outline": '<rect x="2.5" y="2.5" width="19" height="10" fill="none" stroke="currentColor" stroke-width="1.3"/>',
+      "total.show": '<rect x="3" y="6" width="4" height="7" fill="currentColor" opacity=".45"/><rect x="9" y="9" width="4" height="4" fill="currentColor" opacity=".45"/><rect x="16" y="3" width="4" height="10" fill="currentColor"/>',
+      "connector.show": '<rect x="3" y="7" width="4" height="6" fill="currentColor" opacity=".45"/><rect x="14" y="3" width="4" height="10" fill="currentColor" opacity=".45"/><path d="M7 7h7" stroke="currentColor" stroke-dasharray="2 2" stroke-width="1.2"/>',
+      "halo": '<circle cx="12" cy="7" r="5.5" fill="currentColor" opacity=".18"/><circle cx="12" cy="7" r="3" fill="currentColor"/>',
+      "icon.show": '<circle cx="7" cy="7" r="4.5" fill="currentColor" opacity=".25"/><path d="M7 4.6v3M7 9.4v.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M14 5h8M14 9h6" stroke="currentColor" stroke-width="1.3" opacity=".5"/>',
+      "rec_chip": '<rect x="2" y="4" width="12" height="6" rx="3" fill="currentColor" opacity=".2"/><rect x="15" y="4" width="7" height="6" rx="3" fill="currentColor"/>',
+      "arrows.show": '<path d="M6 8 9 5l3 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14 6l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+      "now.emph": '<circle cx="5" cy="7" r="2" fill="currentColor" opacity=".35"/><circle cx="12" cy="7" r="2" fill="currentColor" opacity=".35"/><circle cx="19" cy="7" r="3" fill="currentColor"/>',
+      "handle.show": '<path d="M4 5h10M4 9h10" stroke="currentColor" stroke-width="1.3" opacity=".4"/><path d="M17 5h4M17 9h4" stroke="currentColor" stroke-width="1.6"/>',
+      "delta.show": '<text x="2" y="11" font-size="8" font-weight="700" fill="currentColor">12</text><path d="M16 9l2.5-4 2.5 4z" fill="currentColor"/>',
+      "baseline.show": '<text x="2" y="8" font-size="7" font-weight="700" fill="currentColor">12</text><path d="M2 11h14" stroke="currentColor" stroke-width="1.1" opacity=".45"/>',
+      "ts.show": '<text x="2" y="10" font-size="6" fill="currentColor">09:20</text><circle cx="20" cy="7" r="2" fill="currentColor"/>',
+      "desc.show": '<rect x="2" y="3" width="12" height="2.4" rx="1.2" fill="currentColor"/><rect x="2" y="8" width="20" height="2" rx="1" fill="currentColor" opacity=".35"/>',
+      "caption.show": '<rect x="2" y="2" width="16" height="4" rx="2" fill="currentColor"/><rect x="2" y="9" width="11" height="2.4" rx="1.2" fill="currentColor" opacity=".35"/>',
+      "stepnum.show": '<circle cx="6" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="1.3"/><text x="4.4" y="9.4" font-size="6" fill="currentColor">1</text><path d="M11 7h11" stroke="currentColor" stroke-width="1.3" opacity=".4"/>',
+      "radio.show": '<circle cx="6" cy="7" r="3.4" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="6" cy="7" r="1.6" fill="currentColor"/><path d="M12 7h10" stroke="currentColor" stroke-width="1.3" opacity=".4"/>',
+      "opt.border": '<rect x="2.5" y="2.5" width="19" height="4" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="2.5" y="8.5" width="19" height="4" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/>',
+      "best.highlight": '<rect x="2" y="3" width="20" height="3" fill="currentColor" opacity=".2"/><rect x="2" y="8" width="20" height="3" fill="currentColor"/>',
+      "sum.show": '<path d="M2 3h13M2 7h13M2 11h13" stroke="currentColor" stroke-width="1.2" opacity=".4"/><path d="M18 3v9" stroke="currentColor" stroke-width="1.6"/>',
+      "legend.show": '<circle cx="4" cy="7" r="2" fill="currentColor"/><path d="M8 7h6" stroke="currentColor" stroke-width="1.3"/><circle cx="17" cy="7" r="2" fill="currentColor" opacity=".4"/>',
+      "quick.show": '<rect x="2" y="4" width="6" height="6" rx="3" fill="currentColor" opacity=".35"/><rect x="9" y="4" width="6" height="6" rx="3" fill="currentColor" opacity=".35"/><rect x="16" y="4" width="6" height="6" rx="3" fill="currentColor" opacity=".35"/>',
+      "tone.color": '<rect x="2" y="4" width="9" height="6" rx="2" fill="var(--success)"/><rect x="13" y="4" width="9" height="6" rx="2" fill="var(--danger)"/>',
+    };
     const boolRow = (key, label, defOn, hint, onAfter) => {
       const cb = el("input", { type: "checkbox", ...(so[key] === undefined ? (defOn ? { checked: "" } : {}) : (so[key] ? { checked: "" } : {})) });
       cb.onchange = () => {
         if (cb.checked === defOn) delete so[key]; else so[key] = cb.checked;
         (onAfter || upd)();
       };
-      return el("label", { class: "sty-bool" }, [cb, el("span", {}, [label]), hint ? UI.help(hint) : null]);
+      const demo = BOOL_DEMO[key]
+        ? el("span", { class: "bool-demo", title: "开启后的效果示意",
+            html: `<svg viewBox="0 0 24 15" width="26" height="16" aria-hidden="true">${BOOL_DEMO[key]}</svg>` })
+        : null;
+      return el("label", { class: "sty-bool" }, [cb, el("span", {}, [label]), demo, hint ? UI.help(hint) : null]);
     };
 
     // 选择类：展现变体（可视化两卡）
@@ -2099,22 +2168,48 @@ async function openEditor(cardId, prefill, initStep) {
 
 
 
-    // 数据 schema 折叠（对接契约放底部，不抢样式的主舞台）
-    const schemaBody = el("div", { hidden: true, style: "margin-top:8px" }, [el("div", { class: "muted" }, ["加载中……"])]);
-    const schemaBtn = el("button", { class: "btn small ghost", type: "button", onclick: async () => {
-      schemaBody.hidden = !schemaBody.hidden; schemaBtn.classList.toggle("active", !schemaBody.hidden);
-      if (!schemaBody.hidden && !schemaBody.dataset.loaded) {
-        try {
-          const r = await UI.api("/api/components/schema-preview", { method: "POST",
-            body: { component_type: state.component_type, config: { display: state.display || undefined } } });
-          schemaBody.innerHTML = "";
-          schemaBody.appendChild(el("pre", { class: "code", style: "max-height:240px;overflow:auto" },
-            [JSON.stringify({ params_schema: r.params_schema, submit: r.submit_schema }, null, 2)]));
-          schemaBody.dataset.loaded = "1";
-        } catch (e2) { schemaBody.innerHTML = ""; schemaBody.appendChild(el("div", { class: "field-error" }, ["加载失败：" + e2.message])); }
+    return box;
+  }
+
+  // ---------- 第 4 步：数据 Schema（接入契约，只读） ----------
+  function stepSchema() {
+    const box = el("div", {});
+    const ct = state.component_type;
+    const fixed = state.contentMode === "fixed";
+    box.appendChild(el("div", { class: "sty-inherit" }, [
+      UI.icon("palette", 14),
+      el("span", {}, ["这是本组件与 agent 之间的数据契约：模型按 params_schema 传参，用户提交后按 submit_schema 回传。开发接入时看这里，日常配置不用改。"]),
+    ]));
+    const pre = (obj) => el("pre", { class: "code num", style: "max-height:300px;overflow:auto" },
+      [JSON.stringify(obj, null, 2)]);
+    const sec = (title, hint, node, copyObj) => el("div", { class: "sty-section" }, [
+      el("div", { class: "sty-label" }, [title, hint ? UI.help(hint) : null,
+        el("span", { style: "flex:1" }),
+        copyObj !== undefined ? el("button", { class: "btn small", type: "button", onclick: () => {
+          navigator.clipboard.writeText(JSON.stringify(copyObj, null, 2)); UI.toast("已复制" + title);
+        } }, [UI.icon("copy", 13), "复制"]) : null]),
+      node]);
+    const host = el("div", {}, [el("div", { class: "muted" }, ["加载中……"])]);
+    box.appendChild(host);
+    (async () => {
+      try {
+        const r = await UI.api("/api/components/schema-preview", { method: "POST",
+          body: { component_type: ct, config: { display: state.display || undefined } } });
+        host.innerHTML = "";
+        host.appendChild(sec("params_schema", "模型调用本组件时要填的参数", pre(r.params_schema || {}), r.params_schema || {}));
+        if (r.submit_schema && Object.keys(r.submit_schema).length) {
+          host.appendChild(sec("submit_schema", "用户提交后回传给 agent 的结构", pre(r.submit_schema), r.submit_schema));
+        } else {
+          host.appendChild(sec("submit_schema", null,
+            el("div", { class: "muted" }, ["展示类组件没有提交，不产生回传数据"])));
+        }
+        if (fixed) host.appendChild(el("div", { class: "pv-demo-note" },
+          ["本实例是「固定配置内容」：内容由平台下发，模型无需（也不能）传这部分参数"]));
+      } catch (e) {
+        host.innerHTML = "";
+        host.appendChild(el("div", { class: "field-error" }, ["加载失败：" + e.message]));
       }
-    } }, ["数据 schema（组件内容由调用参数给出）", UI.icon("chevron", 13)]);
-    box.appendChild(el("div", { style: "margin-top:6px;border-top:1px solid var(--border);padding-top:12px" }, [schemaBtn, schemaBody]));
+    })();
     return box;
   }
 
@@ -2470,8 +2565,8 @@ async function openEditor(cardId, prefill, initStep) {
       return;
     }
     const spacer = el("div", { style: "flex:1" });
-    const nextTo = { pick: ["content", "下一步"], content: ["style", "下一步"] };
-    const backTo = { content: isNew ? "pick" : null, style: "content" };
+    const nextTo = { pick: ["content", "下一步"], content: ["style", "下一步"], style: ["schema", "下一步"] };
+    const backTo = { content: isNew ? "pick" : null, style: "content", schema: "style" };
     if (step === "done") {
       foot.append(spacer,
 
@@ -2481,13 +2576,13 @@ async function openEditor(cardId, prefill, initStep) {
     if (backTo[step]) foot.appendChild(el("button", { class: "btn", onclick: () => gotoStep(backTo[step]) }, ["上一步"]));
     foot.appendChild(errorsBox);
     foot.appendChild(spacer);
-    if (nextTo[step] && (isNew || step === "content")) {
+    if (nextTo[step] && (isNew || step === "content" || step === "style")) {
       const [to, label] = nextTo[step];
       const b = el("button", { class: "btn primary", "data-next": "1", onclick: () => gotoStep(to) }, [label]);
       if (step === "pick") b.disabled = !state.component_type;
       foot.appendChild(b);
     }
-    if (step === "style") {
+    if (step === "style" || step === "schema") {
       foot.appendChild(el("button", { class: "btn", onclick: (e) => save(false, e.currentTarget) }, ["保存草稿"]));
       foot.appendChild(el("button", { class: "btn primary", onclick: (e) => save(true, e.currentTarget) }, ["保存并发布"]));
     }
@@ -2499,14 +2594,15 @@ async function openEditor(cardId, prefill, initStep) {
     Object.keys(fieldWraps).forEach(k => delete fieldWraps[k]);
     errorsBox.innerHTML = "";
     formCol.innerHTML = "";
-    formCol.appendChild({ pick: stepPick, content: stepContent, style: stepStyle, done: stepDone }[step]());
+    formCol.appendChild({ pick: stepPick, content: stepContent, style: stepStyle, schema: stepSchema, done: stepDone }[step]());
     if (window.__pvResetBtn) window.__pvResetBtn.hidden = step !== "style";
     // 选择组件步：卡片自带示例预览，右侧预览列整列隐藏
     const splitEl = formCol.closest(".ed-split") || document.querySelector(".ed-split");
     if (splitEl) {
-      splitEl.classList.toggle("pick-mode", step === "pick");
+      const wide = step === "pick" || step === "schema";   // 选组件与数据契约都不需要右侧预览
+      splitEl.classList.toggle("pick-mode", wide);
       const pvCol = splitEl.querySelector(".ed-preview");
-      if (pvCol) pvCol.hidden = step === "pick";
+      if (pvCol) pvCol.hidden = wide;
     }
     drawStepBar();
     drawFoot();
@@ -2909,7 +3005,7 @@ async function openEditor(cardId, prefill, initStep) {
       el("div", { class: "modal-head" }, [
         el("div", { style: "display:flex;align-items:center;gap:12px" }, [
           el("button", { class: "btn small", onclick: () => { const cb = mask.querySelector(".close-btn"); cb.onclick ? cb.onclick() : closeEditor(); } }, ["返回工作台"]),
-          el("div", { class: "modal-title" }, [isNew ? "新建组件实例" : `编辑「${card.name}」`]),
+          el("div", { class: "modal-title" }, [isNew ? "新建组件" : `编辑「${card.name}」`]),
         ]),
         el("button", { class: "close-btn", "aria-label": "关闭", hidden: "" }, ["×"]),
       ]),
@@ -2927,6 +3023,9 @@ async function openEditor(cardId, prefill, initStep) {
   rebuild();
 }
 
+// 同页联动：别处改了产品或主题，工作台立刻跟上（不必刷新页面）
+UI.on("products-changed", () => loadCards());
+UI.on("brands-changed", () => loadCards());
 document.getElementById("newBtn").onclick = () => newConfigWizard();
 document.getElementById("searchInput").oninput = UI.debounce(() => loadCards(), 250);
 document.getElementById("searchBtn").onclick = async (e) => {

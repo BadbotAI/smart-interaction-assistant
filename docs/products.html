@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>产品与接入 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=4f075a46">
+<link rel="stylesheet" href="./shared.css?v=fb668b05">
 <link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 </head>
 <body class="has-side">
@@ -19,10 +19,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=6ebeeda6"></script>
+<script src="./mock_data.js?v=407273db"></script>
 <script src="./mock_api.js?v=22be0b24"></script>
 <script src="./tokens.js?v=aba04afb"></script>
-<script src="./ui.js?v=d95ee44c"></script>
+<script src="./ui.js?v=582d0a80"></script>
 <script>
 UI.nav("products");
 const { el } = UI;
@@ -134,7 +134,7 @@ function configProduct(p) {
             name: form.st.name.trim(), brand_file: form.st.brand_file } });
           UI.toast("产品配置已保存");
           mask.querySelector(".close-btn")?.click();
-          load();
+          load(); UI.emit("products-changed");
         } catch (e2) { err.textContent = e2.data?.error || e2.message; }
       }, "保存中……");
     } }, ["保存配置"]),
@@ -156,6 +156,7 @@ function newProductDialog() {
               name: form.st.name.trim(), brand_file: form.st.brand_file } });
             mask.remove();
             await load();
+            UI.emit("products-changed");   // 侧栏产品切换器同页即时刷新
             const p = products.find(x => x.product_id === r.product_id);
             if (p) configProduct(p);
             UI.toast("产品已创建，接入信息见右侧抽屉");
@@ -194,7 +195,7 @@ function draw() {
                 const name = i === 0 ? base : base + (i + 1);
                 try {
                   await UI.api("/api/products", { method: "POST", body: { name, brand_file: p.brand_file, card_ids: p.card_ids } });
-                  UI.toast(`已复制为「${name}」`); load();
+                  UI.toast(`已复制为「${name}」`); load(); UI.emit("products-changed");
                   return;
                 } catch (e2) {
                   if (e2.status !== 409) { UI.toast(e2.data?.error || e2.message, true); return; }
@@ -205,7 +206,7 @@ function draw() {
             { label: "删除", danger: true, onClick: async () => {
               const ok = await UI.confirm("删除产品", `删除「${p.name}」后，它的接入 Key 与注册表立即失效，已出包的 SDK 将无法工作。`, { okText: "删除", danger: true });
               if (!ok) return;
-              try { await UI.api(`/api/products/${p.product_id}/delete`, { method: "POST" }); UI.toast("已删除"); load().then(() => {
+              try { await UI.api(`/api/products/${p.product_id}/delete`, { method: "POST" }); UI.toast("已删除"); UI.emit("products-changed"); load().then(() => {
   // ?new=1 深链（切换器「新建产品」）：自动打开新建弹窗
   if (new URLSearchParams(location.search).get("new")) newProductDialog();
 }); }
@@ -242,6 +243,7 @@ async function load() {
   products = pr.products || [];
   draw();
 }
+UI.on("brands-changed", () => load());   // 主题增删后，产品页的主题下拉同页更新
 const nb = document.getElementById("newBtn");
 nb.append(UI.icon("plus", 14), "新建产品");
 nb.onclick = newProductDialog;
