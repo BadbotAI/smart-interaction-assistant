@@ -670,6 +670,23 @@ def migrate_preset_names_v27():
     db.audit("system", "migrate_preset_names_v27", {"rows": n})
 
 
+def migrate_preset_suffix_v29():
+    """预置实例名以前带产品 id 后缀（「处理方式选择-a1b2」），改成「处理方式选择（默认）」。"""
+    import re as _re2
+    conn = db.get_conn()
+    if conn.execute("SELECT 1 FROM audit_log WHERE action='migrate_preset_suffix_v29' LIMIT 1").fetchone():
+        return
+    n = 0
+    for r in conn.execute("SELECT card_id, name FROM cards").fetchall():
+        m = _re2.match(r"^(.+)-[0-9a-f]{4}$", r["name"] or "")
+        if not m:
+            continue
+        conn.execute("UPDATE cards SET name=? WHERE card_id=?", (m.group(1) + "（默认）", r["card_id"]))
+        n += 1
+    conn.commit()
+    db.audit("system", "migrate_preset_suffix_v29", {"rows": n})
+
+
 def seed_instance_events_v28():
     """给每个组件实例补一段近 30 天的真实形态事件，否则「单组件数据分析」里多数实例是空的。
     只造事件，不造指标：漏斗、选项分布、赞踩都由这些事件聚合出来。"""
@@ -1197,6 +1214,7 @@ def run_all():
     migrate_events_cardid_v26()
     migrate_preset_names_v27()
     seed_instance_events_v28()
+    migrate_preset_suffix_v29()
     return {"bank_queries": n_bank, "ab_feedback": n_fb, "history_traces": n_hist}
 
 

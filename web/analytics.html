@@ -308,6 +308,7 @@ async function loadSingle() {
   box.appendChild(filterBar());
   const k = o.kpi;
   const picked = FILTERS.cards.find(c => c.card_id === pickState.card_id);
+  const pickedRow = (ins.rows || []).find(r => r.card_id === pickState.card_id);
   if (!k.rendered) {
     box.appendChild(el("div", { class: "an-card" }, [
       el("div", { class: "an-empty" }, ["当前筛选条件下没有事件，换个组件或时间范围看看。"])]));
@@ -317,7 +318,9 @@ async function loadSingle() {
     kpiCard(picked ? picked.name + " · 曝光" : "曝光", k.rendered, "次", rangeLabel(),
       "这个组件在对话里出现的次数"),
     kpiCard("交互率", pct(k.interact_rate), "", `${o.funnel[1].value} 次有操作`, "曝光后有操作的比例"),
-    kpiCard("完成率", pct(k.complete_rate), "", `提交 ${k.submitted} 次`, "曝光之后走到提交的比例"),
+    kpiCard("完成率", pickedRow && pickedRow.interactive === false ? "—" : pct(k.complete_rate), "",
+      pickedRow && pickedRow.interactive === false ? "展示类组件没有提交" : `提交 ${k.submitted} 次`,
+      "曝光之后走到提交的比例；展示类组件没有提交按钮"),
     kpiCard("推荐采纳率", k.rec_accept_rate == null ? "-" : pct(k.rec_accept_rate), "",
       k.rec_sample ? `${k.rec_sample} 次带推荐的提交` : "暂无带推荐项的提交",
       "用户直接用了 AI 推荐的那一项，没有改选"),

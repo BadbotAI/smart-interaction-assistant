@@ -99,7 +99,14 @@
     }
     if (pn.startsWith("/api/analytics/")) {
       // 快照里按 30 天存了一份；换时间范围时按比例缩放，保持演示可读
-      const base = D[pn] || {};
+      const cid0 = new URLSearchParams((full || "").split("?")[1] || "").get("card_id");
+      // 单组件分析要能按实例筛：快照里给每个实例各存了一份
+      const byCard = (D["/api/analytics/by-card"] || {})[cid0 || ""];
+      let base = D[pn] || {};
+      if (byCard) {
+        if (pn.endsWith("/overview") && byCard.overview) base = byCard.overview;
+        if (pn.endsWith("/options") && byCard.options) base = byCard.options;
+      }
       const q = new URLSearchParams((full || "").split("?")[1] || "");
       const d = Number(q.get("days") || 30);
       if (d === 30 || !base.kpi) return base;

@@ -3435,8 +3435,6 @@ async function openDetail(cardId) {
       el("span", { class: "dt-title" }, [c.name]),
       el("span", { class: "chip " + ST[1] }, [ST[0]]),
       el("div", { style: "flex:1" }),
-      el("button", { class: "btn small", type: "button",
-        onclick: () => showEmbedInfo(c, eff) }, ["接入信息"]),
       el("button", { class: "btn small primary", type: "button", onclick: () => {
         if (eff === "published") { UI.toast("已上线的配置不可编辑，请先下线", true); return; }
         closeDetail(); openEditor(c.card_id);

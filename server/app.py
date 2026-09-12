@@ -866,10 +866,9 @@ async def create_product(request: Request):
     pid = "prod-" + db.new_id()[:8]
     # 新产品预置全套组件模板实例（已下线）：用户从「上线需要的」开始，而不是从零配置
     if not card_ids:
-        suffix = pid[-4:]
         for v2t, ct0 in registry.V2_DEFAULT_CT.items():
             label = PRESET_NAMES.get(ct0) or (registry.V2_META.get(v2t) or {}).get("label") or ct0
-            preset_name = f"{label}-{suffix}"
+            preset_name = f"{label}（默认）"
             c0, errs0 = cards.create_card("tenant-demo", {
                 "name": preset_name, "component_type": ct0, "description": "",
                 "model_invokable": True, "field_bindings": {"config": {}},
@@ -925,12 +924,18 @@ async def delete_product(product_id: str):
     row = conn.execute("SELECT name, card_ids FROM products WHERE product_id=?", (product_id,)).fetchone()
     if not row:
         return JSONResponse({"error": "产品不存在"}, status_code=404)
-    # 级联清理本产品的预置实例（名称带产品后缀），避免删产品后孤儿组件堆积
-    suffix = "-" + product_id[-4:]
+    # 级联清理：只删「只被这一个产品引用」的实例，避免删产品后孤儿组件堆积。
+    # 以前靠名字后缀判断，实例一改名就失效
+    others = {}
+    for r2 in conn.execute("SELECT product_id, card_ids FROM products WHERE product_id<>?", (product_id,)).fetchall():
+        for x in (db.dj(r2["card_ids"], []) or []):
+            others[x] = True
     removed = 0
     for cid in (db.dj(row["card_ids"], []) or []):
-        c = conn.execute("SELECT name FROM cards WHERE card_id=? AND status!='deleted'", (cid,)).fetchone()
-        if c and c["name"].endswith(suffix):
+        if others.get(cid):
+            continue
+        c = conn.execute("SELECT 1 FROM cards WHERE card_id=? AND status!='deleted'", (cid,)).fetchone()
+        if c:
             conn.execute("UPDATE cards SET status='deleted' WHERE card_id=?", (cid,))
             removed += 1
     conn.execute("DELETE FROM products WHERE product_id=?", (product_id,))

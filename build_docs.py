@@ -30,6 +30,7 @@ def snapshot():
             "/api/components/catalog",
             "/api/analytics/overview?days=30", "/api/analytics/by-type?days=30",
             "/api/analytics/options?days=30", "/api/analytics/instances?days=30",
+            "/api/analytics/filters",
             "/api/traces?limit=30", "/v1/models", "/v1/policies"]
 
     def get(p):
@@ -39,6 +40,20 @@ def snapshot():
     data = {}
     for k in keys:
         data[k.split("?")[0]] = get(k)
+    # 单组件数据分析要按实例看：给排行里的每个实例各存一份，静态站才筛得动
+    by_card = {}
+    for row in (data.get("/api/analytics/instances") or {}).get("rows", []):
+        cid = row.get("card_id")
+        if not cid:
+            continue
+        try:
+            by_card[cid] = {
+                "overview": get(f"/api/analytics/overview?days=30&card_id={cid}"),
+                "options": get(f"/api/analytics/options?days=30&card_id={cid}"),
+            }
+        except Exception:
+            pass
+    data["/api/analytics/by-card"] = by_card
     out = "window.MOCK_DATA = " + json.dumps(data, ensure_ascii=False, separators=(",", ":")) + ";\n"
     open(os.path.join(DOCS, "mock_data.js"), "w", encoding="utf-8").write(out)
     print("snapshot:", len(data), "keys,", len(out) // 1024, "KB")

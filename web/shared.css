@@ -1983,13 +1983,16 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
   height: 318px;                       /* 所有卡片定高，一行里对得齐 */
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
 .wb-card:hover { border-color: var(--primary-border); box-shadow: 0 2px 10px rgba(16, 24, 40, .06); }
-.wb-head { display: flex; align-items: center; gap: 10px; flex: none; height: 34px; }
+.wb-head { display: flex; align-items: center; gap: 10px; flex: none; min-height: 34px; }
 .wb-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
-.wb-name { font-weight: 600; font-size: var(--font-title); line-height: 1.4; flex: none; max-width: 58%;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* 标签跟在名称右边，一行放不下就省略，不换行 */
-.wb-chips { display: flex; gap: 6px; min-width: 0; overflow: hidden; flex-wrap: nowrap; }
+/* 名字可以省略，标签不能被切一半——标签是状态信息，切了就读不出来 */
+.wb-name { font-weight: 600; font-size: var(--font-title); line-height: 1.4;
+  flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-chips { display: flex; gap: 6px; flex: none; flex-wrap: nowrap; }
 .wb-chips > * { flex: none; }
+/* icon 与文字按视觉中线对齐：中文字形重心偏下，图标跟着下移 1px 才看着齐 */
+.wb-head > .tpl-ico { align-self: center; transform: translateY(1px); }
+.tpl-rich .tpl-head .tpl-ico { transform: translateY(1px); }
 .wb-summary { color: var(--text-muted); font-size: var(--font-caption);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-foot { display: flex; align-items: center; gap: 8px; padding-top: 10px; flex: none;
@@ -2015,8 +2018,8 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 .wb-preview { background: var(--bg-sunken); border-radius: 10px; padding: 12px;
   flex: 1; min-height: 0;
   overflow: hidden; position: relative; pointer-events: none; }
-.wb-preview::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 40px;
-  background: linear-gradient(transparent, var(--bg-sunken)); }
+.wb-preview::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 56px;
+  background: linear-gradient(transparent, var(--bg-sunken) 72%); }
 .wb-preview .comp { margin-top: 0; max-width: 100%; }
 
 /* 模板选择卡补充态 */
@@ -2033,7 +2036,15 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 /* ===== 多容器样式模型：面板 / 选项容器 / 提交按钮容器 各自的底色与边框 ===== */
 .comp { border-color: var(--panel-bc, var(--border)); }
 .comp .opt-item, .comp .btn.opt, .comp .opt-card, .comp .rank-item, .comp .fb-cand {
-  background: var(--opt-bg, var(--bg-elevated)); border-color: var(--opt-bc, var(--border)); }
+  background: var(--opt-bg, var(--bg-elevated)); border-color: var(--opt-bc, var(--border));
+  color: var(--ink-opt, var(--ink-panel, var(--text-primary))); }
+.comp .opt-item .opt-text, .comp .opt-card .oc-name, .comp .rank-item > span { color: inherit; }
+.comp .opt-card .oc-desc, .comp .fb-cand-body {
+  color: var(--ink-opt, var(--ink-panel, var(--text-muted))); }
+.comp[style*="--ink-opt"] .oc-desc, .comp[style*="--ink-panel"] .oc-desc { opacity: .82; }
+/* 面板底色改深时，卡内正文同样翻色 */
+.comp { color: var(--ink-panel, var(--text-primary)); }
+.comp .comp-title { color: var(--ink-panel, var(--text-primary)); }
 .comp .fb-cand { border-radius: var(--opt-radius, 10px); }
 .comp .submit-bar .btn.primary:not(.submitted) {
   background: var(--btn-bg, var(--primary)); border-color: var(--btn-bc, var(--btn-bg, var(--primary)));

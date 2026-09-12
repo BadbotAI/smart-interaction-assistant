@@ -51,6 +51,22 @@ window.Components = (function () {
   const OV_FONT = { "-1": "13px", "1": "15px", "2": "16px" };
   const OV_HEIGHT = { compact: "32px", regular: "40px", large: "48px" };
   const OV_SHADOW = { none: "none", sm: "0 1px 3px rgba(15,27,38,.08)", md: "0 4px 12px rgba(15,27,38,.12)", lg: "0 8px 24px rgba(15,27,38,.18)" };
+  // 底色被覆盖成深色时，上面的文字得跟着翻成浅色，否则读不出来
+  function relLum(hex) {
+    const m = String(hex || "").trim().replace("#", "");
+    if (!/^[0-9a-f]{6}$/i.test(m)) return null;
+    const ch = [0, 2, 4].map(i => {
+      const v = parseInt(m.slice(i, i + 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+  }
+  function inkOn(hex) {
+    const L = relLum(hex);
+    if (L == null) return null;
+    return (1.05 / (L + 0.05)) >= ((L + 0.05) / 0.05) ? "#FFFFFF" : "#0A0C10";
+  }
+
   function applyStyleOverrides(node, so) {
     if (!so || typeof so !== "object") return;
     const set = (k, v) => { if (v) node.style.setProperty(k, v); };
@@ -68,7 +84,8 @@ window.Components = (function () {
     const hN = px(so.height, 10);
     set("--control-height", hN != null ? hN + "px" : OV_HEIGHT[so.height]);
     set("--brand-shadow", OV_SHADOW[so.shadow]);
-    if (so["panel.bg"]) set("--bg-elevated", so["panel.bg"]);
+    if (so["panel.bg"]) { set("--bg-elevated", so["panel.bg"]); set("--ink-panel", inkOn(so["panel.bg"])); }
+    if (so["opt.bg"]) set("--ink-opt", inkOn(so["opt.bg"]));
     if (so.sel_style === "outline") node.classList.add("sel-outline");
     if (so.rec_chip === false) node.classList.add("no-rec");
     // —— 组件参数（规格表键）：CSS 变量 ——
