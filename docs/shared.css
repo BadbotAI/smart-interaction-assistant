@@ -1706,6 +1706,9 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
   position: relative; transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast); }
 .tpl-pick:hover { border-color: var(--primary-border); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(16,24,40,.06); }
 .tpl-pick.selected { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
+
+.tpl-ico { display: inline-flex; align-items: center; justify-content: center; flex: none;
+  border-radius: 9px; background: var(--primary-weak); color: var(--primary); }
 .tpl-pick .tpl-ico { width: 38px; height: 38px; border-radius: 10px; flex: none;
   background: var(--primary-weak); color: var(--primary); display: inline-flex; align-items: center; justify-content: center; }
 .tpl-pick .tpl-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -1821,8 +1824,7 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 .wb-chips { display: flex; gap: 6px; flex: none; flex-wrap: nowrap; }
 .wb-chips > * { flex: none; }
 
-.wb-head > .tpl-ico { align-self: center; transform: translateY(1px); }
-.tpl-rich .tpl-head .tpl-ico { transform: translateY(1px); }
+.wb-head > .tpl-ico { align-self: center; }
 .wb-summary { color: var(--text-muted); font-size: var(--font-caption);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-foot { display: flex; align-items: center; gap: 8px; padding-top: 10px; flex: none;

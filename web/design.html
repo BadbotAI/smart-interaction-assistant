@@ -64,7 +64,8 @@
     <div class="ds-left">
       <div class="card" id="brandLibCard" style="flex:1;display:flex;flex-direction:column;min-height:0">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-          <span style="font-weight:600;flex:none;white-space:nowrap">风格主题</span>
+          <span style="font-weight:600;flex:none;white-space:nowrap">主题列表</span>
+          <span class="muted" id="brandCount" style="font-size:var(--font-caption)"></span>
           <div style="flex:1"></div>
           <button class="btn small primary" id="newBrandBtn" disabled>新建主题</button>
         </div>
@@ -429,7 +430,7 @@ function brandDialog(existing, onClose) {
     } catch (e) {}
   };
 
-  const nameIn = el("input", { type: "text", maxlength: "20", value: existing?.brand_name || "", placeholder: "例如：政企稳重" });
+  const nameIn = el("input", { type: "text", maxlength: "20", value: existing?.brand_name || "", placeholder: "例如：政务蓝" });
   const nameErr = el("div", { class: "field-error" });
   const normName = (x) => String(x || "").trim().toLowerCase().replace(/\s+/g, "");
   const dupOf = (v) => brands.find(b2 => normName(b2.brand_name) === normName(v)
@@ -905,6 +906,8 @@ function brandDialog(existing, onClose) {
 function renderBrands() {
   const grid = document.getElementById("brandGrid");
   grid.innerHTML = "";
+  const cnt = document.getElementById("brandCount");
+  if (cnt) cnt.textContent = brands.length + " 套";
   brands.forEach(b => {
     const users = products.filter(p => p.brand_file === b.file);
     const isSel = b.file === previewFile;

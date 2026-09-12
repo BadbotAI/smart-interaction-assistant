@@ -383,6 +383,10 @@
       if (!/^[a-z0-9][a-z0-9-]{1,23}$/.test(bid)) return { error: "brand_id 需为 2-24 位小写字母、数字或短横线" };
       if (bid === "default") return { error: "默认品牌不可覆盖，请换一个 brand_id" };
       if (!bname) return { error: "缺少 brand_name" };
+      // 与服务端同口径：主题名忽略大小写与空格后不许重复
+      const nm = (x) => String(x || "").replace(/\s+/g, "").toLowerCase();
+      const dup = window.__mockBrands().find(b2 => nm(b2.brand_name) === nm(bname) && b2.brand_id !== bid);
+      if (dup) return { error: `已有同名主题「${dup.brand_name}」，请换一个主题名称`, __status: 409 };
       const file = "brand-tokens." + bid + ".json";
       const rec = { file, brand_id: bid, brand_name: bname, tokens: { ...tokens, brand_id: bid, brand_name: bname } };
       const i = BRAND_EXTRA.findIndex(b => b.brand_id === bid);
