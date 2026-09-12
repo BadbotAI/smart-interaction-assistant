@@ -13,7 +13,12 @@
   .an-kpi .v { font-size: 26px; font-weight: 700; letter-spacing: -.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
   .an-kpi .v small { font-size: 13px; font-weight: 500; color: var(--text-muted); margin-left: 3px; }
   .an-kpi .s { font-size: var(--font-caption); color: var(--text-muted); margin-top: 2px; }
-  .an-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+  .an-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+  .an-grid > div { display: flex; flex-direction: column; gap: 14px; }
+  .an-grid > div > .an-card { margin-bottom: 0; }
+  .an-grid > div > .an-card:only-child { flex: 1; display: flex; flex-direction: column; }
+  .an-grid > div > .an-card:only-child > .fn-row:first-of-type { margin-top: auto; }
+  .an-grid > div > .an-card:only-child > .fn-row:last-of-type { margin-bottom: auto; }
   @media (max-width: 1100px) { .an-grid { grid-template-columns: 1fr; } }
   .an-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; }
   .an-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
@@ -51,6 +56,7 @@
     background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px;
     padding: 10px 12px; margin-bottom: 14px; }
   .an-filters .fl { font-size: var(--font-caption); color: var(--text-muted); }
+  #rangeMount { display: flex; align-items: center; gap: 8px; flex: none; }
   .an-range-custom { display: flex; align-items: center; gap: 6px; }
   .an-range-custom input[type=date] { height: 32px; padding: 4px 8px; }
   .an-inst-row { cursor: pointer; }
@@ -109,8 +115,7 @@ function funnelCard(o) {
     }
   });
   return el("div", { class: "an-card" }, [
-    el("div", { class: "an-head" }, [el("span", { class: "t" }, ["使用漏斗"]),
-      el("span", { class: "d" }, ["组件渲染出来之后，用户是否真的用了它"])]),
+    el("div", { class: "an-head" }, [el("span", { class: "t" }, ["使用漏斗"])]),
     ...rows,
   ]);
 }
@@ -148,8 +153,7 @@ function byTypeCard(rows) {
     el("div", { class: "an-head" }, [el("span", { class: "t" }, ["按组件类型"])]),
     el("div", { class: "an-empty" }, ["暂无数据"])]);
   return el("div", { class: "an-card" }, [
-    el("div", { class: "an-head" }, [el("span", { class: "t" }, ["按组件类型"]),
-      el("span", { class: "d" }, ["哪类组件更容易被用户完成"])]),
+    el("div", { class: "an-head" }, [el("span", { class: "t" }, ["按组件类型"])]),
     el("div", { style: "overflow-x:auto" }, [
       el("table", { class: "data" }, [
         el("thead", {}, [el("tr", {}, ["组件", "曝光", "开始操作", "提交", "交互率", "完成率"]
@@ -160,7 +164,7 @@ function byTypeCard(rows) {
           el("td", { class: "num" }, [String(r.started)]),
           el("td", { class: "num" }, [String(r.submitted)]),
           el("td", { class: "num muted" }, [r.rendered ? pct(r.interact_rate) : "-"]),
-          el("td", { class: "num" }, [r.rendered ? pct(r.complete_rate) : "-"]),
+          el("td", { class: "num" }, [r.interactive === false ? "—" : (r.rendered ? pct(r.complete_rate) : "-")]),
         ]))),
       ]),
     ]),
@@ -173,7 +177,7 @@ function optionsCard(groups) {
     el("div", { class: "an-empty" }, ["还没有带选项的提交记录"])]);
   return el("div", { class: "an-card" }, [
     el("div", { class: "an-head" }, [el("span", { class: "t" }, ["用户选了什么"]),
-      el("span", { class: "d" }, ["同一组候选项的选择分布，绿色为 AI 推荐项"])]),
+      el("span", { class: "d" }, ["绿色是 AI 推荐项"])]),
     ...groups.map(g => el("div", { class: "od-group" }, [
       el("div", { class: "od-title" }, [CT_CN(g.component_type),
         el("span", { class: "muted", style: "font-weight:400" }, [`${g.total} 次提交`])]),
@@ -193,7 +197,7 @@ function instancesCard(rows) {
     el("div", { class: "an-empty" }, ["还没有能归到具体实例的事件（需要 SDK 回传 card_id）"])]);
   return el("div", { class: "an-card" }, [
     el("div", { class: "an-head" }, [el("span", { class: "t" }, ["组件实例排行"]),
-      el("span", { class: "d" }, ["曝光最多的实例，完成率低的值得优先优化"])]),
+      el("span", { class: "d" }, ["点一行看它的数据"])]),
     el("div", { style: "overflow-x:auto" }, [
       el("table", { class: "data" }, [
         el("thead", {}, [el("tr", {}, ["实例", "状态", "曝光", "提交", "完成率"].map(h => el("th", {}, [h])))]),
@@ -207,7 +211,7 @@ function instancesCard(rows) {
             [{ published: "已上线", offline: "已下线", draft: "草稿", deleted: "已删除" }[r.status] || r.status])]),
           el("td", { class: "num" }, [String(r.rendered)]),
           el("td", { class: "num" }, [String(r.submitted)]),
-          el("td", { class: "num" }, [pct(r.complete_rate)]),
+          el("td", { class: "num" }, [r.interactive === false ? "—" : pct(r.complete_rate)]),
         ]))),
       ]),
     ]),
@@ -241,12 +245,12 @@ async function loadOverall() {
     return;
   }
   box.appendChild(el("div", { class: "an-kpis" }, [
-    kpiCard("曝光", k.rendered, "次", rangeLabel(), "组件被渲染进对话的次数（card_rendered 事件）"),
-    kpiCard("提交", k.submitted, "次", `完成率 ${pct(k.complete_rate)}`, "用户点提交的次数（card_submitted 事件）"),
-    kpiCard("交互率", pct(k.interact_rate), "", "曝光后有操作的比例", "用户至少点了一下（card_interaction_started）"),
+    kpiCard("曝光", k.rendered, "次", rangeLabel(), "组件在对话里出现的次数"),
+    kpiCard("提交", k.submitted, "次", `完成率 ${pct(k.complete_rate)}`, "用户点了提交的次数"),
+    kpiCard("交互率", pct(k.interact_rate), "", `${o.funnel[1].value} 次有操作`, "曝光后有操作的比例"),
     kpiCard("推荐采纳率", k.rec_accept_rate == null ? "-" : pct(k.rec_accept_rate), "",
       k.rec_sample ? `${k.rec_sample} 次带推荐的提交` : "暂无带推荐项的提交",
-      "用户直接接受 AI 推荐项、没有改选的比例"),
+      "用户直接用了 AI 推荐的那一项，没有改选"),
   ]));
   box.appendChild(el("div", { class: "an-grid" }, [
     el("div", {}, [funnelCard(o)]),
@@ -311,12 +315,12 @@ async function loadSingle() {
   }
   box.appendChild(el("div", { class: "an-kpis" }, [
     kpiCard(picked ? picked.name + " · 曝光" : "曝光", k.rendered, "次", rangeLabel(),
-      "该筛选范围内组件被渲染的次数"),
-    kpiCard("交互率", pct(k.interact_rate), "", "曝光后有操作的比例", "用户至少点了一下"),
+      "这个组件在对话里出现的次数"),
+    kpiCard("交互率", pct(k.interact_rate), "", `${o.funnel[1].value} 次有操作`, "曝光后有操作的比例"),
     kpiCard("完成率", pct(k.complete_rate), "", `提交 ${k.submitted} 次`, "曝光之后走到提交的比例"),
     kpiCard("推荐采纳率", k.rec_accept_rate == null ? "-" : pct(k.rec_accept_rate), "",
       k.rec_sample ? `${k.rec_sample} 次带推荐的提交` : "暂无带推荐项的提交",
-      "用户直接接受 AI 推荐项、没有改选的比例"),
+      "用户直接用了 AI 推荐的那一项，没有改选"),
   ]));
   box.appendChild(el("div", { class: "an-grid" }, [
     el("div", {}, [funnelCard(o), optionsCard(op.groups || [])]),
@@ -351,40 +355,41 @@ async function load() {
   syncTab();
 }
 
-// 时间范围选择器：预设 + 自定义起止日期
+// 时间范围：预设下拉 + 两个日期框常驻一行，改日期即按日期算
 (function mountRange() {
   const host = document.getElementById("rangeMount");
-  const custom = el("span", { class: "an-range-custom", hidden: true });
-  const sIn = el("input", { type: "date" });
-  const eIn = el("input", { type: "date" });
-  const apply = () => {
-    range.start = sIn.value; range.end = eIn.value;
-    if (range.start && range.end && range.start > range.end) {
+  const ymd = (d) => new Date(d).toISOString().slice(0, 10);
+  const sIn = el("input", { type: "date", "aria-label": "开始日期" });
+  const eIn = el("input", { type: "date", "aria-label": "结束日期" });
+  let preset = null;   // 预设下拉的实例，切日期时把它拨到「自定义」
+
+  const reload = () => { document.getElementById("anSingle").dataset.loaded = ""; load(); };
+  const fillPreset = (days) => {
+    eIn.value = ymd(Date.now());
+    sIn.value = ymd(Date.now() - (days - 1) * 86400e3);
+  };
+  const onDateChange = () => {
+    if (sIn.value && eIn.value && sIn.value > eIn.value) {
       UI.toast("开始日期不能晚于结束日期", true); return;
     }
-    document.getElementById("anSingle").dataset.loaded = "";
-    load();
+    range.start = sIn.value; range.end = eIn.value;
+    if (preset) preset.setValue("custom");
+    reload();
   };
-  sIn.onchange = eIn.onchange = apply;
-  custom.append(sIn, el("span", { class: "muted" }, ["至"]), eIn);
-  host.appendChild(UI.fancySelect({
-    value: "30", width: "130px",
-    options: [["7", "近 7 天"], ["30", "近 30 天"], ["90", "近 90 天"], ["365", "近一年"], ["custom", "自定义范围"]],
+  sIn.onchange = eIn.onchange = onDateChange;
+
+  preset = UI.fancySelect({
+    value: "30", width: "124px",
+    options: [["7", "近 7 天"], ["30", "近 30 天"], ["90", "近 90 天"], ["365", "近一年"], ["custom", "自定义"]],
     onChange: (v) => {
-      if (v === "custom") {
-        custom.hidden = false;
-        if (!sIn.value) {
-          const d = new Date(Date.now() - 29 * 86400e3);
-          sIn.value = d.toISOString().slice(0, 10);
-          eIn.value = new Date().toISOString().slice(0, 10);
-        }
-        apply();
-      } else {
-        custom.hidden = true; range.start = range.end = ""; range.days = Number(v); load();
-      }
+      if (v === "custom") return;              // 直接改日期框即可
+      range.start = range.end = ""; range.days = Number(v);
+      fillPreset(Number(v));
+      reload();
     },
-  }));
-  host.appendChild(custom);
+  });
+  fillPreset(30);
+  host.append(preset, el("span", { class: "an-range-custom" }, [sIn, el("span", { class: "muted" }, ["至"]), eIn]));
 })();
 
 load().catch(e => UI.toast("加载失败：" + e.message, true));

@@ -81,11 +81,11 @@ const ACTION_NAMES = {
 
 // 详情说人话：ID 换成名称、技术键翻译、纯内部字段隐藏
 const DETAIL_KEY_CN = { card_id: "组件", card_name: "组件", product: "产品", product_id: "产品",
-  name: "名称", version: "版本", brand: "主题", brand_file: "主题文件", count: "数量",
+  name: "名称", version: "版本", brand: "主题", brand_name: "主题", count: "数量",
   rows: "处理条数", cards: "组件数" };
 // 这些是实现细节，对使用者没有信息量
 const DETAIL_HIDE = new Set(["force", "refs", "products_reset", "added", "tenant_id", "actor",
-  "presets_removed", "预置组件", "note"]);
+  "presets_removed", "预置组件", "note", "brand_id", "brand_file", "file"]);
 const nameMap = {};   // id -> 展示名（组件与产品共用）
 function idLabel(v, fallbackName) {
   const id = String(v);
@@ -106,6 +106,8 @@ function fmtDetail(d) {
     }).join(" · ");
 }
 function fmtActor(a) { return !a || a === "system" || a === "seed" ? "系统" : a === "demo-admin" ? "张三" : a; }
+// 迁移动作五花八门，没单独起名的一律叫「系统升级」——版本代号对使用者没意义
+function actionName(a) { return ACTION_NAMES[a] || (/^migrate_/.test(a) ? "系统升级" : a); }
 
 // 动作筛选只列本平台动作（组件 / 产品 / 主题 / 接入）；其余历史动作仍能正常显示名称，只是不进筛选
 const IA_ACTION_KEYS = [
@@ -131,7 +133,7 @@ document.getElementById("dlBtn").onclick = () => {
   const rows = (fltAction || fltKw.trim()) ? curFiltered : allAudit;
   const lines = [["时间", "操作人", "动作", "详情"].join(",")];
   rows.forEach(r => lines.push([
-    UI.fmtTs(r.ts), fmtActor(r.actor), ACTION_NAMES[r.action] || r.action,
+    UI.fmtTs(r.ts), fmtActor(r.actor), actionName(r.action),
     JSON.stringify(fmtDetail(r.detail)),
   ].join(",")));
   const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -160,10 +162,10 @@ async function load() {
   const kw = fltKw.trim().toLowerCase();
   const audit = raw.filter(r =>
     (!fltAction || r.action === fltAction) &&
-    (!kw || (fmtDetail(r.detail) + " " + (ACTION_NAMES[r.action] || r.action) + " " + fmtActor(r.actor)).toLowerCase().includes(kw)));
+    (!kw || (fmtDetail(r.detail) + " " + (actionName(r.action)) + " " + fmtActor(r.actor)).toLowerCase().includes(kw)));
   curFiltered = audit;
   document.getElementById("auditCount").textContent = (fltAction || kw)
-    ? `命中 ${audit.length} 条 / 共 ${raw.length} 条` : `共 ${raw.length} 条（最近 200 条内）`;
+    ? `命中 ${audit.length} 条 / 共 ${raw.length} 条` : `共 ${raw.length} 条`;
   const dl = document.getElementById("dlBtn");
   dl.textContent = "";
   dl.append(UI.icon("download", 14), (fltAction || kw) ? `导出筛选结果 ${audit.length} 条` : "导出全部 CSV");
@@ -186,7 +188,7 @@ async function load() {
     el("tbody", {}, audit.slice(0, shown).map(r => el("tr", {}, [
       el("td", { class: "num", style: "white-space:nowrap" }, [UI.fmtTs(r.ts)]),
       el("td", {}, [fmtActor(r.actor)]),
-      el("td", {}, [ACTION_NAMES[r.action] || r.action]),
+      el("td", {}, [actionName(r.action)]),
       el("td", { class: "muted num w-main", title: fmtDetail(r.detail) }, [fmtDetail(r.detail)]),
     ]))),
   ]));

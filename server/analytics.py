@@ -24,6 +24,10 @@ EV_SUBMIT = "card_submitted"
 EV_ABANDON = "card_abandoned"
 EV_FEEDBACK = "feedback_given"
 
+# 展示类组件没有提交按钮，完成率这一列对它们没有意义（显示 0% 会被误读成"效果差"）
+PRESENT_TYPES = {"table", "chart.line", "chart.bar", "chart.pie", "chart.waterfall", "chart.area",
+                 "metric.card", "timeline", "steps", "matrix.compare", "list.ordered", "text.emphasis"}
+
 
 def _range(days=None, start=None, end=None):
     """时间范围：给了起止日期就用日期，否则回落到「近 N 天」。"""
@@ -147,7 +151,8 @@ def by_type(days=30, start=None, end=None, product=None) -> dict:
             a["abandoned"] += 1
     out = []
     for a in agg.values():
-        a["complete_rate"] = _rate(a["submitted"], a["rendered"])
+        a["interactive"] = a["component_type"] not in PRESENT_TYPES
+        a["complete_rate"] = _rate(a["submitted"], a["rendered"]) if a["interactive"] else None
         a["interact_rate"] = _rate(a["started"], a["rendered"])
         out.append(a)
     out.sort(key=lambda x: -x["rendered"])
@@ -199,9 +204,12 @@ def instances(days=30, limit: int = 12, start=None, end=None, ct=None, product=N
     rows = []
     for a in agg.values():
         c = conn.execute("SELECT name, status FROM cards WHERE card_id=?", (a["card_id"],)).fetchone()
-        a["name"] = c["name"] if c else "（已删除）"
-        a["status"] = c["status"] if c else "deleted"
-        a["complete_rate"] = _rate(a["submitted"], a["rendered"])
+        if not c:
+            continue   # 实例已删除，排行里留一行「（已删除）」没有意义
+        a["name"] = c["name"]
+        a["status"] = c["status"]
+        a["interactive"] = a["component_type"] not in PRESENT_TYPES
+        a["complete_rate"] = _rate(a["submitted"], a["rendered"]) if a["interactive"] else None
         rows.append(a)
     rows.sort(key=lambda x: -x["rendered"])
     return {"days": days, "rows": rows[:limit]}

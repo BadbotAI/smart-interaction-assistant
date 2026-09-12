@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=90052cbc">
+<link rel="stylesheet" href="./shared.css?v=448bf90b">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -32,7 +32,7 @@
 </head>
 <body class="has-side">
 <div class="page">
-<div id="workbenchMain">
+<div id="workbenchMain" class="wb-layout">
   <div class="page-head" style="display:flex;justify-content:space-between;align-items:center;gap:16px">
     <div style="display:flex;align-items:center;gap:6px">
       <div class="page-title">组件工作台</div>
@@ -59,16 +59,16 @@
     </div>
     <button class="btn small" id="batchToggle">批量操作</button>
   </div>
-  <div id="cardList"></div>
+  <div id="cardList" class="wb-scroll"></div>
 </div>
 <div id="editorHost" hidden></div>
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=e878e660"></script>
+<script src="./mock_data.js?v=60c6f155"></script>
 <script src="./mock_api.js?v=5ebc21e8"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
-<script src="./ui.js?v=cc016c4c"></script>
+<script src="./ui.js?v=29c90ff0"></script>
 <script src="./components.js?v=5c6d7add"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
@@ -425,7 +425,7 @@ async function loadCards() {
   }
   const cat = WB_CATS.find(x => x[0] === wbCat) || WB_CATS[0];
   const shown2 = wbCat === "all" ? cards : cards.filter(c => cat[2].includes(c.component_type));
-  const nav = el("div", { class: "lib-cats", style: "top:190px" }, WB_CATS.map(([k, nm, types]) => {
+  const nav = el("div", { class: "lib-cats" }, WB_CATS.map(([k, nm, types]) => {
     const n = k === "all" ? cards.length : cards.filter(c => types.includes(c.component_type)).length;
     if (k !== "all" && !n) return null;
     return el("button", { type: "button", class: "lib-cat" + (wbCat === k ? " on" : ""),
@@ -504,26 +504,30 @@ function buildCardRow(c) {
         ]));
       }
     };
-    // 上下线开关：状态与操作合一（开关旁常驻状态文字，不靠一个孤立圆点表意）
-    const stText = { published: "已上线", offline: "已下线", draft: "草稿", archived: "历史版本" }[eff] || eff;
+    // 上下线开关只表达两种形态：已上线 / 已下线。
+    // 草稿还没发布过，不给开关——要先去「更多 - 发布」，否则开关等于偷偷替用户发布
+    const isDraft = eff === "draft";
+    const stText = { published: "已上线", offline: "已下线", archived: "历史版本" }[eff] || eff;
     const swInput = el("input", { type: "checkbox", role: "switch", "aria-label": "上线开关",
       ...(eff === "published" ? { checked: "" } : {}) });
     swInput.onchange = () => {
       swInput.disabled = true;
       if (swInput.checked) doPublish(); else doTransition(c, "offline");
     };
-    const statusBtn = el("label", { class: "wb-switch" + (eff === "published" ? " on" : ""),
-      title: eff === "published" ? "关闭即下线：组件从产品注册表移除" : "打开即上线：发布并加入当前产品注册表" }, [
-      swInput,
-      el("span", { class: "sw-track" }, [el("span", { class: "sw-knob" })]),
-      el("span", { class: "sw-text" }, [stText]),
-    ]);
+    const statusBtn = isDraft
+      ? el("span", { class: "chip gray", title: "草稿还没发布过，去「更多 - 发布」才能上线" }, ["草稿"])
+      : el("label", { class: "wb-switch" + (eff === "published" ? " on" : ""),
+          title: eff === "published" ? "关闭即下线：组件从产品注册表移除" : "打开即上线：加入当前产品注册表" }, [
+          swInput,
+          el("span", { class: "sw-track" }, [el("span", { class: "sw-knob" })]),
+          el("span", { class: "sw-text" }, [stText]),
+        ]);
     return el("div", { class: "wb-card card-row", "data-cid": c.card_id }, [
       el("div", { class: "wb-head" }, [
         chk,
         el("span", { class: "tpl-ico", style: "width:34px;height:34px" }, [UI.icon(CT_ICONS[c.component_type] || "grid", 18)]),
-        el("div", { class: "wb-title", style: editable ? "cursor:pointer" : "", title: editable ? "点击编辑" : "上线中不可编辑，先下线",
-          onclick: () => { if (editable) openEditor(c.card_id); else UI.toast("已上线的配置不可编辑，请先下线", true); } }, [
+        el("div", { class: "wb-title", style: "cursor:pointer", title: "查看详情",
+          onclick: () => openDetail(c.card_id) }, [
           el("div", { class: "wb-name" }, [c.name]),
           el("div", { class: "wb-chips" }, [
             (UI.ctName(c.component_type) || "") === c.name ? null : UI.ctChip(c.component_type),
@@ -547,6 +551,7 @@ function buildCardRow(c) {
       })(),
       sm === "主题默认" ? null : el("div", { class: "wb-summary" }, ["样式：" + sm]),
       el("div", { class: "wb-foot" }, [
+        UI.idChip(c.card_id, "ID"),
         el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["创建 " + UI.fmtTs(c.created_at)]),
         el("div", { style: "flex:1" }),
         el("button", { class: "btn small" + (editable ? "" : " dim"),
@@ -558,10 +563,26 @@ function buildCardRow(c) {
 }
 
 function moreButton(c, eff) {
-  // 统一菜单：复制 / 接入信息 / 删除。已上线实例不可直接删，给出「先下线」的明确路径
+  // 统一菜单：发布（仅草稿）/ 复制 / 接入信息 / 删除。已上线实例不可直接删，给出「先下线」的明确路径
   const moreBtn = el("button", { class: "btn small", onclick: () => UI.menu(moreBtn, [
-    { label: "复制为新实例", onClick: () => duplicateCard(c) },
-    { label: "接入信息", onClick: () => showEmbedInfo(c, eff) },
+    eff === "draft" ? { label: "发布", onClick: async () => {
+      try {
+        const resp = await UI.api(`/api/cards/${c.card_id}/transition`, { method: "POST", body: { action: "publish" } });
+        if (resp.warning) UI.toast(resp.warning, true); else UI.toast("已发布并上线");
+        loadCards(); loadKpisAndTodos();
+      } catch (e) {
+        const err = e.data?.error || {};
+        UI.toast(err.message || e.message, true);
+        if (err.errors) UI.modal("无法发布", el("div", {}, [
+          el("div", { class: "secondary", style: "margin-bottom:8px" }, ["以下内容还没填好："]),
+          ...err.errors.map(x => el("div", { class: "field-error" }, [`${FIELD_LABEL[x.field] || x.field}：${x.message}`])),
+          el("button", { class: "btn primary", style: "margin-top:12px",
+            onclick: () => { document.querySelector(".modal-mask")?.remove(); openEditor(c.card_id); } }, ["去修改"]),
+        ]));
+      }
+    } } : null,
+    { label: "复制组件", onClick: () => duplicateCard(c) },
+    { label: "查看详情", onClick: () => openDetail(c.card_id) },
     eff === "published"
       ? { label: "下线后删除", danger: true, onClick: async () => {
           const ok = await UI.confirm("下线并删除", `「${c.name}」正在线上。需要先下线才能删除，下线后 AI 将不再触发它。`,
@@ -3388,6 +3409,91 @@ async function openEditor(cardId, prefill, initStep) {
   window.scrollTo(0, 0);
   mask.querySelector(".close-btn").onclick = closeEditor;
   rebuild();
+}
+
+// ---------- 组件详情页（只读）：样式预览 + 数据 Schema + 接入信息 ----------
+async function openDetail(cardId) {
+  let c;
+  try { c = (await UI.api(`/api/cards/${cardId}`)).card; }
+  catch (e) { UI.toast("组件不存在或已删除", true); return; }
+  const eff = effStatus(c);
+  const cfg = ((c.field_bindings || {}).config) || {};
+  const ST = { published: ["已上线", "blue"], offline: ["已下线", "gray"], draft: ["草稿", "gray"] }[eff] || [eff, "gray"];
+
+  const host = document.getElementById("editorHost");
+  const info = (k, v) => el("div", { class: "dt-row" }, [
+    el("span", { class: "dt-k" }, [k]), el("span", { class: "dt-v" }, [v]),
+  ]);
+
+  const schemaBox = el("div", { class: "dt-code" }, ["读取中……"]);
+  const pvBox = el("div", { class: "dt-preview" });
+  try {
+    pvBox.appendChild(el("div", { class: "brand-scope" }, [Components.render(tileEnv(c), {
+      sendEvent: () => {}, onCollectSubmit: () => {}, onControl: () => {}, preview: true,
+    })]));
+  } catch (e) { pvBox.appendChild(el("div", { class: "muted" }, ["预览暂不可用"])); }
+
+  const page = el("div", { class: "dt-page" }, [
+    el("div", { class: "dt-head" }, [
+      el("button", { class: "btn small", type: "button", onclick: closeDetail }, ["返回工作台"]),
+      el("span", { class: "dt-title" }, [c.name]),
+      el("span", { class: "chip " + ST[1] }, [ST[0]]),
+      el("div", { style: "flex:1" }),
+      el("button", { class: "btn small", type: "button",
+        onclick: () => showEmbedInfo(c, eff) }, ["接入信息"]),
+      el("button", { class: "btn small primary", type: "button", onclick: () => {
+        if (eff === "published") { UI.toast("已上线的配置不可编辑，请先下线", true); return; }
+        closeDetail(); openEditor(c.card_id);
+      } }, ["编辑"]),
+    ]),
+    el("div", { class: "dt-split" }, [
+      el("div", { class: "dt-left" }, [
+        el("div", { class: "card" }, [
+          el("div", { class: "dt-sec" }, ["基本信息"]),
+          info("组件 ID", UI.idChip(c.card_id, "ID")),
+          info("组件类型", UI.ctName(c.component_type) || c.component_type),
+          info("内容形式", cfg.content_mode === "fixed" ? "固定配置内容" : "AI 生成内容"),
+          info("群体回显", c.echo_results ? "已开启" : "未开启"),
+          info("版本", "v" + (c.version || 1)),
+          info("创建时间", UI.fmtTs(c.created_at)),
+        ]),
+        el("div", { class: "card" }, [
+          el("div", { class: "dt-sec" }, ["数据 Schema",
+            UI.help("注册给大模型的参数结构：模型按它填内容，用户提交后按提交结构回传")]),
+          schemaBox,
+        ]),
+      ]),
+      el("div", { class: "card dt-right" }, [
+        el("div", { class: "dt-sec" }, ["样式预览"]),
+        pvBox,
+      ]),
+    ]),
+  ]);
+  host.innerHTML = "";
+  host.appendChild(page);
+  host.hidden = false;
+  document.getElementById("workbenchMain").hidden = true;
+  window.scrollTo(0, 0);
+
+  // schema 与正式注册表同源
+  try {
+    const r = await UI.api("/api/components/schema-preview", { method: "POST",
+      body: { component_type: c.component_type, config: cfg } });
+    schemaBox.textContent = "";
+    const block = (t, obj) => el("div", { class: "dt-block" }, [
+      el("div", { class: "dt-block-t" }, [t]),
+      el("pre", {}, [JSON.stringify(obj, null, 2)]),
+    ]);
+    schemaBox.appendChild(block("参数 schema（模型填什么）", r.params_schema));
+    if (r.fixed && Object.keys(r.fixed).length) schemaBox.appendChild(block("平台定死的内容（模型改不了）", r.fixed));
+    schemaBox.appendChild(block("提交结构（用户提交后回传什么）", r.submit_schema));
+  } catch (e) { schemaBox.textContent = "数据 Schema 读取失败：" + e.message; }
+}
+
+function closeDetail() {
+  const host = document.getElementById("editorHost");
+  host.hidden = true; host.innerHTML = "";
+  document.getElementById("workbenchMain").hidden = false;
 }
 
 // 同页联动：别处改了产品或主题，工作台立刻跟上（不必刷新页面）

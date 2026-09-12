@@ -670,6 +670,74 @@ def migrate_preset_names_v27():
     db.audit("system", "migrate_preset_names_v27", {"rows": n})
 
 
+def seed_instance_events_v28():
+    """给每个组件实例补一段近 30 天的真实形态事件，否则「单组件数据分析」里多数实例是空的。
+    只造事件，不造指标：漏斗、选项分布、赞踩都由这些事件聚合出来。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT 1 FROM audit_log WHERE action='seed_instance_events_v28' LIMIT 1").fetchone():
+        return
+    rng = random.Random(20260912)
+    now = db.now_ts()
+    cards_rows = conn.execute(
+        "SELECT card_id, name, component_type, semantic_category, field_bindings FROM cards "
+        "WHERE status IN ('published','offline') ORDER BY created_at").fetchall()
+    # 各类组件的典型完成度：展示类没有提交，选择类完成率高，表单类偏低
+    PRESENT = ("table", "chart.line", "chart.bar", "chart.pie", "chart.waterfall", "chart.area",
+               "metric.card", "timeline", "steps", "matrix.compare", "list.ordered", "text.emphasis")
+    made = 0
+    for r in cards_rows:
+        ct = r["component_type"]
+        cfg = (db.dj(r["field_bindings"], {}) or {}).get("config") or {}
+        opts = [o for o in (cfg.get("options") or []) if isinstance(o, str)]
+        is_present = ct in PRESENT
+        n_render = rng.randint(26, 72)
+        start_rate = 1.0 if is_present else rng.uniform(0.52, 0.86)
+        submit_rate = 0.0 if is_present else rng.uniform(0.58, 0.9)
+        rec = cfg.get("recommended_default") or (opts[0] if opts else None)
+        for _ in range(n_render):
+            ts = now - rng.randint(0, 29) * 86400 - rng.randint(0, 82800)
+            trace, sess, turn = db.new_id(), db.new_id(), db.new_id()
+            uid = "u-" + str(rng.randint(1000, 9999))
+            card_blob = db.j({"card_id": r["card_id"], "card_version": 1, "component_type": ct,
+                              "semantic_category": r["semantic_category"] or "", "trigger_source": "model"})
+
+            def ev(kind, at, payload):
+                conn.execute(
+                    """INSERT INTO events (event_id, trace_id, tenant_id, session_id, turn_id, user_id, ts,
+                       event_type, card, route_context, payload, group_info, label_hint, schema_version,
+                       admitted, reject_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NULL,'1.0.0',1,NULL)""",
+                    (db.new_id(), trace, TENANT, sess, turn, uid, at, kind, card_blob,
+                     db.j({}), db.j(payload), db.j(None)))
+
+            ev("card_rendered", ts, {})
+            if rng.random() > start_rate:
+                ev("card_abandoned", ts + rng.randint(8, 60), {})
+                made += 1
+                continue
+            ev("card_interaction_started", ts + rng.randint(2, 9), {})
+            if is_present or rng.random() > submit_rate:
+                made += 1
+                continue
+            payload = {}
+            if opts:
+                # 推荐项更容易被选中，但不是压倒性的
+                pick = rec if (rec and rng.random() < 0.46) else rng.choice(opts)
+                payload = {"user_selection": pick, "options_offered": opts,
+                           "recommended_default": rec,
+                           "modified_from_default": pick != rec}
+            elif ct == "scale.likert":
+                payload = {"user_selection": rng.choice([3, 4, 4, 5, 5, 5, 2])}
+            elif ct == "slider.range":
+                payload = {"user_selection": rng.choice([1000, 2000, 2000, 3000, 5000])}
+            ev("card_submitted", ts + rng.randint(10, 95), payload)
+            if ct == "feedback.binary":
+                ev("feedback_given", ts + rng.randint(12, 40),
+                   {"value": "up" if rng.random() < 0.78 else "down"})
+            made += 1
+    conn.commit()
+    db.audit("system", "seed_instance_events_v28", {"rows": made})
+
+
 def migrate_questionnaire():
     """问卷模版化改造的存量迁移：
     1. 旧的复杂群体模式（group_mode）转为简单回显开关（echo_results）
@@ -1128,6 +1196,7 @@ def run_all():
     migrate_questionnaire()
     migrate_events_cardid_v26()
     migrate_preset_names_v27()
+    seed_instance_events_v28()
     return {"bank_queries": n_bank, "ab_feedback": n_fb, "history_traces": n_hist}
 
 

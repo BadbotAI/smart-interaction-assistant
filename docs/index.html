@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=90052cbc">
+<link rel="stylesheet" href="./shared.css?v=448bf90b">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   .home { max-width: 900px; margin: 0 auto; padding-top: 6vh; text-align: center; }
@@ -13,12 +13,12 @@
   .home h1 { font-size: 32px; font-weight: 800; letter-spacing: 2px; margin: 0 0 12px; color: var(--text-primary); }
   .home .slogan { font-size: 15px; color: var(--text-secondary); letter-spacing: 6px; margin: 0 0 36px; }
   /* ---- 大轮播展示卡 ---- */
-  .stage { position: relative; height: 404px; background: var(--bg-elevated); border: 1px solid var(--border);
+  .stage { position: relative; height: 386px; background: var(--bg-elevated); border: 1px solid var(--border);
     border-radius: var(--radius-card); overflow: hidden; text-align: left; box-shadow: var(--shadow-card); }
   .stage * { box-sizing: border-box; }
   .cs { position: absolute; inset: 0; display: none; }
   .cs.active { display: block; }
-  .cs .inner { position: relative; max-width: 620px; height: 320px; margin: 0 auto; }
+  .cs .inner { position: relative; max-width: 620px; height: 330px; margin: 0 auto; }
   .bub { position: absolute; font-size: 12.5px; line-height: 1.5; padding: 8px 13px; border-radius: 12px; opacity: 0; }
   .cs .bu { right: 0; top: 18px; background: var(--panel-deep); color: #fff; border-bottom-right-radius: 4px; }
   .cs .ba { left: 0; top: 58px; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-secondary); border-bottom-left-radius: 4px; }
@@ -61,7 +61,7 @@
     border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-secondary); opacity: 0; text-align: center; }
   .cs.active .cap { animation: csIn .4s ease-out .2s forwards; }
   .cap b { display: block; color: var(--text-primary); font-size: 13.5px; margin-bottom: 2px; }
-  .cs .inner { max-width: 560px; margin: 0 auto; }
+  .cs .inner { max-width: 496px; margin: 0 auto; }
   .dots { position: absolute; right: 18px; bottom: 16px; display: flex; gap: 6px; z-index: 2; }
   .onboard { display: flex; align-items: stretch; gap: 10px; max-width: 900px; margin: 26px auto 0; padding: 0 16px; }
   /* 卡内一律左对齐（页面级 text-align:center 会渗进来），行动链接吸底 → 三张卡按钮同一水平线 */
@@ -75,12 +75,13 @@
     font-weight: 700; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; flex: none;
     font-variant-numeric: tabular-nums; }
   .ob-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+  .ob-body i { margin-bottom: 12px; }
   .ob-head b { font-size: 15px; font-weight: 700; color: var(--text-primary); }
   .ob-body i { font-style: normal; font-size: var(--font-caption); color: var(--text-muted); line-height: 1.5; }
-  .ob-go { margin-top: auto; padding-top: 10px; font-size: var(--font-caption); color: var(--primary); font-weight: 600;
-    display: inline-flex; align-items: center; gap: 3px; align-self: flex-start; }
-  .ob-go::after { content: ""; width: 7px; height: 7px; border-top: 2px solid currentColor;
-    border-right: 2px solid currentColor; transform: rotate(45deg); }
+  .ob-go { margin-top: auto; align-self: stretch; text-align: center;
+    background: var(--primary); color: #fff; font-size: var(--font-small); font-weight: 600;
+    padding: 9px 12px; border-radius: 10px; transition: background var(--dur-fast); }
+  .ob-step:hover .ob-go { background: var(--primary-hover, var(--primary)); filter: brightness(1.06); }
   /* 步骤之间用一条细连接线 + 小圆点，比裸箭头更轻，也更像"流程" */
   .ob-arrow { align-self: center; width: 26px; height: 2px; flex: none; position: relative;
     background: linear-gradient(90deg, var(--border), var(--border-strong)); border-radius: 2px; }
@@ -110,7 +111,7 @@
         <div class="inner">
           <span class="bub bu">我的货延误了，有哪些处理方式？</span>
           <span class="bub ba">为你找到以下可选方式：</span>
-          <div class="cw"><div class="card2"><div class="ttl">选择表单 · 模型动态给出选项</div>
+          <div class="cw"><div class="card2"><div class="ttl">请选择处理方式</div>
             <div class="opt">加急催办</div><div class="opt picked">改约取件时间</div><div class="opt">申请赔付</div>
             <span class="sbtn">确认</span></div>
             <div class="ok">提交成功，用户的选择回传给 AI 继续办</div></div>
@@ -121,7 +122,7 @@
         <div class="inner">
           <span class="bub bu">帮我登记一下联系方式</span>
           <span class="bub ba">请补充以下信息：</span>
-          <div class="cw"><div class="card2"><div class="ttl">信息表单 · 缺的信息一次补齐</div>
+          <div class="cw"><div class="card2"><div class="ttl">请补充联系方式</div>
             <div class="frow"><div class="flab">联系人 *</div><div class="fin f1"><i></i></div></div>
             <div class="frow"><div class="flab">联系方式 *</div><div class="fin f2"><i></i></div></div>
             <span class="sbtn">提交</span></div>
@@ -133,7 +134,7 @@
         <div class="inner">
           <span class="bub bu">这几个月的费用走势帮我看看</span>
           <span class="bub ba">已为你整理为图表：</span>
-          <div class="cw"><div class="card2"><div class="ttl">趋势图 · 展示类直接渲染</div>
+          <div class="cw"><div class="card2"><div class="ttl">近半年费用走势</div>
             <div style="display:flex;align-items:flex-end;gap:6px;height:56px;padding:4px 2px">
               <i style="flex:1;background:var(--primary);opacity:.35;height:36%;border-radius:3px 3px 0 0"></i>
               <i style="flex:1;background:var(--primary);opacity:.5;height:52%;border-radius:3px 3px 0 0"></i>
@@ -149,8 +150,11 @@
         <div class="inner">
           <span class="bub bu">取消这笔订单</span>
           <span class="bub ba">该操作不可撤销，请确认：</span>
-          <div class="cw"><div class="card2" style="border-left:3px solid var(--danger)"><div class="ttl">操作确认 · 高风险动作</div>
-            <div class="opt" style="border-color:var(--danger);color:var(--danger);font-weight:600">确认执行</div><div class="opt">取消</div>
+          <div class="cw"><div class="card2"><div class="ttl">确认取消这笔订单？</div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:8px">
+              <span class="opt" style="flex:none;padding:6px 14px">取消</span>
+              <span class="opt" style="flex:none;padding:6px 14px;background:var(--danger);border-color:var(--danger);color:#fff;font-weight:600">确认执行</span>
+            </div>
           </div>
             <div class="ok">用户明确确认后才继续执行</div></div>
         </div>
@@ -159,7 +163,7 @@
       <div class="cs">
         <div class="inner">
           <span class="bub ba" style="margin-top:6px">同一个组件，随品牌与样式变化：</span>
-          <div class="cw"><div class="card2"><div class="ttl">风格主题 + 组件级覆盖</div>
+          <div class="cw"><div class="card2"><div class="ttl">同一个组件，六套主题</div>
             <div style="display:flex;gap:8px;padding:6px 2px">
               <i style="width:26px;height:26px;border-radius:8px;background:#3E63DD"></i>
               <i style="width:26px;height:26px;border-radius:8px;background:#0D9488"></i>
@@ -178,32 +182,32 @@
     </div>
     <div class="onboard">
       <a class="ob-step" href="./products.html">
-        <span class="ob-head"><span class="ob-no">1</span><b>创建产品</b></span>
-        <span class="ob-body"><i>新建你的产品，配一套风格主题</i>
+        <span class="ob-head"><span class="ob-no">1</span><b>添加产品</b></span>
+        <span class="ob-body"><i>填个名字，配一套风格主题</i>
           <span class="ob-go">产品与接入</span></span>
       </a>
       <span class="ob-arrow" aria-hidden="true"></span>
       <a class="ob-step" href="./cards.html">
         <span class="ob-head"><span class="ob-no">2</span><b>上线组件</b></span>
-        <span class="ob-body"><i>新产品自带全套组件（默认下线），把需要的上线，或新建实例</i>
+        <span class="ob-body"><i>新产品自带全套组件，默认都是下线的，把要用的打开</i>
           <span class="ob-go">组件工作台</span></span>
       </a>
       <span class="ob-arrow" aria-hidden="true"></span>
-      <a class="ob-step" href="./cards.html">
-        <span class="ob-head"><span class="ob-no">3</span><b>调样式并发布</b></span>
-        <span class="ob-body"><i>在工作台调好组件样式发布上线，导出配置代码接入你的 agent</i>
-          <span class="ob-go">组件工作台</span></span>
+      <a class="ob-step" href="./products.html">
+        <span class="ob-head"><span class="ob-no">3</span><b>调样式接进去</b></span>
+        <span class="ob-body"><i>调好样式发布，把接入代码贴进你的 agent</i>
+          <span class="ob-go">产品与接入</span></span>
       </a>
     </div>
-    <div class="go"><a class="btn primary" href="./products.html">开始创建产品</a></div>
+
   </div>
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=e878e660"></script>
+<script src="./mock_data.js?v=60c6f155"></script>
 <script src="./mock_api.js?v=5ebc21e8"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
-<script src="./ui.js?v=cc016c4c"></script>
+<script src="./ui.js?v=29c90ff0"></script>
 <script>UI.nav("home");
 const CASES = 5;
 let cur = 0, timer = null;

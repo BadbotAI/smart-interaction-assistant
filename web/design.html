@@ -57,11 +57,11 @@
 </style>
 </head>
 <body>
-<div class="page">
+<div class="page design-page">
   <div class="page-head"><div class="page-title">风格主题</div></div>
 
   <div class="style-split">
-    <div style="align-self:stretch;display:flex;flex-direction:column;gap:14px">
+    <div class="ds-left">
       <div class="card" id="brandLibCard" style="flex:1;display:flex;flex-direction:column;min-height:0">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <span style="font-weight:600;flex:none;white-space:nowrap">风格主题</span>
@@ -70,21 +70,19 @@
         </div>
         <div id="brandGrid" class="brand-list" style="flex:1;max-height:none"></div>
       </div>
-      <div class="card" id="editorCard" hidden>
+      <div class="card ds-editor" id="editorCard" hidden>
         <div id="styleEditor"></div>
       </div>
     </div>
 
-    <div class="card" style="align-self:stretch">
-      <!-- 外壳与左侧模块等高；内容自身 sticky，长表单滚动时预览仍常驻 -->
-      <div style="position:sticky;top:14px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;max-width:560px">
-          <span style="font-weight:600">组件预览</span>
-          <div style="flex:1"></div>
-          <span id="compSelMount"></span>
-        </div>
-        <div id="demoOne" class="demo-one"></div>
+    <div class="card ds-preview">
+      <!-- 预览固定不滚：左边表单再长，右边这块也不动 -->
+      <div class="ds-preview-head">
+        <span style="font-weight:600">组件预览</span>
+        <div style="flex:1"></div>
+        <span id="compSelMount"></span>
       </div>
+      <div id="demoOne" class="demo-one"></div>
     </div>
   </div>
 </div>
@@ -792,61 +790,60 @@ function brandDialog(existing, onClose) {
     Brand.load(previewFile).then(() => renderDemos()).catch(() => {});
     onClose && onClose();
   }
+  // 保存逻辑只有一份：顶部那组按钮直接调它，底部不再重复摆一组
+  async function doSave(btn) {
+    const name = nameIn.value.trim();
+    if (!name) { nameErr.textContent = "请填写主题名称"; nameIn.focus(); return; }
+    const dup = dupOf(name);
+    if (dup) {
+      nameErr.textContent = `已有同名主题「${dup.brand_name}」，换个名字`;
+      nameIn.classList.add("invalid");
+      nameIn.scrollIntoView({ block: "center", behavior: "smooth" });
+      nameIn.focus(); return;
+    }
+    const tokens = buildTokens();
+    tokens.brand_name = name;
+    // 新建一律生成新 id：baseTokens 克隆自当前预览品牌，其 brand_id（如 default）绝不能继承——否则覆盖既有风格
+    let bid = existing ? existing.brand_id : "brand-" + Math.random().toString(36).slice(2, 8);
+    if (!existing && brands.find(b => b.brand_id === bid)) bid = bid + "-" + Math.random().toString(36).slice(2, 5);
+    await UI.withBusy(btn, async () => {
+      try {
+        await UI.api("/api/brands", { method: "POST", body: { brand_id: bid, brand_name: name, tokens } });
+        brands = (await UI.api("/api/brands")).brands;
+        const saved = brands.find(b => b.brand_id === bid);
+        if (saved) previewFile = saved.file;
+        host.hidden = true; host.innerHTML = "";
+        document.getElementById("editorCard").hidden = true;
+        document.getElementById("brandLibCard").hidden = false;
+        window._editingStyle = false;
+        document.getElementById("demoOne")?.removeAttribute("style");
+        renderBrands(); renderDemos();
+        UI.emit("brands-changed", { file: (saved || {}).file });
+        UI.toast(existing ? "主题已更新" : "主题已创建，在「产品与接入」里配给产品即可生效");
+        onClose && onClose();
+      } catch (e2) {
+        const msg = e2.data?.error || e2.message;
+        if (e2.status === 409 || /同名/.test(msg)) {
+          nameErr.textContent = msg;
+          nameIn.classList.add("invalid");
+          nameIn.scrollIntoView({ block: "center", behavior: "smooth" });
+          nameIn.focus();
+        } else { err.textContent = msg; }
+      }
+    }, "保存中……");
+  }
+
   host.innerHTML = "";
   host.appendChild(el("div", { class: "style-ed" }, [
     el("div", { class: "ed-sticky-head" }, [
       el("span", { style: "font-weight:700;font-size:var(--font-title)" }, [existing ? "编辑主题" : "新建主题"]),
       el("div", { style: "flex:1" }),
       el("button", { class: "btn small", type: "button", onclick: close }, ["取消"]),
-      (() => { const b = el("button", { class: "btn small primary", type: "button" }, [existing ? "保存修改" : "保存主题"]);
-        b.onclick = () => host.querySelector(".style-ed .ed-save")?.click(); return b; })(),
+      el("button", { class: "btn small primary ed-save", type: "button",
+        onclick: (e) => doSave(e.currentTarget) }, [existing ? "保存修改" : "保存主题"]),
     ]),
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["主题名称"]), nameIn, nameErr]),
     modeTabs, optPanel, err,
-    el("div", { style: "display:flex;justify-content:flex-end;gap:10px;margin-top:14px;border-top:1px solid var(--border);padding-top:12px" }, [
-      el("button", { class: "btn", onclick: close }, ["取消"]),
-      el("button", { class: "btn primary ed-save", onclick: async (e) => {
-        const name = nameIn.value.trim();
-        if (!name) { nameErr.textContent = "请填写主题名称"; nameIn.focus(); return; }
-        const dup = dupOf(name);
-        if (dup) {
-          nameErr.textContent = `已有同名主题「${dup.brand_name}」，换个名字`;
-          nameIn.classList.add("invalid");
-          nameIn.scrollIntoView({ block: "center", behavior: "smooth" });
-          nameIn.focus(); return;
-        }
-        const tokens = buildTokens();
-        tokens.brand_name = name;
-        // 新建一律生成新 id：baseTokens 克隆自当前预览品牌，其 brand_id（如 default）绝不能继承——否则覆盖既有风格
-        let bid = existing ? existing.brand_id : "brand-" + Math.random().toString(36).slice(2, 8);
-        if (!existing && brands.find(b => b.brand_id === bid)) bid = bid + "-" + Math.random().toString(36).slice(2, 5);
-        await UI.withBusy(e.currentTarget, async () => {
-          try {
-            await UI.api("/api/brands", { method: "POST", body: { brand_id: bid, brand_name: name, tokens } });
-            brands = (await UI.api("/api/brands")).brands;
-            const saved = brands.find(b => b.brand_id === bid);
-            if (saved) previewFile = saved.file;
-            host.hidden = true; host.innerHTML = "";
-            document.getElementById("editorCard").hidden = true;
-            document.getElementById("brandLibCard").hidden = false;
-            window._editingStyle = false;
-            document.getElementById("demoOne")?.removeAttribute("style");
-            renderBrands(); renderDemos();
-            UI.emit("brands-changed", { file: (saved || {}).file });
-            UI.toast(existing ? "主题已更新" : "主题已创建，在「产品与接入」里配给产品即可生效");
-            onClose && onClose();
-          } catch (e2) {
-            const msg = e2.data?.error || e2.message;
-            if (e2.status === 409 || /同名/.test(msg)) {
-              nameErr.textContent = msg;
-              nameIn.classList.add("invalid");
-              nameIn.scrollIntoView({ block: "center", behavior: "smooth" });
-              nameIn.focus();
-            } else { err.textContent = msg; }
-          }
-        }, "保存中……");
-      } }, [existing ? "保存修改" : "保存主题"]),
-    ]),
   ]));
   document.getElementById("brandLibCard").hidden = true;
   document.getElementById("editorCard").hidden = false;

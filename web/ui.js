@@ -598,7 +598,7 @@ window.UI = (function () {
     container.innerHTML = "";
     const pal = Brand.chartPalette().categorical;
     // 多系列要在右端标系列名，右边距得留够，否则文字叠在一起、还被画布裁掉
-    const w = 560, h = height, padL = 44, padR = series.length > 1 ? 54 : 12, padT = 14, padB = 26;
+    const w = 560, h = height, padL = 44, padR = 14, padT = 14, padB = 26;
     // 图表里的文字跟着组件字号走：样式步调「字号」时，轴与标签要一起变
     const _fs = chartFontSize(container);
     const svg = chartFrame(w, h);
@@ -646,7 +646,6 @@ window.UI = (function () {
       }
       return d;
     };
-    const usedLabelY = [];
     series.forEach((s, si) => {
       const color = (si === 0 && lineColor) || pal[si % pal.length];
       if (areaFill && series.length === 1 && s.values.length > 1) {
@@ -688,17 +687,7 @@ window.UI = (function () {
           svg.appendChild(vt);
         }
       });
-      if (series.length > 1) {
-        const last = s.values[s.values.length - 1];
-        // 末值相近时两个系列名会叠住，逐个往下让开
-        let ly = y(last) + 4;
-        while (usedLabelY.some(v => Math.abs(v - ly) < 11)) ly += 11;
-        usedLabelY.push(ly);
-        const lt = svgEl("text", { x: w - padR + 4, y: Math.min(h - padB, Math.max(padT + 6, ly)),
-          "font-size": _fs, fill: "var(--text-secondary)" });
-        lt.textContent = s.name;
-        svg.appendChild(lt);
-      }
+      // 系列名交给下方图例，右端不再标一次——末值接近时两个名字会叠在数据点上
     });
     container.appendChild(svg);
   }

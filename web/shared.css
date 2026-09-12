@@ -1956,10 +1956,10 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 /* ===== 固定头部体系：页头 / 编辑器头 / 步骤条不随内容滚动 ===== */
 .page-head { position: sticky; top: 0; z-index: 40; background: var(--bg-page); padding: 10px 0 12px; margin-top: -10px; }
 /* design 编辑器头（返回 / 标题 / 取消 / 保存） */
-.ed-sticky-head { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 10px;
-  background: var(--bg-elevated);
+.ed-sticky-head { position: sticky; top: 0; z-index: 60; display: flex; align-items: center; gap: 10px;
+  background: var(--bg-elevated); box-shadow: 0 1px 0 var(--border);
   /* 抵消卡片自身的内边距，表头才能和下面的内容连成一张卡 */
-  margin: calc(var(--card-pad) * -1) calc(var(--card-pad) * -1) 16px;
+  margin: 0 calc(var(--card-pad) * -1) 16px;
   padding: 14px var(--card-pad); border-bottom: 1px solid var(--border);
   border-radius: var(--radius-card) var(--radius-card) 0 0; }
 /* 组件编辑器步骤条固定 */
@@ -2077,10 +2077,13 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 .modal.editor .ed-split.pick-mode { grid-template-columns: 1fr; }
 .tpl-rich { border: 1.5px solid var(--border); border-radius: 12px; background: var(--bg-elevated);
   padding: 12px 14px 10px; cursor: pointer; position: relative;
+  height: 300px; display: flex; flex-direction: column; gap: 8px;
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
+.tpl-rich .tpl-head { flex: none; }
+.tpl-rich .tpl-desc { flex: none; }
 .tpl-rich:hover { border-color: var(--primary-border); box-shadow: 0 2px 8px rgba(16, 24, 40, .06); }
 .tpl-rich.selected { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
-.tpl-rich .tpl-preview.pick-pv { height: 168px; pointer-events: none; }
+.tpl-rich .tpl-preview.pick-pv { flex: 1; min-height: 0; height: auto; pointer-events: none; }
 
 /* 批量条浮起时列表底部留白，避免遮住最后一行卡片 */
 body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
@@ -2114,11 +2117,46 @@ body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
 @media (max-width: 900px) { .prod-cover { flex-wrap: wrap; } .prod-cover .pc-actions { margin-left: 0; width: 100%; } }
 
 /* 工作台工具行：状态 tab 在左，搜索与批量入口靠右，同一基线 */
-.wb-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
-  position: sticky; top: 0; z-index: 20; background: var(--bg-page);
-  padding: 10px 0 12px; margin-top: -10px; }
-.wb-toolbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0;
-  height: 1px; background: var(--border); }
+/* 组件详情页（只读）：左边信息与 Schema，右边样式预览 */
+.dt-page { display: flex; flex-direction: column; gap: 14px; }
+.dt-head { display: flex; align-items: center; gap: 10px; }
+.dt-title { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.dt-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 460px); gap: 14px; align-items: start; }
+@media (max-width: 1100px) { .dt-split { grid-template-columns: 1fr; } }
+.dt-left { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.dt-sec { font-size: 15px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 5px; }
+.dt-row { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-top: 1px solid var(--border); }
+.dt-row:first-of-type { border-top: none; }
+.dt-k { width: 92px; flex: none; font-size: var(--font-small); color: var(--text-muted); }
+.dt-v { font-size: var(--font-small); color: var(--text-primary); min-width: 0; }
+.dt-code { display: flex; flex-direction: column; gap: 12px; }
+.dt-block-t { font-size: var(--font-caption); color: var(--text-muted); margin-bottom: 5px; }
+.dt-code pre { margin: 0; background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 9px;
+  padding: 10px 12px; font-size: 12px; line-height: 1.6; overflow-x: auto;
+  font-family: var(--font-mono); color: var(--text-secondary); max-height: 320px; overflow-y: auto; }
+.dt-right { position: sticky; top: 14px; }
+.dt-preview { background: var(--bg-sunken); border-radius: 10px; padding: 16px; }
+
+/* 风格主题：页面定高，左边编辑器自己滚，右边预览钉住 */
+.design-page { display: flex; flex-direction: column; height: calc(100vh - 44px); min-height: 0; }
+.design-page > .page-head { flex: none; }
+.design-page > .style-split { flex: 1; min-height: 0; }
+.style-split > .ds-left { align-self: stretch; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.ds-left > .ds-editor { flex: 1; min-height: 0; overflow-y: auto; position: relative; padding-top: 0; }
+.ds-editor .sty-swatches, .ds-editor .quick-color { position: relative; z-index: 1; }
+.ds-preview { align-self: stretch; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.ds-preview-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex: none; }
+.ds-preview > .demo-one { flex: 1; min-height: 0; overflow-y: auto; }
+
+/* 工作台：标题 + 产品卡 + 工具行整体固定，只有下面的组件列表滚动 */
+.wb-layout { display: flex; flex-direction: column; height: calc(100vh - 44px); min-height: 0; }
+.wb-layout > .page-head, .wb-layout > .card, .wb-layout > .wb-toolbar { flex: none; }
+.wb-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 0;
+  background: var(--bg-page); padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.wb-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  padding-top: 14px; padding-right: 2px; }
+/* 分类栏贴着滚动容器顶部，不跟着卡片走 */
+.wb-scroll .lib-cats { position: sticky; top: 0; align-self: flex-start; }
 .wb-search { position: relative; display: inline-flex; align-items: center; }
 .wb-search input { width: 220px; height: 32px; padding: 4px 12px 4px 30px; border-radius: 999px;
   background: var(--bg-elevated); }
