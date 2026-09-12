@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=01a55a8f">
-<link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
+<link rel="stylesheet" href="./shared.css?v=cfb74aff">
+<link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   .home { max-width: 900px; margin: 0 auto; padding-top: 6vh; text-align: center; }
   .home .mark { display: inline-flex; margin-bottom: 14px; }
@@ -65,22 +65,27 @@
   .dots { position: absolute; right: 18px; bottom: 16px; display: flex; gap: 6px; z-index: 2; }
   .onboard { display: flex; align-items: stretch; gap: 10px; max-width: 900px; margin: 26px auto 0; padding: 0 16px; }
   /* 卡内一律左对齐（页面级 text-align:center 会渗进来），行动链接吸底 → 三张卡按钮同一水平线 */
-  .ob-step { flex: 1; display: flex; gap: 12px; align-items: stretch; text-align: left; text-decoration: none;
-    border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; background: var(--bg-elevated);
+  /* 卡片：序号提到标题同一行，整卡更像"一步"而不是图文列表 */
+  .ob-step { flex: 1; display: flex; flex-direction: column; gap: 8px; text-align: left; text-decoration: none;
+    border: 1px solid var(--border); border-radius: 16px; padding: 18px 18px 16px; background: var(--bg-elevated);
     transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast); }
-  .ob-step:hover { border-color: var(--primary); box-shadow: 0 4px 14px rgba(15, 27, 38, .08); transform: translateY(-1px); }
-  .ob-no { width: 26px; height: 26px; border-radius: 50%; background: var(--primary-weak); color: var(--primary); align-self: flex-start;
-    font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; flex: none;
+  .ob-step:hover { border-color: var(--primary-border); box-shadow: 0 6px 20px rgba(15, 27, 38, .07); transform: translateY(-2px); }
+  .ob-head { display: flex; align-items: center; gap: 9px; }
+  .ob-no { width: 22px; height: 22px; border-radius: 7px; background: var(--primary-weak); color: var(--primary);
+    font-weight: 700; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; flex: none;
     font-variant-numeric: tabular-nums; }
   .ob-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-  .ob-body b { font-size: var(--font-base); color: var(--text-primary); }
+  .ob-head b { font-size: 15px; font-weight: 700; color: var(--text-primary); }
   .ob-body i { font-style: normal; font-size: var(--font-caption); color: var(--text-muted); line-height: 1.5; }
   .ob-go { margin-top: auto; padding-top: 10px; font-size: var(--font-caption); color: var(--primary); font-weight: 600;
     display: inline-flex; align-items: center; gap: 3px; align-self: flex-start; }
   .ob-go::after { content: ""; width: 7px; height: 7px; border-top: 2px solid currentColor;
     border-right: 2px solid currentColor; transform: rotate(45deg); }
-  .ob-arrow { align-self: center; width: 14px; height: 14px; flex: none;
-    border-top: 2px solid var(--border-strong); border-right: 2px solid var(--border-strong); transform: rotate(45deg); }
+  /* 步骤之间用一条细连接线 + 小圆点，比裸箭头更轻，也更像"流程" */
+  .ob-arrow { align-self: center; width: 26px; height: 2px; flex: none; position: relative;
+    background: linear-gradient(90deg, var(--border), var(--border-strong)); border-radius: 2px; }
+  .ob-arrow::after { content: ""; position: absolute; right: -1px; top: 50%; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--border-strong); transform: translateY(-50%); }
   @media (max-width: 900px) { .onboard { flex-direction: column; } .ob-arrow { display: none; } }
   .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--border-strong, #C7D3DC); cursor: pointer; border: 0; padding: 0; transition: width .2s; }
   .dot.on { background: var(--primary); width: 18px; }
@@ -173,20 +178,20 @@
     </div>
     <div class="onboard">
       <a class="ob-step" href="./products.html">
-        <span class="ob-no">1</span>
-        <span class="ob-body"><b>创建产品</b><i>新建你的产品，配一套风格主题</i>
+        <span class="ob-head"><span class="ob-no">1</span><b>创建产品</b></span>
+        <span class="ob-body"><i>新建你的产品，配一套风格主题</i>
           <span class="ob-go">产品与接入</span></span>
       </a>
       <span class="ob-arrow" aria-hidden="true"></span>
       <a class="ob-step" href="./cards.html">
-        <span class="ob-no">2</span>
-        <span class="ob-body"><b>上线组件</b><i>新产品自带全套组件（默认下线），把需要的上线，或新建实例</i>
+        <span class="ob-head"><span class="ob-no">2</span><b>上线组件</b></span>
+        <span class="ob-body"><i>新产品自带全套组件（默认下线），把需要的上线，或新建实例</i>
           <span class="ob-go">组件工作台</span></span>
       </a>
       <span class="ob-arrow" aria-hidden="true"></span>
       <a class="ob-step" href="./cards.html">
-        <span class="ob-no">3</span>
-        <span class="ob-body"><b>调样式并发布</b><i>在工作台调好组件样式发布上线，导出配置代码接入你的 agent</i>
+        <span class="ob-head"><span class="ob-no">3</span><b>调样式并发布</b></span>
+        <span class="ob-body"><i>在工作台调好组件样式发布上线，导出配置代码接入你的 agent</i>
           <span class="ob-go">组件工作台</span></span>
       </a>
     </div>
@@ -195,10 +200,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=407273db"></script>
-<script src="./mock_api.js?v=22be0b24"></script>
+<script src="./mock_data.js?v=e305d851"></script>
+<script src="./mock_api.js?v=5ebc21e8"></script>
 <script src="./tokens.js?v=aba04afb"></script>
-<script src="./ui.js?v=582d0a80"></script>
+<script src="./ui.js?v=63967988"></script>
 <script>UI.nav("home");
 const CASES = 5;
 let cur = 0, timer = null;

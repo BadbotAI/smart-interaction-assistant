@@ -136,7 +136,8 @@ def validate_card(payload: dict, strict: bool = False) -> list:
     if group:
         if semantic_category(ct) != "collect":
             errors.append({"field": "group_mode", "message": "群体决策模式仅采集型组件可开启"})
-        elif _cm != "fixed":
+        elif _cm != "fixed" and ct != "feedback.binary":
+            # 赞踩的取值是固定的赞/踩两档，本身可聚合，不要求固定内容
             errors.append({"field": "group_mode", "message": "群体回显仅固定内容组件可开启（动态内容无法聚合）"})
         elif group.get("feedback_to_model") not in ("result_only", "distribution", None):
             errors.append({"field": "group_mode.feedback_to_model", "message": "取值必须为 result_only 或 distribution"})

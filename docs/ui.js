@@ -216,6 +216,7 @@ window.UI = (function () {
         { title: "当前产品", items: [
           ["cards", "组件工作台", "./cards.html", "sliders"],
           ["design", "风格主题", "./design.html", "palette"],
+          ["analytics", "数据分析", "./analytics.html", "activity"],
         ] },
       ],
       footItems: [["products", "产品与接入", "./products.html", "box"]],
@@ -350,7 +351,7 @@ window.UI = (function () {
           location.href = "./products.html?new=1";
         } }, [
           el("span", { class: "np-avatar", style: "width:34px;height:34px;background:var(--primary-weak);color:var(--primary)" }, ["+"]),
-          el("span", { class: "np-meta" }, [el("span", { class: "np-name", style: "color:var(--primary)" }, ["新建产品"])]),
+          el("span", { class: "np-meta" }, [el("span", { class: "np-name", style: "color:var(--primary)" }, ["添加产品"])]),
         ]));
         document.body.appendChild(pop);
         const r = btn.getBoundingClientRect();
@@ -755,13 +756,11 @@ window.UI = (function () {
     const al = alpha ? el("div", { class: "cp-slider cp-alpha" }, [el("i", { class: "cp-knob" })]) : null;
     const hexIn = el("input", { type: "text", class: "num cp-hex", spellcheck: "false", maxlength: "9" });
     const alIn = alpha ? el("input", { type: "number", class: "num cp-a", min: "0", max: "100" }) : null;
-    const prev = el("span", { class: "cp-prev" });
     const emit = () => {
       const [r, g, b] = hsvToRgb(h, s, v);
       const hex = toHex(r, g, b, a);
       hexIn.value = hex.toUpperCase();
       if (alIn) alIn.value = String(Math.round(a * 100));
-      prev.style.background = hex;
       sv.style.background = `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${h},100%,50%))`;
       sv.querySelector(".cp-cursor").style.cssText = `left:${s * 100}%;top:${(1 - v) * 100}%`;
       hue.querySelector(".cp-knob").style.left = (h / 360 * 100) + "%";
@@ -796,7 +795,7 @@ window.UI = (function () {
     if (alIn) alIn.onchange = () => { a = Math.max(0, Math.min(100, Number(alIn.value) || 0)) / 100; emit(); };
     pop.append(sv, hue);
     if (al) pop.appendChild(al);
-    pop.appendChild(el("div", { class: "cp-inputs" }, [prev, hexIn,
+    pop.appendChild(el("div", { class: "cp-inputs" }, [hexIn,
       ...(alIn ? [alIn, el("span", { class: "muted", style: "font-size:11px" }, ["%"])] : [])]));
     document.body.appendChild(pop);
     const r3 = anchorEl.getBoundingClientRect();

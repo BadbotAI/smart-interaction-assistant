@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
+<title>数据分析 · 智能交互平台</title>
+<link rel="stylesheet" href="/web/shared.css">
+<style>
+  .an-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .an-kpi { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .an-kpi .k { font-size: var(--font-caption); color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+  .an-kpi .v { font-size: 26px; font-weight: 700; letter-spacing: -.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .an-kpi .v small { font-size: 13px; font-weight: 500; color: var(--text-muted); margin-left: 3px; }
+  .an-kpi .s { font-size: var(--font-caption); color: var(--text-muted); margin-top: 2px; }
+  .an-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+  @media (max-width: 1100px) { .an-grid { grid-template-columns: 1fr; } }
+  .an-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; }
+  .an-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .an-head .t { font-weight: 700; font-size: 15px; }
+  .an-head .d { font-size: var(--font-caption); color: var(--text-muted); }
+  /* 漏斗：三段横条 + 转化率 */
+  .fn-row { display: flex; align-items: center; gap: 12px; padding: 7px 0; }
+  .fn-name { width: 68px; flex: none; font-size: var(--font-small); color: var(--text-secondary); }
+  .fn-track { flex: 1; height: 26px; background: var(--bg-sunken); border-radius: 7px; overflow: hidden; }
+  .fn-fill { height: 100%; border-radius: 7px; background: var(--primary); display: flex; align-items: center;
+    padding-left: 10px; color: #fff; font-size: var(--font-caption); font-weight: 600; min-width: 44px; }
+  .fn-fill.s2 { background: color-mix(in srgb, var(--primary) 72%, var(--bg-elevated)); }
+  .fn-fill.s3 { background: color-mix(in srgb, var(--primary) 48%, var(--bg-elevated)); color: var(--text-primary); }
+  .fn-rate { width: 76px; flex: none; text-align: right; font-size: var(--font-small); color: var(--text-muted);
+    font-variant-numeric: tabular-nums; }
+  .fn-drop { font-size: var(--font-caption); color: var(--text-muted); padding: 2px 0 2px 80px; }
+  /* 选项分布 */
+  .od-group { padding: 10px 0; border-top: 1px solid var(--border); }
+  .od-group:first-child { border-top: none; padding-top: 0; }
+  .od-title { font-size: var(--font-small); font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .od-row { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
+  .od-label { width: 116px; flex: none; font-size: var(--font-small); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .od-track { flex: 1; height: 16px; background: var(--bg-sunken); border-radius: 5px; overflow: hidden; }
+  .od-fill { height: 100%; background: var(--primary); border-radius: 5px; }
+  .od-fill.rec { background: var(--success); }
+  .od-pct { width: 74px; flex: none; text-align: right; font-size: var(--font-caption); color: var(--text-secondary);
+    font-variant-numeric: tabular-nums; }
+  .an-empty { color: var(--text-muted); font-size: var(--font-small); padding: 18px 0; text-align: center; }
+  .an-legend { display: flex; gap: 14px; justify-content: center; margin-top: 6px; font-size: var(--font-caption); color: var(--text-secondary); }
+  .an-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+  .an-legend .s1 { background: var(--primary); }
+  .an-legend .s2 { background: color-mix(in srgb, var(--primary) 45%, var(--bg-elevated)); }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-head" style="display:flex;align-items:center;gap:12px">
+    <div class="page-title">数据分析</div>
+    <div class="muted" style="font-size:var(--font-caption)">组件被用得怎么样，数据来自 SDK 回传的真实事件</div>
+    <div style="flex:1"></div>
+    <span id="rangeMount"></span>
+  </div>
+  <div id="anBody"></div>
+</div>
+
+<script src="/web/tokens.js"></script>
+<script src="/web/ui.js"></script>
+<script>
+UI.nav("analytics");
+const { el } = UI;
+let days = 30;
+
+const CT_CN = (ct) => UI.ctName(ct);
+const ms = (v) => v == null ? "-" : (v >= 1000 ? (v / 1000).toFixed(1) + " 秒" : Math.round(v) + " 毫秒");
+const pct = (v) => v == null ? "-" : v + "%";
+
+function kpiCard(k, v, unit, sub, hint) {
+  return el("div", { class: "an-kpi" }, [
+    el("div", { class: "k" }, [k, hint ? UI.help(hint) : null]),
+    el("div", { class: "v" }, [String(v), unit ? el("small", {}, [unit]) : null]),
+    sub ? el("div", { class: "s" }, [sub]) : null,
+  ]);
+}
+
+function funnelCard(o) {
+  const f = o.funnel;
+  const max = Math.max(...f.map(x => x.value), 1);
+  const rows = [];
+  f.forEach((st, i) => {
+    rows.push(el("div", { class: "fn-row" }, [
+      el("div", { class: "fn-name" }, [st.step]),
+      el("div", { class: "fn-track" }, [
+        el("div", { class: "fn-fill s" + (i + 1), style: `width:${Math.max(6, st.value / max * 100)}%` },
+          [String(st.value)]),
+      ]),
+      el("div", { class: "fn-rate" }, [i === 0 ? "占曝光 100%" : `占曝光 ${st.rate}%`]),
+    ]));
+    if (i < f.length - 1) {
+      const lost = f[i].value - f[i + 1].value;
+      rows.push(el("div", { class: "fn-drop" },
+        [`↓ 流失 ${lost} 次（${f[i].value ? (lost / f[i].value * 100).toFixed(1) : 0}%）`]));
+    }
+  });
+  return el("div", { class: "an-card" }, [
+    el("div", { class: "an-head" }, [el("span", { class: "t" }, ["使用漏斗"]),
+      el("span", { class: "d" }, ["组件渲染出来之后，用户是否真的用了它"])]),
+    ...rows,
+  ]);
+}
+
+function trendCard(o) {
+  const t = o.trend || [];
+  if (!t.length) return el("div", { class: "an-card" }, [
+    el("div", { class: "an-head" }, [el("span", { class: "t" }, ["每日曝光与提交"])]),
+    el("div", { class: "an-empty" }, ["该时间范围内没有事件"])]);
+  return el("div", { class: "an-card" }, [
+    el("div", { class: "an-head" }, [el("span", { class: "t" }, ["每日曝光与提交"]),
+      el("span", { class: "d" }, [`${t[0].day} 至 ${t[t.length - 1].day}`])]),
+    (() => {
+      // UI.lineChart(container, opts)：先建容器再画
+      const host = el("div", { style: "min-height:200px" });
+      requestAnimationFrame(() => {
+        UI.lineChart(host, {
+          labels: t.map(x => x.day.slice(5)),
+          series: [{ name: "曝光", values: t.map(x => x.rendered) },
+                   { name: "提交", values: t.map(x => x.submitted) }],
+          height: 190, valueLabels: false,
+        });
+      });
+      return host;
+    })(),
+    el("div", { class: "an-legend" }, [
+      el("span", {}, [el("i", { class: "lg-dot s1" }), "曝光"]),
+      el("span", {}, [el("i", { class: "lg-dot s2" }), "提交"]),
+    ]),
+  ]);
+}
+
+function byTypeCard(rows) {
+  if (!rows.length) return el("div", { class: "an-card" }, [
+    el("div", { class: "an-head" }, [el("span", { class: "t" }, ["按组件类型"])]),
+    el("div", { class: "an-empty" }, ["暂无数据"])]);
+  return el("div", { class: "an-card" }, [
+    el("div", { class: "an-head" }, [el("span", { class: "t" }, ["按组件类型"]),
+      el("span", { class: "d" }, ["哪类组件更容易被用户完成"])]),
+    el("div", { style: "overflow-x:auto" }, [
+      el("table", { class: "data" }, [
+        el("thead", {}, [el("tr", {}, ["组件", "曝光", "开始操作", "提交", "完成率", "决策时长（中位）"]
+          .map(h => el("th", {}, [h])))]),
+        el("tbody", {}, rows.map(r => el("tr", {}, [
+          el("td", {}, [CT_CN(r.component_type)]),
+          el("td", { class: "num" }, [String(r.rendered)]),
+          el("td", { class: "num" }, [String(r.started)]),
+          el("td", { class: "num" }, [String(r.submitted)]),
+          el("td", { class: "num" }, [r.rendered ? pct(r.complete_rate) : "-"]),
+          el("td", { class: "num muted" }, [ms(r.median_ms)]),
+        ]))),
+      ]),
+    ]),
+  ]);
+}
+
+function optionsCard(groups) {
+  if (!groups.length) return el("div", { class: "an-card" }, [
+    el("div", { class: "an-head" }, [el("span", { class: "t" }, ["用户选了什么"])]),
+    el("div", { class: "an-empty" }, ["还没有带选项的提交记录"])]);
+  return el("div", { class: "an-card" }, [
+    el("div", { class: "an-head" }, [el("span", { class: "t" }, ["用户选了什么"]),
+      el("span", { class: "d" }, ["同一组候选项的选择分布，绿色为 AI 推荐项"])]),
+    ...groups.map(g => el("div", { class: "od-group" }, [
+      el("div", { class: "od-title" }, [CT_CN(g.component_type),
+        el("span", { class: "muted", style: "font-weight:400" }, [`${g.total} 次提交`])]),
+      ...g.dist.map(d => el("div", { class: "od-row" }, [
+        el("div", { class: "od-label", title: d.label }, [d.label]),
+        el("div", { class: "od-track" }, [
+          el("div", { class: "od-fill" + (d.recommended ? " rec" : ""), style: `width:${Math.max(2, d.pct)}%` })]),
+        el("div", { class: "od-pct" }, [`${d.count} 次 · ${d.pct}%`]),
+      ])),
+    ])),
+  ]);
+}
+
+function instancesCard(rows) {
+  if (!rows.length) return el("div", { class: "an-card" }, [
+    el("div", { class: "an-head" }, [el("span", { class: "t" }, ["组件实例排行"])]),
+    el("div", { class: "an-empty" }, ["还没有能归到具体实例的事件（需要 SDK 回传 card_id）"])]);
+  return el("div", { class: "an-card" }, [
+    el("div", { class: "an-head" }, [el("span", { class: "t" }, ["组件实例排行"]),
+      el("span", { class: "d" }, ["曝光最多的实例，完成率低的值得优先优化"])]),
+    el("div", { style: "overflow-x:auto" }, [
+      el("table", { class: "data" }, [
+        el("thead", {}, [el("tr", {}, ["实例", "状态", "曝光", "提交", "完成率"].map(h => el("th", {}, [h])))]),
+        el("tbody", {}, rows.map(r => el("tr", {}, [
+          el("td", {}, [r.name]),
+          el("td", {}, [el("span", { class: "chip " + (r.status === "published" ? "blue" : "gray") },
+            [{ published: "已上线", offline: "已下线", draft: "草稿", deleted: "已删除" }[r.status] || r.status])]),
+          el("td", { class: "num" }, [String(r.rendered)]),
+          el("td", { class: "num" }, [String(r.submitted)]),
+          el("td", { class: "num" }, [pct(r.complete_rate)]),
+        ]))),
+      ]),
+    ]),
+  ]);
+}
+
+async function load() {
+  const box = document.getElementById("anBody");
+  UI.loading(box);
+  const [o, bt, op, ins] = await Promise.all([
+    UI.api(`/api/analytics/overview?days=${days}`),
+    UI.api(`/api/analytics/by-type?days=${days}`).catch(() => ({ rows: [] })),
+    UI.api(`/api/analytics/options?days=${days}`).catch(() => ({ groups: [] })),
+    UI.api(`/api/analytics/instances?days=${days}`).catch(() => ({ rows: [] })),
+  ]);
+  box.innerHTML = "";
+  const k = o.kpi;
+  if (!k.rendered) {
+    box.appendChild(el("div", { class: "an-card" }, [
+      el("div", { class: "empty-state" }, [
+        el("div", { class: "empty-title" }, ["这段时间还没有组件事件"]),
+        el("div", {}, ["组件在真实对话里被渲染、提交后，数据会自动出现在这里；也可以换一个更长的时间范围。"]),
+      ]),
+    ]));
+    return;
+  }
+  box.appendChild(el("div", { class: "an-kpis" }, [
+    kpiCard("曝光", k.rendered, "次", `近 ${days} 天`, "组件被渲染进对话的次数（card_rendered 事件）"),
+    kpiCard("提交", k.submitted, "次", `完成率 ${pct(k.complete_rate)}`, "用户点提交的次数（card_submitted 事件）"),
+    kpiCard("交互率", pct(k.interact_rate), "", "曝光后有操作的比例", "用户至少点了一下（card_interaction_started）"),
+    kpiCard("决策时长", ms(k.median_submit_ms), "", "中位值", "从开始操作到提交的耗时中位数"),
+    kpiCard("推荐采纳率", k.rec_accept_rate == null ? "-" : pct(k.rec_accept_rate), "",
+      k.rec_sample ? `${k.rec_sample} 次带推荐的提交` : "暂无带推荐项的提交",
+      "用户直接接受 AI 推荐项、没有改选的比例"),
+    kpiCard("反馈好评率", k.feedback_up_rate == null ? "-" : pct(k.feedback_up_rate), "",
+      k.feedback_total ? `${k.feedback_total} 条赞踩` : "暂无反馈", "赞踩组件里点赞的比例"),
+  ]));
+  box.appendChild(el("div", { class: "an-grid" }, [
+    el("div", {}, [funnelCard(o), optionsCard(op.groups || [])]),
+    el("div", {}, [trendCard(o), byTypeCard(bt.rows || []), instancesCard(ins.rows || [])]),
+  ]));
+}
+
+document.getElementById("rangeMount").appendChild(UI.fancySelect({
+  value: "30", width: "130px",
+  options: [["7", "近 7 天"], ["30", "近 30 天"], ["90", "近 90 天"], ["365", "近一年"]],
+  onChange: (v) => { days = Number(v); load(); },
+}));
+load().catch(e => UI.toast("加载失败：" + e.message, true));
+</script>
+</body>
+</html>

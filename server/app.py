@@ -13,7 +13,7 @@ from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import cards, dashboard, db, embeddings, events, mockmodels, registry, router_core, seed, traces
+from . import analytics, cards, dashboard, db, embeddings, events, mockmodels, registry, router_core, seed, traces
 
 app = FastAPI(title="智能助手交互与调度平台", version="0.1.0")
 
@@ -924,6 +924,27 @@ async def delete_product(product_id: str):
     conn.commit()
     db.audit("demo-admin", "product_delete", {"product_id": product_id, "name": row["name"], "presets_removed": removed})
     return {"ok": True}
+
+
+# ---------- 组件数据分析（只聚合 events 表里真实存在的事件） ----------
+@app.get("/api/analytics/overview")
+def analytics_overview(days: int = 30):
+    return analytics.overview(days)
+
+
+@app.get("/api/analytics/by-type")
+def analytics_by_type(days: int = 30):
+    return analytics.by_type(days)
+
+
+@app.get("/api/analytics/options")
+def analytics_options(days: int = 30):
+    return analytics.options(days)
+
+
+@app.get("/api/analytics/instances")
+def analytics_instances(days: int = 30):
+    return analytics.instances(days)
 
 
 @app.get("/api/apikeys")

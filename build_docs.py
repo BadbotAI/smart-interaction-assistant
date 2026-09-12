@@ -1,6 +1,6 @@
 # 静态演示站构建：web/ -> docs/
 # 1) 路径改写 /web/ -> ./ ；2) 注入 mock_data/mock_api；3) 资源引用打内容哈希（防 CDN 新旧混跑）
-# 4) 全页 prefetch；5) 生成带版本号的 Service Worker（哈希资源 cache-first，HTML network-first）
+# 4) 全页 prefetch + SW 预缓存；5) 带版本号的 Service Worker（哈希资源 cache-first，HTML stale-while-revalidate）
 # 用法：先起本地服务(:8787)刷新快照可加 --snapshot，仅重建页面直接 python3 build_docs.py
 import hashlib
 import json
@@ -16,7 +16,7 @@ RSITE = os.path.expanduser("~/Desktop/smart-model-router")  # 模型路由平台
 ROUTER_URL = "https://badbotai.github.io/smart-model-router/"
 ASSETS = ["tokens.js", "ui.js", "components.js", "testchat.js", "sia.js", "sia.css", "shared.css"]
 MOCKS = ["mock_data.js", "mock_api.js"]
-IA_PAGES = ["index.html", "cards.html", "design.html", "products.html",
+IA_PAGES = ["index.html", "cards.html", "design.html", "analytics.html", "products.html",
             "audit.html", "embed-demo.html"]
 ROUTER_PAGES = ["home-router.html", "router.html", "playground.html", "dashboard.html", "audit.html", "trace.html"]
 
@@ -28,6 +28,8 @@ def snapshot():
             "/api/dashboard/questions?days=30", "/api/profile",
             "/api/templates", "/api/benchmark", "/api/settings/router-model",
             "/api/components/catalog",
+            "/api/analytics/overview?days=30", "/api/analytics/by-type?days=30",
+            "/api/analytics/options?days=30", "/api/analytics/instances?days=30",
             "/api/traces?limit=30", "/v1/models", "/v1/policies"]
 
     def get(p):
@@ -111,10 +113,14 @@ def build_site(outdir, pages, platform):
         open(os.path.join(outdir, "index.html"), "w", encoding="utf-8").write(
             open(os.path.join(outdir, "home-router.html"), encoding="utf-8").read())
 
-    sw = """// 构建号变了旧缓存整体作废；哈希资源 cache-first（等于不可变），HTML network-first 保证更新可达
+    sw = """// 构建号变了旧缓存整体作废；哈希资源 cache-first（不可变），HTML stale-while-revalidate（切页瞬时、后台更新）
 const BUILD = "%s";
 const CACHE = "sia-" + BUILD;
-self.addEventListener("install", (e) => { self.skipWaiting(); });
+const PRECACHE = %PRECACHE%;
+self.addEventListener("install", (e) => {
+  // 预缓存同站页面：第一次点导航就直接命中，不必等网络
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE).catch(() => {})).then(() => self.skipWaiting()));
+});
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
@@ -125,10 +131,15 @@ self.addEventListener("fetch", (e) => {
   if (isHashed) {
     e.respondWith(caches.open(CACHE).then(c => c.match(e.request).then(hit => hit || fetch(e.request).then(r => { if (r.ok) c.put(e.request, r.clone()); return r; }))));
   } else {
-    e.respondWith(fetch(e.request).then(r => { if (r.ok) caches.open(CACHE).then(c => c.put(e.request, r.clone())); return r; }).catch(() => caches.match(e.request)));
+    // HTML 用 stale-while-revalidate：命中缓存立刻出页面（切导航几乎瞬时），同时后台拉新版写回。
+    // 构建号变化会整体作废旧缓存，所以不会长期停留在旧版。
+    e.respondWith(caches.open(CACHE).then(c => c.match(e.request).then(hit => {
+      const net = fetch(e.request).then(r => { if (r.ok) c.put(e.request, r.clone()); return r; }).catch(() => hit);
+      return hit || net;
+    })));
   }
 });
-""" % build_id
+""".replace("%PRECACHE%", json.dumps(["./" + p for p in pages], ensure_ascii=False)) % build_id
     open(os.path.join(outdir, "sw.js"), "w", encoding="utf-8").write(sw)
     print(f"build[{platform}]:", build_id, "| pages:", len(pages), "->", outdir)
 

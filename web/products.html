@@ -106,13 +106,9 @@ function configProduct(p) {
   const access = el("div", { class: "field", style: "margin-top:4px" }, [
     el("div", { style: "display:flex;align-items:center;gap:6px;margin-bottom:2px" }, [
       el("span", { class: "label-text", style: "margin:0" }, ["接入信息",
-        UI.help("接入代码出包时固化；平台上修改配置后，需要开发重新拉取部署才会生效")]),
+        UI.help("接入分两步：把「后端注册表」交给你的 agent 服务（作为工具声明），把「前端代码」贴进业务页面。组件会在对话里渲染，用户提交的结果回传给 agent。")]),
       el("div", { style: "flex:1" }),
       el("button", { class: "btn small", onclick: () => viewSchemas(p) }, ["数据 Schema"]),
-      el("a", { class: "btn small", href: "/web/embed-demo.html", target: "_blank", title: "在一个模拟业务页面里验证接入效果" }, ["接入自测页"]),
-    ]),
-    el("div", { class: "muted", style: "font-size:var(--font-caption);margin-bottom:8px;line-height:1.7" }, [
-      "接入分两步：把「后端注册表」交给你的 agent 服务（作为工具声明），把「前端代码」贴进业务页面。组件会在对话里渲染，用户提交的结果回传给 agent。",
     ]),
     codeBlock("后端注册表接口", "agent 服务端拉取，作为工具声明给大模型",
       `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`),
@@ -141,7 +137,7 @@ function configProduct(p) {
 function newProductDialog() {
   const form = productForm({});
   const err = el("div", { class: "field-error" });
-  const mask = UI.modal("新建产品", el("div", {}, [form.node, err,
+  const mask = UI.modal("添加产品", el("div", {}, [form.node, err,
     el("div", { style: "display:flex;justify-content:flex-end;gap:10px;margin-top:12px" }, [
       el("button", { class: "btn", onclick: () => mask.remove() }, ["取消"]),
       el("button", { class: "btn primary", onclick: async (e) => {
@@ -158,7 +154,7 @@ function newProductDialog() {
             UI.toast("产品已创建，接入信息见右侧抽屉");
           } catch (e2) { form.nameErr.textContent = e2.data?.error || e2.message; }
         }, "创建中……");
-      } }, ["创建产品"]),
+      } }, ["添加产品"]),
     ]),
   ]), null, { persistent: true });
   setTimeout(() => form.nameIn.focus(), 100);
@@ -170,8 +166,8 @@ function draw() {
   if (!products.length) {
     box.appendChild(el("div", { class: "card empty-state" }, [
       el("div", { class: "empty-title" }, ["还没有产品"]),
-      el("div", {}, ["新建产品，把组件和风格主题打包成一个接入点"]),
-      el("button", { class: "btn primary", style: "margin-top:12px", onclick: newProductDialog }, ["新建产品"]),
+      el("div", {}, ["添加产品，把组件和风格主题打包成一个接入点"]),
+      el("button", { class: "btn primary", style: "margin-top:12px", onclick: newProductDialog }, ["添加产品"]),
     ]));
     return;
   }
@@ -241,7 +237,7 @@ async function load() {
 }
 UI.on("brands-changed", () => load());   // 主题增删后，产品页的主题下拉同页更新
 const nb = document.getElementById("newBtn");
-nb.append(UI.icon("plus", 14), "新建产品");
+nb.append(UI.icon("plus", 14), "添加产品");
 nb.onclick = newProductDialog;
 UI.loading(document.getElementById("listBox"));
 load().catch(e => UI.toast("加载失败：" + e.message, true));

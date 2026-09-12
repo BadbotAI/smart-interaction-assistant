@@ -97,6 +97,19 @@
       }
       return { cards: JSON.parse(JSON.stringify(cards)) };
     }
+    if (pn.startsWith("/api/analytics/")) {
+      // 快照里按 30 天存了一份；换时间范围时按比例缩放，保持演示可读
+      const base = D[pn] || {};
+      const q = new URLSearchParams((full || "").split("?")[1] || "");
+      const d = Number(q.get("days") || 30);
+      if (d === 30 || !base.kpi) return base;
+      const k = Math.max(0.1, Math.min(3, d / 30));
+      const out = JSON.parse(JSON.stringify(base));
+      if (out.kpi) { out.kpi.rendered = Math.round(out.kpi.rendered * k); out.kpi.submitted = Math.round(out.kpi.submitted * k); }
+      if (out.funnel) out.funnel.forEach(f => { f.value = Math.round(f.value * k); });
+      out.days = d;
+      return out;
+    }
     if (pn === "/api/audit") {
       const base = JSON.parse(JSON.stringify(D["/api/audit"] || { audit: [] }));
       base.audit = [...S.audit, ...(base.audit || [])];

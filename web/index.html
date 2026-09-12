@@ -64,22 +64,27 @@
   .dots { position: absolute; right: 18px; bottom: 16px; display: flex; gap: 6px; z-index: 2; }
   .onboard { display: flex; align-items: stretch; gap: 10px; max-width: 900px; margin: 26px auto 0; padding: 0 16px; }
   /* 卡内一律左对齐（页面级 text-align:center 会渗进来），行动链接吸底 → 三张卡按钮同一水平线 */
-  .ob-step { flex: 1; display: flex; gap: 12px; align-items: stretch; text-align: left; text-decoration: none;
-    border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; background: var(--bg-elevated);
+  /* 卡片：序号提到标题同一行，整卡更像"一步"而不是图文列表 */
+  .ob-step { flex: 1; display: flex; flex-direction: column; gap: 8px; text-align: left; text-decoration: none;
+    border: 1px solid var(--border); border-radius: 16px; padding: 18px 18px 16px; background: var(--bg-elevated);
     transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast); }
-  .ob-step:hover { border-color: var(--primary); box-shadow: 0 4px 14px rgba(15, 27, 38, .08); transform: translateY(-1px); }
-  .ob-no { width: 26px; height: 26px; border-radius: 50%; background: var(--primary-weak); color: var(--primary); align-self: flex-start;
-    font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; flex: none;
+  .ob-step:hover { border-color: var(--primary-border); box-shadow: 0 6px 20px rgba(15, 27, 38, .07); transform: translateY(-2px); }
+  .ob-head { display: flex; align-items: center; gap: 9px; }
+  .ob-no { width: 22px; height: 22px; border-radius: 7px; background: var(--primary-weak); color: var(--primary);
+    font-weight: 700; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; flex: none;
     font-variant-numeric: tabular-nums; }
   .ob-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-  .ob-body b { font-size: var(--font-base); color: var(--text-primary); }
+  .ob-head b { font-size: 15px; font-weight: 700; color: var(--text-primary); }
   .ob-body i { font-style: normal; font-size: var(--font-caption); color: var(--text-muted); line-height: 1.5; }
   .ob-go { margin-top: auto; padding-top: 10px; font-size: var(--font-caption); color: var(--primary); font-weight: 600;
     display: inline-flex; align-items: center; gap: 3px; align-self: flex-start; }
   .ob-go::after { content: ""; width: 7px; height: 7px; border-top: 2px solid currentColor;
     border-right: 2px solid currentColor; transform: rotate(45deg); }
-  .ob-arrow { align-self: center; width: 14px; height: 14px; flex: none;
-    border-top: 2px solid var(--border-strong); border-right: 2px solid var(--border-strong); transform: rotate(45deg); }
+  /* 步骤之间用一条细连接线 + 小圆点，比裸箭头更轻，也更像"流程" */
+  .ob-arrow { align-self: center; width: 26px; height: 2px; flex: none; position: relative;
+    background: linear-gradient(90deg, var(--border), var(--border-strong)); border-radius: 2px; }
+  .ob-arrow::after { content: ""; position: absolute; right: -1px; top: 50%; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--border-strong); transform: translateY(-50%); }
   @media (max-width: 900px) { .onboard { flex-direction: column; } .ob-arrow { display: none; } }
   .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--border-strong, #C7D3DC); cursor: pointer; border: 0; padding: 0; transition: width .2s; }
   .dot.on { background: var(--primary); width: 18px; }
@@ -172,20 +177,20 @@
     </div>
     <div class="onboard">
       <a class="ob-step" href="/web/products.html">
-        <span class="ob-no">1</span>
-        <span class="ob-body"><b>创建产品</b><i>新建你的产品，配一套风格主题</i>
+        <span class="ob-head"><span class="ob-no">1</span><b>创建产品</b></span>
+        <span class="ob-body"><i>新建你的产品，配一套风格主题</i>
           <span class="ob-go">产品与接入</span></span>
       </a>
       <span class="ob-arrow" aria-hidden="true"></span>
       <a class="ob-step" href="/web/cards.html">
-        <span class="ob-no">2</span>
-        <span class="ob-body"><b>上线组件</b><i>新产品自带全套组件（默认下线），把需要的上线，或新建实例</i>
+        <span class="ob-head"><span class="ob-no">2</span><b>上线组件</b></span>
+        <span class="ob-body"><i>新产品自带全套组件（默认下线），把需要的上线，或新建实例</i>
           <span class="ob-go">组件工作台</span></span>
       </a>
       <span class="ob-arrow" aria-hidden="true"></span>
       <a class="ob-step" href="/web/cards.html">
-        <span class="ob-no">3</span>
-        <span class="ob-body"><b>调样式并发布</b><i>在工作台调好组件样式发布上线，导出配置代码接入你的 agent</i>
+        <span class="ob-head"><span class="ob-no">3</span><b>调样式并发布</b></span>
+        <span class="ob-body"><i>在工作台调好组件样式发布上线，导出配置代码接入你的 agent</i>
           <span class="ob-go">组件工作台</span></span>
       </a>
     </div>

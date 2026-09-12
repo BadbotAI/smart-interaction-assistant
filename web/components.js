@@ -118,6 +118,10 @@ window.Components = (function () {
     cls(so["delta.invert"] === true, "delta-invert");
     cls(so["col.align"] === "left", "col-left");
     cls(so["stepnum.show"] === false, "no-stepnum");
+    // 此前无消费者的三项，接线到真实渲染
+    cls(so["input.border"] === false, "no-inputborder");
+    cls(so["label.pos"] === "left", "label-left");
+    pxv("row.height", "--row-h");
     cls(so["text.align"] === "center", "txt-center");
     // 三轮规格键
     // 多容器：面板边框 / 选项容器底色与边框 / 提交按钮容器
@@ -1448,7 +1452,6 @@ window.Components = (function () {
     const p = env.params;
     return compCard([
       el("div", { style: "display:flex;gap:12px;align-items:flex-start" }, [
-        el("span", { class: "confirm-ico" }, [UI.icon("alert", 18)]),
         el("div", { style: "flex:1;min-width:0" }, [
           el("div", { class: "confirm-title" }, [p.title || p.prompt || "确认操作"]),
           p.prompt && p.title ? el("div", { class: "secondary", style: "margin-top:3px" }, [p.prompt]) : null,

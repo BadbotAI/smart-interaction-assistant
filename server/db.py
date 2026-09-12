@@ -39,6 +39,12 @@ def new_id() -> str:
     return str(uuid.uuid4())
 
 
+def day_str(ts: float) -> str:
+    """UTC 日期串（分析按天聚合用）。"""
+    import datetime as _dt
+    return _dt.datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d")
+
+
 def now_ts() -> float:
     return time.time()
 
