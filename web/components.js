@@ -95,6 +95,12 @@ window.Components = (function () {
     pxv("dot.size", "--lk-size"); pxv("dot.gap", "--lk-gap");
     pxv("node.size", "--stp-node"); pxv("stepline.width", "--stp-line");
     pxv("value.size", "--mv-size"); pxv("hl.size", "--hl-size"); pxv("pie.height", "--pie-h");
+    pxv("caption.size", "--cap-size");
+    if (so["hl.weight"]) set("--hl-weight", so["hl.weight"]);
+    if (so["caption.weight"]) set("--cap-weight", so["caption.weight"]);
+    if (so["caption.color"]) set("--cap-color", so["caption.color"]);
+    if (so["text.color"]) set("--text-ink", so["text.color"]);
+    if (so["text.weight"]) set("--text-weight", so["text.weight"]);
     if (so["done.color"]) set("--stp-done", so["done.color"]);
     if (so["marker.color"]) set("--mk-color", so["marker.color"]);
     if (so["header.bg"]) set("--th-bg", so["header.bg"]);
@@ -124,6 +130,7 @@ window.Components = (function () {
     cls(so["best.highlight"] === false, "no-best");
     cls(so["sum.show"] === false, "no-sum");
     cls(so["legend.show"] === false, "no-legend");
+    if (so["chart.align"]) node.style.setProperty("--chart-align", so["chart.align"]);
     cls(so["legend.pct"] === false, "no-legendpct");
     cls(so["quick.show"] === false, "no-quick");
     // 二轮规格键
@@ -217,10 +224,14 @@ window.Components = (function () {
 
   function rText(env) {
     const p = env.params;
+    const so = env.style_overrides || {};
     const toneColor = { positive: "var(--success)", negative: "var(--danger)", warning: "var(--warning)", neutral: "var(--text-primary)" }[p.tone || "neutral"];
+    // 关掉「按语气着色」后，结论用自己配的颜色
+    const inkText = so["tone.color"] === false ? (so["hl.color"] || "var(--ink-panel, var(--text-primary))") : toneColor;
     return compCard([
       p.caption ? el("div", { class: "muted hl-caption" }, [p.caption]) : null,
-      el("div", { class: "hl-value", style: `font-size:var(--hl-size, 1.45em);font-weight:600;color:${toneColor}` },
+      el("div", { class: "hl-value",
+        style: `font-size:var(--hl-size, 1.45em);font-weight:var(--hl-weight, 600);color:${inkText}` },
         [String(p.value) + (p.unit ? " " + p.unit : "")]),
     ]);
   }
@@ -398,10 +409,11 @@ window.Components = (function () {
     const total = slices.reduce((s, x) => s + x.value, 0) || 1;
     const pal = (window.Brand ? Brand.chartPalette() : {}).categorical
       || ["#3E63DD", "#0FA3A3", "#8E4EC6", "#EE7712", "#D6409F"];
-    const legend = el("div", { class: "pie-legend", style: "display:flex;gap:12px;flex-wrap:wrap;margin-top:8px" },
-      slices.map((s, i) => el("span", { class: "muted", style: "display:flex;align-items:center;gap:4px" }, [
-        el("span", { style: `width:9px;height:9px;border-radius:2px;background:${pal[i % pal.length]};display:inline-block` }),
-        s.label, el("span", { class: "pie-pct num" }, [` ${(s.value / total * 100).toFixed(0)}%`]),
+    const legend = el("div", { class: "pie-legend" },
+      slices.map((s, i) => el("span", { class: "pie-lg" }, [
+        el("span", { class: "pie-dot", style: `background:${pal[i % pal.length]}` }),
+        el("span", { class: "pie-lb" }, [s.label]),
+        el("span", { class: "pie-pct num" }, [`${(s.value / total * 100).toFixed(0)}%`]),
       ])));
     if (so["pie.style"] === "donut") {
       // 环形图：SVG stroke 圆环
@@ -653,6 +665,8 @@ window.Components = (function () {
 
   function rSelectSingle(env, ctx) {
     const p = env.params;
+    // 多选是选择器的一个开关，不是另一个组件
+    if (p.multi === true) return rSelectMulti(env, ctx);
     const opts = p.options || [];
     if (!opts.length) return compCard([compTitle(p.prompt), emptyState(env)]);
     const display = p.display || "list";

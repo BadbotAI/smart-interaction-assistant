@@ -98,7 +98,11 @@ def build_site(outdir, pages, platform):
             + f'<script src="./mock_data.js?v={ver["mock_data.js"]}"></script>\n'
             + f'<script src="./mock_api.js?v={ver["mock_api.js"]}"></script>\n')
     sw_reg = ('<script>if("serviceWorker" in navigator)'
-              'navigator.serviceWorker.register("./sw.js").catch(function(){});</script>\n')
+              'navigator.serviceWorker.register("./sw.js").then(function(reg){reg.update();'
+              'reg.addEventListener("updatefound",function(){var nw=reg.installing;if(!nw)return;'
+              'nw.addEventListener("statechange",function(){'
+              'if(nw.state==="installed"&&navigator.serviceWorker.controller)location.reload();});});'
+              '}).catch(function(){});</script>\n')
 
     for f in pages:
         s = rewrite(open(os.path.join(WEB, f), encoding="utf-8").read())
@@ -146,12 +150,11 @@ self.addEventListener("fetch", (e) => {
   if (isHashed) {
     e.respondWith(caches.open(CACHE).then(c => c.match(e.request).then(hit => hit || fetch(e.request).then(r => { if (r.ok) c.put(e.request, r.clone()); return r; }))));
   } else {
-    // HTML 用 stale-while-revalidate：命中缓存立刻出页面（切导航几乎瞬时），同时后台拉新版写回。
-    // 构建号变化会整体作废旧缓存，所以不会长期停留在旧版。
-    e.respondWith(caches.open(CACHE).then(c => c.match(e.request).then(hit => {
-      const net = fetch(e.request).then(r => { if (r.ok) c.put(e.request, r.clone()); return r; }).catch(() => hit);
-      return hit || net;
-    })));
+    // HTML 走 network-first：改完发上线，刷新一次就是新的；断网或超时才回退缓存。
+    // 之前用 stale-while-revalidate，第一次刷新永远先给旧页，改动看不见。
+    e.respondWith(caches.open(CACHE).then(c =>
+      fetch(e.request).then(r => { if (r.ok) c.put(e.request, r.clone()); return r; })
+        .catch(() => c.match(e.request))));
   }
 });
 """.replace("%PRECACHE%", json.dumps(["./" + p for p in pages], ensure_ascii=False)) % build_id

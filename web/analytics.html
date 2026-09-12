@@ -16,6 +16,7 @@
   .an-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
   .an-grid > div { display: flex; flex-direction: column; gap: 14px; }
   .an-grid > div > .an-card { margin-bottom: 0; }
+  .an-grid { margin-bottom: 18px; }   /* 与下面「按组件类型」拉开 */
   .an-grid > div > .an-card:only-child { flex: 1; display: flex; flex-direction: column; }
   .an-grid > div > .an-card:only-child > .fn-row:first-of-type { margin-top: auto; }
   .an-grid > div > .an-card:only-child > .fn-row:last-of-type { margin-bottom: auto; }
@@ -59,6 +60,15 @@
   #rangeMount { display: flex; align-items: center; gap: 8px; flex: none; }
   .an-range-custom { display: flex; align-items: center; gap: 6px; }
   .an-range-custom input[type=date] { height: 32px; padding: 4px 8px; }
+  /* 组件类型筛选：与工作台左侧分类一个口径，横排一行 */
+  .an-cats { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .an-cat { border: 1px solid var(--border); background: var(--bg-elevated); border-radius: 999px;
+    padding: 5px 12px; font-size: var(--font-small); color: var(--text-secondary); cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; transition: all var(--dur-fast); }
+  .an-cat:hover { border-color: var(--primary-border); color: var(--text-primary); }
+  .an-cat.on { background: var(--primary-weak); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+  .an-cat .num { font-size: 11px; color: var(--text-muted); }
+  .an-cat.on .num { color: var(--primary); }
   .an-inst-row { cursor: pointer; }
   .an-inst-row:hover td { background: var(--bg-surface); }
   .an-inst-row.on td { background: var(--primary-weak); }
@@ -148,12 +158,39 @@ function trendCard(o) {
   ]);
 }
 
+// 分类口径与组件工作台一致
+const AN_CATS = [
+  ["all", "全部"],
+  ["sel", "选择", ["select.single", "select.multi", "select.card", "feedback.preference", "rank.priority"]],
+  ["form", "表单", ["form.structured", "picker.datetime", "slider.range", "scale.likert"]],
+  ["cfm", "确认", ["control.confirm"]],
+  ["fb", "反馈", ["feedback.binary"]],
+  ["chart", "图表", ["chart.line", "chart.bar", "chart.pie", "chart.waterfall", "chart.area", "metric.card"]],
+  ["tbl", "表格", ["table", "matrix.compare"]],
+  ["flow", "流程", ["timeline", "steps"]],
+  ["text", "文本", ["list.ordered", "text.emphasis"]],
+];
+let anCat = "all";
+
 function byTypeCard(rows) {
-  if (!rows.length) return el("div", { class: "an-card" }, [
+  const cat = AN_CATS.find(c => c[0] === anCat) || AN_CATS[0];
+  const shown = anCat === "all" ? rows : rows.filter(r => (cat[2] || []).includes(r.component_type));
+  const catBar = el("div", { class: "an-cats" }, AN_CATS.map(([k, nm, types]) => {
+    const n = k === "all" ? rows.length : rows.filter(r => (types || []).includes(r.component_type)).length;
+    if (k !== "all" && !n) return null;
+    return el("button", { type: "button", class: "an-cat" + (anCat === k ? " on" : ""),
+      onclick: () => { anCat = k; const host = document.getElementById("anOverall");
+        const old = host.querySelector(".an-card.by-type");
+        old && old.replaceWith(byTypeCard(rows)); } },
+      [nm, el("span", { class: "num" }, [String(n)])]);
+  }));
+  if (!rows.length) return el("div", { class: "an-card by-type" }, [
     el("div", { class: "an-head" }, [el("span", { class: "t" }, ["按组件类型"])]),
     el("div", { class: "an-empty" }, ["暂无数据"])]);
-  return el("div", { class: "an-card" }, [
+  rows = shown;
+  return el("div", { class: "an-card by-type" }, [
     el("div", { class: "an-head" }, [el("span", { class: "t" }, ["按组件类型"])]),
+    catBar,
     el("div", { style: "overflow-x:auto" }, [
       el("table", { class: "data" }, [
         el("thead", {}, [el("tr", {}, ["组件", "曝光", "开始操作", "提交", "交互率", "完成率"]

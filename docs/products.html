@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>产品与接入 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=e7d70a39">
+<link rel="stylesheet" href="./shared.css?v=2ac51ab6">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 </head>
 <body class="has-side">
@@ -19,10 +19,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=5673df06"></script>
+<script src="./mock_data.js?v=c209b104"></script>
 <script src="./mock_api.js?v=3f4704b4"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
-<script src="./ui.js?v=29c90ff0"></script>
+<script src="./ui.js?v=845817b8"></script>
 <script>
 UI.nav("products");
 const { el } = UI;
@@ -112,7 +112,6 @@ function configProduct(p) {
       el("span", { class: "label-text", style: "margin:0" }, ["接入信息",
         UI.help("接入分两步：把「后端注册表」交给你的 agent 服务（作为工具声明），把「前端代码」贴进业务页面。组件会在对话里渲染，用户提交的结果回传给 agent。")]),
       el("div", { style: "flex:1" }),
-      el("button", { class: "btn small", onclick: () => viewSchemas(p) }, ["数据 Schema"]),
     ]),
     codeBlock("后端注册表接口", "agent 服务端拉取，作为工具声明给大模型",
       `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`),
@@ -180,7 +179,7 @@ function draw() {
       el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
         el("span", { style: "font-weight:700;font-size:var(--font-title);width:200px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: p.name }, [p.name]),
         el("div", { style: "flex:1" }),
-
+        el("span", { class: "prod-actions", style: "display:inline-flex;align-items:center;gap:8px" }, [
         el("button", { class: "btn small", onclick: () => configProduct(p) }, ["产品配置"]),
         (() => { const more = el("button", { class: "btn iconic round", title: "更多", "aria-label": "更多操作",
           onclick: () => { UI.menu(more, [
@@ -209,8 +208,9 @@ function draw() {
               catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
             } },
           ]); } }, [UI.icon("more", 15)]); return more; })(),
+        ]),
       ]),
-      el("div", { style: "display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap" }, [
+      el("div", { style: "display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap" }, [
         el("span", { class: "key-chip static", title: "产品 ID" },
           [el("span", { class: "num" }, ["ID:" + shortProductId(p.product_id)])]),
 
@@ -218,7 +218,7 @@ function draw() {
       (() => {
         const bound = p.card_ids || [];
         const online = bound.filter(cid => (allCards.find(x => x.card_id === cid) || {}).status === "published").length;
-        return el("div", { class: "muted", style: "margin-top:8px" }, [
+        return el("div", { class: "muted", style: "margin-top:14px;line-height:1.7" }, [
           `风格主题 ${brandName(p.brand_file)} · 组件实例 ${bound.length} 个` +
           (bound.length ? `（${online} 个在线）` : " · 在组件工作台创建，发布后自动加入"),
         ]);
@@ -246,6 +246,6 @@ nb.onclick = newProductDialog;
 UI.loading(document.getElementById("listBox"));
 load().catch(e => UI.toast("加载失败：" + e.message, true));
 </script>
-<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(function(){});</script>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").then(function(reg){reg.update();reg.addEventListener("updatefound",function(){var nw=reg.installing;if(!nw)return;nw.addEventListener("statechange",function(){if(nw.state==="installed"&&navigator.serviceWorker.controller)location.reload();});});}).catch(function(){});</script>
 </body>
 </html>

@@ -79,7 +79,8 @@ def validate_card(payload: dict, strict: bool = False) -> list:
                 "node.size": (20, 32), "stepline.width": (1, 4), "list.gap": (4, 16), "opt.gap": (4, 16),
                 "card.gap": (4, 16), "track.height": (4, 10), "thumb.size": (14, 22), "dot.size": (24, 36),
                 "dot.gap": (4, 14), "grid.count": (2, 5), "donut.thickness": (12, 28),
-                "tbl.font": (11, 14), "steplabel.size": (10, 13), "opt.radius": (0, 16)}
+                "tbl.font": (11, 14), "steplabel.size": (10, 13), "opt.radius": (0, 16),
+                "caption.size": (11, 18)}
     SPEC_ENUM = {"sel_style": ("fill", "outline"), "line.style": ("solid", "dashed", "dotted"),
                  "grid.style": ("solid", "dashed"), "point.shape": ("circle", "square", "diamond"),
                  "pie.style": ("bar", "donut"), "row.divider": ("line", "none", "all"),
@@ -90,8 +91,11 @@ def validate_card(payload: dict, strict: bool = False) -> list:
                  "col.align": ("smart", "left"), "text.align": ("left", "center"), "lk.style": ("dots", "bar"),
                  "sl.style": ("slider", "stepper", "input"), "tl.order": ("asc", "desc"),
                  "steps.dir": ("horizontal", "vertical"), "ts.format": ("time", "datetime", "date", "relative"),
-                 "delta.good": ("higher", "lower", "neutral"), "pick.submit": ("button", "auto")}
+                 "delta.good": ("higher", "lower", "neutral"), "pick.submit": ("button", "auto"),
+                 "hl.weight": ("500", "400"), "caption.weight": ("500", "600"),
+                 "text.weight": ("500", "600"), "chart.align": ("center", "flex-end")}
     SPEC_COLOR = {"color.primary", "color.accent", "panel.bg", "line.color", "axis.color", "bar.color",
+                  "hl.color", "caption.color", "text.color",
                   "done.color", "marker.color", "header.bg", "dot.color", "input.bg", "tlline.color", "icon.color",
                   "wf.pos", "wf.neg", "total.color",
                   "panel.bc", "opt.bg", "opt.bc", "btn.bg", "btn.bc", "btn.fg"}

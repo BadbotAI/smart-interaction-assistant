@@ -108,7 +108,6 @@ function configProduct(p) {
       el("span", { class: "label-text", style: "margin:0" }, ["接入信息",
         UI.help("接入分两步：把「后端注册表」交给你的 agent 服务（作为工具声明），把「前端代码」贴进业务页面。组件会在对话里渲染，用户提交的结果回传给 agent。")]),
       el("div", { style: "flex:1" }),
-      el("button", { class: "btn small", onclick: () => viewSchemas(p) }, ["数据 Schema"]),
     ]),
     codeBlock("后端注册表接口", "agent 服务端拉取，作为工具声明给大模型",
       `GET ${origin}/v1/products/${p.product_id}/registry?key=${p.mcp_key}`),
@@ -176,7 +175,7 @@ function draw() {
       el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
         el("span", { style: "font-weight:700;font-size:var(--font-title);width:200px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: p.name }, [p.name]),
         el("div", { style: "flex:1" }),
-
+        el("span", { class: "prod-actions", style: "display:inline-flex;align-items:center;gap:8px" }, [
         el("button", { class: "btn small", onclick: () => configProduct(p) }, ["产品配置"]),
         (() => { const more = el("button", { class: "btn iconic round", title: "更多", "aria-label": "更多操作",
           onclick: () => { UI.menu(more, [
@@ -205,8 +204,9 @@ function draw() {
               catch (e2) { UI.toast(e2.data?.error || e2.message, true); }
             } },
           ]); } }, [UI.icon("more", 15)]); return more; })(),
+        ]),
       ]),
-      el("div", { style: "display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap" }, [
+      el("div", { style: "display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap" }, [
         el("span", { class: "key-chip static", title: "产品 ID" },
           [el("span", { class: "num" }, ["ID:" + shortProductId(p.product_id)])]),
 
@@ -214,7 +214,7 @@ function draw() {
       (() => {
         const bound = p.card_ids || [];
         const online = bound.filter(cid => (allCards.find(x => x.card_id === cid) || {}).status === "published").length;
-        return el("div", { class: "muted", style: "margin-top:8px" }, [
+        return el("div", { class: "muted", style: "margin-top:14px;line-height:1.7" }, [
           `风格主题 ${brandName(p.brand_file)} · 组件实例 ${bound.length} 个` +
           (bound.length ? `（${online} 个在线）` : " · 在组件工作台创建，发布后自动加入"),
         ]);

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>数据分析 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=e7d70a39">
+<link rel="stylesheet" href="./shared.css?v=2ac51ab6">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   .an-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px; margin-bottom: 16px; }
@@ -17,6 +17,7 @@
   .an-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
   .an-grid > div { display: flex; flex-direction: column; gap: 14px; }
   .an-grid > div > .an-card { margin-bottom: 0; }
+  .an-grid { margin-bottom: 18px; }   /* 与下面「按组件类型」拉开 */
   .an-grid > div > .an-card:only-child { flex: 1; display: flex; flex-direction: column; }
   .an-grid > div > .an-card:only-child > .fn-row:first-of-type { margin-top: auto; }
   .an-grid > div > .an-card:only-child > .fn-row:last-of-type { margin-bottom: auto; }
@@ -60,6 +61,15 @@
   #rangeMount { display: flex; align-items: center; gap: 8px; flex: none; }
   .an-range-custom { display: flex; align-items: center; gap: 6px; }
   .an-range-custom input[type=date] { height: 32px; padding: 4px 8px; }
+  /* 组件类型筛选：与工作台左侧分类一个口径，横排一行 */
+  .an-cats { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .an-cat { border: 1px solid var(--border); background: var(--bg-elevated); border-radius: 999px;
+    padding: 5px 12px; font-size: var(--font-small); color: var(--text-secondary); cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; transition: all var(--dur-fast); }
+  .an-cat:hover { border-color: var(--primary-border); color: var(--text-primary); }
+  .an-cat.on { background: var(--primary-weak); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+  .an-cat .num { font-size: 11px; color: var(--text-muted); }
+  .an-cat.on .num { color: var(--primary); }
   .an-inst-row { cursor: pointer; }
   .an-inst-row:hover td { background: var(--bg-surface); }
   .an-inst-row.on td { background: var(--primary-weak); }
@@ -83,10 +93,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=5673df06"></script>
+<script src="./mock_data.js?v=c209b104"></script>
 <script src="./mock_api.js?v=3f4704b4"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
-<script src="./ui.js?v=29c90ff0"></script>
+<script src="./ui.js?v=845817b8"></script>
 <script>
 UI.nav("analytics");
 const { el } = UI;
@@ -152,12 +162,39 @@ function trendCard(o) {
   ]);
 }
 
+// 分类口径与组件工作台一致
+const AN_CATS = [
+  ["all", "全部"],
+  ["sel", "选择", ["select.single", "select.multi", "select.card", "feedback.preference", "rank.priority"]],
+  ["form", "表单", ["form.structured", "picker.datetime", "slider.range", "scale.likert"]],
+  ["cfm", "确认", ["control.confirm"]],
+  ["fb", "反馈", ["feedback.binary"]],
+  ["chart", "图表", ["chart.line", "chart.bar", "chart.pie", "chart.waterfall", "chart.area", "metric.card"]],
+  ["tbl", "表格", ["table", "matrix.compare"]],
+  ["flow", "流程", ["timeline", "steps"]],
+  ["text", "文本", ["list.ordered", "text.emphasis"]],
+];
+let anCat = "all";
+
 function byTypeCard(rows) {
-  if (!rows.length) return el("div", { class: "an-card" }, [
+  const cat = AN_CATS.find(c => c[0] === anCat) || AN_CATS[0];
+  const shown = anCat === "all" ? rows : rows.filter(r => (cat[2] || []).includes(r.component_type));
+  const catBar = el("div", { class: "an-cats" }, AN_CATS.map(([k, nm, types]) => {
+    const n = k === "all" ? rows.length : rows.filter(r => (types || []).includes(r.component_type)).length;
+    if (k !== "all" && !n) return null;
+    return el("button", { type: "button", class: "an-cat" + (anCat === k ? " on" : ""),
+      onclick: () => { anCat = k; const host = document.getElementById("anOverall");
+        const old = host.querySelector(".an-card.by-type");
+        old && old.replaceWith(byTypeCard(rows)); } },
+      [nm, el("span", { class: "num" }, [String(n)])]);
+  }));
+  if (!rows.length) return el("div", { class: "an-card by-type" }, [
     el("div", { class: "an-head" }, [el("span", { class: "t" }, ["按组件类型"])]),
     el("div", { class: "an-empty" }, ["暂无数据"])]);
-  return el("div", { class: "an-card" }, [
+  rows = shown;
+  return el("div", { class: "an-card by-type" }, [
     el("div", { class: "an-head" }, [el("span", { class: "t" }, ["按组件类型"])]),
+    catBar,
     el("div", { style: "overflow-x:auto" }, [
       el("table", { class: "data" }, [
         el("thead", {}, [el("tr", {}, ["组件", "曝光", "开始操作", "提交", "交互率", "完成率"]
@@ -401,6 +438,6 @@ async function load() {
 
 load().catch(e => UI.toast("加载失败：" + e.message, true));
 </script>
-<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(function(){});</script>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").then(function(reg){reg.update();reg.addEventListener("updatefound",function(){var nw=reg.installing;if(!nw)return;nw.addEventListener("statechange",function(){if(nw.state==="installed"&&navigator.serviceWorker.controller)location.reload();});});}).catch(function(){});</script>
 </body>
 </html>

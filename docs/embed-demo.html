@@ -55,7 +55,7 @@
 
 <script src="./sia.js?v=f4ba4b54"></script>
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=5673df06"></script>
+<script src="./mock_data.js?v=c209b104"></script>
 <script src="./mock_api.js?v=3f4704b4"></script>
 <script>
   // v2：信封接口需产品接入 Key——演示页动态取第一个产品的 Key
@@ -92,6 +92,6 @@
   if (params.get("auto")) document.getElementById("render-btn").click();
 })();
 </script>
-<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(function(){});</script>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").then(function(reg){reg.update();reg.addEventListener("updatefound",function(){var nw=reg.installing;if(!nw)return;nw.addEventListener("statechange",function(){if(nw.state==="installed"&&navigator.serviceWorker.controller)location.reload();});});}).catch(function(){});</script>
 </body>
 </html>

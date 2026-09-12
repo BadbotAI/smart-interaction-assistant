@@ -387,8 +387,11 @@ window.UI = (function () {
               localStorage.setItem("sia_product_meta", JSON.stringify({ name: p.name }));
               // 切产品 = 切它的风格主题：平台内预览（工作台 / 编辑器 / 组件模板）立即跟随
               if (p.brand_file) localStorage.setItem("brand_file", p.brand_file);
+              try { sessionStorage.setItem("wb_product", p.product_id); } catch (e) {}
               cur = p;
-              location.reload();
+              // 切产品就是要去看这个产品的组件，直接落到它的工作台
+              if (location.pathname.endsWith("/cards.html")) location.reload();
+              else location.href = "/web/cards.html";
             } }, [
             avatar(p.name, 34),
             el("span", { class: "np-card-meta" }, [

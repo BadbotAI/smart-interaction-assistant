@@ -850,6 +850,56 @@ PRESET_NAMES = {
 }
 
 
+def _make_presets(conn) -> list:
+    """建一套标准组件实例（默认下线）。新建产品和工作台的「一键导入」共用。"""
+    out = []
+    for v2t, ct0 in registry.V2_DEFAULT_CT.items():
+        label = PRESET_NAMES.get(ct0) or (registry.V2_META.get(v2t) or {}).get("label") or ct0
+        # 组件名在租户内唯一：第二个产品导同一套时得让开
+        name = f"{label}（默认）"
+        if conn.execute("SELECT 1 FROM cards WHERE name=? AND status!='deleted'", (name,)).fetchone():
+            for i in range(2, 60):
+                alt = f"{label}（默认 {i}）"
+                if not conn.execute("SELECT 1 FROM cards WHERE name=? AND status!='deleted'", (alt,)).fetchone():
+                    name = alt
+                    break
+        c0, errs0 = cards.create_card("tenant-demo", {
+            "name": name, "component_type": ct0, "description": "",
+            "model_invokable": True, "field_bindings": {"config": {}},
+            "text_templates": {}, "emit_targets": ["model", "dashboard"],
+        })
+        if c0 and not errs0:
+            conn.execute("UPDATE cards SET status='offline', version=1 WHERE card_id=?", (c0["card_id"],))
+            out.append(c0["card_id"])
+    conn.commit()
+    return out
+
+
+@app.get("/api/products/preset-templates")
+def preset_templates():
+    """「一键导入」前先让用户看清要导入什么。"""
+    out = []
+    for v2t, ct0 in registry.V2_DEFAULT_CT.items():
+        out.append({"component_type": ct0,
+                    "name": PRESET_NAMES.get(ct0) or (registry.V2_META.get(v2t) or {}).get("label") or ct0})
+    return {"templates": out}
+
+
+@app.post("/api/products/{product_id}/presets")
+def import_presets(product_id: str):
+    """把标准组件一次性导入到这个产品（默认下线，用户挑需要的上线）。"""
+    conn = db.get_conn()
+    row = conn.execute("SELECT card_ids FROM products WHERE product_id=?", (product_id,)).fetchone()
+    if not row:
+        return JSONResponse({"error": "产品不存在"}, status_code=404)
+    ids = db.dj(row["card_ids"], []) or []
+    made = _make_presets(conn)
+    conn.execute("UPDATE products SET card_ids=? WHERE product_id=?", (db.j(ids + made), product_id))
+    conn.commit()
+    db.audit("demo-admin", "product_update", {"product_id": product_id, "cards": len(made)})
+    return {"ok": True, "added": len(made)}
+
+
 @app.post("/api/products")
 async def create_product(request: Request):
     """新建产品：名称 + 风格主题（单选） + 绑定组件（多选）。每个产品一个 MCP 接入点。"""
@@ -866,18 +916,7 @@ async def create_product(request: Request):
     pid = "prod-" + db.new_id()[:8]
     # 新产品预置全套组件模板实例（已下线）：用户从「上线需要的」开始，而不是从零配置
     if not card_ids:
-        for v2t, ct0 in registry.V2_DEFAULT_CT.items():
-            label = PRESET_NAMES.get(ct0) or (registry.V2_META.get(v2t) or {}).get("label") or ct0
-            preset_name = f"{label}（默认）"
-            c0, errs0 = cards.create_card("tenant-demo", {
-                "name": preset_name, "component_type": ct0, "description": "",
-                "model_invokable": True, "field_bindings": {"config": {}},
-                "text_templates": {}, "emit_targets": ["model", "dashboard"],
-            })
-            if c0 and not errs0:
-                conn.execute("UPDATE cards SET status='offline', version=1 WHERE card_id=?", (c0["card_id"],))
-                card_ids.append(c0["card_id"])
-        conn.commit()
+        card_ids = _make_presets(conn)
     conn.execute("INSERT INTO products (product_id, name, brand_file, card_ids, created_at) VALUES (?,?,?,?,?)",
                  (pid, name, brand_file, db.j(card_ids), db.now_ts()))
     conn.commit()

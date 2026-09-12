@@ -58,17 +58,19 @@
 </head>
 <body>
 <div class="page design-page">
-  <div class="page-head"><div class="page-title">风格主题</div></div>
+  <!-- 标题只出现一次：列表态是「风格主题」，编辑态换成「返回 + 主题名 + 操作」 -->
+  <div class="page-head ds-head" id="brandHead">
+    <div class="page-title" id="brandHeadTitle">风格主题</div>
+    <span class="muted" id="brandCount" style="font-size:var(--font-caption)"></span>
+    <div style="flex:1"></div>
+    <span id="brandHeadActions">
+      <button class="btn small primary" id="newBrandBtn" disabled>新建主题</button>
+    </span>
+  </div>
 
   <div class="style-split">
     <div class="ds-left">
       <div class="card" id="brandLibCard" style="flex:1;display:flex;flex-direction:column;min-height:0">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-          <span style="font-weight:600;flex:none;white-space:nowrap">主题列表</span>
-          <span class="muted" id="brandCount" style="font-size:var(--font-caption)"></span>
-          <div style="flex:1"></div>
-          <button class="btn small primary" id="newBrandBtn" disabled>新建主题</button>
-        </div>
         <div id="brandGrid" class="brand-list" style="flex:1;max-height:none"></div>
       </div>
       <div class="card ds-editor" id="editorCard" hidden>
@@ -787,6 +789,7 @@ function brandDialog(existing, onClose) {
     document.getElementById("editorCard").hidden = true;
     document.getElementById("brandLibCard").hidden = false;
     window._editingStyle = false;
+    setHead("list");
     document.getElementById("demoOne")?.removeAttribute("style");
     Brand.load(previewFile).then(() => renderDemos()).catch(() => {});
     onClose && onClose();
@@ -817,6 +820,7 @@ function brandDialog(existing, onClose) {
         document.getElementById("editorCard").hidden = true;
         document.getElementById("brandLibCard").hidden = false;
         window._editingStyle = false;
+        setHead("list");
         document.getElementById("demoOne")?.removeAttribute("style");
         renderBrands(); renderDemos();
         UI.emit("brands-changed", { file: (saved || {}).file });
@@ -836,13 +840,6 @@ function brandDialog(existing, onClose) {
 
   host.innerHTML = "";
   host.appendChild(el("div", { class: "style-ed" }, [
-    el("div", { class: "ed-sticky-head" }, [
-      el("span", { style: "font-weight:700;font-size:var(--font-title)" }, [existing ? "编辑主题" : "新建主题"]),
-      el("div", { style: "flex:1" }),
-      el("button", { class: "btn small", type: "button", onclick: close }, ["取消"]),
-      el("button", { class: "btn small primary ed-save", type: "button",
-        onclick: (e) => doSave(e.currentTarget) }, [existing ? "保存修改" : "保存主题"]),
-    ]),
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["主题名称"]), nameIn, nameErr]),
     modeTabs, optPanel, err,
   ]));
@@ -850,6 +847,7 @@ function brandDialog(existing, onClose) {
   document.getElementById("editorCard").hidden = false;
   host.hidden = false;
   window._editingStyle = true;
+  setHead("edit", { existing, close, doSave });
 
   // 初始化：取默认 token 作底；编辑时回填（有 _options 走选项模式，否则代码模式）
   (async () => {
@@ -903,11 +901,47 @@ function brandDialog(existing, onClose) {
 // ---------- 风格预设 ----------
 
 
+// 页头两态：列表时是「风格主题 + 新建主题」，编辑时是「返回 + 在改哪套 + 取消/保存」
+function setHead(mode, ctx) {
+  const title = document.getElementById("brandHeadTitle");
+  const actions = document.getElementById("brandHeadActions");
+  const count = document.getElementById("brandCount");
+  const head = document.getElementById("brandHead");
+  if (mode === "edit") {
+    const { existing, close, doSave } = ctx;
+    head.classList.add("is-edit");
+    title.textContent = existing ? "编辑主题" : "新建主题";
+    title.className = "page-title";        // 与列表态同一个类，字号才一致
+    count.textContent = existing ? existing.brand_name : "";
+    actions.innerHTML = "";
+    actions.append(
+      UI.el("button", { class: "btn small", type: "button", onclick: close }, ["取消"]),
+      UI.el("button", { class: "btn small primary ed-save", type: "button",
+        onclick: (e) => doSave(e.currentTarget) }, [existing ? "保存修改" : "保存主题"]),
+    );
+    // 返回按钮放在标题左边，和工作台详情页一个位置
+    head.querySelector(".ds-back")?.remove();
+    head.insertBefore(UI.el("button", { class: "btn small ds-back", type: "button", onclick: close }, ["返回"]), title);
+  } else {
+    head.classList.remove("is-edit");
+    title.textContent = "风格主题";
+    title.className = "page-title";
+    count.textContent = brands.length + " 套";
+    head.querySelector(".ds-back")?.remove();   // .btn 的 display 会盖掉 [hidden]，直接移除最稳
+    actions.innerHTML = "";
+    const b = UI.el("button", { class: "btn small primary", id: "newBrandBtn", type: "button" }, ["新建主题"]);
+    b.onclick = () => brandDialog(null);
+    actions.appendChild(b);
+  }
+}
+
 function renderBrands() {
   const grid = document.getElementById("brandGrid");
   grid.innerHTML = "";
   const cnt = document.getElementById("brandCount");
-  if (cnt) cnt.textContent = brands.length + " 套";
+  if (cnt && !document.getElementById("brandHead").classList.contains("is-edit")) {
+    cnt.textContent = brands.length + " 套";
+  }
   brands.forEach(b => {
     const users = products.filter(p => p.brand_file === b.file);
     const isSel = b.file === previewFile;
@@ -963,9 +997,7 @@ async function previewBrand(b) {
   try { brands = (await UI.api("/api/brands")).brands; } catch (e) { brands = []; }
   try { products = (await UI.api("/api/products")).products || []; } catch (e) { products = []; }
   renderBrands();
-  const nb = document.getElementById("newBrandBtn");
-  nb.disabled = false;
-  nb.onclick = () => brandDialog(null);
+  setHead("list");          // 页头由 setHead 统一渲染，含「新建主题」
   mountDemoControls();
   renderDemos();
   // 走查深链：?new=1 直接打开风格编辑器
