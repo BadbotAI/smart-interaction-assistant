@@ -1836,7 +1836,14 @@ async function openEditor(cardId, prefill, initStep) {
       const drawFixed = () => {
         fixedArea.innerHTML = "";
         fixedArea.className = state.contentMode === "fixed" ? "fx-panel" : "";
-        if (state.contentMode !== "fixed") return;
+        if (state.contentMode !== "fixed") {
+          if (SELECT_TYPES.includes(ct)) {
+            fixedArea.appendChild(el("div", { class: "ed-note" },
+              ["选项和推荐项都由 AI 按当前对话实时给出，这里不用配。",
+               "推荐项要不要显示角标，在「样式设计 - 选项与控件」里控制。"]));
+          }
+          return;
+        }
         // 分区小标题：标题 + 说明一行，替代裸 label 的拥挤感
         const fxSec = (t, hint, req2) => el("div", { class: "fx-sec" }, [
           el("span", { class: "fx-sec-t" + (req2 ? " label-text req" : "") }, [t]),
@@ -1954,7 +1961,8 @@ async function openEditor(cardId, prefill, initStep) {
           fixedArea.appendChild(el("div", { class: "field" }, [
             fxSec(ct === "rank.priority" ? "固定条目" : "固定选项",
               ct === "rank.priority" ? "2-8 项，每项 30 字内；用户按重要程度拖动排序"
-                : "2-8 项，每项 30 字内；可把一项设为「推荐」，选项右侧出现角标", true),
+                : "2-8 项，每项 30 字内。点某一项后面的「推荐」把它设为推荐项，选项右侧会出现角标；"
+                  + "角标要不要显示，在「样式设计 - 选项与控件」里控制", true),
             listBox]));
         }
         // 群体回显：完整说明的开关行（仅固定内容的交互组件可开）

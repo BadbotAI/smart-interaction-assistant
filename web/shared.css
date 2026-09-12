@@ -1608,6 +1608,10 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
   background: var(--bg-surface); border: 1px solid var(--border);
   color: var(--text-secondary); font-size: var(--font-small); line-height: 1.7; }
 
+/* 校验没过的输入框：红框 + 下方错误文案 */
+input.invalid, textarea.invalid { border-color: var(--danger); }
+input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent); }
+
 /* 颜色行的「跟随主题」开关：开着时色板置灰不可点 */
 .sty-inherit-tag { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-caption); }
 .sty-inherit-tag .toggle { margin-left: 2px; }

@@ -1468,6 +1468,9 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
   background: var(--bg-surface); border: 1px solid var(--border);
   color: var(--text-secondary); font-size: var(--font-small); line-height: 1.7; }
 
+input.invalid, textarea.invalid { border-color: var(--danger); }
+input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent); }
+
 .sty-inherit-tag { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-caption); }
 .sty-inherit-tag .toggle { margin-left: 2px; }
 .sty-section:has(.sty-inherit-tag:not(.is-custom)) .sty-swatches { opacity: .45; pointer-events: none; }

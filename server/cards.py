@@ -393,7 +393,7 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
                 conn.execute("UPDATE cards SET status='published', updated_at=? WHERE card_id=?",
                              (db.now_ts(), card_id))
                 conn.commit()
-                db.audit(actor, "card_republish_same", {"card_id": card_id, "version": row["version"]})
+                db.audit(actor, "card_republish_same", {"card_id": card_id, "name": card["name"], "version": row["version"]})
                 return get_card(card_id), None
         # 选项改名别名链：同一选项位（option_ids 对齐）文案变化时，历史数据按别名归并到新文案
         _merge_option_aliases(conn, card_id, prev_card, card)
@@ -409,7 +409,7 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
         conn.execute("UPDATE cards SET status='published', version=?, published_at=?, updated_at=? WHERE card_id=?",
                      (new_version, now, now, card_id))
         conn.commit()
-        db.audit(actor, "card_publish", {"card_id": card_id, "version": new_version})
+        db.audit(actor, "card_publish", {"card_id": card_id, "name": card["name"], "version": new_version})
         return get_card(card_id), None
 
     if action == "restore_draft":
@@ -434,7 +434,7 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
         args.extend([db.now_ts(), card_id])
         conn.execute(f"UPDATE cards SET {', '.join(sets)} WHERE card_id=?", args)
         conn.commit()
-        db.audit(actor, "card_restore_draft", {"card_id": card_id, "from_version": int(force or 0)})
+        db.audit(actor, "card_restore_draft", {"card_id": card_id, "name": card["name"], "from_version": int(force or 0)})
         return get_card(card_id), None
 
     if action == "offline":
@@ -443,7 +443,7 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
             return None, {"message": "仅已上线配置可下线"}
         conn.execute("UPDATE cards SET status='offline', updated_at=? WHERE card_id=?", (db.now_ts(), card_id))
         conn.commit()
-        db.audit(actor, "card_offline", {"card_id": card_id})
+        db.audit(actor, "card_offline", {"card_id": card_id, "name": card["name"]})
         return get_card(card_id), None
 
     if action == "delete":
@@ -463,7 +463,7 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
                              (db.j([x for x in _ids if x != card_id]), _r["product_id"]))
         # 历史快照保留，不随卡片删除消失（§2.7）
         conn.commit()
-        db.audit(actor, "card_delete", {"card_id": card_id, "force": force, "refs": len(refs)})
+        db.audit(actor, "card_delete", {"card_id": card_id, "name": card["name"], "force": force, "refs": len(refs)})
         return get_card(card_id), None
 
     if action == "rollback":
@@ -493,7 +493,7 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
         conn.execute("INSERT INTO card_snapshots (card_id, version, snapshot, published_at, archived) VALUES (?,?,?,?,0)",
                      (card_id, new_version, db.j(card), now))
         conn.commit()
-        db.audit(actor, "card_rollback", {"card_id": card_id, "to_version": version, "new_version": new_version})
+        db.audit(actor, "card_rollback", {"card_id": card_id, "name": card["name"], "to_version": version, "new_version": new_version})
         return card, None
 
     return None, {"message": f"未知操作 {action}"}

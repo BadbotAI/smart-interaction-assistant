@@ -75,28 +75,30 @@ const ACTION_NAMES = {
   model_profile_data: "导入画像数据", bank_import: "导入数据集", bank_import_failed: "导入数据集失败",
   bank_eval_pending: "评测回填", bank_staged_commit: "并入回流数据", bank_staged_discard: "移除回流数据",
   brand_import: "导入风格主题", label_source_toggle: "切换信号源", card_refs_upgrade: "升级配置引用",
+  migrate_events_cardid_v26: "关联历史数据到组件实例", migrate_preset_names_v27: "预置组件改用业务名称",
   ab_create: "创建 AB 实验", ab_stop: "停止 AB 实验",
 };
 
 // 详情说人话：ID 换成名称、技术键翻译、纯内部字段隐藏
 const DETAIL_KEY_CN = { card_id: "组件", card_name: "组件", product: "产品", product_id: "产品",
-  name: "名称", version: "版本", brand: "主题", brand_file: "主题文件", count: "数量", rows: "行数",
-  note: "说明", cards: "组件数", presets_removed: "清理预置", 预置组件: "预置组件" };
+  name: "名称", version: "版本", brand: "主题", brand_file: "主题文件", count: "数量",
+  rows: "处理条数", cards: "组件数" };
 // 这些是实现细节，对使用者没有信息量
-const DETAIL_HIDE = new Set(["force", "refs", "products_reset", "added", "tenant_id", "actor"]);
+const DETAIL_HIDE = new Set(["force", "refs", "products_reset", "added", "tenant_id", "actor",
+  "presets_removed", "预置组件", "note"]);
 const nameMap = {};   // id -> 展示名（组件与产品共用）
-function idLabel(v) {
+function idLabel(v, fallbackName) {
   const id = String(v);
-  const nm = nameMap[id];
-  return nm ? `${nm}（${id.slice(0, 8)}）` : id.slice(0, 8);
+  const nm = nameMap[id] || fallbackName;
+  // 对象已被删除时，裸 id 对使用者没有意义
+  return nm ? nm : "（已删除）";
 }
 function fmtDetail(d) {
   if (!d || typeof d !== "object") return "";
-  // id 已能解析出名称时，同条里的 name 字段是重复信息
-  const idv = d.card_id || d.product_id;
-  const dup = idv && d.name && nameMap[String(idv)] === d.name;
+  // 同一条里 id 和 name 说的是一件事：有 name 就用 name，把 id 那项收掉
+  const hasName = !!d.name;
   return Object.entries(d)
-    .filter(([k]) => !DETAIL_HIDE.has(k) && !(dup && k === "name"))
+    .filter(([k]) => !DETAIL_HIDE.has(k) && !(hasName && (k === "card_id" || k === "product_id")))
     .map(([k, v]) => {
       const label = DETAIL_KEY_CN[k] || k;
       if (k === "card_id" || k === "product_id") return `${label}=${idLabel(v)}`;

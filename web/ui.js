@@ -253,7 +253,9 @@ window.UI = (function () {
   };
   function ctName(ct) { return CT_NAMES[ct] || ct || "-"; }
   // 组件类型 chip：中文名为主，悬停显示内部 ID
-  function ctChip(ct, cls = "chip gray") { return el("span", { class: cls, title: ct || "" }, [ctName(ct)]); }
+  function ctChip(ct, cls = "chip gray") {
+    return el("span", { class: cls, title: ctName(ct) ? "组件类型：" + ctName(ct) : "" }, [ctName(ct)]);
+  }
 
   // 左侧导航：三大模块 + 底部账户。二级项可指向同一页面的不同 tab（#hash）
   // 两个平台各自独立的导航；共享页（操作日志等）按 window.SIA_PLATFORM 或高亮键推断归属

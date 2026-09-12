@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>风格主题 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=3dccbc31">
+<link rel="stylesheet" href="./shared.css?v=90052cbc">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
@@ -91,10 +91,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=d4da1c17"></script>
+<script src="./mock_data.js?v=e878e660"></script>
 <script src="./mock_api.js?v=5ebc21e8"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
-<script src="./ui.js?v=937c7ef9"></script>
+<script src="./ui.js?v=cc016c4c"></script>
 <script src="./components.js?v=5c6d7add"></script>
 <script>
 // 深链直开编辑器时，先行标记以免生效风格覆盖预览
@@ -437,7 +437,15 @@ function brandDialog(existing, onClose) {
 
   const nameIn = el("input", { type: "text", maxlength: "20", value: existing?.brand_name || "", placeholder: "例如：政企稳重" });
   const nameErr = el("div", { class: "field-error" });
-  nameIn.oninput = () => nameErr.textContent = "";
+  const normName = (x) => String(x || "").trim().toLowerCase().replace(/\s+/g, "");
+  const dupOf = (v) => brands.find(b2 => normName(b2.brand_name) === normName(v)
+    && (!existing || b2.brand_id !== existing.brand_id));
+  nameIn.oninput = () => {
+    const v = nameIn.value.trim();
+    const d = v ? dupOf(v) : null;
+    nameErr.textContent = d ? `已有同名主题「${d.brand_name}」，换个名字` : "";
+    nameIn.classList.toggle("invalid", !!d);
+  };
   const err = el("div", { class: "field-error" });
 
   // —— 预设选择（整套起步） ——
@@ -804,10 +812,11 @@ function brandDialog(existing, onClose) {
       el("button", { class: "btn primary ed-save", onclick: async (e) => {
         const name = nameIn.value.trim();
         if (!name) { nameErr.textContent = "请填写主题名称"; nameIn.focus(); return; }
-        const norm = (x) => String(x || "").trim().toLowerCase().replace(/\s+/g, "");
-        if (brands.some(b2 => norm(b2.brand_name) === norm(name)
-            && (!existing || b2.brand_id !== existing.brand_id))) {
-          nameErr.textContent = "已有同名主题，换个名字（主题名要能一眼区分）";
+        const dup = dupOf(name);
+        if (dup) {
+          nameErr.textContent = `已有同名主题「${dup.brand_name}」，换个名字`;
+          nameIn.classList.add("invalid");
+          nameIn.scrollIntoView({ block: "center", behavior: "smooth" });
           nameIn.focus(); return;
         }
         const tokens = buildTokens();
@@ -830,7 +839,15 @@ function brandDialog(existing, onClose) {
             UI.emit("brands-changed", { file: (saved || {}).file });
             UI.toast(existing ? "主题已更新" : "主题已创建，在「产品与接入」里配给产品即可生效");
             onClose && onClose();
-          } catch (e2) { err.textContent = e2.data?.error || e2.message; }
+          } catch (e2) {
+            const msg = e2.data?.error || e2.message;
+            if (e2.status === 409 || /同名/.test(msg)) {
+              nameErr.textContent = msg;
+              nameIn.classList.add("invalid");
+              nameIn.scrollIntoView({ block: "center", behavior: "smooth" });
+              nameIn.focus();
+            } else { err.textContent = msg; }
+          }
         }, "保存中……");
       } }, [existing ? "保存修改" : "保存主题"]),
     ]),
