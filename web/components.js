@@ -499,7 +499,6 @@ window.Components = (function () {
         const err = validate && validate();
         if (err) { UI.toast(err, true); return; }
         const payload = getPayload();
-        payload.time_to_submit_ms = Date.now() - (env._renderTs || Date.now());
         env._submitted = true;
         // 提交即终态：冻结组件内全部交互控件，避免"已提交但还能改"的状态错觉
         const root = btn.closest(".comp");
@@ -555,14 +554,40 @@ window.Components = (function () {
       else if (ownCount <= 1) headline = `${people} 人回答 · 你的选择比较独特`;
       else headline = `${people} 人回答 · ${ownPct}% 和你选了一样`;
       box.appendChild(el("div", { class: "echo-head" }, [headline]));
-      entries.forEach(([opt, n]) => {
-        const isOwn = own.includes(opt);
-        box.appendChild(el("div", { class: "echo-row" + (isOwn ? " own" : "") }, [
-          el("span", { class: "echo-name", title: opt }, [opt, isOwn ? UI.icon("check", 12) : null]),
-          el("span", { class: "echo-track" }, [el("span", { class: "echo-fill", style: `width:${Math.max(3, n / total * 100)}%` })]),
-          el("span", { class: "echo-pct num" }, [`${Math.round(n / total * 100)}%`]),
-        ]));
-      });
+      // 优先把比例画进选项本身：选项下方一条占比线 + 百分比，不再另起一块把选项重列一遍
+      const host = container.closest ? (container.closest(".comp") || container.parentNode) : container.parentNode;
+      const cells = host ? [...host.querySelectorAll("[data-opt]")] : [];
+      const inline = cells.length > 0;
+      if (inline) {
+        cells.forEach(cell => {
+          const opt = cell.getAttribute("data-opt");
+          const n = dist[opt] || 0;
+          const pct = Math.round(n / total * 100);
+          cell.classList.add("has-echo");
+          if (own.includes(opt)) cell.classList.add("echo-own");
+          cell.querySelectorAll(":scope > .opt-echo").forEach(x => x.remove());
+          cell.appendChild(el("span", { class: "opt-echo", title: `${n} 人选了这项` }, [
+            el("span", { class: "oe-track" }, [el("span", { class: "oe-fill", style: `width:${pct}%` })]),
+            el("span", { class: "oe-pct num" }, [pct + "%"]),
+          ]));
+        });
+        // 分布里有、但选项列表里没有的（自由填写等），仍在面板里补一行
+        entries.filter(([opt]) => !cells.some(c => c.getAttribute("data-opt") === opt))
+          .forEach(([opt, n]) => box.appendChild(el("div", { class: "echo-row" + (own.includes(opt) ? " own" : "") }, [
+            el("span", { class: "echo-name", title: opt }, [opt]),
+            el("span", { class: "echo-track" }, [el("span", { class: "echo-fill", style: `width:${Math.max(3, n / total * 100)}%` })]),
+            el("span", { class: "echo-pct num" }, [`${Math.round(n / total * 100)}%`]),
+          ])));
+      } else {
+        entries.forEach(([opt, n]) => {
+          const isOwn = own.includes(opt);
+          box.appendChild(el("div", { class: "echo-row" + (isOwn ? " own" : "") }, [
+            el("span", { class: "echo-name", title: opt }, [opt, isOwn ? UI.icon("check", 12) : null]),
+            el("span", { class: "echo-track" }, [el("span", { class: "echo-fill", style: `width:${Math.max(3, n / total * 100)}%` })]),
+            el("span", { class: "echo-pct num" }, [`${Math.round(n / total * 100)}%`]),
+          ]));
+        });
+      }
       if (!entries.length && d.recent_texts?.length) {
         box.appendChild(el("div", { class: "echo-head" }, [`${people} 人回答 · 大家这样说`]));
         d.recent_texts.slice(0, 3).forEach(t2 => box.appendChild(el("div", { class: "echo-quote" }, [t2])));
@@ -588,7 +613,8 @@ window.Components = (function () {
 
   function optionList(opts, p, multi, getPicked, setPicked) {
     const rows = opts.map(o => {
-      const row = el("button", { class: "opt-item", type: "button", role: multi ? "checkbox" : "radio", "aria-checked": "false" }, [
+      const row = el("button", { class: "opt-item", type: "button", role: multi ? "checkbox" : "radio",
+        "aria-checked": "false", "data-opt": String(o) }, [
         selDot(false, multi),
         el("span", { class: "opt-text" }, [o]),
         o === p.recommended_default ? el("span", { class: "chip blue rec-chip", style: "flex:none" }, ["推荐"]) : null,
@@ -621,13 +647,14 @@ window.Components = (function () {
         onclick: (e) => { picked = o;
           btns.forEach(b => { b.classList.remove("primary"); b.setAttribute("aria-checked", "false"); });
           e.currentTarget.classList.add("primary"); e.currentTarget.setAttribute("aria-checked", "true"); },
+        "data-opt": String(o),
       }, [o, o === p.recommended_default ? el("span", { class: "rec-chip chip blue" }, ["推荐"]) : null]));
       body = el("div", { class: display === "composer" ? "quick-float" : "opt-row" }, btns);
     } else if (display === "card") {
       const meta = p.option_meta || {};
       const cards = opts.map(o => {
         const m = meta[o] || {};
-        const node = el("div", { class: "opt-card", role: "radio", "aria-checked": "false" }, [
+        const node = el("div", { class: "opt-card", role: "radio", "aria-checked": "false", "data-opt": String(o) }, [
           m.image ? el("img", { src: m.image, alt: o }) : (m.desc ? el("div", { class: "img-ph" }, [o.slice(0, 1)]) : null),
           el("div", { style: "font-weight:600;display:flex;align-items:center;gap:6px" }, [o,
             o === p.recommended_default ? el("span", { class: "rec-chip chip blue" }, ["推荐"]) : null]),
@@ -687,7 +714,7 @@ window.Components = (function () {
       const meta = p.option_meta || {};
       const cards = opts.map(o => {
         const m = meta[o] || {};
-        const node = el("div", { class: "opt-card", role: "checkbox", "aria-checked": "false" }, [
+        const node = el("div", { class: "opt-card", role: "checkbox", "aria-checked": "false", "data-opt": String(o) }, [
           m.image ? el("img", { src: m.image, alt: o }) : (m.desc ? el("div", { class: "img-ph" }, [o.slice(0, 1)]) : null),
           el("div", { style: "font-weight:600" }, [o]),
           m.desc ? el("div", { class: "muted" }, [m.desc]) : null,
@@ -737,6 +764,7 @@ window.Components = (function () {
         const desc = m.desc || (isObj ? o.desc : null);
         const node = el("div", {
           class: "opt-card" + (m.image ? " media" : ""), role: "radio", "aria-checked": "false",
+          "data-opt": String(name),
           onclick: () => {
             picked = name;
             cards.forEach(c => { c.classList.remove("on"); c.setAttribute("aria-checked", "false"); });
@@ -1001,7 +1029,6 @@ window.Components = (function () {
         user_selection: picked.map(it => it.name),
         order_items: picked.map(it => ({ name: it.name, qty: it.qty, price: Number(it.price) || 0 })),
         order_total: picked.reduce((s2, it) => s2 + it.qty * (Number(it.price) || 0), 0),
-        time_to_submit_ms: Date.now() - (env._renderTs || Date.now()),
       };
       env._submitted = true;
       const root = totalBar.closest(".comp");
@@ -1086,7 +1113,7 @@ window.Components = (function () {
       nextB.textContent = "已读完";
       ctx.onCollectSubmit({ user_selection: "已读完", steps_total: steps.length,
         steps_viewed: viewed.size, completed: true,
-        time_to_submit_ms: Date.now() - (env._renderTs || Date.now()) }, env);
+      }, env);
     }
     function draw() {
       const st = steps[idx];

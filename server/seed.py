@@ -545,7 +545,7 @@ def seed_history(days=7, per_day=22):
                             "matrix.compare+select", "collect", "model_tool_call",
                             {"options_offered": ["供应商甲", "供应商乙", "供应商丙"], "recommended_default": "供应商甲",
                              "user_selection": sel, "modified_from_default": modified,
-                             "time_to_submit_ms": int(rng.random() * 12000 + 3000)},
+                             },
                             group={"enabled": True, "participants_count": 5, "aggregation_rule": "majority",
                                    "distribution": {"供应商甲": rng.randint(1, 4), "供应商乙": rng.randint(1, 3)},
                                    "final": sel, "abstained": rng.randint(0, 1)} if rng.random() < 0.4 else None)

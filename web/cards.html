@@ -1231,6 +1231,12 @@ async function openEditor(cardId, prefill, initStep) {
         }
         if ((state.fixedPrompt || "").trim()) envP.params.prompt = state.fixedPrompt.trim();
       }
+      // 赞踩 / 偏好没有"内容形式"这一层，它们的问法在内容步直接填，也要实时进预览
+      if (["feedback.binary", "feedback.preference"].includes(state.component_type)
+          && (state.fixedPrompt || "").trim()) {
+        envP.params = envP.params || {};
+        envP.params.prompt = state.fixedPrompt.trim();
+      }
       // 内容步的补充配置实时进预览
       if (envP && envP.params) {
         if ((state.submitLabel || "").trim()) envP.params.submit_label = state.submitLabel.trim();
@@ -1311,21 +1317,45 @@ async function openEditor(cardId, prefill, initStep) {
     const compEl = previewBox.querySelector(".comp");
     if (!compEl) return;
     const exist = compEl.querySelector(".echo-demo");
-    if (exist) { if (!forceOn) exist.remove(); return; }
+    if (exist) { if (!forceOn) return; compEl.querySelectorAll(".opt-echo").forEach(x => x.remove()); exist.remove(); }
+    // 与线上一致：比例直接画进每个选项，不再另起一块把选项重列一遍
+    const cells = [...compEl.querySelectorAll("[data-opt]")];
+    const n = Math.max(cells.length, 2);
+    const dm = state.echoDemo || {};
+    const raw = Array.isArray(dm.pcts) && dm.pcts.length ? dm.pcts : null;
+    const sum = raw ? raw.reduce((a2, b2) => a2 + (Number(b2) || 0), 0) : 0;
+    // 配了示例就按配的比例（合计不是 100 也按比例折算），没配就给一组默认分布
+    const pctOf = (i) => raw && sum > 0
+      ? Math.round((Number(raw[i]) || 0) / sum * 100)
+      : Math.round(100 / n + (i === 0 ? 14 : -14 / Math.max(1, n - 1)));
+    const people = Number(dm.people) > 0 ? Number(dm.people) : n * 37;
+    if (cells.length) {
+      cells.forEach((cell, i) => {
+        const pct = pctOf(i);
+        cell.classList.add("has-echo");
+        if (i === 0) cell.classList.add("echo-own");
+        cell.appendChild(el("span", { class: "opt-echo" }, [
+          el("span", { class: "oe-track" }, [el("span", { class: "oe-fill", style: `width:${pct}%` })]),
+          el("span", { class: "oe-pct num" }, [pct + "%"]),
+        ]));
+      });
+      compEl.appendChild(el("div", { class: "echo-demo" }, [
+        el("div", { class: "muted", style: "font-size:var(--font-caption)" },
+          [`共 ${people} 人参与 · ${pctOf(0)}% 和你选了一样（回显示意）`]),
+      ]));
+      return;
+    }
+    // 没有可标注的选项（如自由填写），退回列表形态
     const oo = (state.fixedOptions || []).map(x => String(x).trim()).filter(Boolean);
     const demo = oo.length ? oo : ["选项 A", "选项 B"];
-    const total = demo.length * 37;
     compEl.appendChild(el("div", { class: "echo-demo" }, [
       el("div", { class: "muted", style: "font-size:var(--font-caption);margin-bottom:6px" },
-        [`共 ${total} 人参与（回显示意）`]),
-      ...demo.map((o, i) => {
-        const pct = Math.round(100 / demo.length + (i === 0 ? 14 : -14 / Math.max(1, demo.length - 1)));
-        return el("div", { class: "echo-row" }, [
-          el("span", { class: "echo-name" }, [o]),
-          el("span", { class: "echo-bar" }, [el("i", { style: `width:${pct}%` })]),
-          el("span", { class: "echo-pct num" }, [pct + "%"]),
-        ]);
-      }),
+        [`共 ${people} 人参与（回显示意）`]),
+      ...demo.map((o, i) => el("div", { class: "echo-row" }, [
+        el("span", { class: "echo-name" }, [o]),
+        el("span", { class: "echo-bar" }, [el("i", { style: `width:${pctOf(i)}%` })]),
+        el("span", { class: "echo-pct num" }, [pctOf(i) + "%"]),
+      ])),
     ]));
   }
 
@@ -1917,8 +1947,47 @@ async function openEditor(cardId, prefill, initStep) {
         fixedArea.appendChild(el("label", { class: "fx-echo" }, [echo,
           el("span", { class: "fx-echo-txt" }, [
             el("span", { class: "fx-echo-t" }, ["群体回显"]),
-            el("span", { class: "fx-echo-d" }, ["用户提交后，展示所有人的选择分布（如「43% 的人选了 A」）。仅固定内容可开启——动态内容每次不同，无法聚合统计。开启后可在右侧预览查看回显样式。"]),
+            el("span", { class: "fx-echo-d" }, ["用户提交后，把所有人的选择分布直接标在每个选项上（如「43%」）。仅固定内容可开启——动态内容每次不同，无法聚合统计。"]),
           ])]));
+        // 回显示例：只影响右侧预览，用来看不同比例下长什么样
+        if (state.echo_results) {
+          const opts = (state.fixedOptions || []).map(x => String(x).trim()).filter(Boolean);
+          const demo = state.echoDemo = state.echoDemo || { people: 128, pcts: [] };
+          while (demo.pcts.length < opts.length) demo.pcts.push(Math.round(100 / Math.max(1, opts.length)));
+          demo.pcts.length = opts.length;
+          const box2 = el("div", { class: "echo-demo-cfg" });
+          const sumLine = el("div", { class: "muted", style: "font-size:var(--font-caption)" });
+          const syncSum = () => {
+            const sum = demo.pcts.reduce((a2, b2) => a2 + (Number(b2) || 0), 0);
+            sumLine.textContent = sum === 100 ? "合计 100%"
+              : `合计 ${sum}%，预览时会按比例折算成 100%`;
+          };
+          const pn = el("input", { type: "number", min: "1", max: "99999", class: "num", style: "width:96px",
+            value: String(demo.people) });
+          pn.oninput = () => { demo.people = Math.max(1, Number(pn.value) || 1); upd(); };
+          box2.appendChild(el("div", { class: "sty-section" }, [
+            el("div", { class: "sty-label" }, ["参与人数"]), pn]));
+          if (opts.length) {
+            const rows2 = el("div", {});
+            opts.forEach((o, i) => {
+              const n2 = el("input", { type: "number", min: "0", max: "100", class: "num", style: "width:76px",
+                value: String(demo.pcts[i] ?? 0) });
+              n2.oninput = () => { demo.pcts[i] = Math.max(0, Math.min(100, Number(n2.value) || 0)); syncSum(); upd(); };
+              rows2.appendChild(el("div", { class: "fx-row" }, [
+                el("span", { style: "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, [o]),
+                n2, el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["%"]),
+              ]));
+            });
+            syncSum();
+            box2.appendChild(el("div", { class: "sty-section" }, [
+              el("div", { class: "sty-label" }, ["各选项占比"]), rows2, sumLine]));
+          }
+          fixedArea.appendChild(el("div", { class: "echo-demo-wrap" }, [
+            el("div", { class: "edw-h" }, ["回显示例",
+              UI.help("只用来在右侧预览里看效果，线上展示的是真实提交数据")]),
+            box2,
+          ]));
+        }
       };
       drawCM(); drawFixed();
       box.appendChild(el("div", { class: "sty-section" }, [cmSeg, fixedArea]));
@@ -2394,7 +2463,10 @@ async function openEditor(cardId, prefill, initStep) {
 
     // —— 折叠分组：配置项多时也好配——每组可收起，默认只展开高频组 ——
     (function accordionize() {
-      const OPEN = new Set(["整体面板", "选项与控件", "条目与标记"]);
+      // 改一个配置会重绘整个面板：用户手动展开/收起过哪些区要记住，不能每次弹回默认
+      state.styOpen = state.styOpen || null;
+      const DEFAULT_OPEN = new Set(["整体面板", "选项与控件", "条目与标记"]);
+      const OPEN = state.styOpen ? new Set(state.styOpen) : DEFAULT_OPEN;
       const kids = [...box.children];
       const out = [];
       let cur = null;
@@ -2404,6 +2476,12 @@ async function openEditor(cardId, prefill, initStep) {
         if (isHead) {
           const title = (k.querySelector("span") || {}).textContent || "";
           cur = el("details", { class: "sty-acc", ...(OPEN.has(title) ? { open: "" } : {}) });
+          cur.addEventListener("toggle", (ev) => {
+            const now = new Set([...box.querySelectorAll("details.sty-acc")]
+              .filter(d => d.open)
+              .map(d => (d.querySelector("summary .sty-group span") || {}).textContent || ""));
+            state.styOpen = [...now];
+          });
           k.classList.add("in-acc");
           cur.appendChild(el("summary", {}, [k]));
           out.push(cur);

@@ -98,7 +98,7 @@ def _hash_user(user_id: str) -> str:
 def _summarize_payload(evt: dict) -> dict:
     p = evt.get("payload") or {}
     keep = {}
-    for k in ("user_selection", "modified_from_default", "time_to_interact_ms", "time_to_submit_ms",
+    for k in ("user_selection", "modified_from_default",
               "action", "reason", "dimension", "value"):
         if k in p:
             keep[k] = p[k]

@@ -49,6 +49,25 @@ window.Brand = (function () {
   }
 
   // 品牌 token 只作用于「组件」（.brand-scope 容器），平台界面保持自身风格
+  // 相对亮度（WCAG）：拿来判断主色上该配白字还是黑字
+  function relLum(hex) {
+    const m = String(hex || "").trim().replace("#", "");
+    if (!/^[0-9a-f]{6}$/i.test(m)) return null;
+    const ch = [0, 2, 4].map(i => {
+      const v = parseInt(m.slice(i, i + 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+  }
+  // 白字与黑字哪个在这个底色上更清楚
+  function onColor(hex) {
+    const L = relLum(hex);
+    if (L == null) return "#FFFFFF";
+    const cw = 1.05 / (L + 0.05);          // 白字对比度
+    const cb = (L + 0.05) / 0.05;          // 黑字对比度
+    return cw >= cb ? "#FFFFFF" : "#0A0C10";
+  }
+
   function apply(tokens) {
     current = tokens;
     let decls = "";
@@ -56,6 +75,11 @@ window.Brand = (function () {
       const v = get(tokens, path);
       if (v !== undefined) decls += `${cssVar}:${v};`;
     }
+    // 浅色系主色配白字会读不出来，按亮度自动选一个
+    const pri = get(tokens, "color.primary");
+    if (pri) decls += `--on-primary:${onColor(pri)};`;
+    const dg = get(tokens, "color.danger");
+    if (dg) decls += `--on-danger:${onColor(dg)};`;
     let st = document.getElementById("brand-style");
     if (!st) { st = document.createElement("style"); st.id = "brand-style"; document.head.appendChild(st); }
     st.textContent = `.brand-scope{${decls}}`;
