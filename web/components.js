@@ -217,7 +217,7 @@ window.Components = (function () {
     const good = soM["delta.good"] || (soM["delta.invert"] ? "lower" : "");
     const deltaCls = good === "neutral" ? "neutral" : (up === (good !== "lower")) ? "up" : "down";
     return compCard([
-      el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [p.label || ""]),
+      el("div", { class: "secondary metric-label", style: "font-size:var(--font-caption)" }, [p.label || ""]),
       el("div", { style: "display:flex;align-items:baseline;gap:10px;margin-top:2px" }, [
         el("span", { class: "metric-value", style: "font-size:var(--mv-size, 30px)" }, [String(p.value)]),
         p.unit ? el("span", { class: "secondary" }, [p.unit]) : null,

@@ -225,6 +225,8 @@ input[type=text], input[type=search], input[type=date], input[type=datetime-loca
 .btn:hover { background: var(--bg-surface); border-color: var(--border-strong); }
 .btn:active { transform: translateY(1px); }
 .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; box-shadow: none; }
+/* 组件跑在客户页面里，主色可能很浅——白字会读不出来，按亮度自动换成深字 */
+.comp .btn.primary, .brand-scope .btn.primary { color: var(--on-primary, #fff); }
 .btn.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); box-shadow: none; }
 .btn.ai { background: var(--ai-weak); border-color: transparent; color: var(--ai); font-weight: 600; }
 .btn.ai:hover { background: #E4DCF9; }
@@ -1990,7 +1992,7 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .comp .fb-cand { border-radius: var(--opt-radius, 10px); }
 .comp .submit-bar .btn.primary:not(.submitted) {
   background: var(--btn-bg, var(--primary)); border-color: var(--btn-bc, var(--btn-bg, var(--primary)));
-  color: var(--btn-fg, #fff); }
+  color: var(--btn-fg, var(--on-primary, #fff)); }
 .comp .btn.confirm-danger {
   background: var(--btn-bg, var(--danger)); border-color: var(--btn-bc, var(--btn-bg, var(--danger)));
   color: var(--btn-fg, #fff); }
