@@ -1601,6 +1601,11 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .key-chip.static { cursor: default; }
 .key-chip.static:hover { border-color: var(--border); background: var(--bg-elevated); color: inherit; }
 
+/* 编辑器里的补充说明：解释"这一步为什么就这么点东西" */
+.ed-note { margin-top: 14px; padding: 10px 12px; border-radius: 8px;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  color: var(--text-secondary); font-size: var(--font-small); line-height: 1.7; }
+
 /* 方案对比：开了隔行变色才有斑马纹 */
 .comp table.mx-table.mx-striped tbody tr:nth-child(even) { background: var(--bg-surface); }
 

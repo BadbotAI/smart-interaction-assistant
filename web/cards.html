@@ -94,7 +94,8 @@ function isoAgo(hours) { return new Date(Date.now() - hours * 3600e3).toISOStrin
 const WB_DEMO = {
   "select.single": { prompt: "请选择处理方式", options: ["方案 A · 时效优先", "方案 B · 成本优先"], submit_label: "确认" },
   "select.multi": { prompt: "请勾选适用项", options: ["需要发票", "需要保价"], multi: true, submit_label: "提交" },
-  "select.card": { prompt: "请选择方案", options: ["海运直达", "海铁联运"], submit_label: "确认" },
+  "select.card": { prompt: "请选择方案", options: ["海运直达", "海铁联运"], submit_label: "确认",
+    option_meta: { "海运直达": { desc: "35 天 · 成本低" }, "海铁联运": { desc: "26 天 · 快 9 天" } } },
   "form.structured": { prompt: "请补充以下信息", fields: [{ key: "n", label: "联系人", required: true }, { key: "p", label: "联系方式", required: true }], submit_label: "提交" },
   "control.confirm": { prompt: "确认取消本次订单？该操作不可撤销。", submit_label: "确认执行" },
   "feedback.binary": { prompt: "这条回答怎么样" },
@@ -1104,6 +1105,8 @@ async function openEditor(cardId, prefill, initStep) {
     "rank.priority": { q: "这批货怎么安排比较好", reply: "请把你的诉求按重要程度排个序：", prompt: "哪个对你最重要？", options: ["时效最快", "成本最低", "风险最小"] },
     "matrix.compare+select": { q: "对比一下这几家供应商", reply: "按价格、时效、合规评估如下：", prompt: "选定供应商", options: ["中远供应链", "环球捷运"], dimensions: ["价格", "时效", "合规"] },
     "scale.likert": { q: "谢谢，问题解决了", reply: "不客气。", prompt: "这次服务满意吗？" },
+    "feedback.binary": { q: "这批货能赶上月底到吗？", reply: "按当前舱位，26 日可到港，月底前能完成交付。", prompt: "这条回答怎么样" },
+    "feedback.preference": { q: "帮我写个催单话术", reply: "给你两版，挑你更满意的：", prompt: "哪个回答更好？" },
     "guide.steps": { q: "破损赔付怎么申请？", reply: "按下面三步操作即可，全程在对话里完成。", prompt: "赔付申请指引" },
     "form.structured": { q: "我要退货", reply: "请补充以下信息，我来为你登记。", prompt: "退货登记",
       fields: [{ key: "order_no", label: "订单号", required: true }, { key: "phone", label: "联系电话", required: true }] },
@@ -1569,9 +1572,9 @@ async function openEditor(cardId, prefill, initStep) {
         el("span", { class: "label-text" }, ["候选", UI.help("留空内容则运行时由 AI 填入；填了就是固定候选")]), listC]));
     }
 
-    // 赞踩：可编辑的是赞踩上方的引导文案；同样支持群体回显
+    // 赞踩：可编辑的就是赞踩上方那一句问法；同样支持群体回显
     if (ct === "feedback.binary") {
-      box.appendChild(groupHead("引导文案"));
+      box.appendChild(groupHead("问法", "赞踩按钮左边那一句话"));
       const fbIn = el("input", { type: "text", maxlength: "20", value: state.fixedPrompt || "",
         placeholder: "这条回答怎么样", style: "max-width:360px" });
       fbIn.oninput = () => { state.fixedPrompt = fbIn.value; upd(); };
@@ -2014,6 +2017,9 @@ async function openEditor(cardId, prefill, initStep) {
         cxl.oninput = () => { state.cancelLabel = cxl.value; upd(); };
         box.appendChild(el("div", { class: "sty-section" }, [
           el("div", { class: "sty-label" }, ["取消文案", UI.help("留空则用默认「取消」")]), cxl]));
+        // 这一步只有两个按钮文案，说清楚"要确认的那句话"是谁写的，避免以为漏配了
+        box.appendChild(el("div", { class: "ed-note" },
+          ["要确认的那句话（如「确认取消这笔订单？」）由 AI 按当前对话实时给出，这里只定两个按钮怎么写。"]));
       }
     }
 
@@ -2060,13 +2066,26 @@ async function openEditor(cardId, prefill, initStep) {
       // 继承状态行：未覆盖=跟随主题（显示主题当前色），已覆盖=可一键恢复。
       // 不再把「品牌」混进色板当成一个可选颜色（它是状态，不是颜色）
       const inherit = el("span", { class: "sty-inherit-tag" });
+      // 每个颜色项"不覆盖时实际会用的颜色"：圆点与输入框占位都取它
+      const THEME_VAR = {
+        "color.primary": "--primary", "color.accent": "--brand-accent", "panel.bg": "--bg-elevated",
+        "panel.bc": "--border", "opt.bg": "--bg-elevated", "opt.bc": "--border",
+        "btn.bg": "--primary", "btn.bc": "--primary",
+        "header.bg": "--bg-surface", "input.bg": "--bg-elevated", "line.color": "--primary",
+        "bar.color": "--primary", "axis.color": "--border", "dot.color": "--primary",
+        "tlline.color": "--border", "done.color": "--primary", "marker.color": "--primary",
+        "wf.pos": "--success", "wf.neg": "--danger", "total.color": "--primary",
+      };
+      const themeVarOf = () => {
+        if (key === "btn.fg") return "#FFFFFF";   // 主色按钮上的文字默认是白色
+        const v = getComputedStyle(document.documentElement)
+          .getPropertyValue(THEME_VAR[key] || "--primary").trim();
+        return v || "#3E63DD";
+      };
       const drawInherit = () => {
         inherit.innerHTML = "";
         const overridden = !!so[key];
-        const themeVal = getComputedStyle(document.documentElement).getPropertyValue(
-          { "color.primary": "--primary", "color.accent": "--brand-accent", "panel.bg": "--bg-elevated",
-            "panel.bc": "--border", "opt.bg": "--bg-elevated", "opt.bc": "--border",
-            "btn.bg": "--primary", "btn.fg": "--text-primary", "btn.bc": "--primary" }[key] || "--primary").trim();
+        const themeVal = themeVarOf();
         if (!overridden) {
           inherit.appendChild(el("span", { class: "sw-dot", style: `background:${themeVal || "#3E63DD"}` }));
           inherit.appendChild(el("span", { class: "muted" }, ["跟随主题"]));
@@ -2084,7 +2103,9 @@ async function openEditor(cardId, prefill, initStep) {
         const wheel = el("button", { type: "button", class: "sty-swatch cp-open", title: "取色器：自由取色与透明度" }, [UI.icon("pipette", 15)]);
         wheel.onclick = () => UI.colorPicker(wheel, { value: so[key] || "#3E63DD", alpha: true,
           onChange: (hex2) => { so[key] = hex2; upd(); } });
-        const hex = el("input", { type: "text", value: so[key] || "", placeholder: "#3E63DD", maxlength: "9", spellcheck: "false",
+        // 占位显示的是"不覆盖时实际会用的颜色"，不能一律写成主色
+        const hex = el("input", { type: "text", value: so[key] || "",
+          placeholder: (themeVarOf() || "#3E63DD").toUpperCase(), maxlength: "9", spellcheck: "false",
           class: "num", style: "width:92px;padding:5px 8px;font-size:12px;text-transform:uppercase" });
         hex.onchange = () => {
           let v = hex.value.trim();

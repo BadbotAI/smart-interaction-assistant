@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=cfb74aff">
+<link rel="stylesheet" href="./shared.css?v=e4e3ae7d">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -65,11 +65,11 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=e305d851"></script>
+<script src="./mock_data.js?v=f6b5002c"></script>
 <script src="./mock_api.js?v=5ebc21e8"></script>
 <script src="./tokens.js?v=aba04afb"></script>
-<script src="./ui.js?v=63967988"></script>
-<script src="./components.js?v=c1543d84"></script>
+<script src="./ui.js?v=988511fd"></script>
+<script src="./components.js?v=5b0e24c5"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
 UI.nav("cards");
@@ -91,11 +91,15 @@ const LIKERT_PRESETS = [["1 ~ 5", 1, 5], ["0 ~ 5", 0, 5], ["0 ~ 3", 0, 3], ["1 ~
 
 // ============ 列表（状态 tab + 数据概览合并） ============
 
+// 示例时间统一用 ISO，时间线才能按所选格式（时分 / 日期 / 相对时间）渲染
+function isoAgo(hours) { return new Date(Date.now() - hours * 3600e3).toISOString(); }
+
 // 工作台卡片预览的示例参数：套用实例的样式覆盖与固定内容后渲染成真实缩略预览
 const WB_DEMO = {
   "select.single": { prompt: "请选择处理方式", options: ["方案 A · 时效优先", "方案 B · 成本优先"], submit_label: "确认" },
   "select.multi": { prompt: "请勾选适用项", options: ["需要发票", "需要保价"], multi: true, submit_label: "提交" },
-  "select.card": { prompt: "请选择方案", options: ["海运直达", "海铁联运"], submit_label: "确认" },
+  "select.card": { prompt: "请选择方案", options: ["海运直达", "海铁联运"], submit_label: "确认",
+    option_meta: { "海运直达": { desc: "35 天 · 成本低" }, "海铁联运": { desc: "26 天 · 快 9 天" } } },
   "form.structured": { prompt: "请补充以下信息", fields: [{ key: "n", label: "联系人", required: true }, { key: "p", label: "联系方式", required: true }], submit_label: "提交" },
   "control.confirm": { prompt: "确认取消本次订单？该操作不可撤销。", submit_label: "确认执行" },
   "feedback.binary": { prompt: "这条回答怎么样" },
@@ -110,7 +114,8 @@ const WB_DEMO = {
   "chart.pie": { title: "构成占比", slices: [{ label: "华东", value: 42 }, { label: "华南", value: 27 }, { label: "其他", value: 31 }] },
   "chart.waterfall": { title: "利润构成", categories: ["营收", "运费", "仓储", "退款"], values: [420, -86, -54, -32] },
   "metric.card": { label: "本月累计金额", value: "1,286", unit: "万元", delta: "4.2%" },
-  "timeline": { title: "处理进度", events: [{ ts: "09:20", title: "已受理" }, { ts: "10:05", title: "处理中" }, { ts: "11:40", title: "已完成" }] },
+  "timeline": { title: "处理进度", events: [
+    { ts: isoAgo(50), title: "已受理" }, { ts: isoAgo(26), title: "处理中" }, { ts: isoAgo(2), title: "已完成" }] },
   "steps": { title: "操作指引", steps: ["填写信息", "上传凭证", "等待审核"], current_index: 1 },
   "matrix.compare": { title: "方案对比", options: ["方案 A", "方案 B"], dimensions: ["时效", "成本"], values: [[8, 6], [6, 9]] },
   "list.ordered": { title: "注意事项", items: ["保留原包装以便验收", "签收前拍照留证"] },
@@ -690,6 +695,9 @@ const WIZ_DESC = {
 // v2.1 组件模板（交互 5 + 展示 7）：与注册集一致；default_config 仅用于右侧预览演示，保存时不落内容
 const V2_TEMPLATES = [
   { component_type: "select.single", name: "选择器", default_config: { options: ["方案 A", "方案 B", "方案 C"] } },
+  { component_type: "select.multi", name: "多选器", default_config: { options: ["选项 A", "选项 B", "选项 C"], multi: true } },
+  { component_type: "select.card", name: "卡片选择器", default_config: { options: ["方案 A", "方案 B"], display: "card",
+      option_meta: { "方案 A": { desc: "两行说明，用来放方案要点" }, "方案 B": { desc: "卡片比单选更适合并排比较" } } } },
   { component_type: "form.structured", name: "表单", default_config: { fields: [
       { key: "contact_name", label: "联系人", required: true }, { key: "contact_phone", label: "联系方式", required: true }] } },
   { component_type: "control.confirm", name: "确认器", default_config: {} },
@@ -725,7 +733,10 @@ const DEMO_PRESENT = {
   "chart.bar": { title: "分区域对比", categories: ["华东", "华南", "华北", "西南"], series: [{ name: "数量", values: [352, 332, 372, 222] }] },
   "chart.pie": { title: "构成占比", slices: [{ label: "华东", value: 42 }, { label: "华南", value: 27 }, { label: "华北", value: 22 }, { label: "其他", value: 9 }] },
   "metric.card": { label: "本月累计金额", value: "1,286", unit: "万元", delta: "4.2%", baseline: "对比上月同期" },
-  "timeline": { title: "处理进度", events: [{ ts: "09:20", title: "已受理", desc: "工单创建" }, { ts: "10:05", title: "处理中", desc: "已分派专员跟进" }, { ts: "14:30", title: "待确认", desc: "方案已发出" }] },
+  "timeline": { title: "处理进度", events: [
+    { ts: isoAgo(50), title: "已受理", desc: "工单创建" },
+    { ts: isoAgo(26), title: "处理中", desc: "已分派专员跟进" },
+    { ts: isoAgo(2), title: "待确认", desc: "方案已发出" }] },
   "steps": { title: "操作指引", steps: ["填写申请信息", "上传相关凭证", "等待审核", "查收处理结果"], current_index: 1 },
 };
 // 样式项归属的「组件区域」：面板 / 选项 / 文字 / 按钮 / 图形 / 数据表 / 节点 / 数值
@@ -747,7 +758,7 @@ const PARAM_ZONE = {
           "wf.pos", "wf.neg", "total.show", "total.color", "connector.show"],
   table: ["striped", "header_bold", "header.bg", "row.height", "outline", "row.divider", "col.align",
           "best.highlight", "sum.show"],
-  node: ["node.size", "done.color", "halo", "stepnum.show", "stepline.width", "steps.dir",
+  node: ["ts.format", "node.size", "done.color", "halo", "stepnum.show", "stepline.width", "steps.dir",
          "dot.shape", "dot.color", "tlline.style", "tlline.color", "ts.show", "tl.order", "now.emph"],
   metric: ["value.size", "delta.show", "delta.good", "delta.invert", "baseline.show", "metric.align"],
 };
@@ -825,6 +836,8 @@ const COMPONENT_PARAMS = {
     ["col.align", "列对齐", "enum", [["", "智能（数字右对齐）"], ["left", "全部左对齐"]], { adv: true }],
   ],
   "timeline": [
+    ["ts.format", "时间显示形式", "enum", [["", "时:分"], ["datetime", "日期 + 时:分"], ["date", "仅日期"], ["relative", "相对时间"]],
+      { hint: "同一条事件可显示为 09:20 / 09-12 09:20 / 3 小时前" }],
     ["tl.order", "排列方向", "enum", [["", "最新在下"], ["desc", "最新在上"]],
       { hint: "物流 / 消息类习惯最新在上；流程回顾习惯最新在下" }],
     ["now.emph", "突出最新节点", "bool", true],
@@ -857,7 +870,7 @@ const COMPONENT_PARAMS = {
     ["list.gap", "条目间距", "num", 4, 16, 8],
   ],
   "text.emphasis": [
-    ["hl.size", "文字字号", "num", 16, 30, 20],
+    ["hl.size", "结论字号", "num", 16, 30, 20, { hint: "结论那一句的字号；上面的「字号」管整卡基准" }],
     ["tone.color", "按内容语气着色", "bool", true, { hint: "正向绿 / 警示红；关闭后使用主题文字色" }],
     ["caption.show", "补充说明", "bool", true],
     ["text.align", "对齐", "enum", [["", "左对齐"], ["center", "居中"]]],
@@ -869,6 +882,12 @@ const COMPONENT_PARAMS = {
     ["opt.border", "选项描边", "bool", true],
     ["opt.radius", "选项圆角", "num", 0, 16, 10, { hint: "覆盖通用「圆角」推导的控件圆角" }],
     ["radio.show", "显示勾选标记", "bool", true],
+  ],
+  "select.card": [
+    ["card.gap", "卡片间距", "num", 4, 20, 10],
+    ["opt.radius", "卡片圆角", "num", 0, 16, 10, { hint: "覆盖通用「圆角」推导的控件圆角" }],
+    ["opt.border", "卡片描边", "bool", true],
+    ["desc.show", "卡片说明文字", "bool", true, { hint: "关掉只留标题，卡片更紧凑" }],
   ],
   "select.multi": [
     ["opt.gap", "选项间距", "num", 4, 16, 8],
@@ -1090,6 +1109,8 @@ async function openEditor(cardId, prefill, initStep) {
     "rank.priority": { q: "这批货怎么安排比较好", reply: "请把你的诉求按重要程度排个序：", prompt: "哪个对你最重要？", options: ["时效最快", "成本最低", "风险最小"] },
     "matrix.compare+select": { q: "对比一下这几家供应商", reply: "按价格、时效、合规评估如下：", prompt: "选定供应商", options: ["中远供应链", "环球捷运"], dimensions: ["价格", "时效", "合规"] },
     "scale.likert": { q: "谢谢，问题解决了", reply: "不客气。", prompt: "这次服务满意吗？" },
+    "feedback.binary": { q: "这批货能赶上月底到吗？", reply: "按当前舱位，26 日可到港，月底前能完成交付。", prompt: "这条回答怎么样" },
+    "feedback.preference": { q: "帮我写个催单话术", reply: "给你两版，挑你更满意的：", prompt: "哪个回答更好？" },
     "guide.steps": { q: "破损赔付怎么申请？", reply: "按下面三步操作即可，全程在对话里完成。", prompt: "赔付申请指引" },
     "form.structured": { q: "我要退货", reply: "请补充以下信息，我来为你登记。", prompt: "退货登记",
       fields: [{ key: "order_no", label: "订单号", required: true }, { key: "phone", label: "联系电话", required: true }] },
@@ -1247,12 +1268,12 @@ async function openEditor(cardId, prefill, initStep) {
       }
       node = Components.render(envP, {
         sendEvent: () => {}, onCollectSubmit: () => { UI.toast("预览不产生数据"); toggleEchoDemo(true); },
-        onControl: () => {}, userId: "preview", preview: true, titleInBubble: true,
+        onControl: () => {}, userId: "preview", preview: true,
       });
     } catch (e) { node = el("div", { class: "muted" }, ["暂不支持预览"]); }
     const mock = PREVIEW_SCENES[state.component_type] || {};
-    const pv = state.component_type === "entry.link" ? state.question.trim()
-      : (state.question.trim() || mock.prompt || "");
+    // 入口链接没有卡内标题，提示语仍由气泡承载；其余组件标题画在卡片里，气泡不再重复
+    const pv = state.component_type === "entry.link" ? state.question.trim() : "";
     // 固定内容还没配完时，预览显示的是兜底示例——明确标出，避免误以为已配置
     if (state.contentMode !== "fixed" && !PRESENT_TYPES.includes(state.component_type)) {
       previewBox.appendChild(el("div", { class: "pv-demo-note" },
@@ -1555,9 +1576,9 @@ async function openEditor(cardId, prefill, initStep) {
         el("span", { class: "label-text" }, ["候选", UI.help("留空内容则运行时由 AI 填入；填了就是固定候选")]), listC]));
     }
 
-    // 赞踩：可编辑的是赞踩上方的引导文案；同样支持群体回显
+    // 赞踩：可编辑的就是赞踩上方那一句问法；同样支持群体回显
     if (ct === "feedback.binary") {
-      box.appendChild(groupHead("引导文案"));
+      box.appendChild(groupHead("问法", "赞踩按钮左边那一句话"));
       const fbIn = el("input", { type: "text", maxlength: "20", value: state.fixedPrompt || "",
         placeholder: "这条回答怎么样", style: "max-width:360px" });
       fbIn.oninput = () => { state.fixedPrompt = fbIn.value; upd(); };
@@ -1584,6 +1605,13 @@ async function openEditor(cardId, prefill, initStep) {
            ["fixed", "固定配置内容", "数据由你在下方配置，随组件直接展示，AI 不能改"]]
         : [["dynamic", "AI 生成内容", "选项由 AI 根据对话自动给出，每次可能不同"],
            ["fixed", "固定配置内容", "内容由你在下方配置，AI 不能改，可统计大家的选择"]];
+      // ISO 时间 → datetime-local 输入值（本地时区）；非 ISO 的旧数据返回空
+      const toLocalInput = (v) => {
+        const d = new Date(v);
+        if (!v || isNaN(d.getTime())) return "";
+        const p2 = (n) => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
+      };
       // —— 展示类固定数据编辑器：每类一个轻量编辑器，写 state.presentParams（与渲染参数同构） ——
       function drawPresentEditor(host, fxSec) {
         if (!state.presentParams) state.presentParams = JSON.parse(JSON.stringify(DEMO_PRESENT[ct] || {}));
@@ -1677,9 +1705,37 @@ async function openEditor(cardId, prefill, initStep) {
         } else if (ct === "timeline") {
           titleField();
           pp.events = pp.events || [];
-          field(fxSec("事件", "时间 + 标题 + 说明（说明可空）", true),
-            grid([{ k: "ts", label: "时间", w: 90 }, { k: "title", label: "标题", w: 120 }, { k: "desc", label: "说明", w: 170 }],
-              () => pp.events, l2 => { pp.events = l2; upd(); }, "添加事件", 12));
+          // 时间用真正的时间选择器（存 ISO），展示形式在样式步选
+          const evBox = el("div", {});
+          const drawEv = () => {
+            evBox.innerHTML = "";
+            pp.events.forEach((ev, i) => {
+              const tIn = el("input", { type: "datetime-local", value: toLocalInput(ev.ts), style: "width:180px" });
+              const nIn = el("input", { type: "text", value: ev.title || "", maxlength: "20", placeholder: "阶段标题" });
+              const dIn = el("input", { type: "text", value: ev.desc || "", maxlength: "30", placeholder: "说明（可空）" });
+              tIn.onchange = () => { pp.events[i].ts = tIn.value ? new Date(tIn.value).toISOString() : ""; upd(); };
+              nIn.oninput = () => { pp.events[i].title = nIn.value; upd(); };
+              dIn.oninput = () => { pp.events[i].desc = dIn.value; upd(); };
+              evBox.appendChild(el("div", { class: "ff-card" }, [
+                el("div", { class: "ff-line" }, [
+                  el("span", { class: "ff-no num" }, [String(i + 1)]), tIn,
+                  el("div", { class: "ff-grow" }, [nIn]),
+                  el("button", { class: "btn small ghost", type: "button",
+                    onclick: () => { pp.events.splice(i, 1); drawEv(); upd(); } }, ["删除"]),
+                ]),
+                el("div", { class: "ff-line ff-sub" }, [
+                  el("span", { class: "ff-no" }, [""]), el("div", { class: "ff-grow" }, [dIn])]),
+              ]));
+            });
+            const add = el("button", { class: "btn small", type: "button", onclick: () => {
+              if (pp.events.length >= 12) return;
+              pp.events.push({ ts: new Date().toISOString(), title: "", desc: "" }); drawEv(); upd();
+            } }, ["添加事件"]);
+            if (pp.events.length >= 12) add.disabled = true;
+            evBox.appendChild(add);
+          };
+          drawEv();
+          field(fxSec("事件", "选时间 + 写标题，说明可留空；显示成什么格式在「样式设计」里选", true), evBox);
         } else if (ct === "steps") {
           titleField();
           pp.steps = pp.steps || [];
@@ -1965,6 +2021,9 @@ async function openEditor(cardId, prefill, initStep) {
         cxl.oninput = () => { state.cancelLabel = cxl.value; upd(); };
         box.appendChild(el("div", { class: "sty-section" }, [
           el("div", { class: "sty-label" }, ["取消文案", UI.help("留空则用默认「取消」")]), cxl]));
+        // 这一步只有两个按钮文案，说清楚"要确认的那句话"是谁写的，避免以为漏配了
+        box.appendChild(el("div", { class: "ed-note" },
+          ["要确认的那句话（如「确认取消这笔订单？」）由 AI 按当前对话实时给出，这里只定两个按钮怎么写。"]));
       }
     }
 
@@ -2011,13 +2070,26 @@ async function openEditor(cardId, prefill, initStep) {
       // 继承状态行：未覆盖=跟随主题（显示主题当前色），已覆盖=可一键恢复。
       // 不再把「品牌」混进色板当成一个可选颜色（它是状态，不是颜色）
       const inherit = el("span", { class: "sty-inherit-tag" });
+      // 每个颜色项"不覆盖时实际会用的颜色"：圆点与输入框占位都取它
+      const THEME_VAR = {
+        "color.primary": "--primary", "color.accent": "--brand-accent", "panel.bg": "--bg-elevated",
+        "panel.bc": "--border", "opt.bg": "--bg-elevated", "opt.bc": "--border",
+        "btn.bg": "--primary", "btn.bc": "--primary",
+        "header.bg": "--bg-surface", "input.bg": "--bg-elevated", "line.color": "--primary",
+        "bar.color": "--primary", "axis.color": "--border", "dot.color": "--primary",
+        "tlline.color": "--border", "done.color": "--primary", "marker.color": "--primary",
+        "wf.pos": "--success", "wf.neg": "--danger", "total.color": "--primary",
+      };
+      const themeVarOf = () => {
+        if (key === "btn.fg") return "#FFFFFF";   // 主色按钮上的文字默认是白色
+        const v = getComputedStyle(document.documentElement)
+          .getPropertyValue(THEME_VAR[key] || "--primary").trim();
+        return v || "#3E63DD";
+      };
       const drawInherit = () => {
         inherit.innerHTML = "";
         const overridden = !!so[key];
-        const themeVal = getComputedStyle(document.documentElement).getPropertyValue(
-          { "color.primary": "--primary", "color.accent": "--brand-accent", "panel.bg": "--bg-elevated",
-            "panel.bc": "--border", "opt.bg": "--bg-elevated", "opt.bc": "--border",
-            "btn.bg": "--primary", "btn.fg": "--text-primary", "btn.bc": "--primary" }[key] || "--primary").trim();
+        const themeVal = themeVarOf();
         if (!overridden) {
           inherit.appendChild(el("span", { class: "sw-dot", style: `background:${themeVal || "#3E63DD"}` }));
           inherit.appendChild(el("span", { class: "muted" }, ["跟随主题"]));
@@ -2035,7 +2107,9 @@ async function openEditor(cardId, prefill, initStep) {
         const wheel = el("button", { type: "button", class: "sty-swatch cp-open", title: "取色器：自由取色与透明度" }, [UI.icon("pipette", 15)]);
         wheel.onclick = () => UI.colorPicker(wheel, { value: so[key] || "#3E63DD", alpha: true,
           onChange: (hex2) => { so[key] = hex2; upd(); } });
-        const hex = el("input", { type: "text", value: so[key] || "", placeholder: "#3E63DD", maxlength: "9", spellcheck: "false",
+        // 占位显示的是"不覆盖时实际会用的颜色"，不能一律写成主色
+        const hex = el("input", { type: "text", value: so[key] || "",
+          placeholder: (themeVarOf() || "#3E63DD").toUpperCase(), maxlength: "9", spellcheck: "false",
           class: "num", style: "width:92px;padding:5px 8px;font-size:12px;text-transform:uppercase" });
         hex.onchange = () => {
           let v = hex.value.trim();
@@ -2049,10 +2123,10 @@ async function openEditor(cardId, prefill, initStep) {
         drawInherit();
       };
       draw();
-      return el("div", { class: "sty-section" }, [
+      return tagKey(el("div", { class: "sty-section" }, [
         el("div", { class: "sty-label" }, [label, hintC ? UI.help(hintC) : null,
           el("span", { style: "flex:1" }), inherit]),
-        row]);
+        row]), key);
     }
 
     // —— 通用档位卡 ——
@@ -2069,8 +2143,8 @@ async function openEditor(cardId, prefill, initStep) {
         });
       };
       draw();
-      return el("div", { class: "sty-section" }, [
-        el("div", { class: "sty-label" }, [label, hint ? UI.help(hint) : null]), row]);
+      return tagKey(el("div", { class: "sty-section" }, [
+        el("div", { class: "sty-label" }, [label, hint ? UI.help(hint) : null]), row]), key);
     }
     // 旧档位数据 → 数值 px（进入样式设计器即迁移，保存后落数值）
     const MIGRATE = {
@@ -2102,12 +2176,12 @@ async function openEditor(cardId, prefill, initStep) {
       num.onchange = () => { if (num.value === "") { delete so[key]; sync(); upd(); } else setV(num.value); };
       clear.onclick = () => { delete so[key]; sync(); upd(); };
       sync();
-      return el("div", { class: "sty-section" }, [
+      return tagKey(el("div", { class: "sty-section" }, [
         el("div", { class: "sty-label" }, [label, hint ? UI.help(hint) : null,
           el("span", { style: "flex:1" }), clear]),
         el("div", { class: "sl-row" }, [el("div", { class: "sl-wrap" }, [range]), num,
           el("span", { class: "muted", style: "font-size:var(--font-caption)" }, [unit === undefined ? "px" : unit])]),
-      ]);
+      ]), key);
     }
     const radiusDemo = v => el("i", { class: "sty-radius-demo",
       style: `border-top-left-radius:${{ "": "10px", none: "0", sm: "5px", md: "10px", lg: "14px", full: "18px" }[v]}` });
@@ -2162,6 +2236,8 @@ async function openEditor(cardId, prefill, initStep) {
       "quick.show": '<rect x="2" y="4" width="6" height="6" rx="3" fill="currentColor" opacity=".35"/><rect x="9" y="4" width="6" height="6" rx="3" fill="currentColor" opacity=".35"/><rect x="16" y="4" width="6" height="6" rx="3" fill="currentColor" opacity=".35"/>',
       "tone.color": '<rect x="2" y="4" width="9" height="6" rx="2" fill="var(--success)"/><rect x="13" y="4" width="9" height="6" rx="2" fill="var(--danger)"/>',
     };
+    // 每个配置行都带上自己的配置键，走查脚本才能核对"显示了什么"与"有没有效果"
+    const tagKey = (node, key) => { if (node && node.setAttribute) node.setAttribute("data-sty-key", key); return node; };
     const boolRow = (key, label, defOn, hint, onAfter) => {
       const cb = el("input", { type: "checkbox", ...(so[key] === undefined ? (defOn ? { checked: "" } : {}) : (so[key] ? { checked: "" } : {})) });
       cb.onchange = () => {
@@ -2172,7 +2248,7 @@ async function openEditor(cardId, prefill, initStep) {
         ? el("span", { class: "bool-demo", title: "开启后的效果示意",
             html: `<svg viewBox="0 0 24 15" width="26" height="16" aria-hidden="true">${BOOL_DEMO[key]}</svg>` })
         : null;
-      return el("label", { class: "sty-bool" }, [cb, el("span", {}, [label]), demo, hint ? UI.help(hint) : null]);
+      return tagKey(el("label", { class: "sty-bool" }, [cb, el("span", {}, [label]), demo, hint ? UI.help(hint) : null]), key);
     };
 
     // —— 按「组件区域」组织：每个区把自己的底色 / 边框 / 圆角 / 间距 / 文字都收在一起 ——
@@ -2182,7 +2258,11 @@ async function openEditor(cardId, prefill, initStep) {
 
     // 整体：主色调 + 面板
     if (!IS_PRESENT) {
-      zpush("panel", colorRow("color.primary", "主色（按钮 / 选中态）"));
+      // 确认器的主按钮默认用警示红，这时改主色看不出变化——关掉「危险操作样式」后才给这一项
+      if (ct !== "control.confirm" || so.danger === false) {
+        zpush("panel", colorRow("color.primary", "主色（按钮 / 选中态）",
+          ct === "feedback.binary" ? "赞踩按钮平时是中性色，这个颜色用在悬停与点选之后" : undefined));
+      }
       zpush("panel", colorRow("color.accent", "强调色（悬停 / 高亮）"));
     }
     zpush("panel", colorRow("panel.bg", "面板底色"));
@@ -2211,8 +2291,10 @@ async function openEditor(cardId, prefill, initStep) {
       zpush("option", colorRow("opt.bg", "选项底色"));
       zpush("option", colorRow("opt.bc", "选项边框色"));
     }
-    // 赞踩只有两颗小按钮，控件高度对它没有可见效果，不展示
-    if (!IS_PRESENT && ct !== "feedback.binary") {
+    // 这几类没有"一行可点控件"：赞踩是两颗小按钮、确认器是两颗动作按钮、
+    // 滑杆有轨道与滑块两项、量表有刻度尺寸——统一的「控件高度」对它们没有可见效果，不展示
+    const NO_CTRL_H = ["feedback.binary", "control.confirm", "slider.range", "scale.likert", "feedback.preference"];
+    if (!IS_PRESENT && !NO_CTRL_H.includes(ct)) {
       zpush("option", numRow("height", "控件高度", 28, 56, 40, "选项行 / 输入框等可点控件的高度"));
       if (SEL_STYLE_OK) {
         const seg2 = el("div", { class: "segmented" });
@@ -2249,7 +2331,7 @@ async function openEditor(cardId, prefill, initStep) {
           onclick: () => { if (v) so[key] = v; else delete so[key]; draw3(); (onAfter || upd)(); } }, [nm])));
       };
       draw3();
-      return el("div", { class: "sty-section" }, [el("div", { class: "sty-label" }, [label, hint ? UI.help(hint) : null]), seg3]);
+      return tagKey(el("div", { class: "sty-section" }, [el("div", { class: "sty-label" }, [label, hint ? UI.help(hint) : null]), seg3]), key);
     };
     const specList = COMPONENT_PARAMS[ct] || [];
     const specOpts = (item) => (typeof item[item.length - 1] === "object" && !Array.isArray(item[item.length - 1])) ? item[item.length - 1] : {};
@@ -2303,16 +2385,20 @@ async function openEditor(cardId, prefill, initStep) {
     drawSpecArea(zpush);
 
     // 按区域依次输出：每个区 = 一个折叠组，区内含该区全部属性
-    ZONE_META.forEach(([z, title, desc]) => {
+    // 展示类组件没有"用户操作的那一层"，同一个区在它们身上换个说法
+    const zoneTitle = (z, title, desc) => (z === "option" && PRESENT_TYPES.includes(ct))
+      ? ["条目与标记", "每一条内容的呈现方式"] : [title, desc];
+    ZONE_META.forEach(([z, title0, desc0]) => {
       const items = ZBUF[z];
       if (!items || !items.length) return;
+      const [title, desc] = zoneTitle(z, title0, desc0);
       box.appendChild(groupHead(title, desc));
       items.forEach(n => box.appendChild(n));
     });
 
     // —— 折叠分组：配置项多时也好配——每组可收起，默认只展开高频组 ——
     (function accordionize() {
-      const OPEN = new Set(["整体面板", "选项与控件"]);
+      const OPEN = new Set(["整体面板", "选项与控件", "条目与标记"]);
       const kids = [...box.children];
       const out = [];
       let cur = null;
@@ -2332,7 +2418,8 @@ async function openEditor(cardId, prefill, initStep) {
       // 每组补「N 项」计数，收起时也知道里面有什么体量
       out.forEach(d => {
         if (!d.classList || !d.classList.contains("sty-acc")) return;
-        const n = d.querySelectorAll(":scope > .sty-section, :scope > .field").length;
+        const n = d.querySelectorAll(":scope > .sty-section, :scope > .field, :scope > .sty-bool, "
+          + ":scope > details .sty-section, :scope > details .field, :scope > details .sty-bool").length;
         const head = d.querySelector("summary .sty-group");
         if (head && n) head.appendChild(el("span", { class: "sty-acc-n num" }, [String(n) + " 项"]));
       });

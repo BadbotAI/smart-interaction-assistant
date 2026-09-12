@@ -1,14 +1,63 @@
 // 公共 UI 工具：请求封装、导航、toast、模态框、SVG 迷你图表库。
 window.UI = (function () {
+  // 全站每页都要的几份数据（产品列表、主题、组件清单）在会话内缓存：
+  // 切页时直接命中，省掉一轮往返，页面也就不会先空着再填内容
+  const SHARED_GET = ["/api/products", "/api/brands", "/api/brands/active", "/api/cards"];
+  const _apiCache = new Map();       // path -> Promise
+  const SS_TTL = 10000;              // 跨页缓存只活 10 秒：够覆盖一次切页，又不会让人看到旧数据
+  const isShared = (path) => SHARED_GET.some(k => path === k || path.startsWith(k + "?"));
+  const ssKey = (path) => "ia:api:" + path;
+  function ssGet(path) {
+    try {
+      const raw = sessionStorage.getItem(ssKey(path));
+      if (!raw) return null;
+      const { t, d } = JSON.parse(raw);
+      if (Date.now() - t > SS_TTL) { sessionStorage.removeItem(ssKey(path)); return null; }
+      return d;
+    } catch (e) { return null; }
+  }
+  function ssPut(path, data) {
+    try { sessionStorage.setItem(ssKey(path), JSON.stringify({ t: Date.now(), d: data })); } catch (e) {}
+  }
+  function dropApiCache(prefix) {
+    if (!prefix) { _apiCache.clear(); }
+    else [..._apiCache.keys()].forEach(k => { if (k.startsWith(prefix)) _apiCache.delete(k); });
+    try {
+      Object.keys(sessionStorage).forEach(k => {
+        if (k.startsWith("ia:api:") && (!prefix || k.slice(7).startsWith(prefix))) sessionStorage.removeItem(k);
+      });
+    } catch (e) {}
+  }
+
   async function api(path, opts = {}) {
-    const res = await fetch(path, {
-      headers: { "Content-Type": "application/json" },
-      ...opts,
-      body: opts.body ? JSON.stringify(opts.body) : undefined,
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(data.error?.message || data.error || "请求失败"), { status: res.status, data });
-    return data;
+    const method = (opts.method || "GET").toUpperCase();
+    if (method === "GET" && isShared(path)) {
+      if (_apiCache.has(path)) return _apiCache.get(path);
+      const hit = ssGet(path);
+      if (hit) { const pr = Promise.resolve(hit); _apiCache.set(path, pr); return pr; }
+    }
+    const run = (async () => {
+      const res = await fetch(path, {
+        headers: { "Content-Type": "application/json" },
+        ...opts,
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw Object.assign(new Error(data.error?.message || data.error || "请求失败"), { status: res.status, data });
+      return data;
+    })();
+    if (method === "GET") {
+      if (isShared(path)) {
+        _apiCache.set(path, run);
+        run.then(d => ssPut(path, d)).catch(() => _apiCache.delete(path));   // 失败的不留在缓存里
+      }
+      return run;
+    }
+    // 写操作一定改了服务端状态，相关缓存立即作废
+    const out = await run;
+    dropApiCache(path.split("?")[0].replace(/\/[^/]*$/, ""));
+    dropApiCache("/api/products"); dropApiCache("/api/brands"); dropApiCache("/api/cards");
+    return out;
   }
 
   function el(tag, attrs = {}, children = []) {
@@ -365,6 +414,18 @@ window.UI = (function () {
     } catch (e) {}
   }
 
+  // 导航预取：hover 即抓目标页（每个地址只抓一次）
+  const _prefetched = new Set();
+  function prefetchPage(href) {
+    if (!href || _prefetched.has(href) || href.startsWith("http")) return;
+    _prefetched.add(href);
+    try {
+      const l = document.createElement("link");
+      l.rel = "prefetch"; l.href = href.split("#")[0]; l.as = "document";
+      document.head.appendChild(l);
+    } catch (e) {}
+  }
+
   function nav(active) {
     document.querySelectorAll(".sidenav").forEach(n => n.remove());
     const plat = PLATFORMS[platformOf(active)];
@@ -399,9 +460,13 @@ window.UI = (function () {
     };
     NAV_GROUPS.forEach(g => {
       const box = el("div", { class: "nav-group" }, [g.title ? el("div", { class: "nav-title" }, [g.title]) : null]);
-      g.items.forEach(([key, name, href, ic]) => box.appendChild(el("a", {
-        class: "navlink" + (isActive(key) ? " active" : ""), href, "data-key": key,
-      }, [icon(ic, 17), el("span", {}, [name])])));
+      g.items.forEach(([key, name, href, ic]) => {
+        const a2 = el("a", { class: "navlink" + (isActive(key) ? " active" : ""), href, "data-key": key },
+          [icon(ic, 17), el("span", {}, [name])]);
+        // 鼠标移上去就把目标页取回来，真正点下去时是命中缓存
+        a2.addEventListener("pointerenter", () => prefetchPage(href), { once: true });
+        box.appendChild(a2);
+      });
       side.appendChild(box);
     });
     // 底部全局区：跨产品的管理入口（产品与接入）+ 审计日志
@@ -524,7 +589,8 @@ window.UI = (function () {
     areaFill = true, areaOpacity = 0.16, axisShow = false, axisColor, valueLabels = false, lineColor }) {
     container.innerHTML = "";
     const pal = Brand.chartPalette().categorical;
-    const w = 560, h = height, padL = 44, padR = 12, padT = 14, padB = 26;
+    // 多系列要在右端标系列名，右边距得留够，否则文字叠在一起、还被画布裁掉
+    const w = 560, h = height, padL = 44, padR = series.length > 1 ? 54 : 12, padT = 14, padB = 26;
     const svg = chartFrame(w, h);
     const all = series.flatMap(s => s.values);
     const maxV = (Math.max(...all) || 0) > 0 ? Math.max(...all) : 1;
@@ -549,8 +615,11 @@ window.UI = (function () {
     if (axisShow) svg.appendChild(svgEl("line", { x1: padL, y1: h - padB, x2: w - padR, y2: h - padB,
       stroke: axisColor || Brand.chartPalette().axis, "stroke-width": 1.2 }));
     labels.forEach((lb, i) => {
-      if (labels.length > 10 && i % Math.ceil(labels.length / 8) !== 0) return;
-      const tx = svgEl("text", { x: x(i), y: h - 8, "text-anchor": "middle", "font-size": 10, fill: INK() });
+      const isLast = i === labels.length - 1;
+      if (labels.length > 10 && i % Math.ceil(labels.length / 8) !== 0 && !isLast) return;
+      // 首尾标签贴边对齐，居中会溢出画布
+      const anchor = i === 0 ? "start" : isLast ? "end" : "middle";
+      const tx = svgEl("text", { x: x(i), y: h - 8, "text-anchor": anchor, "font-size": 10, fill: INK() });
       tx.textContent = lb;
       svg.appendChild(tx);
     });
@@ -567,6 +636,7 @@ window.UI = (function () {
       }
       return d;
     };
+    const usedLabelY = [];
     series.forEach((s, si) => {
       const color = (si === 0 && lineColor) || pal[si % pal.length];
       if (areaFill && series.length === 1 && s.values.length > 1) {
@@ -610,7 +680,12 @@ window.UI = (function () {
       });
       if (series.length > 1) {
         const last = s.values[s.values.length - 1];
-        const lt = svgEl("text", { x: w - padR + 2, y: y(last) + 4, "font-size": 10, fill: "var(--text-secondary)" });
+        // 末值相近时两个系列名会叠住，逐个往下让开
+        let ly = y(last) + 4;
+        while (usedLabelY.some(v => Math.abs(v - ly) < 11)) ly += 11;
+        usedLabelY.push(ly);
+        const lt = svgEl("text", { x: w - padR + 4, y: Math.min(h - padB, Math.max(padT + 6, ly)),
+          "font-size": 10, fill: "var(--text-secondary)" });
         lt.textContent = s.name;
         svg.appendChild(lt);
       }
@@ -979,5 +1054,6 @@ window.UI = (function () {
 
   return { api, el, toast, modal, drawer, confirm: confirmDialog, withBusy, loading, menu, fancySelect, tagSelect, ctName, ctChip, debounce, colorPicker,
     icon, iconBtn, shortId, idChip, keyField, chatMock, tagInput, toggle, help,
-    nav, fmtCost, fmtMs, fmtTs, fmtPct, lineChart, barChart, stackedBars, on, emit, brandColorOf };
+    nav, fmtCost, fmtMs, fmtTs, fmtPct, lineChart, barChart, stackedBars, on, emit, brandColorOf,
+    dropApiCache };
 })();

@@ -240,6 +240,26 @@ window.Components = (function () {
     ]);
   }
 
+  // 时间线的时间展示：ISO 值按所选格式渲染；非 ISO 的旧数据原样输出
+  function fmtEventTs(v, mode) {
+    if (!v) return "";
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return String(v);
+    const p2 = (n) => String(n).padStart(2, "0");
+    const hm = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    if (mode === "date") return `${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+    if (mode === "datetime") return `${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${hm}`;
+    if (mode === "relative") {
+      const diff = (Date.now() - d.getTime()) / 1000;
+      const abs = Math.abs(diff), sign = diff >= 0 ? "前" : "后";
+      if (abs < 60) return "刚刚";
+      if (abs < 3600) return `${Math.round(abs / 60)} 分钟${sign}`;
+      if (abs < 86400) return `${Math.round(abs / 3600)} 小时${sign}`;
+      return `${Math.round(abs / 86400)} 天${sign}`;
+    }
+    return hm;
+  }
+
   function rTimeline(env) {
     // v2.3 视觉重做：节点圆点 + 竖连线，最新一条主色实心强调
     const p = env.params;
@@ -253,7 +273,7 @@ window.Components = (function () {
     return compCard([
       compTitle(p.title),
       el("div", { class: "tl-list" }, evs.map((e, i) => el("div", { class: "tl-row" }, [
-        el("div", { class: "tl-ts" }, [e.ts || ""]),
+        el("div", { class: "tl-ts" }, [fmtEventTs(e.ts, so["ts.format"])]),
         el("div", { class: "tl-rail" }, [
           el("span", { class: "tl-dot" + (emph && i === newestIdx ? " now" : "") }),
           i < evs.length - 1 ? el("span", { class: "tl-line" }) : null,
@@ -406,6 +426,7 @@ window.Components = (function () {
     // 表格对比工具：整行可点选择；紧凑列宽 + 单元格省略，窄容器不再乱换行
     // 综合列默认关闭（属性对比模式）：各维度直加只有在同向同量纲时才成立，需显式开启
     const showSum = (so2 || {})["sum.show"] === true;
+    const striped = (so2 || {}).striped === true;   // 对比表默认不加斑马纹，开了才有
     const dims = p.dimensions || [];
     const head = el("tr", {}, [
       el("th", { class: "mx-name" }, ["方案"]),
@@ -432,7 +453,8 @@ window.Components = (function () {
         showSum ? el("td", { class: "mx-sum num" + (sums[i] === best && best > 0 ? " best" : "") }, [sums[i] ? sums[i].toFixed(1) : "-"]) : null,
       ]);
     });
-    return el("table", { class: "data mx-table" }, [el("thead", {}, [head]), el("tbody", {}, rows)]);
+    return el("table", { class: "data mx-table" + (striped ? " mx-striped" : "") },
+      [el("thead", {}, [head]), el("tbody", {}, rows)]);
   }
 
   function rMatrixCompare(env) {
@@ -619,7 +641,7 @@ window.Components = (function () {
         };
         return node;
       });
-      body = el("div", { class: "opt-row", style: "gap:10px" }, cards);
+      body = el("div", { class: "opt-row" }, cards);   // 间距交给 --cand-gap，内联样式会盖掉配置
     } else {
       body = optionList(opts, p, false, () => picked, (o) => picked = o);
     }
@@ -679,7 +701,7 @@ window.Components = (function () {
         };
         return node;
       });
-      body = el("div", { class: "opt-row", style: "gap:10px" }, cards);
+      body = el("div", { class: "opt-row" }, cards);   // 间距交给 --cand-gap，内联样式会盖掉配置
     } else {
       body = optionList(opts, p, true, () => picked, (o) => {
         if (!picked.has(o) && !canAdd()) { limitTip(); return; }
@@ -729,7 +751,7 @@ window.Components = (function () {
         ]);
         return node;
       });
-      body = el("div", { class: "opt-row", style: "gap:10px" }, cards);
+      body = el("div", { class: "opt-row" }, cards);   // 间距交给 --cand-gap，内联样式会盖掉配置
     }
     return compCard([
       compTitle(p.prompt),
@@ -1448,8 +1470,10 @@ window.Components = (function () {
   // ================= 控制型 =================
 
   function rConfirm(env, ctx) {
-    // v2.4 视觉重做：圆形警示位 + 标题层次 + 右对齐动作行（去红条与 chip 的平铺感）
+    // v2.4 视觉重做：标题层次 + 右对齐动作行（去红条与 chip 的平铺感）
     const p = env.params;
+    // 危险操作样式：开启走警示红，关闭走主题主色
+    const okCls = (env.style_overrides || {}).danger === false ? "btn primary" : "btn confirm-danger";
     return compCard([
       el("div", { style: "display:flex;gap:12px;align-items:flex-start" }, [
         el("div", { style: "flex:1;min-width:0" }, [
@@ -1460,7 +1484,7 @@ window.Components = (function () {
       ]),
       el("div", { style: "margin-top:14px;display:flex;gap:8px;justify-content:flex-end" }, [
         el("button", { class: "btn", onclick: (e) => { disableSiblings(e); ctx.onControl("cancel", env); } }, [p.cancel_label || "取消"]),
-        el("button", { class: "btn confirm-danger", onclick: (e) => { disableSiblings(e); ctx.onControl("confirm", env); } }, [p.confirm_label || "确认执行"]),
+        el("button", { class: okCls, onclick: (e) => { disableSiblings(e); ctx.onControl("confirm", env); } }, [p.confirm_label || "确认执行"]),
       ]),
     ]);
   }
