@@ -1612,6 +1612,8 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 
 .comp .pie-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px;
   justify-content: var(--chart-align, flex-start); }
+
+.comp[style*="--chart-align"] > .comp-title { text-align: var(--chart-title-align, inherit); }
 .comp .pie-lg { display: inline-flex; align-items: center; gap: 5px; font-size: var(--font-small); }
 .comp .pie-dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; flex: none; }
 .comp .pie-lb { color: var(--text-secondary); }

@@ -12,7 +12,8 @@
   .audit-bar .audit-count { flex: 1; min-width: 0; font-size: var(--font-small);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .audit-bar input[type=text] { width: 200px; flex: none; height: 32px; padding: 4px 12px; }
-  .audit-bar #dlBtn { width: 190px; flex: none; justify-content: center; }
+  .audit-bar #dlBtn { width: 32px; height: 32px; padding: 0; flex: none;
+    display: inline-flex; align-items: center; justify-content: center; }
   /* 列宽固定：切换筛选时表格不再重新分配列宽 */
   table.audit-table { table-layout: fixed; width: 100%; }
   table.audit-table col.c-ts { width: 156px; }
@@ -118,7 +119,9 @@ const IA_ACTION_KEYS = [
   "brand_import", "brand_activate", "brand_delete",
   "apikey_create", "apikey_delete", "export_csv",
 ];
-document.getElementById("dlBtn").append(UI.icon("download", 14), "导出 CSV");
+document.getElementById("dlBtn").append(UI.icon("download", 15));
+document.getElementById("dlBtn").title = "导出 CSV";
+document.getElementById("dlBtn").setAttribute("aria-label", "导出 CSV");
 document.getElementById("actionSelMount").appendChild(UI.fancySelect({
   value: "", width: "170px",
   options: [["", "全部动作"], ...IA_ACTION_KEYS.filter(k => ACTION_NAMES[k]).map(k => [k, ACTION_NAMES[k]])],
@@ -169,7 +172,8 @@ async function load() {
     ? `命中 ${audit.length} 条 / 共 ${raw.length} 条` : `共 ${raw.length} 条`;
   const dl = document.getElementById("dlBtn");
   dl.textContent = "";
-  dl.append(UI.icon("download", 14), (fltAction || kw) ? `导出筛选结果 ${audit.length} 条` : "导出全部 CSV");
+  dl.title = (fltAction || kw) ? `导出筛选结果（${audit.length} 条）` : `导出全部（${raw.length} 条）`;
+  dl.append(UI.icon("download", 15));
   const box = document.getElementById("auditBox");
   box.innerHTML = "";
   if (!audit.length) {

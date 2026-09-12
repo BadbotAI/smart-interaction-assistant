@@ -130,7 +130,12 @@ window.Components = (function () {
     cls(so["best.highlight"] === false, "no-best");
     cls(so["sum.show"] === false, "no-sum");
     cls(so["legend.show"] === false, "no-legend");
-    if (so["chart.align"]) node.style.setProperty("--chart-align", so["chart.align"]);
+    if (so["chart.align"]) {
+      node.style.setProperty("--chart-align", so["chart.align"]);
+      // 标题用 text-align，图例用 justify-content，两者取值不同
+      node.style.setProperty("--chart-title-align",
+        { center: "center", "flex-end": "right" }[so["chart.align"]] || "left");
+    }
     cls(so["legend.pct"] === false, "no-legendpct");
     cls(so["quick.show"] === false, "no-quick");
     // 二轮规格键

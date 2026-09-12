@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=2ac51ab6">
+<link rel="stylesheet" href="./shared.css?v=9cf44a09">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -69,7 +69,7 @@
 <script src="./mock_api.js?v=3f4704b4"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
 <script src="./ui.js?v=845817b8"></script>
-<script src="./components.js?v=6a51c865"></script>
+<script src="./components.js?v=e146c708"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
 UI.nav("cards");
@@ -344,15 +344,45 @@ function renderProductCover(products, brands, unboundCount) {
   // 产品名本身就是切换入口（点名字换产品），不再用一个语义不明的图标按钮
   const nameBtn = (label) => {
     const b = el("button", { class: "pc-name", type: "button", title: "点击切换产品",
-      onclick: () => UI.menu(b, opts.map(([v, name]) => ({
-        label: (v === curProduct ? "· " : "") + name,
-        onClick: () => {
-          if (v === "__new") { location.href = "./products.html?new=1"; return; }
-          if (v !== curProduct) pickProduct(v);
-        } }))) },
+      onclick: () => openProductPop(b) },
       [el("span", {}, [label]), el("span", { class: "pc-caret" }, [UI.icon("chevron", 14)])]);
     return b;
   };
+  // 与导航栏的产品切换器同款：头像色块 + 名称 + 组件数
+  function openProductPop(anchor) {
+    document.querySelectorAll(".np-pop").forEach(n => n.remove());
+    const pop = el("div", { class: "np-pop", role: "listbox" });
+    products.forEach(pr => {
+      const on = pr.product_id === curProduct;
+      const av = el("span", { class: "np-avatar" }, [(pr.name || "?").trim().slice(0, 1)]);
+      UI.brandColorOf(pr.brand_file).then(c => {
+        if (c) av.style.background = `linear-gradient(135deg, ${c.p}, ${c.a})`;
+      }).catch(() => {});
+      pop.appendChild(el("button", { class: "np-card" + (on ? " on" : ""), role: "option",
+        onclick: () => { pop.remove(); if (!on) pickProduct(pr.product_id); } }, [
+        av,
+        el("span", { class: "np-card-meta" }, [
+          el("span", { class: "np-card-name" }, [pr.name]),
+          el("span", { class: "np-card-sub" }, [(pr.card_ids || []).length + " 个组件实例"]),
+        ]),
+        on ? el("span", { class: "np-card-check" }, [UI.icon("check", 15)]) : null,
+      ]));
+    });
+    pop.appendChild(el("button", { class: "np-card np-new", role: "option",
+      onclick: () => { location.href = "./products.html?new=1"; } }, [
+      el("span", { class: "np-avatar", style: "background:var(--primary-weak);color:var(--primary)" }, ["+"]),
+      el("span", { class: "np-card-meta" }, [
+        el("span", { class: "np-card-name", style: "color:var(--primary)" }, ["添加产品"])]),
+    ]));
+    document.body.appendChild(pop);
+    const r = anchor.getBoundingClientRect();
+    pop.style.minWidth = Math.max(r.width, 240) + "px";
+    pop.style.left = (r.left + window.scrollX) + "px";
+    pop.style.top = (r.bottom + window.scrollY + 6) + "px";
+    const close = (e) => { if (!pop.contains(e.target) && !anchor.contains(e.target)) {
+      pop.remove(); document.removeEventListener("click", close, true); } };
+    setTimeout(() => document.addEventListener("click", close, true), 0);
+  }
   if (isUnbound || !p) {
     box.appendChild(el("div", { class: "prod-cover unbound" }, [
       el("div", { class: "pc-id" }, ["·"]),
@@ -851,7 +881,7 @@ const zoneOf = (key) => {
 // —— 组件参数规格表：每个组件专属的可调项（type: color/num/bool/enum），设计器按表自动渲染 ——
 const COMPONENT_PARAMS = {
   "chart.line": [
-    ["chart.align", "图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
+    ["chart.align", "标题与图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
     ["line.color", "折线颜色", "color", { hint: "单序列时生效；多序列走主题图表色板" }],
     ["line.width", "线宽", "num", 1, 4, 2],
     ["line.smooth", "平滑曲线", "bool", false],
@@ -872,7 +902,7 @@ const COMPONENT_PARAMS = {
     ["last.emph", "突出最新数据点", "bool", true, { adv: true }],
   ],
   "chart.bar": [
-    ["chart.align", "图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
+    ["chart.align", "标题与图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
     ["bar.color", "柱体颜色", "color"],
     ["bar.width", "柱宽占比", "num", 20, 75, 55, { unit: "%" }],
     ["bar.radius", "柱端圆角", "num", 0, 8, 4],
@@ -884,7 +914,7 @@ const COMPONENT_PARAMS = {
     ["axis.color", "轴线颜色", "color", { adv: true }],
   ],
   "chart.pie": [
-    ["chart.align", "图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
+    ["chart.align", "标题与图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
     ["pie.style", "形态", "enum", [["", "百分比条"], ["donut", "环形图"]]],
     ["pie.height", "条高", "num", 10, 28, 18, { deps: ["pie.style", ""] }],
     ["donut.thickness", "环形厚度", "num", 12, 28, 20, { deps: ["pie.style", "donut"] }],
@@ -1003,7 +1033,7 @@ const COMPONENT_PARAMS = {
     ["dot.gap", "刻度间距", "num", 4, 14, 8, { deps: ["lk.style", ""] }],
   ],
   "chart.waterfall": [
-    ["chart.align", "图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
+    ["chart.align", "标题与图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
     ["wf.pos", "上升色", "color"],
     ["wf.neg", "下降色", "color"],
     ["total.show", "合计柱", "bool", true],
@@ -1381,8 +1411,8 @@ async function openEditor(cardId, prefill, initStep) {
           [!(state.fixedPrompt || "").trim() ? "待补：题目" : "", oo3.length < 2 ? "待补：至少 2 个选项" : ""].filter(Boolean).join("、"), "）"]));
     }
     previewBox.appendChild(UI.chatMock({ question: state.trigger_examples[0] || mock.q || "", reply: state.reply_text.trim() || mock.reply || "", node, prompt: pv }));
-    // 开启群体回显时，预览直接呈现「用户已提交」的形态：按钮变已提交、选项冻结、分布条就在原面板里
-    if (state.echo_results && (state.component_type === "feedback.binary"
+    // 回显是提交之后才有的形态：预览默认给「还没提交」的样子，点「看回显效果」才切过去
+    if (window.__pvEchoOn && state.echo_results && (state.component_type === "feedback.binary"
         || (state.contentMode === "fixed" && !PRESENT_TYPES.includes(state.component_type)))) {
       requestAnimationFrame(() => {
         const comp = previewBox.querySelector(".comp");
@@ -1647,7 +1677,14 @@ async function openEditor(cardId, prefill, initStep) {
       while (taken.has(nm)) nm = tplName + " " + (i2++);
       state.name = nm;
     }
-    const upd = () => { autosave(); renderPreview(); };
+    const upd = () => {
+      autosave(); renderPreview();
+      // 回显开关一变，预览头部那个按钮跟着显隐
+      if (window.__pvEchoBtn) {
+        window.__pvEchoBtn.hidden = !state.echo_results;
+        if (!state.echo_results) { window.__pvEchoOn = false; window.__pvEchoBtn.textContent = "看回显效果"; }
+      }
+    };
     const groupHead = (t) => el("div", { class: "sty-group" }, [el("span", {}, [t])]);
 
     box.appendChild(el("div", { class: "field", style: "max-width:360px" }, [
@@ -2209,7 +2246,14 @@ async function openEditor(cardId, prefill, initStep) {
       while (taken.has(nm)) nm = tplName + " " + (i2++);
       state.name = nm;
     }
-    const upd = () => { autosave(); renderPreview(); };
+    const upd = () => {
+      autosave(); renderPreview();
+      // 回显开关一变，预览头部那个按钮跟着显隐
+      if (window.__pvEchoBtn) {
+        window.__pvEchoBtn.hidden = !state.echo_results;
+        if (!state.echo_results) { window.__pvEchoOn = false; window.__pvEchoBtn.textContent = "看回显效果"; }
+      }
+    };
 
     // 继承说明 + 一键恢复（预览卡上的那颗按钮保留，这里再给一个就近入口）
     box.appendChild(el("div", { class: "sty-inherit" }, [
@@ -3044,7 +3088,8 @@ async function openEditor(cardId, prefill, initStep) {
     errorsBox.innerHTML = "";
     formCol.innerHTML = "";
     formCol.appendChild({ pick: stepPick, content: stepContent, style: stepStyle, schema: stepSchema }[step]());
-    if (window.__pvResetBtn) window.__pvResetBtn.hidden = step !== "style";
+    if (window.__pvResetBtn) window.__pvResetBtn.hidden = false;   // 预览里随时可以恢复默认
+    if (window.__pvEchoBtn) window.__pvEchoBtn.hidden = !state.echo_results;
     const pvT = document.querySelector(".ed-preview .pv-title");
     if (pvT) pvT.textContent = (V2_TEMPLATES.find(t => t.component_type === state.component_type) || {}).name || "预览";
     // 选择组件步：卡片自带示例预览，右侧预览列整列隐藏
@@ -3079,26 +3124,21 @@ async function openEditor(cardId, prefill, initStep) {
               title: "清除本实例的全部样式覆盖，回到产品主题默认", onclick: () => {
                 Object.keys(state.styleOv).forEach(k => delete state.styleOv[k]);
                 state.display = ""; autosave(); rebuild();
-              } }, ["恢复主题默认"]);
+              } }, ["重置"]);
             return window.__pvResetBtn;
           })(),
-          (() => el("button", { class: "btn small ghost", type: "button", title: "查看用户提交后回传给 agent 的数据结构（按当前配置生成）",
-            onclick: () => {
-              const ct4 = state.component_type || "";
-              const oo4 = (state.fixedOptions || []).map(x => String(x).trim()).filter(Boolean);
-              const sample = ct4.startsWith("select.") ? { user_selection: ct4 === "select.multi" ? oo4.slice(0, 2) : (oo4[0] || "选项 A"), options_offered: oo4.length ? oo4 : ["（动态内容：运行时由 AI 给出）"] }
-                : ct4 === "form.structured" ? { form_values: Object.fromEntries((state.fixedFields || "").split("\n").filter(Boolean).map(l => { const [k] = l.split("|"); return [k || "field_1", "（用户填写值）"]; })) }
-                : ct4 === "rank.priority" ? { user_selection: oo4.length ? oo4 : ["条目 A", "条目 B"] }
-                : ct4 === "control.confirm" ? { confirmed: true }
-                : ct4 === "scale.likert" ? { user_selection: 4 }
-                : ct4 === "slider.range" ? { user_selection: 2000 }
-                : { user_selection: "…" };
-              const payload = { event: "submit", card_id: clientCardId || "<发布后生成>", version: (savedCard || card || {}).version || 0, value: sample };
-              UI.modal("回传示例 · 用户提交后 agent 收到什么", el("div", {}, [
-                el("div", { class: "muted", style: "margin-bottom:8px" }, ["按当前配置生成的示意；完整结构见组件详情的「提交回传结构」"]),
-                el("pre", { class: "code num", style: "max-height:50vh;overflow:auto" }, [JSON.stringify(payload, null, 2)]),
-              ]), null, { width: "480px" });
-            } }, ["回传示例"]))(),
+          (() => {
+            // 回显是提交之后才出现的形态，给个按钮让人直接看到，不用真去点提交
+            const b = el("button", { class: "btn small ghost", type: "button", hidden: !state.echo_results,
+              title: "看看用户提交后，大家的选择分布长什么样",
+              onclick: () => {
+                window.__pvEchoOn = !window.__pvEchoOn;
+                b.textContent = window.__pvEchoOn ? "看提交前" : "看回显效果";
+                renderPreview();
+              } }, ["看回显效果"]);
+            window.__pvEchoBtn = b;
+            return b;
+          })(),
         ]),
         previewBox,
       ]),
