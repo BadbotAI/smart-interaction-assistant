@@ -1405,7 +1405,11 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .np-btn:hover { background: var(--bg-elevated); }
 .np-btn .fsel-caret { color: var(--text-muted); }
 .np-avatar { display: inline-flex; align-items: center; justify-content: center; border-radius: 9px;
-  color: #fff; font-weight: 700; font-size: 13px; flex: none; }
+  width: 34px; height: 34px; color: #fff; font-weight: 700; font-size: 13px; flex: none; }
+/* 「添加产品」是新建动作，和产品列表之间拉开，不要混成一排 */
+.np-pop .np-card.np-new { margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--border); }
+.np-pop .np-card.np-new .np-avatar { background: var(--primary-weak); color: var(--primary);
+  border: 1px dashed var(--primary-border, var(--primary)); }
 .np-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .np-name { font-weight: 700; font-size: var(--font-base); color: var(--text-primary);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

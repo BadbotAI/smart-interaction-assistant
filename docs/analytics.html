@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>数据分析 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=9cf44a09">
+<link rel="stylesheet" href="./shared.css?v=8bdcc61c">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   .an-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px; margin-bottom: 16px; }
@@ -17,7 +17,8 @@
   .an-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
   .an-grid > div { display: flex; flex-direction: column; gap: 14px; }
   .an-grid > div > .an-card { margin-bottom: 0; }
-  .an-grid { margin-bottom: 18px; }   /* 与下面「按组件类型」拉开 */
+  .an-grid { margin-bottom: 34px; }   /* 与下面「按组件类型」拉开：这是两段内容，不是同一段里的两张卡 */
+  .an-card.by-type { margin-bottom: 34px; }
   .an-grid > div > .an-card:only-child { flex: 1; display: flex; flex-direction: column; }
   .an-grid > div > .an-card:only-child > .fn-row:first-of-type { margin-top: auto; }
   .an-grid > div > .an-card:only-child > .fn-row:last-of-type { margin-bottom: auto; }
@@ -232,20 +233,27 @@ function optionsCard(groups) {
   ]);
 }
 
-function instancesCard(rows) {
+function instancesCard(rows, jumpToSingle) {
   if (!rows.length) return el("div", { class: "an-card" }, [
     el("div", { class: "an-head" }, [el("span", { class: "t" }, ["组件实例排行"])]),
     el("div", { class: "an-empty" }, ["还没有能归到具体实例的事件（需要 SDK 回传 card_id）"])]);
   return el("div", { class: "an-card" }, [
     el("div", { class: "an-head" }, [el("span", { class: "t" }, ["组件实例排行"]),
-      el("span", { class: "d" }, ["点一行看它的数据"])]),
+      el("span", { class: "d" }, ["点一行看这个组件的数据"])]),
     el("div", { style: "overflow-x:auto" }, [
       el("table", { class: "data" }, [
         el("thead", {}, [el("tr", {}, ["实例", "状态", "曝光", "提交", "完成率"].map(h => el("th", {}, [h])))]),
         el("tbody", {}, rows.map(r => el("tr", {
           class: "an-inst-row" + (r.card_id === pickState.card_id ? " on" : ""),
           title: "查看这个实例的数据",
-          onclick: () => { pickState.card_id = r.card_id; pickState.cleared = false; loadSingle(); },
+          onclick: () => {
+            pickState.card_id = r.card_id; pickState.cleared = false;
+            if (jumpToSingle) {
+              anTab = "single"; drawTabs(); syncTab();
+              document.getElementById("anSingle").dataset.loaded = "1";
+            }
+            loadSingle();
+          },
         }, [
           el("td", {}, [r.name]),
           el("td", {}, [el("span", { class: "chip " + (r.status === "published" ? "blue" : "gray") },
@@ -270,9 +278,10 @@ const rangeLabel = () => range.start || range.end
 async function loadOverall() {
   const box = document.getElementById("anOverall");
   UI.loading(box);
-  const [o, bt] = await Promise.all([
+  const [o, bt, ins] = await Promise.all([
     UI.api(`/api/analytics/overview?${rangeQS()}`),
     UI.api(`/api/analytics/by-type?${rangeQS()}`).catch(() => ({ rows: [] })),
+    UI.api(`/api/analytics/instances?${rangeQS()}`).catch(() => ({ rows: [] })),
   ]);
   box.innerHTML = "";
   const k = o.kpi;
@@ -298,6 +307,7 @@ async function loadOverall() {
     el("div", {}, [trendCard(o)]),
   ]));
   box.appendChild(byTypeCard(bt.rows || []));
+  box.appendChild(instancesCard(ins.rows || [], true));
 }
 
 // ---------- 模块二：单组件数据分析 ----------
@@ -367,9 +377,10 @@ async function loadSingle() {
       "用户直接用了 AI 推荐的那一项，没有改选"),
   ]));
   box.appendChild(el("div", { class: "an-grid" }, [
-    el("div", {}, [funnelCard(o), optionsCard(op.groups || [])]),
-    el("div", {}, [trendCard(o), instancesCard(ins.rows || [])]),
+    el("div", {}, [funnelCard(o)]),
+    el("div", {}, [trendCard(o)]),
   ]));
+  box.appendChild(optionsCard(op.groups || []));
 }
 
 // 两块内容用 tab 切换，一次只看一屏

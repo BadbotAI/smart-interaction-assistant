@@ -1,5 +1,5 @@
 // 构建号变了旧缓存整体作废；哈希资源 cache-first（不可变），HTML stale-while-revalidate（切页瞬时、后台更新）
-const BUILD = "05bf7bd9";
+const BUILD = "82e13e46";
 const CACHE = "sia-" + BUILD;
 const PRECACHE = ["./index.html", "./cards.html", "./design.html", "./analytics.html", "./products.html", "./audit.html", "./embed-demo.html"];
 self.addEventListener("install", (e) => {
