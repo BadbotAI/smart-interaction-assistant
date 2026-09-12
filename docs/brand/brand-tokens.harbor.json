@@ -8,7 +8,7 @@
     "bg_surface": "#ffffff",
     "text_primary": "#102a2a",
     "text_secondary": "#4a5c5c",
-    "text_muted": "#8a9797",
+    "text_muted": "#6A7777",
     "border": "#dbe4e3",
     "success": "#0ca30c",
     "warning": "#fab219",
@@ -77,10 +77,10 @@
     "border": "#24393F",
     "text_primary": "#E8F2F4",
     "text_secondary": "#9DB6BC",
-    "text_muted": "#6A8288",
+    "text_muted": "#7A9298",
     "success": "#2FBE7B",
     "warning": "#DCA43B",
-    "danger": "#ED6A6A",
+    "danger": "#C94646",
     "bg_elevated": "#16262B",
     "bg_sunken": "#081014"
   }

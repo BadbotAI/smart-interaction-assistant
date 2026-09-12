@@ -848,7 +848,7 @@ const PARAM_ZONE = {
   text: ["font_scale", "text.color", "text.weight", "hl.size", "hl.weight", "hl.color", "tbl.font", "steplabel.size", "text.align",
          "tone.color", "caption.show", "caption.size", "caption.weight", "caption.color", "desc.show"],
   button: ["__submitLabel", "__cancelLabel", "btn.bg", "btn.bc", "btn.fg", "btn.align", "danger"],
-  chart: ["chart.align", "line.color", "line.width", "line.smooth", "line.style", "point.show", "point.size", "point.shape",
+  chart: ["title.align", "legend.align", "line.color", "line.width", "line.smooth", "line.style", "point.show", "point.size", "point.shape",
           "area.fill", "area.opacity", "grid", "grid.style", "grid.count", "axis.show", "axis.color",
           "y.zero", "last.emph", "value_labels", "legend.show", "legend.pct",
           "bar.color", "bar.width", "bar.radius", "bar.horizontal", "bar.sort",
@@ -877,7 +877,7 @@ const zoneOf = (key) => {
 // —— 组件参数规格表：每个组件专属的可调项（type: color/num/bool/enum），设计器按表自动渲染 ——
 const COMPONENT_PARAMS = {
   "chart.line": [
-    ["chart.align", "标题与图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
+    ["title.align", "标题对齐", "enum", [["", "居左"], ["center", "居中"], ["right", "居右"]]],
     ["line.color", "折线颜色", "color", { hint: "单序列时生效；多序列走主题图表色板" }],
     ["line.width", "线宽", "num", 1, 4, 2],
     ["line.smooth", "平滑曲线", "bool", false],
@@ -898,7 +898,7 @@ const COMPONENT_PARAMS = {
     ["last.emph", "突出最新数据点", "bool", true, { adv: true }],
   ],
   "chart.bar": [
-    ["chart.align", "标题与图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
+    ["title.align", "标题对齐", "enum", [["", "居左"], ["center", "居中"], ["right", "居右"]]],
     ["bar.color", "柱体颜色", "color"],
     ["bar.width", "柱宽占比", "num", 20, 75, 55, { unit: "%" }],
     ["bar.radius", "柱端圆角", "num", 0, 8, 4],
@@ -910,7 +910,9 @@ const COMPONENT_PARAMS = {
     ["axis.color", "轴线颜色", "color", { adv: true }],
   ],
   "chart.pie": [
-    ["chart.align", "标题与图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
+    ["title.align", "标题对齐", "enum", [["", "居左"], ["center", "居中"], ["right", "居右"]]],
+    ["legend.align", "图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]],
+      { deps: ["legend.show", true] }],
     ["pie.style", "形态", "enum", [["", "百分比条"], ["donut", "环形图"]]],
     ["pie.height", "条高", "num", 10, 28, 18, { deps: ["pie.style", ""] }],
     ["donut.thickness", "环形厚度", "num", 12, 28, 20, { deps: ["pie.style", "donut"] }],
@@ -1029,7 +1031,7 @@ const COMPONENT_PARAMS = {
     ["dot.gap", "刻度间距", "num", 4, 14, 8, { deps: ["lk.style", ""] }],
   ],
   "chart.waterfall": [
-    ["chart.align", "标题与图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
+    ["title.align", "标题对齐", "enum", [["", "居左"], ["center", "居中"], ["right", "居右"]]],
     ["wf.pos", "上升色", "color"],
     ["wf.neg", "下降色", "color"],
     ["total.show", "合计柱", "bool", true],
@@ -1652,7 +1654,12 @@ async function openEditor(cardId, prefill, initStep) {
     {
       const cfg1 = card ? (((card.field_bindings || {}).config) || {}) : {};
       if (state.contentMode === undefined) state.contentMode = cfg1.content_mode || "dynamic";
-      if (state.fixedOptions === undefined) state.fixedOptions = [...(cfg1.options || [])];
+      if (state.fixedOptions === undefined) {
+        const preset = [...(cfg1.options || [])];
+        // 选项类至少要两项：新建时先摆两个空行，省得先点一下「添加」才能开始填
+        state.fixedOptions = preset.length ? preset
+          : (["select.single", "select.multi", "select.card", "rank.priority"].includes(ct) ? ["", ""] : []);
+      }
       if (state.fixedFields === undefined) state.fixedFields = (cfg1.fields || [])
         .map(f => [f.key, f.label, f.required ? "必填" : "", f.type || "", f.placeholder || ""].join("|")).join("\n");
       if (state.submitLabel === undefined) state.submitLabel = ((card || {}).text_templates || {}).submit || "";
@@ -2079,9 +2086,9 @@ async function openEditor(cardId, prefill, initStep) {
                   onclick: () => { const l2 = items(); if (state.fixedRec === l2[i]) state.fixedRec = ""; l2.splice(i, 1); write(l2); drawRows(); } }, ["删除"]),
               ]));
             });
-            const addBtn = el("button", { class: "btn small", type: "button", onclick: () => {
+            const addBtn = el("button", { class: "fx-add", type: "button", onclick: () => {
               const l2 = items(); if (l2.length >= 8) return; l2.push(""); write(l2); drawRows();
-            } }, [ct === "rank.priority" ? "添加条目" : "添加选项"]);
+            } }, [UI.icon("plus", 14), ct === "rank.priority" ? "添加条目" : "添加选项"]);
             if (items().length >= 8) { addBtn.disabled = true; addBtn.title = "最多 8 项"; }
             listBox.appendChild(addBtn);
           };
@@ -2089,8 +2096,7 @@ async function openEditor(cardId, prefill, initStep) {
           fixedArea.appendChild(el("div", { class: "field" }, [
             fxSec(ct === "rank.priority" ? "固定条目" : "固定选项",
               ct === "rank.priority" ? "2-8 项，每项 30 字内；用户按重要程度拖动排序"
-                : "2-8 项，每项 30 字内。点某一项后面的「推荐」把它设为推荐项，选项右侧会出现角标；"
-                  + "角标要不要显示，在「样式设计 - 选项与控件」里控制", true),
+                : "2-8 项，每项 30 字内", true),
             listBox]));
         }
         // 群体回显：完整说明的开关行（仅固定内容的交互组件可开）
@@ -2230,7 +2236,12 @@ async function openEditor(cardId, prefill, initStep) {
     {
       const cfg1 = card ? (((card.field_bindings || {}).config) || {}) : {};
       if (state.contentMode === undefined) state.contentMode = cfg1.content_mode || "dynamic";
-      if (state.fixedOptions === undefined) state.fixedOptions = [...(cfg1.options || [])];
+      if (state.fixedOptions === undefined) {
+        const preset = [...(cfg1.options || [])];
+        // 选项类至少要两项：新建时先摆两个空行，省得先点一下「添加」才能开始填
+        state.fixedOptions = preset.length ? preset
+          : (["select.single", "select.multi", "select.card", "rank.priority"].includes(ct) ? ["", ""] : []);
+      }
       if (state.fixedFields === undefined) state.fixedFields = (cfg1.fields || [])
         .map(f => [f.key, f.label, f.required ? "必填" : ""].filter(Boolean).join("|")).join("\n");
       if (state.submitLabel === undefined) state.submitLabel = ((card || {}).text_templates || {}).submit || "";

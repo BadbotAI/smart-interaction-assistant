@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>组件工作台 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=8bdcc61c">
+<link rel="stylesheet" href="./shared.css?v=bbd1dbd2">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   .card-row .name { font-weight: 600; font-size: var(--font-title); }
@@ -65,11 +65,11 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=c209b104"></script>
+<script src="./mock_data.js?v=32344e2e"></script>
 <script src="./mock_api.js?v=3f4704b4"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
 <script src="./ui.js?v=845817b8"></script>
-<script src="./components.js?v=e146c708"></script>
+<script src="./components.js?v=5a432194"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
 UI.nav("cards");
@@ -852,7 +852,7 @@ const PARAM_ZONE = {
   text: ["font_scale", "text.color", "text.weight", "hl.size", "hl.weight", "hl.color", "tbl.font", "steplabel.size", "text.align",
          "tone.color", "caption.show", "caption.size", "caption.weight", "caption.color", "desc.show"],
   button: ["__submitLabel", "__cancelLabel", "btn.bg", "btn.bc", "btn.fg", "btn.align", "danger"],
-  chart: ["chart.align", "line.color", "line.width", "line.smooth", "line.style", "point.show", "point.size", "point.shape",
+  chart: ["title.align", "legend.align", "line.color", "line.width", "line.smooth", "line.style", "point.show", "point.size", "point.shape",
           "area.fill", "area.opacity", "grid", "grid.style", "grid.count", "axis.show", "axis.color",
           "y.zero", "last.emph", "value_labels", "legend.show", "legend.pct",
           "bar.color", "bar.width", "bar.radius", "bar.horizontal", "bar.sort",
@@ -881,7 +881,7 @@ const zoneOf = (key) => {
 // —— 组件参数规格表：每个组件专属的可调项（type: color/num/bool/enum），设计器按表自动渲染 ——
 const COMPONENT_PARAMS = {
   "chart.line": [
-    ["chart.align", "标题与图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
+    ["title.align", "标题对齐", "enum", [["", "居左"], ["center", "居中"], ["right", "居右"]]],
     ["line.color", "折线颜色", "color", { hint: "单序列时生效；多序列走主题图表色板" }],
     ["line.width", "线宽", "num", 1, 4, 2],
     ["line.smooth", "平滑曲线", "bool", false],
@@ -902,7 +902,7 @@ const COMPONENT_PARAMS = {
     ["last.emph", "突出最新数据点", "bool", true, { adv: true }],
   ],
   "chart.bar": [
-    ["chart.align", "标题与图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
+    ["title.align", "标题对齐", "enum", [["", "居左"], ["center", "居中"], ["right", "居右"]]],
     ["bar.color", "柱体颜色", "color"],
     ["bar.width", "柱宽占比", "num", 20, 75, 55, { unit: "%" }],
     ["bar.radius", "柱端圆角", "num", 0, 8, 4],
@@ -914,7 +914,9 @@ const COMPONENT_PARAMS = {
     ["axis.color", "轴线颜色", "color", { adv: true }],
   ],
   "chart.pie": [
-    ["chart.align", "标题与图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
+    ["title.align", "标题对齐", "enum", [["", "居左"], ["center", "居中"], ["right", "居右"]]],
+    ["legend.align", "图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]],
+      { deps: ["legend.show", true] }],
     ["pie.style", "形态", "enum", [["", "百分比条"], ["donut", "环形图"]]],
     ["pie.height", "条高", "num", 10, 28, 18, { deps: ["pie.style", ""] }],
     ["donut.thickness", "环形厚度", "num", 12, 28, 20, { deps: ["pie.style", "donut"] }],
@@ -1033,7 +1035,7 @@ const COMPONENT_PARAMS = {
     ["dot.gap", "刻度间距", "num", 4, 14, 8, { deps: ["lk.style", ""] }],
   ],
   "chart.waterfall": [
-    ["chart.align", "标题与图例对齐", "enum", [["", "居左"], ["center", "居中"], ["flex-end", "居右"]]],
+    ["title.align", "标题对齐", "enum", [["", "居左"], ["center", "居中"], ["right", "居右"]]],
     ["wf.pos", "上升色", "color"],
     ["wf.neg", "下降色", "color"],
     ["total.show", "合计柱", "bool", true],
@@ -1656,7 +1658,12 @@ async function openEditor(cardId, prefill, initStep) {
     {
       const cfg1 = card ? (((card.field_bindings || {}).config) || {}) : {};
       if (state.contentMode === undefined) state.contentMode = cfg1.content_mode || "dynamic";
-      if (state.fixedOptions === undefined) state.fixedOptions = [...(cfg1.options || [])];
+      if (state.fixedOptions === undefined) {
+        const preset = [...(cfg1.options || [])];
+        // 选项类至少要两项：新建时先摆两个空行，省得先点一下「添加」才能开始填
+        state.fixedOptions = preset.length ? preset
+          : (["select.single", "select.multi", "select.card", "rank.priority"].includes(ct) ? ["", ""] : []);
+      }
       if (state.fixedFields === undefined) state.fixedFields = (cfg1.fields || [])
         .map(f => [f.key, f.label, f.required ? "必填" : "", f.type || "", f.placeholder || ""].join("|")).join("\n");
       if (state.submitLabel === undefined) state.submitLabel = ((card || {}).text_templates || {}).submit || "";
@@ -2083,9 +2090,9 @@ async function openEditor(cardId, prefill, initStep) {
                   onclick: () => { const l2 = items(); if (state.fixedRec === l2[i]) state.fixedRec = ""; l2.splice(i, 1); write(l2); drawRows(); } }, ["删除"]),
               ]));
             });
-            const addBtn = el("button", { class: "btn small", type: "button", onclick: () => {
+            const addBtn = el("button", { class: "fx-add", type: "button", onclick: () => {
               const l2 = items(); if (l2.length >= 8) return; l2.push(""); write(l2); drawRows();
-            } }, [ct === "rank.priority" ? "添加条目" : "添加选项"]);
+            } }, [UI.icon("plus", 14), ct === "rank.priority" ? "添加条目" : "添加选项"]);
             if (items().length >= 8) { addBtn.disabled = true; addBtn.title = "最多 8 项"; }
             listBox.appendChild(addBtn);
           };
@@ -2093,8 +2100,7 @@ async function openEditor(cardId, prefill, initStep) {
           fixedArea.appendChild(el("div", { class: "field" }, [
             fxSec(ct === "rank.priority" ? "固定条目" : "固定选项",
               ct === "rank.priority" ? "2-8 项，每项 30 字内；用户按重要程度拖动排序"
-                : "2-8 项，每项 30 字内。点某一项后面的「推荐」把它设为推荐项，选项右侧会出现角标；"
-                  + "角标要不要显示，在「样式设计 - 选项与控件」里控制", true),
+                : "2-8 项，每项 30 字内", true),
             listBox]));
         }
         // 群体回显：完整说明的开关行（仅固定内容的交互组件可开）
@@ -2234,7 +2240,12 @@ async function openEditor(cardId, prefill, initStep) {
     {
       const cfg1 = card ? (((card.field_bindings || {}).config) || {}) : {};
       if (state.contentMode === undefined) state.contentMode = cfg1.content_mode || "dynamic";
-      if (state.fixedOptions === undefined) state.fixedOptions = [...(cfg1.options || [])];
+      if (state.fixedOptions === undefined) {
+        const preset = [...(cfg1.options || [])];
+        // 选项类至少要两项：新建时先摆两个空行，省得先点一下「添加」才能开始填
+        state.fixedOptions = preset.length ? preset
+          : (["select.single", "select.multi", "select.card", "rank.priority"].includes(ct) ? ["", ""] : []);
+      }
       if (state.fixedFields === undefined) state.fixedFields = (cfg1.fields || [])
         .map(f => [f.key, f.label, f.required ? "必填" : ""].filter(Boolean).join("|")).join("\n");
       if (state.submitLabel === undefined) state.submitLabel = ((card || {}).text_templates || {}).submit || "";

@@ -93,7 +93,7 @@ def validate_card(payload: dict, strict: bool = False) -> list:
                  "steps.dir": ("horizontal", "vertical"), "ts.format": ("time", "datetime", "date", "relative"),
                  "delta.good": ("higher", "lower", "neutral"), "pick.submit": ("button", "auto"),
                  "hl.weight": ("500", "400"), "caption.weight": ("500", "600"),
-                 "text.weight": ("500", "600"), "chart.align": ("center", "flex-end")}
+                 "text.weight": ("500", "600"), "title.align": ("center", "right"), "legend.align": ("center", "flex-end")}
     SPEC_COLOR = {"color.primary", "color.accent", "panel.bg", "line.color", "axis.color", "bar.color",
                   "hl.color", "caption.color", "text.color",
                   "done.color", "marker.color", "header.bg", "dot.color", "input.bg", "tlline.color", "icon.color",

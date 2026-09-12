@@ -66,6 +66,25 @@ window.Components = (function () {
     if (L == null) return null;
     return (1.05 / (L + 0.05)) >= ((L + 0.05) / 0.05) ? "#FFFFFF" : "#0A0C10";
   }
+  // 强调色当文字用时的可读性兜底：低于 4.5 就沿着同一色相提亮/压深到达标，
+  // 组件可以配得难看，但不能配到读不出来
+  function readableOn(fg, bg) {
+    const lf = relLum(fg), lb = relLum(bg);
+    if (lf == null || lb == null) return fg;
+    const ratio = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    if (ratio(lf, lb) >= 5.2) return fg;
+    const m = fg.trim().replace("#", "");
+    let [r, g, b] = [0, 2, 4].map(i => parseInt(m.slice(i, i + 2), 16));
+    const up = lb < 0.4;                 // 深底就提亮，浅底就压深
+    for (let i = 0; i < 64; i++) {
+      const hex = "#" + [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("");
+      if (ratio(relLum(hex), lb) >= 5.2) return hex;   // 实际衬底比面板底略亮，留点余量
+      r = Math.max(0, Math.min(255, r + (up ? 6 : -6)));
+      g = Math.max(0, Math.min(255, g + (up ? 6 : -6)));
+      b = Math.max(0, Math.min(255, b + (up ? 6 : -6)));
+    }
+    return inkOn(bg) || fg;
+  }
 
   function applyStyleOverrides(node, so) {
     if (!so || typeof so !== "object") return;
@@ -84,8 +103,23 @@ window.Components = (function () {
     const hN = px(so.height, 10);
     set("--control-height", hN != null ? hN + "px" : OV_HEIGHT[so.height]);
     set("--brand-shadow", OV_SHADOW[so.shadow]);
-    if (so["panel.bg"]) { set("--bg-elevated", so["panel.bg"]); set("--ink-panel", inkOn(so["panel.bg"])); }
-    if (so["opt.bg"]) set("--ink-opt", inkOn(so["opt.bg"]));
+    // 底色 → 这块底色上该用的墨色；次要文字按墨色派生，不再沿用浅底上的灰
+    const inkSet = (bg, vars) => {
+      const ink = inkOn(bg);
+      if (!ink) return;
+      vars.forEach(v => set(v, ink));
+      set("--text-primary", ink);
+      set("--text-secondary", `color-mix(in srgb, ${ink} 76%, ${bg})`);
+      set("--text-muted", `color-mix(in srgb, ${ink} 62%, ${bg})`);
+      // 底色一变，衬底与边框也得跟着走：只翻文字会翻出白底白字（表格斑马纹踩过）
+      set("--bg-surface", `color-mix(in srgb, ${ink} 7%, ${bg})`);
+      set("--bg-sunken", `color-mix(in srgb, ${ink} 4%, ${bg})`);
+      set("--bg-elevated", bg);
+      set("--border", `color-mix(in srgb, ${ink} 18%, ${bg})`);
+      set("--border-strong", `color-mix(in srgb, ${ink} 28%, ${bg})`);
+    };
+    if (so["panel.bg"]) { set("--bg-elevated", so["panel.bg"]); inkSet(so["panel.bg"], ["--ink-panel"]); }
+    if (so["opt.bg"]) inkSet(so["opt.bg"], ["--ink-opt"]);
     if (so.sel_style === "outline") node.classList.add("sel-outline");
     if (so.rec_chip === false) node.classList.add("no-rec");
     // —— 组件参数（规格表键）：CSS 变量 ——
@@ -101,10 +135,24 @@ window.Components = (function () {
     if (so["caption.color"]) set("--cap-color", so["caption.color"]);
     if (so["text.color"]) set("--text-ink", so["text.color"]);
     if (so["text.weight"]) set("--text-weight", so["text.weight"]);
-    if (so["done.color"]) set("--stp-done", so["done.color"]);
-    if (so["marker.color"]) set("--mk-color", so["marker.color"]);
+    // 这几个是"彩色文字"，要相对当前面板底色保证读得出来
+    const panelBg = so["panel.bg"] || null;
+    const ink = (c) => (panelBg ? readableOn(c, panelBg) : c);
+    // 用主色当文字的地方（序号、最优值等）也要相对面板底色可读
+    if (panelBg) {
+      const pri = so["color.primary"]
+        || (getComputedStyle(document.documentElement).getPropertyValue("--primary") || "").trim()
+        || "#3E63DD";
+      set("--accent-ink", readableOn(pri, panelBg));
+    }
+    if (so["done.color"]) {
+      const dc = ink(so["done.color"]);
+      set("--stp-done", dc);
+      set("--on-stp-done", inkOn(dc));   // 已完成节点里的数字
+    }
+    if (so["marker.color"]) set("--mk-color", ink(so["marker.color"]));
     if (so["header.bg"]) set("--th-bg", so["header.bg"]);
-    if (so["dot.color"]) set("--tl-dot", so["dot.color"]);
+    if (so["dot.color"]) set("--tl-dot", ink(so["dot.color"]));
     if (so["input.bg"]) set("--input-bg", so["input.bg"]);
     // —— 结构显隐 / 形态类 ——
     const cls = (cond, name) => { if (cond) node.classList.add(name); };
@@ -130,12 +178,9 @@ window.Components = (function () {
     cls(so["best.highlight"] === false, "no-best");
     cls(so["sum.show"] === false, "no-sum");
     cls(so["legend.show"] === false, "no-legend");
-    if (so["chart.align"]) {
-      node.style.setProperty("--chart-align", so["chart.align"]);
-      // 标题用 text-align，图例用 justify-content，两者取值不同
-      node.style.setProperty("--chart-title-align",
-        { center: "center", "flex-end": "right" }[so["chart.align"]] || "left");
-    }
+    // 标题与图例各自对齐（标题用 text-align，图例用 justify-content）
+    if (so["title.align"]) node.style.setProperty("--chart-title-align", so["title.align"]);
+    if (so["legend.align"]) node.style.setProperty("--chart-align", so["legend.align"]);
     cls(so["legend.pct"] === false, "no-legendpct");
     cls(so["quick.show"] === false, "no-quick");
     // 二轮规格键
