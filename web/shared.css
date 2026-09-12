@@ -204,6 +204,9 @@ body.has-side .inputbar { left: var(--side-w); }
 .muted { color: var(--text-muted); font-size: var(--font-small); }
 .secondary { color: var(--text-secondary); }
 .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+/* 输入框对齐统一口径：数字框一律右对齐，文本框一律左对齐 */
+input[type=number] { text-align: right; }
+input[type=text], input[type=search], input[type=date], input[type=datetime-local], textarea, select { text-align: left; }
 
 .deep-panel {
   background: var(--panel-deep); color: var(--panel-deep-text);
@@ -431,7 +434,7 @@ input:disabled, select:disabled, textarea:disabled { background: var(--bg-page);
 }
 .comp > * + * { margin-top: 10px; }
 .comp .comp-title { font-size: var(--font-base); font-weight: 600; margin: 0; color: var(--text-primary); line-height: 1.5; }
-.comp .opt-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.comp .opt-row { display: flex; gap: var(--cand-gap, 10px); flex-wrap: wrap; }
 .comp .btn.opt {
   border-radius: 999px; font-size: var(--font-base); padding: 5px 14px;
   border: 1px solid var(--border-strong); background: var(--bg-elevated); color: var(--text-primary); font-weight: 400;
@@ -455,7 +458,7 @@ input:disabled, select:disabled, textarea:disabled { background: var(--bg-page);
 .comp .likert-row > .muted { font-size: var(--font-caption); }
 .comp .submit-bar { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
 .comp .submit-bar .btn.primary { padding: 4px 16px; font-size: var(--font-small); box-shadow: none; }
-.comp .opt-card { background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 10px; padding: 9px 12px; cursor: pointer; flex: 1; min-width: 140px; height: var(--comp-card-h); overflow: hidden; display: flex; flex-direction: column; transition: border-color var(--dur-fast), background var(--dur-fast); }
+.comp .opt-card { background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: var(--opt-radius, 10px); padding: 9px 12px; cursor: pointer; flex: 1; min-width: 140px; height: var(--control-height, var(--comp-card-h)); overflow: hidden; display: flex; flex-direction: column; transition: border-color var(--dur-fast), background var(--dur-fast); }
 .comp .opt-card.media { height: var(--comp-card-media-h); }
 .comp .opt-card .oc-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .comp .opt-card .oc-desc { color: var(--text-muted); font-size: var(--font-small); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -886,11 +889,12 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: a
 .comp .quick-chip.on { border-color: var(--primary); background: var(--primary-weak); color: var(--primary); }
 
 /* 交互系统：可点行 / 触点统一 */
-.comp .opt-item { min-height: var(--comp-opt-h); }
-.comp .loc-row { min-height: var(--comp-opt-h); }
-.comp .fu-item { min-height: var(--comp-opt-h); }
+/* 控件高度（组件级覆盖）优先于统一定高，否则样式步的「控件高度」拖了没反应 */
+.comp .opt-item { min-height: var(--control-height, var(--comp-opt-h)); }
+.comp .loc-row { min-height: var(--control-height, var(--comp-opt-h)); }
+.comp .fu-item { min-height: var(--control-height, var(--comp-opt-h)); }
 .comp .el-item { min-height: 46px; }
-.comp .rank-item { min-height: var(--comp-opt-h); }
+.comp .rank-item { min-height: var(--control-height, var(--comp-opt-h)); }
 .comp .quick-chip { min-height: 26px; }
 
 /* 交互系统：重置（交互后出现，提交后随冻结禁用）与定高展开 */
@@ -1597,12 +1601,29 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .key-chip.static { cursor: default; }
 .key-chip.static:hover { border-color: var(--border); background: var(--bg-elevated); color: inherit; }
 
+/* 方案对比：开了隔行变色才有斑马纹 */
+.comp table.mx-table.mx-striped tbody tr:nth-child(even) { background: var(--bg-surface); }
+
+/* 风格主题预览：每格固定行高，紧凑度只影响组件内部 */
+.demo-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  grid-auto-rows: minmax(300px, auto); align-items: start; }
+.demo-grid2 > .demo-cell { align-self: start; }
+
+/* 深色模式：从浅色映射 */
+.dark-map { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px;
+  margin-top: 4px; padding: 10px 12px; border: 1px dashed var(--border);
+  border-radius: 10px; background: var(--bg-surface); }
+.dark-map-txt { flex: 1; min-width: 0; }
+.dark-map-t { font-size: var(--font-small); font-weight: 600; color: var(--text-primary); }
+.dark-map-d { font-size: var(--font-caption); color: var(--text-muted); margin-top: 2px; }
+
 /* Figma 式自定义阴影 */
 .sh-custom { margin-top: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-elevated); }
 .sh-custom summary { cursor: pointer; padding: 8px 12px; font-size: var(--font-small); color: var(--text-secondary); font-weight: 600; user-select: none; }
 .sh-custom[open] summary { border-bottom: 1px solid var(--border); }
-.sh-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; padding: 12px; }
+.sh-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; padding: 12px; align-items: end; }
 .sh-field { display: flex; flex-direction: column; gap: 5px; font-size: var(--font-caption); color: var(--text-muted); min-width: 0; }
+.sh-field > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sh-field input.sh-num[type=number] { width: 100%; padding: 5px 8px; text-align: right; }
 @media (max-width: 1100px) { .sh-grid { grid-template-columns: repeat(3, 1fr); } }
 
@@ -1716,8 +1737,9 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 /* 滑杆 / 评分参数 */
 .comp input[type=range] { height: var(--track-h, 6px); }
 .comp input[type=range]::-webkit-slider-thumb { width: var(--thumb-s, 18px); height: var(--thumb-s, 18px); }
-.comp .likert-dots button, .comp .lk-dot { width: var(--lk-size, 28px); height: var(--lk-size, 28px); }
-.comp .likert-dots { gap: var(--lk-gap, 8px); }
+.comp .likert-dots button, .comp .lk-dot,
+.comp .btn.opt.likert { width: var(--lk-size, 34px); height: var(--lk-size, 34px); min-width: var(--lk-size, 34px); }
+.comp .likert-dots, .comp .likert-row { gap: var(--lk-gap, 6px); }
 /* 表单输入底色 */
 .comp input[type=text], .comp input[type=number], .comp textarea { background: var(--input-bg, var(--bg-elevated)); }
 /* 固定内容行编辑 */
@@ -1958,8 +1980,9 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 
 /* ===== 多容器样式模型：面板 / 选项容器 / 提交按钮容器 各自的底色与边框 ===== */
 .comp { border-color: var(--panel-bc, var(--border)); }
-.comp .opt-item, .comp .btn.opt, .comp .opt-card, .comp .rank-item {
+.comp .opt-item, .comp .btn.opt, .comp .opt-card, .comp .rank-item, .comp .fb-cand {
   background: var(--opt-bg, var(--bg-elevated)); border-color: var(--opt-bc, var(--border)); }
+.comp .fb-cand { border-radius: var(--opt-radius, 10px); }
 .comp .submit-bar .btn.primary:not(.submitted) {
   background: var(--btn-bg, var(--primary)); border-color: var(--btn-bc, var(--btn-bg, var(--primary)));
   color: var(--btn-fg, #fff); }

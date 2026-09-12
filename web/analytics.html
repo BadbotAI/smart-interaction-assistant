@@ -41,6 +41,21 @@
   .od-fill.rec { background: var(--success); }
   .od-pct { width: 74px; flex: none; text-align: right; font-size: var(--font-caption); color: var(--text-secondary);
     font-variant-numeric: tabular-nums; }
+  /* 两大模块的分区标题 */
+  .an-sec { margin: 4px 0 12px; display: flex; align-items: baseline; gap: 10px; }
+  .an-sec h2 { font-size: 17px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+  .an-sec .d { font-size: var(--font-caption); color: var(--text-muted); }
+  .an-sec-line { height: 1px; background: var(--border); margin: 22px 0 18px; }
+  /* 单组件分析的筛选行 */
+  .an-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 14px; }
+  .an-filters .fl { font-size: var(--font-caption); color: var(--text-muted); }
+  .an-range-custom { display: flex; align-items: center; gap: 6px; }
+  .an-range-custom input[type=date] { height: 32px; padding: 4px 8px; }
+  .an-inst-row { cursor: pointer; }
+  .an-inst-row:hover td { background: var(--bg-surface); }
+  .an-inst-row.on td { background: var(--primary-weak); }
   .an-empty { color: var(--text-muted); font-size: var(--font-small); padding: 18px 0; text-align: center; }
   .an-legend { display: flex; gap: 14px; justify-content: center; margin-top: 6px; font-size: var(--font-caption); color: var(--text-secondary); }
   .an-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
@@ -56,7 +71,13 @@
     <div style="flex:1"></div>
     <span id="rangeMount"></span>
   </div>
-  <div id="anBody"></div>
+  <div class="an-sec"><h2>整体交互情况</h2>
+    <span class="d">所有组件合起来看：用户有没有用、用到哪一步</span></div>
+  <div id="anOverall"></div>
+  <div class="an-sec-line"></div>
+  <div class="an-sec"><h2>单组件数据分析</h2>
+    <span class="d">选定产品 / 组件类型 / 具体实例，看这一个组件的表现</span></div>
+  <div id="anSingle"></div>
 </div>
 
 <script src="/web/tokens.js"></script>
@@ -64,10 +85,8 @@
 <script>
 UI.nav("analytics");
 const { el } = UI;
-let days = 30;
 
 const CT_CN = (ct) => UI.ctName(ct);
-const ms = (v) => v == null ? "-" : (v >= 1000 ? (v / 1000).toFixed(1) + " 秒" : Math.round(v) + " 毫秒");
 const pct = (v) => v == null ? "-" : v + "%";
 
 function kpiCard(k, v, unit, sub, hint) {
@@ -89,12 +108,9 @@ function funnelCard(o) {
         el("div", { class: "fn-fill s" + (i + 1), style: `width:${Math.max(6, st.value / max * 100)}%` },
           [String(st.value)]),
       ]),
-      el("div", { class: "fn-rate" }, [i === 0 ? "占曝光 100%" : `占曝光 ${st.rate}%`]),
     ]));
     if (i < f.length - 1) {
-      const lost = f[i].value - f[i + 1].value;
-      rows.push(el("div", { class: "fn-drop" },
-        [`↓ 流失 ${lost} 次（${f[i].value ? (lost / f[i].value * 100).toFixed(1) : 0}%）`]));
+      rows.push(el("div", { class: "fn-drop" }, [`↓ 流失率 ${pct(st.drop_rate)}`]));
     }
   });
   return el("div", { class: "an-card" }, [
@@ -141,15 +157,15 @@ function byTypeCard(rows) {
       el("span", { class: "d" }, ["哪类组件更容易被用户完成"])]),
     el("div", { style: "overflow-x:auto" }, [
       el("table", { class: "data" }, [
-        el("thead", {}, [el("tr", {}, ["组件", "曝光", "开始操作", "提交", "完成率", "决策时长（中位）"]
+        el("thead", {}, [el("tr", {}, ["组件", "曝光", "开始操作", "提交", "交互率", "完成率"]
           .map(h => el("th", {}, [h])))]),
         el("tbody", {}, rows.map(r => el("tr", {}, [
           el("td", {}, [CT_CN(r.component_type)]),
           el("td", { class: "num" }, [String(r.rendered)]),
           el("td", { class: "num" }, [String(r.started)]),
           el("td", { class: "num" }, [String(r.submitted)]),
+          el("td", { class: "num muted" }, [r.rendered ? pct(r.interact_rate) : "-"]),
           el("td", { class: "num" }, [r.rendered ? pct(r.complete_rate) : "-"]),
-          el("td", { class: "num muted" }, [ms(r.median_ms)]),
         ]))),
       ]),
     ]),
@@ -186,7 +202,11 @@ function instancesCard(rows) {
     el("div", { style: "overflow-x:auto" }, [
       el("table", { class: "data" }, [
         el("thead", {}, [el("tr", {}, ["实例", "状态", "曝光", "提交", "完成率"].map(h => el("th", {}, [h])))]),
-        el("tbody", {}, rows.map(r => el("tr", {}, [
+        el("tbody", {}, rows.map(r => el("tr", {
+          class: "an-inst-row" + (r.card_id === pickState.card_id ? " on" : ""),
+          title: "查看这个实例的数据",
+          onclick: () => { pickState.card_id = r.card_id; pickState.cleared = false; loadSingle(); },
+        }, [
           el("td", {}, [r.name]),
           el("td", {}, [el("span", { class: "chip " + (r.status === "published" ? "blue" : "gray") },
             [{ published: "已上线", offline: "已下线", draft: "草稿", deleted: "已删除" }[r.status] || r.status])]),
@@ -199,14 +219,20 @@ function instancesCard(rows) {
   ]);
 }
 
-async function load() {
-  const box = document.getElementById("anBody");
+// ---------- 时间范围：预设 + 自定义起止 ----------
+const range = { days: 30, start: "", end: "" };
+const rangeQS = () => range.start || range.end
+  ? `start=${range.start}&end=${range.end}` : `days=${range.days}`;
+const rangeLabel = () => range.start || range.end
+  ? `${range.start || "最早"} 至 ${range.end || "今天"}` : `近 ${range.days} 天`;
+
+// ---------- 模块一：整体交互情况 ----------
+async function loadOverall() {
+  const box = document.getElementById("anOverall");
   UI.loading(box);
-  const [o, bt, op, ins] = await Promise.all([
-    UI.api(`/api/analytics/overview?days=${days}`),
-    UI.api(`/api/analytics/by-type?days=${days}`).catch(() => ({ rows: [] })),
-    UI.api(`/api/analytics/options?days=${days}`).catch(() => ({ groups: [] })),
-    UI.api(`/api/analytics/instances?days=${days}`).catch(() => ({ rows: [] })),
+  const [o, bt] = await Promise.all([
+    UI.api(`/api/analytics/overview?${rangeQS()}`),
+    UI.api(`/api/analytics/by-type?${rangeQS()}`).catch(() => ({ rows: [] })),
   ]);
   box.innerHTML = "";
   const k = o.kpi;
@@ -220,27 +246,130 @@ async function load() {
     return;
   }
   box.appendChild(el("div", { class: "an-kpis" }, [
-    kpiCard("曝光", k.rendered, "次", `近 ${days} 天`, "组件被渲染进对话的次数（card_rendered 事件）"),
+    kpiCard("曝光", k.rendered, "次", rangeLabel(), "组件被渲染进对话的次数（card_rendered 事件）"),
     kpiCard("提交", k.submitted, "次", `完成率 ${pct(k.complete_rate)}`, "用户点提交的次数（card_submitted 事件）"),
     kpiCard("交互率", pct(k.interact_rate), "", "曝光后有操作的比例", "用户至少点了一下（card_interaction_started）"),
-    kpiCard("决策时长", ms(k.median_submit_ms), "", "中位值", "从开始操作到提交的耗时中位数"),
     kpiCard("推荐采纳率", k.rec_accept_rate == null ? "-" : pct(k.rec_accept_rate), "",
       k.rec_sample ? `${k.rec_sample} 次带推荐的提交` : "暂无带推荐项的提交",
       "用户直接接受 AI 推荐项、没有改选的比例"),
-    kpiCard("反馈好评率", k.feedback_up_rate == null ? "-" : pct(k.feedback_up_rate), "",
-      k.feedback_total ? `${k.feedback_total} 条赞踩` : "暂无反馈", "赞踩组件里点赞的比例"),
+  ]));
+  box.appendChild(el("div", { class: "an-grid" }, [
+    el("div", {}, [funnelCard(o)]),
+    el("div", {}, [trendCard(o)]),
+  ]));
+  box.appendChild(byTypeCard(bt.rows || []));
+}
+
+// ---------- 模块二：单组件数据分析 ----------
+const pickState = { product: "", ct: "", card_id: "", cleared: false };
+let FILTERS = { products: [], component_types: [], cards: [] };
+
+function filterBar() {
+  const bar = el("div", { class: "an-filters" });
+  const prodOpts = [["", "全部产品"], ...FILTERS.products.map(p => [p.product_id, p.name])];
+  const ctPool = FILTERS.component_types;
+  const ctOpts = [["", "全部组件类型"], ...ctPool.map(c => [c.component_type, CT_CN(c.component_type)])];
+  const cardPool = FILTERS.cards.filter(c => !pickState.ct || c.component_type === pickState.ct);
+  const cardOpts = [["", "全部实例"], ...cardPool.map(c => [c.card_id, c.name])];
+  bar.append(
+    el("span", { class: "fl" }, ["筛选"]),
+    UI.fancySelect({ value: pickState.product, width: "180px", options: prodOpts,
+      onChange: (v) => { pickState.product = v; loadSingle(); } }),
+    UI.fancySelect({ value: pickState.ct, width: "180px", options: ctOpts,
+      onChange: (v) => { pickState.ct = v; pickState.card_id = ""; loadSingle(); } }),
+    UI.fancySelect({ value: pickState.card_id, width: "220px", options: cardOpts,
+      onChange: (v) => { pickState.card_id = v; loadSingle(); } }),
+  );
+  if (pickState.product || pickState.ct || pickState.card_id) {
+    bar.appendChild(el("button", { class: "btn small ghost", type: "button", onclick: () => {
+      pickState.product = pickState.ct = pickState.card_id = "";
+      pickState.cleared = true; loadSingle();
+    } }, ["清除筛选"]));
+  }
+  return bar;
+}
+
+async function loadSingle() {
+  const box = document.getElementById("anSingle");
+  UI.loading(box);
+  const ins = await UI.api(
+    `/api/analytics/instances?${rangeQS()}&product=${pickState.product}&ct=${pickState.ct}`)
+    .catch(() => ({ rows: [] }));
+  // 不选任何条件时，默认落到「当前时间范围里曝光最多」的实例——
+  // 否则这一屏跟「整体交互情况」长得一模一样，而且默认项不能是这段时间没数据的组件
+  if (!pickState.cleared && !pickState.product && !pickState.ct && !pickState.card_id && (ins.rows || []).length) {
+    pickState.card_id = ins.rows[0].card_id;
+  }
+  const qs = `${rangeQS()}&product=${pickState.product}&ct=${pickState.ct}&card_id=${pickState.card_id}`;
+  const [o, op] = await Promise.all([
+    UI.api(`/api/analytics/overview?${qs}`),
+    UI.api(`/api/analytics/options?${qs}`).catch(() => ({ groups: [] })),
+  ]);
+  box.innerHTML = "";
+  box.appendChild(filterBar());
+  const k = o.kpi;
+  const picked = FILTERS.cards.find(c => c.card_id === pickState.card_id);
+  if (!k.rendered) {
+    box.appendChild(el("div", { class: "an-card" }, [
+      el("div", { class: "an-empty" }, ["当前筛选条件下没有事件，换个组件或时间范围看看。"])]));
+    return;
+  }
+  box.appendChild(el("div", { class: "an-kpis" }, [
+    kpiCard(picked ? picked.name + " · 曝光" : "曝光", k.rendered, "次", rangeLabel(),
+      "该筛选范围内组件被渲染的次数"),
+    kpiCard("交互率", pct(k.interact_rate), "", "曝光后有操作的比例", "用户至少点了一下"),
+    kpiCard("完成率", pct(k.complete_rate), "", `提交 ${k.submitted} 次`, "曝光之后走到提交的比例"),
+    kpiCard("推荐采纳率", k.rec_accept_rate == null ? "-" : pct(k.rec_accept_rate), "",
+      k.rec_sample ? `${k.rec_sample} 次带推荐的提交` : "暂无带推荐项的提交",
+      "用户直接接受 AI 推荐项、没有改选的比例"),
   ]));
   box.appendChild(el("div", { class: "an-grid" }, [
     el("div", {}, [funnelCard(o), optionsCard(op.groups || [])]),
-    el("div", {}, [trendCard(o), byTypeCard(bt.rows || []), instancesCard(ins.rows || [])]),
+    el("div", {}, [trendCard(o), instancesCard(ins.rows || [])]),
   ]));
 }
 
-document.getElementById("rangeMount").appendChild(UI.fancySelect({
-  value: "30", width: "130px",
-  options: [["7", "近 7 天"], ["30", "近 30 天"], ["90", "近 90 天"], ["365", "近一年"]],
-  onChange: (v) => { days = Number(v); load(); },
-}));
+async function load() {
+  FILTERS = await UI.api("/api/analytics/filters").catch(() => FILTERS);
+  await loadOverall();
+  await loadSingle();
+}
+
+// 时间范围选择器：预设 + 自定义起止日期
+(function mountRange() {
+  const host = document.getElementById("rangeMount");
+  const custom = el("span", { class: "an-range-custom", hidden: true });
+  const sIn = el("input", { type: "date" });
+  const eIn = el("input", { type: "date" });
+  const apply = () => {
+    range.start = sIn.value; range.end = eIn.value;
+    if (range.start && range.end && range.start > range.end) {
+      UI.toast("开始日期不能晚于结束日期", true); return;
+    }
+    load();
+  };
+  sIn.onchange = eIn.onchange = apply;
+  custom.append(sIn, el("span", { class: "muted" }, ["至"]), eIn);
+  host.appendChild(UI.fancySelect({
+    value: "30", width: "130px",
+    options: [["7", "近 7 天"], ["30", "近 30 天"], ["90", "近 90 天"], ["365", "近一年"], ["custom", "自定义范围"]],
+    onChange: (v) => {
+      if (v === "custom") {
+        custom.hidden = false;
+        if (!sIn.value) {
+          const d = new Date(Date.now() - 29 * 86400e3);
+          sIn.value = d.toISOString().slice(0, 10);
+          eIn.value = new Date().toISOString().slice(0, 10);
+        }
+        apply();
+      } else {
+        custom.hidden = true; range.start = range.end = ""; range.days = Number(v); load();
+      }
+    },
+  }));
+  host.appendChild(custom);
+})();
+
 load().catch(e => UI.toast("加载失败：" + e.message, true));
 </script>
 </body>

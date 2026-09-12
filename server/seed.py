@@ -584,15 +584,58 @@ def seed_history(days=7, per_day=22):
     return n
 
 
+_CARD_OF_CACHE = {}
+
+
+def _card_of(conn, component_type):
+    """把造出来的历史事件挂到该类型的真实实例上，实例维度才分析得动。"""
+    if component_type not in _CARD_OF_CACHE:
+        r = conn.execute("SELECT card_id FROM cards WHERE component_type=? ORDER BY created_at LIMIT 1",
+                         (component_type,)).fetchone()
+        _CARD_OF_CACHE[component_type] = r["card_id"] if r else None
+    return _CARD_OF_CACHE[component_type]
+
+
 def _hist_event(conn, rng, trace_id, session_id, turn_id, user_id, ts, event_type, comp, cat, src, payload, group=None):
     conn.execute(
         """INSERT INTO events (event_id, trace_id, tenant_id, session_id, turn_id, user_id, ts, event_type,
            card, route_context, payload, group_info, label_hint, schema_version, admitted, reject_reason)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NULL,'1.0.0',1,NULL)""",
         (db.new_id(), trace_id, TENANT, session_id, turn_id, user_id, ts, event_type,
-         db.j({"card_id": None, "card_version": None, "component_type": comp,
+         db.j({"card_id": _card_of(conn, comp), "card_version": None, "component_type": comp,
                "semantic_category": cat, "trigger_source": src}),
          db.j({}), db.j(payload), db.j(group)))
+
+
+def migrate_events_cardid_v26():
+    """历史事件的 card 里 card_id 为空，实例维度就分析不出来。
+    按 component_type 把事件挂到该类型的真实实例上（优先挂到已进产品注册表的那个）。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT 1 FROM audit_log WHERE action='migrate_events_cardid_v26' LIMIT 1").fetchone():
+        return
+    in_prod = set()
+    for r in conn.execute("SELECT card_ids FROM products").fetchall():
+        in_prod |= set(db.dj(r["card_ids"], []) or [])
+    by_ct = {}
+    for r in conn.execute("SELECT card_id, component_type FROM cards ORDER BY created_at").fetchall():
+        by_ct.setdefault(r["component_type"], []).append(r["card_id"])
+    pick = {}
+    for ct, ids in by_ct.items():
+        ranked = sorted(ids, key=lambda i: (0 if i in in_prod else 1))
+        pick[ct] = ranked[0]
+    n = 0
+    for r in conn.execute("SELECT event_id, card FROM events WHERE card IS NOT NULL").fetchall():
+        c = db.dj(r["card"], {}) or {}
+        if c.get("card_id") or not c.get("component_type"):
+            continue
+        cid = pick.get(c["component_type"])
+        if not cid:
+            continue
+        c["card_id"] = cid
+        conn.execute("UPDATE events SET card=? WHERE event_id=?", (db.j(c), r["event_id"]))
+        n += 1
+    conn.commit()
+    db.audit("system", "migrate_events_cardid_v26", {"rows": n})
 
 
 def migrate_questionnaire():
@@ -1051,6 +1094,7 @@ def run_all():
     n_fb = seed_ab_feedback()
     n_hist = seed_history()
     migrate_questionnaire()
+    migrate_events_cardid_v26()
     return {"bank_queries": n_bank, "ab_feedback": n_fb, "history_traces": n_hist}
 
 

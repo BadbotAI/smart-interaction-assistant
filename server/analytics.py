@@ -13,6 +13,7 @@
   3. 用户到底选了什么             → 选项分布、AI 推荐项采纳率
   4. 哪些实例需要优化             → 曝光高但完成率低的实例榜
 """
+import datetime as _dt
 import json
 
 from . import db
@@ -24,12 +25,53 @@ EV_ABANDON = "card_abandoned"
 EV_FEEDBACK = "feedback_given"
 
 
-def _rows(days: int):
+def _range(days=None, start=None, end=None):
+    """时间范围：给了起止日期就用日期，否则回落到「近 N 天」。"""
+    if start or end:
+        def _ts(d, end_of_day=False):
+            try:
+                t = _dt.datetime.strptime(d, "%Y-%m-%d")
+            except Exception:
+                return None
+            if end_of_day:
+                t += _dt.timedelta(days=1)
+            return int(t.timestamp())
+        a = _ts(start) if start else 0
+        b = _ts(end, True) if end else db.now_ts() + 86400
+        return a or 0, b
+    n = int(days or 30)
+    return db.now_ts() - n * 86400, db.now_ts() + 86400
+
+
+def _rows(days=None, start=None, end=None):
     conn = db.get_conn()
-    since = db.now_ts() - days * 86400
+    a, b = _range(days, start, end)
     return conn.execute(
-        "SELECT event_type, card, payload, ts FROM events WHERE ts >= ? ORDER BY ts", (since,)
+        "SELECT event_type, card, payload, ts FROM events WHERE ts >= ? AND ts < ? ORDER BY ts", (a, b)
     ).fetchall()
+
+
+def _product_cards(product_id: str):
+    """产品与组件的关系挂在 products.card_ids 上，事件本身不带产品。"""
+    if not product_id:
+        return None
+    conn = db.get_conn()
+    r = conn.execute("SELECT card_ids FROM products WHERE product_id=?", (product_id,)).fetchone()
+    if not r:
+        return set()
+    return set(db.dj(r["card_ids"], []) or [])
+
+
+def _filtered(days=None, start=None, end=None, card_id=None, ct=None, product=None):
+    ev = _parse(_rows(days, start, end))
+    if card_id:
+        ev = [e for e in ev if e["card_id"] == card_id]
+    if ct:
+        ev = [e for e in ev if e["ct"] == ct]
+    if product:
+        ids = _product_cards(product)
+        ev = [e for e in ev if e["card_id"] in ids]
+    return ev
 
 
 def _parse(rows):
@@ -52,21 +94,13 @@ def _rate(a, b):
     return round(a / b * 100, 1) if b else 0.0
 
 
-def overview(days: int = 30) -> dict:
-    ev = _parse(_rows(days))
+def overview(days=30, start=None, end=None, card_id=None, ct=None, product=None) -> dict:
+    ev = _filtered(days, start, end, card_id, ct, product)
     n = lambda t: sum(1 for e in ev if e["type"] == t)
     rendered, started, submitted = n(EV_RENDER), n(EV_START), n(EV_SUBMIT)
-    # 决策时长：提交事件自带 time_to_submit_ms
-    durs = [e["payload"].get("time_to_submit_ms") for e in ev
-            if e["type"] == EV_SUBMIT and isinstance(e["payload"].get("time_to_submit_ms"), (int, float))]
-    durs.sort()
-    median = durs[len(durs) // 2] if durs else None
     # 推荐项采纳：modified_from_default=False 表示用户接受了 AI 的推荐
     withrec = [e for e in ev if e["type"] == EV_SUBMIT and "modified_from_default" in e["payload"]]
     accepted = sum(1 for e in withrec if not e["payload"].get("modified_from_default"))
-    # 赞踩
-    fb = [e for e in ev if e["type"] == EV_FEEDBACK]
-    up = sum(1 for e in fb if str(e["payload"].get("value")) in ("up", "1", "1.0", "True"))
     # 按天趋势
     daily = {}
     for e in ev:
@@ -79,57 +113,50 @@ def overview(days: int = 30) -> dict:
     return {
         "days": days,
         "funnel": [
-            {"step": "曝光", "key": "rendered", "value": rendered, "rate": 100.0},
-            {"step": "开始操作", "key": "started", "value": started, "rate": _rate(started, rendered)},
-            {"step": "提交", "key": "submitted", "value": submitted, "rate": _rate(submitted, rendered)},
+            {"step": "曝光", "key": "rendered", "value": rendered, "drop_rate": _rate(rendered - started, rendered)},
+            {"step": "开始操作", "key": "started", "value": started, "drop_rate": _rate(started - submitted, started)},
+            {"step": "提交", "key": "submitted", "value": submitted, "drop_rate": None},
         ],
         "kpi": {
             "rendered": rendered,
             "submitted": submitted,
             "complete_rate": _rate(submitted, rendered),
             "interact_rate": _rate(started, rendered),
-            "median_submit_ms": median,
             "rec_accept_rate": _rate(accepted, len(withrec)) if withrec else None,
             "rec_sample": len(withrec),
-            "feedback_total": len(fb),
-            "feedback_up_rate": _rate(up, len(fb)) if fb else None,
         },
         "trend": trend,
     }
 
 
-def by_type(days: int = 30) -> dict:
-    ev = _parse(_rows(days))
+def by_type(days=30, start=None, end=None, product=None) -> dict:
+    ev = _filtered(days, start, end, product=product)
     agg = {}
     for e in ev:
         if not e["ct"]:
             continue
         a = agg.setdefault(e["ct"], {"component_type": e["ct"], "rendered": 0, "started": 0,
-                                     "submitted": 0, "abandoned": 0, "durs": []})
+                                     "submitted": 0, "abandoned": 0})
         if e["type"] == EV_RENDER:
             a["rendered"] += 1
         elif e["type"] == EV_START:
             a["started"] += 1
         elif e["type"] == EV_SUBMIT:
             a["submitted"] += 1
-            d = e["payload"].get("time_to_submit_ms")
-            if isinstance(d, (int, float)):
-                a["durs"].append(d)
         elif e["type"] == EV_ABANDON:
             a["abandoned"] += 1
     out = []
     for a in agg.values():
-        durs = sorted(a.pop("durs"))
-        a["median_ms"] = durs[len(durs) // 2] if durs else None
         a["complete_rate"] = _rate(a["submitted"], a["rendered"])
+        a["interact_rate"] = _rate(a["started"], a["rendered"])
         out.append(a)
     out.sort(key=lambda x: -x["rendered"])
     return {"days": days, "rows": out}
 
 
-def options(days: int = 30, limit: int = 6) -> dict:
+def options(days=30, limit: int = 6, start=None, end=None, card_id=None, ct=None, product=None) -> dict:
     """选项分布：只统计提交事件里带 options_offered 的选择型组件。"""
-    ev = _parse(_rows(days))
+    ev = _filtered(days, start, end, card_id, ct, product)
     groups = {}
     for e in ev:
         if e["type"] != EV_SUBMIT:
@@ -155,9 +182,9 @@ def options(days: int = 30, limit: int = 6) -> dict:
     return {"days": days, "groups": rows}
 
 
-def instances(days: int = 30, limit: int = 12) -> dict:
+def instances(days=30, limit: int = 12, start=None, end=None, ct=None, product=None) -> dict:
     """实例榜：带 card_id 的事件才能归到具体实例；关联卡片名与状态。"""
-    ev = _parse(_rows(days))
+    ev = _filtered(days, start, end, ct=ct, product=product)
     agg = {}
     for e in ev:
         cid = e["card_id"]
@@ -178,3 +205,33 @@ def instances(days: int = 30, limit: int = 12) -> dict:
         rows.append(a)
     rows.sort(key=lambda x: -x["rendered"])
     return {"days": days, "rows": rows[:limit]}
+
+
+def filters() -> dict:
+    """筛选器选项：只列真正产生过事件的实例，避免一长串空选项。"""
+    conn = db.get_conn()
+    ev = _parse(_rows(365))
+    seen_ct, seen_card = {}, {}
+    for e in ev:
+        if e["ct"]:
+            seen_ct[e["ct"]] = seen_ct.get(e["ct"], 0) + 1
+        if e["card_id"]:
+            seen_card[e["card_id"]] = seen_card.get(e["card_id"], 0) + 1
+    cards_out = []
+    for cid, n in sorted(seen_card.items(), key=lambda kv: -kv[1]):
+        r = conn.execute("SELECT name, component_type, status FROM cards WHERE card_id=?", (cid,)).fetchone()
+        if not r:
+            continue
+        cards_out.append({"card_id": cid, "name": r["name"], "component_type": r["component_type"],
+                          "status": r["status"], "events": n})
+    prods = []
+    for r in conn.execute("SELECT product_id, name, card_ids FROM products ORDER BY created_at").fetchall():
+        ids = set(db.dj(r["card_ids"], []) or [])
+        hits = sum(n for cid, n in seen_card.items() if cid in ids)
+        prods.append({"product_id": r["product_id"], "name": r["name"], "events": hits})
+    return {
+        "products": prods,
+        "component_types": [{"component_type": k, "events": v}
+                            for k, v in sorted(seen_ct.items(), key=lambda kv: -kv[1])],
+        "cards": cards_out,
+    }

@@ -928,23 +928,31 @@ async def delete_product(product_id: str):
 
 # ---------- 组件数据分析（只聚合 events 表里真实存在的事件） ----------
 @app.get("/api/analytics/overview")
-def analytics_overview(days: int = 30):
-    return analytics.overview(days)
+def analytics_overview(days: int = 30, start: str = "", end: str = "",
+                       card_id: str = "", ct: str = "", product: str = ""):
+    return analytics.overview(days, start or None, end or None, card_id or None, ct or None, product or None)
 
 
 @app.get("/api/analytics/by-type")
-def analytics_by_type(days: int = 30):
-    return analytics.by_type(days)
+def analytics_by_type(days: int = 30, start: str = "", end: str = "", product: str = ""):
+    return analytics.by_type(days, start or None, end or None, product or None)
 
 
 @app.get("/api/analytics/options")
-def analytics_options(days: int = 30):
-    return analytics.options(days)
+def analytics_options(days: int = 30, start: str = "", end: str = "",
+                      card_id: str = "", ct: str = "", product: str = ""):
+    return analytics.options(days, 6, start or None, end or None, card_id or None, ct or None, product or None)
 
 
 @app.get("/api/analytics/instances")
-def analytics_instances(days: int = 30):
-    return analytics.instances(days)
+def analytics_instances(days: int = 30, start: str = "", end: str = "", ct: str = "", product: str = ""):
+    return analytics.instances(days, 12, start or None, end or None, ct or None, product or None)
+
+
+@app.get("/api/analytics/filters")
+def analytics_filters():
+    """筛选器的可选项：有过事件的产品 / 组件类型 / 实例。"""
+    return analytics.filters()
 
 
 @app.get("/api/apikeys")
@@ -1799,6 +1807,18 @@ async def save_brand(request: Request):
            if not isinstance(v, str) or not _re.fullmatch(r"#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)", v.strip())]
     if bad:
         return JSONResponse({"error": f"颜色值格式不合法：{', '.join(bad[:5])}"}, status_code=422)
+    # 主题名要能一眼区分：同名（忽略大小写与空格）只许一份
+    _nm = lambda x: "".join((x or "").split()).lower()
+    for _f in os.listdir(os.path.join(BASE, "brand")):
+        if not _f.startswith("brand-tokens.") or not _f.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(BASE, "brand", _f), encoding="utf-8") as _fh:
+                _d = json.load(_fh)
+        except Exception:
+            continue
+        if _d.get("brand_id") != brand_id and _nm(_d.get("brand_name")) == _nm(brand_name):
+            return JSONResponse({"error": f"已有同名主题「{_d.get('brand_name')}」，请换一个主题名称"}, status_code=409)
     tokens = {**tokens, "brand_id": brand_id, "brand_name": brand_name}
     fn = f"brand-tokens.{brand_id}.json"
     with open(os.path.join(BASE, "brand", fn), "w", encoding="utf-8") as f:

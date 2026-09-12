@@ -524,7 +524,8 @@ window.UI = (function () {
     areaFill = true, areaOpacity = 0.16, axisShow = false, axisColor, valueLabels = false, lineColor }) {
     container.innerHTML = "";
     const pal = Brand.chartPalette().categorical;
-    const w = 560, h = height, padL = 44, padR = 12, padT = 14, padB = 26;
+    // 多系列要在右端标系列名，右边距得留够，否则文字叠在一起、还被画布裁掉
+    const w = 560, h = height, padL = 44, padR = series.length > 1 ? 54 : 12, padT = 14, padB = 26;
     const svg = chartFrame(w, h);
     const all = series.flatMap(s => s.values);
     const maxV = (Math.max(...all) || 0) > 0 ? Math.max(...all) : 1;
@@ -549,8 +550,11 @@ window.UI = (function () {
     if (axisShow) svg.appendChild(svgEl("line", { x1: padL, y1: h - padB, x2: w - padR, y2: h - padB,
       stroke: axisColor || Brand.chartPalette().axis, "stroke-width": 1.2 }));
     labels.forEach((lb, i) => {
-      if (labels.length > 10 && i % Math.ceil(labels.length / 8) !== 0) return;
-      const tx = svgEl("text", { x: x(i), y: h - 8, "text-anchor": "middle", "font-size": 10, fill: INK() });
+      const isLast = i === labels.length - 1;
+      if (labels.length > 10 && i % Math.ceil(labels.length / 8) !== 0 && !isLast) return;
+      // 首尾标签贴边对齐，居中会溢出画布
+      const anchor = i === 0 ? "start" : isLast ? "end" : "middle";
+      const tx = svgEl("text", { x: x(i), y: h - 8, "text-anchor": anchor, "font-size": 10, fill: INK() });
       tx.textContent = lb;
       svg.appendChild(tx);
     });
@@ -567,6 +571,7 @@ window.UI = (function () {
       }
       return d;
     };
+    const usedLabelY = [];
     series.forEach((s, si) => {
       const color = (si === 0 && lineColor) || pal[si % pal.length];
       if (areaFill && series.length === 1 && s.values.length > 1) {
@@ -610,7 +615,12 @@ window.UI = (function () {
       });
       if (series.length > 1) {
         const last = s.values[s.values.length - 1];
-        const lt = svgEl("text", { x: w - padR + 2, y: y(last) + 4, "font-size": 10, fill: "var(--text-secondary)" });
+        // 末值相近时两个系列名会叠住，逐个往下让开
+        let ly = y(last) + 4;
+        while (usedLabelY.some(v => Math.abs(v - ly) < 11)) ly += 11;
+        usedLabelY.push(ly);
+        const lt = svgEl("text", { x: w - padR + 4, y: Math.min(h - padB, Math.max(padT + 6, ly)),
+          "font-size": 10, fill: "var(--text-secondary)" });
         lt.textContent = s.name;
         svg.appendChild(lt);
       }

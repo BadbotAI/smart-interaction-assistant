@@ -7,6 +7,12 @@ hash(model_id, query) 播种的确定性伪随机决定——同一问题重复�
 生产环境替换为真实模型 API 时，仅 call_model() 需要改动。
 """
 import asyncio
+import datetime as _dt
+
+
+def _iso_ago(hours: float) -> str:
+    return (_dt.datetime.now() - _dt.timedelta(hours=hours)).isoformat(timespec="minutes")
+
 import hashlib
 import random
 
@@ -203,11 +209,12 @@ def gen_structured(query: str, domain: str, correct: bool):
         data = {"kind": "table", "params": {"title": "运力方案一览", "columns": ["方案", "时效", "单箱成本", "舱位富余"], "rows": rows}}
         return text, data
     if domain == "port":
+        # 时间用 ISO：组件的「时间显示形式」才能把它渲染成时分 / 日期 / 相对时间
         events = [
-            {"ts": "08:00", "title": "抵达锚地", "desc": "等待引航"},
-            {"ts": "10:30", "title": "靠泊作业", "desc": f"预计装卸 {round(800+rng.random()*600)} TEU"},
-            {"ts": "18:00", "title": "堆场转运", "desc": "重箱进场"},
-            {"ts": "22:00", "title": "离泊", "desc": "预计准班"},
+            {"ts": _iso_ago(14), "title": "抵达锚地", "desc": "等待引航"},
+            {"ts": _iso_ago(11), "title": "靠泊作业", "desc": f"预计装卸 {round(800+rng.random()*600)} TEU"},
+            {"ts": _iso_ago(4), "title": "堆场转运", "desc": "重箱进场"},
+            {"ts": _iso_ago(-1), "title": "离泊", "desc": "预计准班"},
         ]
         text = f"当前靠泊计划整体可控，关键路径在装卸窗口。{wrong}"
         data = {"kind": "timeline", "params": {"title": "港口作业时间线", "events": events}}

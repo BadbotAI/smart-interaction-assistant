@@ -203,14 +203,15 @@ const DEMO_GRID_B = [
 function renderDemos() {
   const boxOne = document.getElementById("demoOne");
   boxOne.innerHTML = "";
-  const grid2 = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start" });
+  // 行高固定：改紧凑度只让组件内部变紧，组件之间的间距与占位不跟着跳
+  const grid2 = el("div", { class: "demo-grid2" });
   (typeof demoBatch !== "undefined" && demoBatch === 1 ? DEMO_GRID_B : DEMO_GRID).forEach(([ct, envBase]) => {
     let node;
     try {
       node = Components.render({ schema_version: "1.0.0", render_id: "brand-pv-" + ct,
         trigger_source: "brand_preview", card_ref: null, ...envBase }, previewCtx);
     } catch (e) { node = el("div", { class: "muted" }, ["暂不支持预览"]); }
-    grid2.appendChild(el("div", { class: "brand-scope" }, [node]));
+    grid2.appendChild(el("div", { class: "brand-scope demo-cell" }, [node]));
   });
   boxOne.appendChild(grid2);
 }
@@ -543,8 +544,13 @@ function brandDialog(existing, onClose) {
       };
       quickPanel.appendChild(el("label", { class: "quick-color" }, [ci, el("span", {}, [label])]));
     });
-    if (editMode === "dark") quickPanel.appendChild(el("button", { class: "btn small", type: "button",
-      title: "按当前浅色配色推导一套深色，不用逐项手调", onclick: genDarkFromLight }, ["按浅色自动生成"]));
+    if (editMode === "dark") quickPanel.appendChild(el("div", { class: "dark-map" }, [
+      el("div", { class: "dark-map-txt" }, [
+        el("div", { class: "dark-map-t" }, ["映射浅色模式"]),
+        el("div", { class: "dark-map-d" }, ["按浅色配色推导整套深色，推导后仍可逐项手调"]),
+      ]),
+      el("button", { class: "btn small", type: "button", onclick: genDarkFromLight }, ["开始映射"]),
+    ]));
   }
   const tokenPanel = el("div", {});
   let grpRefreshers = [];
@@ -795,6 +801,12 @@ function brandDialog(existing, onClose) {
       el("button", { class: "btn primary ed-save", onclick: async (e) => {
         const name = nameIn.value.trim();
         if (!name) { nameErr.textContent = "请填写主题名称"; nameIn.focus(); return; }
+        const norm = (x) => String(x || "").trim().toLowerCase().replace(/\s+/g, "");
+        if (brands.some(b2 => norm(b2.brand_name) === norm(name)
+            && (!existing || b2.brand_id !== existing.brand_id))) {
+          nameErr.textContent = "已有同名主题，换个名字（主题名要能一眼区分）";
+          nameIn.focus(); return;
+        }
         const tokens = buildTokens();
         tokens.brand_name = name;
         // 新建一律生成新 id：baseTokens 克隆自当前预览品牌，其 brand_id（如 default）绝不能继承——否则覆盖既有风格
