@@ -787,8 +787,7 @@ function brandDialog(existing, onClose) {
   host.innerHTML = "";
   host.appendChild(el("div", { class: "style-ed" }, [
     el("div", { class: "ed-sticky-head" }, [
-      el("button", { class: "btn small", type: "button", onclick: close }, ["返回"]),
-      el("span", { style: "font-weight:700;font-size:var(--font-title)" }, [existing ? "编辑" : "新建主题"]),
+      el("span", { style: "font-weight:700;font-size:var(--font-title)" }, [existing ? "编辑主题" : "新建主题"]),
       el("div", { style: "flex:1" }),
       el("button", { class: "btn small", type: "button", onclick: close }, ["取消"]),
       (() => { const b = el("button", { class: "btn small primary", type: "button" }, [existing ? "保存修改" : "保存主题"]);

@@ -837,6 +837,19 @@ def list_products():
     return {"products": [_product_row(r) for r in rows]}
 
 
+# 预置实例的默认名：用业务口吻，不跟组件类型重名（重名时工作台的类型标签也就没信息量了）
+PRESET_NAMES = {
+    "select.single": "处理方式选择", "select.multi": "服务项勾选", "select.card": "方案卡片选择",
+    "form.structured": "联系信息登记", "control.confirm": "操作确认", "feedback.binary": "回答满意度",
+    "feedback.preference": "方案择优", "slider.range": "预算范围", "scale.likert": "服务评分",
+    "picker.datetime": "送达时间选择", "rank.priority": "诉求优先级", "table": "数据明细",
+    "chart.line": "履约趋势", "chart.bar": "区域对比", "chart.pie": "构成占比",
+    "chart.waterfall": "成本构成拆解", "metric.card": "关键指标", "timeline": "处理进度",
+    "steps": "办理指引", "matrix.compare": "方案对比表", "list.ordered": "收货注意事项",
+    "text.emphasis": "核心结论提示",
+}
+
+
 @app.post("/api/products")
 async def create_product(request: Request):
     """新建产品：名称 + 风格主题（单选） + 绑定组件（多选）。每个产品一个 MCP 接入点。"""
@@ -855,7 +868,7 @@ async def create_product(request: Request):
     if not card_ids:
         suffix = pid[-4:]
         for v2t, ct0 in registry.V2_DEFAULT_CT.items():
-            label = (registry.V2_META.get(v2t) or {}).get("label") or ct0
+            label = PRESET_NAMES.get(ct0) or (registry.V2_META.get(v2t) or {}).get("label") or ct0
             preset_name = f"{label}-{suffix}"
             c0, errs0 = cards.create_card("tenant-demo", {
                 "name": preset_name, "component_type": ct0, "description": "",

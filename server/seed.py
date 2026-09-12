@@ -638,6 +638,38 @@ def migrate_events_cardid_v26():
     db.audit("system", "migrate_events_cardid_v26", {"rows": n})
 
 
+PRESET_RENAME = {
+    "选择器": "处理方式选择", "多选器": "服务项勾选", "卡片选择器": "方案卡片选择",
+    "表单": "联系信息登记", "确认器": "操作确认", "赞踩反馈": "回答满意度",
+    "偏好选择器": "方案择优", "数值滑杆": "预算范围", "评分量表": "服务评分",
+    "日期时间": "送达时间选择", "排序器": "诉求优先级", "表格": "数据明细",
+    "折线图": "履约趋势", "柱状图": "区域对比", "饼图": "构成占比", "趋势图": "履约趋势",
+    "对比图": "区域对比", "瀑布图": "成本构成拆解", "指标卡": "关键指标", "时间线": "处理进度",
+    "步骤条": "办理指引", "方案对比": "方案对比表", "要点清单": "收货注意事项",
+    "重点结论": "核心结论提示", "优先级排序": "诉求优先级",
+}
+
+
+def migrate_preset_names_v27():
+    """实例名跟组件类型同名时，工作台上的类型标签就没信息量了——换成业务口吻的名字。"""
+    conn = db.get_conn()
+    if conn.execute("SELECT 1 FROM audit_log WHERE action='migrate_preset_names_v27' LIMIT 1").fetchone():
+        return
+    n = 0
+    for r in conn.execute("SELECT card_id, name FROM cards").fetchall():
+        base = r["name"]
+        new = PRESET_RENAME.get(base)
+        if not new:
+            continue
+        # 同名冲突时带上组件短号，避免两个实例撞名
+        if conn.execute("SELECT 1 FROM cards WHERE name=? AND card_id<>?", (new, r["card_id"])).fetchone():
+            new = f"{new} {r['card_id'][:4]}"
+        conn.execute("UPDATE cards SET name=? WHERE card_id=?", (new, r["card_id"]))
+        n += 1
+    conn.commit()
+    db.audit("system", "migrate_preset_names_v27", {"rows": n})
+
+
 def migrate_questionnaire():
     """问卷模版化改造的存量迁移：
     1. 旧的复杂群体模式（group_mode）转为简单回显开关（echo_results）
@@ -1095,6 +1127,7 @@ def run_all():
     n_hist = seed_history()
     migrate_questionnaire()
     migrate_events_cardid_v26()
+    migrate_preset_names_v27()
     return {"bank_queries": n_bank, "ab_feedback": n_fb, "history_traces": n_hist}
 
 

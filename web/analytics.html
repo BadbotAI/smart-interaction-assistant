@@ -67,17 +67,12 @@
 <div class="page">
   <div class="page-head" style="display:flex;align-items:center;gap:12px">
     <div class="page-title">数据分析</div>
-    <div class="muted" style="font-size:var(--font-caption)">组件被用得怎么样，数据来自 SDK 回传的真实事件</div>
     <div style="flex:1"></div>
     <span id="rangeMount"></span>
   </div>
-  <div class="an-sec"><h2>整体交互情况</h2>
-    <span class="d">所有组件合起来看：用户有没有用、用到哪一步</span></div>
+  <div class="tabbar" id="anTabs"></div>
   <div id="anOverall"></div>
-  <div class="an-sec-line"></div>
-  <div class="an-sec"><h2>单组件数据分析</h2>
-    <span class="d">选定产品 / 组件类型 / 具体实例，看这一个组件的表现</span></div>
-  <div id="anSingle"></div>
+  <div id="anSingle" hidden></div>
 </div>
 
 <script src="/web/tokens.js"></script>
@@ -329,10 +324,31 @@ async function loadSingle() {
   ]));
 }
 
+// 两块内容用 tab 切换，一次只看一屏
+let anTab = "overall";
+function drawTabs() {
+  const bar = document.getElementById("anTabs");
+  bar.innerHTML = "";
+  [["overall", "整体交互情况"], ["single", "单组件数据分析"]].forEach(([k, nm]) => {
+    bar.appendChild(el("button", { class: "tab" + (anTab === k ? " active" : ""), type: "button",
+      onclick: () => { anTab = k; drawTabs(); syncTab(); } }, [nm]));
+  });
+}
+function syncTab() {
+  document.getElementById("anOverall").hidden = anTab !== "overall";
+  document.getElementById("anSingle").hidden = anTab !== "single";
+  if (anTab === "single" && !document.getElementById("anSingle").dataset.loaded) {
+    document.getElementById("anSingle").dataset.loaded = "1";
+    loadSingle();
+  }
+}
+
 async function load() {
   FILTERS = await UI.api("/api/analytics/filters").catch(() => FILTERS);
+  drawTabs();
   await loadOverall();
-  await loadSingle();
+  document.getElementById("anSingle").dataset.loaded = "";
+  syncTab();
 }
 
 // 时间范围选择器：预设 + 自定义起止日期
@@ -346,6 +362,7 @@ async function load() {
     if (range.start && range.end && range.start > range.end) {
       UI.toast("开始日期不能晚于结束日期", true); return;
     }
+    document.getElementById("anSingle").dataset.loaded = "";
     load();
   };
   sIn.onchange = eIn.onchange = apply;

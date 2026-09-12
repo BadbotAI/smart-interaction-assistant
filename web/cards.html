@@ -1313,6 +1313,24 @@ async function openEditor(cardId, prefill, initStep) {
       });
     }
   }
+  // 回显示例的候选项：每类组件用自己的那一组，不能一律「选项 A / B」
+  function echoDemoOptions() {
+    const ct = state.component_type;
+    if (ct === "feedback.binary") return ["赞", "踩"];
+    if (ct === "scale.likert") {
+      const to = Number((state.likertCfg || {}).to) || 5;
+      return Array.from({ length: to }, (_, i) => String(i + 1));
+    }
+    if (ct === "feedback.preference") {
+      const cs = (state.prefCands || []).map(c => (c.label || "").trim()).filter(Boolean);
+      return cs.length ? cs : ["候选 1", "候选 2"];
+    }
+    const oo = (state.fixedOptions || []).map(x => String(x).trim()).filter(Boolean);
+    if (oo.length) return oo;
+    if (ct === "rank.priority") return ["条目 1", "条目 2"];
+    return ["选项 A", "选项 B"];
+  }
+
   function toggleEchoDemo(forceOn) {
     const compEl = previewBox.querySelector(".comp");
     if (!compEl) return;
@@ -1345,9 +1363,8 @@ async function openEditor(cardId, prefill, initStep) {
       ]));
       return;
     }
-    // 没有可标注的选项（如自由填写），退回列表形态
-    const oo = (state.fixedOptions || []).map(x => String(x).trim()).filter(Boolean);
-    const demo = oo.length ? oo : ["选项 A", "选项 B"];
+    // 没有可标注的选项（如赞踩这种按钮不带 data-opt 的），退回列表形态，候选仍取自组件本身
+    const demo = echoDemoOptions();
     compEl.appendChild(el("div", { class: "echo-demo" }, [
       el("div", { class: "muted", style: "font-size:var(--font-caption);margin-bottom:6px" },
         [`共 ${people} 人参与（回显示意）`]),
@@ -2151,18 +2168,23 @@ async function openEditor(cardId, prefill, initStep) {
           .getPropertyValue(THEME_VAR[key] || "--primary").trim();
         return v || "#3E63DD";
       };
+      // 固定一个开关：开 = 跟随主题（色板不可用），关 = 自己定色。文案不随状态变来变去
       const drawInherit = () => {
         inherit.innerHTML = "";
-        const overridden = !!so[key];
+        const following = !so[key];
         const themeVal = themeVarOf();
-        if (!overridden) {
-          inherit.appendChild(el("span", { class: "sw-dot", style: `background:${themeVal || "#3E63DD"}` }));
-          inherit.appendChild(el("span", { class: "muted" }, ["跟随主题"]));
-        } else {
-          inherit.appendChild(el("span", { class: "muted" }, ["已覆盖"]));
-          inherit.appendChild(el("button", { class: "btn small ghost", type: "button",
-            onclick: () => { delete so[key]; draw(); upd(); } }, ["恢复"]));
-        }
+        inherit.appendChild(el("span", { class: "sw-dot", style: `background:${themeVal || "#3E63DD"}` }));
+        inherit.appendChild(el("span", { class: "muted" }, ["跟随主题"]));
+        inherit.appendChild(UI.toggle({
+          checked: following,
+          onChange: (on) => {
+            if (on) delete so[key];
+            else so[key] = themeVarOf() || "#3E63DD";   // 从当前主题色起步，用户接着调
+            draw(); upd();
+            return true;
+          },
+        }));
+        inherit.classList.toggle("is-custom", !following);
       };
       const draw = () => {
         row.innerHTML = "";
@@ -2901,15 +2923,15 @@ async function openEditor(cardId, prefill, initStep) {
     if (backTo[step]) foot.appendChild(el("button", { class: "btn", onclick: () => gotoStep(backTo[step]) }, ["上一步"]));
     foot.appendChild(errorsBox);
     foot.appendChild(spacer);
+    // 次要动作在左，主按钮始终在最右：内容 / 样式 / Schema 三步都可随时存草稿
+    if (["content", "style", "schema"].includes(step)) {
+      foot.appendChild(el("button", { class: "btn", onclick: (e) => save(false, e.currentTarget) }, ["保存草稿"]));
+    }
     if (nextTo[step] && (isNew || step === "content" || step === "style")) {
       const [to, label] = nextTo[step];
       const b = el("button", { class: "btn primary", "data-next": "1", onclick: () => gotoStep(to) }, [label]);
       if (step === "pick") b.disabled = !state.component_type;
       foot.appendChild(b);
-    }
-    // 内容 / 样式 / Schema 三步都可随时存草稿；发布只在最后一步
-    if (["content", "style", "schema"].includes(step)) {
-      foot.appendChild(el("button", { class: "btn", onclick: (e) => save(false, e.currentTarget) }, ["保存草稿"]));
     }
     if (step === "schema") {
       foot.appendChild(el("button", { class: "btn primary", onclick: (e) => save(true, e.currentTarget) }, ["发布"]));

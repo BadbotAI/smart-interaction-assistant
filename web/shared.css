@@ -1028,8 +1028,8 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: a
 .comp .addr-card:hover { border-color: var(--primary); }
 .comp .addr-card.on { border-color: var(--primary); background: var(--primary-weak); }
 /* 对比选择器：紧凑表格 */
-.comp .mx-table { table-layout: fixed; width: 100%; font-size: var(--font-caption); }
-.comp .mx-table th { font-size: var(--font-caption); padding: 6px 6px; }
+.comp .mx-table { table-layout: fixed; width: 100%; font-size: var(--tbl-font, 0.86em); }
+.comp .mx-table th { font-size: inherit; padding: 6px 6px; }
 .comp .mx-table td { padding: 7px 6px; }
 .comp .mx-table th.mx-v, .comp .mx-table td.mx-v { width: 44px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .comp .mx-table th.mx-sum, .comp .mx-table td.mx-sum { width: 48px; text-align: right; }
@@ -1608,6 +1608,11 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
   background: var(--bg-surface); border: 1px solid var(--border);
   color: var(--text-secondary); font-size: var(--font-small); line-height: 1.7; }
 
+/* 颜色行的「跟随主题」开关：开着时色板置灰不可点 */
+.sty-inherit-tag { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-caption); }
+.sty-inherit-tag .toggle { margin-left: 2px; }
+.sty-section:has(.sty-inherit-tag:not(.is-custom)) .sty-swatches { opacity: .45; pointer-events: none; }
+
 /* 回显示例配置：只影响预览 */
 .echo-demo-wrap { margin-top: 10px; padding: 12px 14px; border: 1px dashed var(--border);
   border-radius: 10px; background: var(--bg-surface); }
@@ -1630,6 +1635,11 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
   min-width: 34px; text-align: right; }
 .comp .echo-own .oe-pct { color: var(--primary); font-weight: 600; }
 .comp .btn.opt.has-echo { display: inline-flex; flex-direction: column; align-items: stretch; gap: 2px; }
+/* 赞踩只有两颗小按钮，宽度紧张：回显只写百分比，不画进度条 */
+.comp .fb-btn.has-echo { flex-direction: column; height: auto; padding: 5px 12px; gap: 1px; }
+.comp .fb-btn .opt-echo { margin-top: 0; width: auto; }
+.comp .fb-btn .oe-track { display: none; }
+.comp .fb-btn .oe-pct { min-width: 0; font-size: 11px; }
 
 /* 方案对比：开了隔行变色才有斑马纹 */
 .comp table.mx-table.mx-striped tbody tr:nth-child(even) { background: var(--bg-surface); }
@@ -1789,7 +1799,7 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .comp.metric-center > div { justify-content: center; }
 .comp.delta-invert .delta-chip.up { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
 .comp.delta-invert .delta-chip.down { color: var(--success); background: color-mix(in srgb, var(--success) 11%, transparent); }
-.comp table.data { font-size: var(--tbl-font, var(--font-small)); }
+.comp table.data { font-size: var(--tbl-font, 0.93em); }
 .comp.col-left table.data th.num-col, .comp.col-left table.data td.num-col { text-align: left; font-variant-numeric: normal; }
 .comp .tl-line { background: var(--tl-line-c, var(--border)); }
 .comp.tl-dashed .tl-line { border-left-color: var(--tl-line-c, var(--border)); }
@@ -1942,8 +1952,11 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 /* ===== 固定头部体系：页头 / 编辑器头 / 步骤条不随内容滚动 ===== */
 .page-head { position: sticky; top: 0; z-index: 40; background: var(--bg-page); padding: 10px 0 12px; margin-top: -10px; }
 /* design 编辑器头（返回 / 标题 / 取消 / 保存） */
-.ed-sticky-head { position: sticky; top: 54px; z-index: 30; display: flex; align-items: center; gap: 10px;
-  background: var(--bg-elevated); margin: -20px -20px 14px; padding: 14px 20px; border-bottom: 1px solid var(--border);
+.ed-sticky-head { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 10px;
+  background: var(--bg-elevated);
+  /* 抵消卡片自身的内边距，表头才能和下面的内容连成一张卡 */
+  margin: calc(var(--card-pad) * -1) calc(var(--card-pad) * -1) 16px;
+  padding: 14px var(--card-pad); border-bottom: 1px solid var(--border);
   border-radius: var(--radius-card) var(--radius-card) 0 0; }
 /* 组件编辑器步骤条固定 */
 .ed-steps { position: sticky; top: 54px; z-index: 30; background: var(--bg-elevated); }

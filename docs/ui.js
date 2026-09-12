@@ -583,6 +583,12 @@ window.UI = (function () {
     return svg;
   }
 
+  // SVG 里的字号不会继承 CSS font-size，得手动按容器字号折算
+  function chartFontSize(container) {
+    const base = parseFloat(getComputedStyle(container).fontSize) || 14;
+    return Math.max(8, Math.min(16, Math.round(base * 0.72)));
+  }
+
   function lineChart(container, { series, labels, height = 180, unit = "", grid = true, gridStyle = "solid",
     gridCount = 3, yZero = true, lastEmph = true,
     lineWidth = 2, lineStyle = "solid", smooth = false, pointShow = true, pointShape = "circle", pointSize = 3,
@@ -591,6 +597,8 @@ window.UI = (function () {
     const pal = Brand.chartPalette().categorical;
     // 多系列要在右端标系列名，右边距得留够，否则文字叠在一起、还被画布裁掉
     const w = 560, h = height, padL = 44, padR = series.length > 1 ? 54 : 12, padT = 14, padB = 26;
+    // 图表里的文字跟着组件字号走：样式步调「字号」时，轴与标签要一起变
+    const _fs = chartFontSize(container);
     const svg = chartFrame(w, h);
     const all = series.flatMap(s => s.values);
     const maxV = (Math.max(...all) || 0) > 0 ? Math.max(...all) : 1;
@@ -608,7 +616,7 @@ window.UI = (function () {
         if (dg) gl.setAttribute("stroke-dasharray", dg);
         svg.appendChild(gl);
       }
-      const tl = svgEl("text", { x: padL - 6, y: gy + 4, "text-anchor": "end", "font-size": 10, fill: INK() });
+      const tl = svgEl("text", { x: padL - 6, y: gy + 4, "text-anchor": "end", "font-size": _fs, fill: INK() });
       tl.textContent = fmtTick(maxV - g * span / GN);
       svg.appendChild(tl);
     }
@@ -619,7 +627,7 @@ window.UI = (function () {
       if (labels.length > 10 && i % Math.ceil(labels.length / 8) !== 0 && !isLast) return;
       // 首尾标签贴边对齐，居中会溢出画布
       const anchor = i === 0 ? "start" : isLast ? "end" : "middle";
-      const tx = svgEl("text", { x: x(i), y: h - 8, "text-anchor": anchor, "font-size": 10, fill: INK() });
+      const tx = svgEl("text", { x: x(i), y: h - 8, "text-anchor": anchor, "font-size": _fs, fill: INK() });
       tx.textContent = lb;
       svg.appendChild(tx);
     });
@@ -672,7 +680,7 @@ window.UI = (function () {
         svgTitle(c, `${labels[i]} · ${s.name}: ${v}${unit}`);
         svg.appendChild(c);
         if (valueLabels && s.values.length <= 12) {
-          const vt = svgEl("text", { x: x(i), y: y(v) - r0 - 4, "text-anchor": "middle", "font-size": 10,
+          const vt = svgEl("text", { x: x(i), y: y(v) - r0 - 4, "text-anchor": "middle", "font-size": _fs,
             fill: "var(--text-secondary)", style: "font-variant-numeric:tabular-nums" });
           vt.textContent = fmtTick(v);
           svg.appendChild(vt);
@@ -685,7 +693,7 @@ window.UI = (function () {
         while (usedLabelY.some(v => Math.abs(v - ly) < 11)) ly += 11;
         usedLabelY.push(ly);
         const lt = svgEl("text", { x: w - padR + 4, y: Math.min(h - padB, Math.max(padT + 6, ly)),
-          "font-size": 10, fill: "var(--text-secondary)" });
+          "font-size": _fs, fill: "var(--text-secondary)" });
         lt.textContent = s.name;
         svg.appendChild(lt);
       }
@@ -695,6 +703,7 @@ window.UI = (function () {
 
   function barChart(container, { categories, values, height = 190, unit = "", color, horizontal = false, maxValue, format, grid = true, gridStyle = "solid", valueLabels = true, barWidthPct = 0.55, barRadius = 4, axisColor }) {
     container.innerHTML = "";
+    const _fs = chartFontSize(container);
     const barColor = color || "var(--primary)";
     const fmtVal = format || (v => String(typeof v === "number" && v % 1 !== 0 ? v.toFixed(3) : v) + unit);
     if (horizontal) {
@@ -730,7 +739,7 @@ window.UI = (function () {
         if (gridStyle === "dashed") gl.setAttribute("stroke-dasharray", "6 4");
         svg.appendChild(gl);
       }
-      const tl = svgEl("text", { x: padL - 6, y: gy + 4, "text-anchor": "end", "font-size": 10, fill: INK() });
+      const tl = svgEl("text", { x: padL - 6, y: gy + 4, "text-anchor": "end", "font-size": _fs, fill: INK() });
       tl.textContent = fmtTick(maxV * (1 - g / 3));
       svg.appendChild(tl);
     }
@@ -748,11 +757,11 @@ window.UI = (function () {
       svg.appendChild(rect);
       if (valueLabels && values.length <= 12) {
         const vt = svgEl("text", { x: bx + bw / 2, y: h - padB - bh - 5, "text-anchor": "middle",
-          "font-size": 10, fill: "var(--text-secondary)", style: "font-variant-numeric:tabular-nums" });
+          "font-size": _fs, fill: "var(--text-secondary)", style: "font-variant-numeric:tabular-nums" });
         vt.textContent = fmtTick(v);
         svg.appendChild(vt);
       }
-      const tx = svgEl("text", { x: bx + bw / 2, y: h - 10, "text-anchor": "middle", "font-size": 10, fill: INK() });
+      const tx = svgEl("text", { x: bx + bw / 2, y: h - 10, "text-anchor": "middle", "font-size": _fs, fill: INK() });
       tx.textContent = String(categories[i]).slice(0, 6);
       svg.appendChild(tx);
     });
@@ -763,6 +772,7 @@ window.UI = (function () {
   function stackedBars(container, { rows, keys, height = 190 }) {
     // rows: [{label, values: {key: n}}] — 按日期的堆叠柱（标签来源构成等）
     container.innerHTML = "";
+    const _fs = chartFontSize(container);
     const pal = Brand.chartPalette().categorical;
     const w = 560, h = height, padL = 40, padR = 12, padT = 12, padB = 44;
     const svg = chartFrame(w, h);
@@ -784,7 +794,7 @@ window.UI = (function () {
         svg.appendChild(rect);
         yCur -= bh;
       });
-      const tx = svgEl("text", { x: padL + i * slot + slot / 2, y: h - padB + 14, "text-anchor": "middle", "font-size": 10, fill: INK() });
+      const tx = svgEl("text", { x: padL + i * slot + slot / 2, y: h - padB + 14, "text-anchor": "middle", "font-size": _fs, fill: INK() });
       tx.textContent = r.label;
       svg.appendChild(tx);
     });

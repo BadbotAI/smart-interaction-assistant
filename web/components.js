@@ -203,7 +203,7 @@ window.Components = (function () {
     const toneColor = { positive: "var(--success)", negative: "var(--danger)", warning: "var(--warning)", neutral: "var(--text-primary)" }[p.tone || "neutral"];
     return compCard([
       p.caption ? el("div", { class: "muted hl-caption" }, [p.caption]) : null,
-      el("div", { class: "hl-value", style: `font-size:var(--hl-size, 20px);font-weight:600;color:${toneColor}` },
+      el("div", { class: "hl-value", style: `font-size:var(--hl-size, 1.45em);font-weight:600;color:${toneColor}` },
         [String(p.value) + (p.unit ? " " + p.unit : "")]),
     ]);
   }
@@ -1545,12 +1545,12 @@ window.Components = (function () {
     // v2.4：单组赞踩——一行轻量卡（多维度配置也只展示一组，维度取第一项）
     const p = env.params || {};
     const dim = ((p.dimensions || [])[0]) || { key: "capability" };
-    const up = el("button", { class: "fb-btn", title: "赞", onclick: () => {
+    const up = el("button", { class: "fb-btn", title: "赞", "data-opt": "赞", onclick: () => {
       up.disabled = down.disabled = true;
       up.classList.add("on");
       emitBinary(env, ctx, { key: dim.key }, 1.0, null);
     } }, [UI.icon("thumbup", 13), "赞"]);
-    const down = el("button", { class: "fb-btn down", title: "踩", onclick: () => {
+    const down = el("button", { class: "fb-btn down", title: "踩", "data-opt": "踩", onclick: () => {
       up.disabled = down.disabled = true;
       down.classList.add("on");
       askDownReason(env, ctx);

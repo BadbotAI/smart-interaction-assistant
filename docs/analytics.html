@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>数据分析 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=2a96ba41">
+<link rel="stylesheet" href="./shared.css?v=3dccbc31">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   .an-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px; margin-bottom: 16px; }
@@ -68,24 +68,19 @@
 <div class="page">
   <div class="page-head" style="display:flex;align-items:center;gap:12px">
     <div class="page-title">数据分析</div>
-    <div class="muted" style="font-size:var(--font-caption)">组件被用得怎么样，数据来自 SDK 回传的真实事件</div>
     <div style="flex:1"></div>
     <span id="rangeMount"></span>
   </div>
-  <div class="an-sec"><h2>整体交互情况</h2>
-    <span class="d">所有组件合起来看：用户有没有用、用到哪一步</span></div>
+  <div class="tabbar" id="anTabs"></div>
   <div id="anOverall"></div>
-  <div class="an-sec-line"></div>
-  <div class="an-sec"><h2>单组件数据分析</h2>
-    <span class="d">选定产品 / 组件类型 / 具体实例，看这一个组件的表现</span></div>
-  <div id="anSingle"></div>
+  <div id="anSingle" hidden></div>
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=0c08bc16"></script>
+<script src="./mock_data.js?v=d4da1c17"></script>
 <script src="./mock_api.js?v=5ebc21e8"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
-<script src="./ui.js?v=988511fd"></script>
+<script src="./ui.js?v=937c7ef9"></script>
 <script>
 UI.nav("analytics");
 const { el } = UI;
@@ -333,10 +328,31 @@ async function loadSingle() {
   ]));
 }
 
+// 两块内容用 tab 切换，一次只看一屏
+let anTab = "overall";
+function drawTabs() {
+  const bar = document.getElementById("anTabs");
+  bar.innerHTML = "";
+  [["overall", "整体交互情况"], ["single", "单组件数据分析"]].forEach(([k, nm]) => {
+    bar.appendChild(el("button", { class: "tab" + (anTab === k ? " active" : ""), type: "button",
+      onclick: () => { anTab = k; drawTabs(); syncTab(); } }, [nm]));
+  });
+}
+function syncTab() {
+  document.getElementById("anOverall").hidden = anTab !== "overall";
+  document.getElementById("anSingle").hidden = anTab !== "single";
+  if (anTab === "single" && !document.getElementById("anSingle").dataset.loaded) {
+    document.getElementById("anSingle").dataset.loaded = "1";
+    loadSingle();
+  }
+}
+
 async function load() {
   FILTERS = await UI.api("/api/analytics/filters").catch(() => FILTERS);
+  drawTabs();
   await loadOverall();
-  await loadSingle();
+  document.getElementById("anSingle").dataset.loaded = "";
+  syncTab();
 }
 
 // 时间范围选择器：预设 + 自定义起止日期
@@ -350,6 +366,7 @@ async function load() {
     if (range.start && range.end && range.start > range.end) {
       UI.toast("开始日期不能晚于结束日期", true); return;
     }
+    document.getElementById("anSingle").dataset.loaded = "";
     load();
   };
   sIn.onchange = eIn.onchange = apply;
