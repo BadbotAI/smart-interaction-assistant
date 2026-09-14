@@ -65,10 +65,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=7b278c75"></script>
+<script src="./mock_data.js?v=7bdfbe24"></script>
 <script src="./mock_api.js?v=9f335920"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
-<script src="./ui.js?v=6f5b077a"></script>
+<script src="./ui.js?v=1e211feb"></script>
 <script src="./components.js?v=0913-pie-chart-1"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
@@ -85,6 +85,11 @@ const FIELD_LABEL = { name: "组件名称", description: "组件说明", trigger
 const SELECT_TYPES = ["select.single", "select.multi", "select.card", "matrix.compare+select"];
 const selectorDisplayOf = (ct) => ct === "select.card" ? "card"
   : (["select.single", "select.multi"].includes(ct) ? "list" : "");
+// 列表 / 卡片是同一个选择器的两种呈现，配过就以配置为准，没配才回落到类型默认
+const SELECT_DISPLAYS = [["list", "列表"], ["card", "卡片"]];
+const resolveDisplay = (ct, chosen) =>
+  (["select.single", "select.multi", "select.card"].includes(ct) && chosen)
+    ? chosen : selectorDisplayOf(ct);
 // 支持群体回显的组件：选项类 / 对比 / 商品下单 / 入口跳转（统计多少人点开）
 const ECHO_TYPES = [...SELECT_TYPES, "commerce.order", "entry.link"];
 const OPTION_TYPES = [...SELECT_TYPES, "rank.priority", "picker.location", "suggest.followup", "commerce.order", "entry.link"];
@@ -183,6 +188,7 @@ function tileEnv(c) {
   const params = { ...(WB_DEMO[c.component_type] || {}) };
   if (tt.prompt) params.prompt = tt.prompt;
   if (tt.submit) params.submit_label = tt.submit;
+  if (tt.submitted) params.submitted_label = tt.submitted;
   if (tt.confirm) params.confirm_label = tt.confirm;
   if (tt.cancel) params.cancel_label = tt.cancel;
   if (cfg.content_mode === "fixed") {
@@ -1505,8 +1511,8 @@ const SELECTOR_STYLE_PARAMS = [
   ["option.desc.color", "选项描述颜色", "color"],
   ["desc.show", "卡片说明文字", "bool", true, { hint: "关闭后只保留卡片标题" }],
   ["opt.padding.x", "水平内边距", "num", 8, 24, 14, { unit: "px" }],
-  ["radio.size", "Radio / Checkbox 尺寸", "num", 14, 24, 18, { unit: "px" }],
-  ["radio.color", "Radio / Checkbox 颜色", "color"],
+  ["radio.size", "选择标记尺寸", "num", 14, 24, 18, { unit: "px" }],
+  ["radio.color", "选择标记颜色", "color"],
   ["state.selected.bg", "选中背景", "color"],
   ["state.selected.bc", "选中边框", "color"],
   ["tag.text", "标签文字颜色", "color"],
@@ -1540,13 +1546,8 @@ const NO_CONTENT_TYPES = ["feedback.preference", "table", "chart.line", "chart.b
 // v2.1 极简：内容与说明不在平台配（全参数化）——选组件 → 调样式 → 发布
 // 同一类交互收成一个入口，形态在卡片上切换——选组件时只看 12 个入口，不必在 20 个里挑
 // 主 type 排第一位；切换形态等同于换组件类型，内容配置随之重置（此时还没配内容，代价为零）
-const CT_VARIANTS = {
-  "select.single": [["select.single", "列表"], ["select.card", "卡片"], ["feedback.preference", "候选对比"]],
-  "table": [["table", "普通表格"], ["matrix.compare", "对比矩阵"]],
-  "timeline": [["timeline", "时间线"], ["steps", "步骤条"]],
-  "text.emphasis": [["text.emphasis", "重点结论"], ["list.ordered", "要点清单"]],
-  "chart.line": [["chart.line", "折线图"], ["chart.bar", "柱状图"], ["chart.pie", "饼图"]],
-};
+// 每个组件一张独立卡片：形态切换条会让卡片高矮不齐，选组件时也多一层判断
+const CT_VARIANTS = {};
 // 变体成员 → 主 type（主 type 自己也映射到自己）
 const VARIANT_HOST = {};
 Object.entries(CT_VARIANTS).forEach(([host, list]) =>
@@ -1682,8 +1683,11 @@ async function openEditor(cardId, prefill, initStep) {
     });
   } else state.fixedFieldRows = state.fixedFieldRows.map(normalizeFormField);
   if (state.formDescription === undefined) state.formDescription = cfg.form_description || "";
-  // 列表选择器 / 卡片选择器已拆为独立类型；打开旧草稿时同步归一化历史 display 值。
-  if (selectorDisplayOf(state.component_type)) state.display = selectorDisplayOf(state.component_type);
+  // 呈现方式（列表 / 卡片）已是选择器的可配项：只在没配过时按类型给默认，
+  // 无条件覆盖会把用户在样式里选的形态冲掉。
+  if (!state.display && selectorDisplayOf(state.component_type)) {
+    state.display = selectorDisplayOf(state.component_type);
+  }
 
   const isNew = !card;
   let clientCardId = card?.card_id || crypto.randomUUID();
@@ -1721,6 +1725,20 @@ async function openEditor(cardId, prefill, initStep) {
   const getOptions = () => state.optionRows.map(r => (r.text || "").trim()).filter(Boolean);
 
   // 切换组件：套用模板默认内容（不覆盖已填的提问 / 说明）
+  // 容器选择只看形态，示例条目截到 3 条：卡片是定高的，条目太多会撑出框被裁掉
+  function pickPreviewParams(ct) {
+    const src = WB_DEMO[ct] || DEMO_PRESENT[ct] || {};
+    const p = JSON.parse(JSON.stringify(src));
+    ["options", "fields", "items", "events", "steps", "slices", "candidates", "rows", "dimensions"]
+      .forEach(k => { if (Array.isArray(p[k]) && p[k].length > 3) p[k] = p[k].slice(0, 3); });
+    if (p.option_meta && Array.isArray(p.options)) {
+      const keep = {};
+      p.options.forEach(o => { if (p.option_meta[o]) keep[o] = p.option_meta[o]; });
+      p.option_meta = keep;
+    }
+    return p;
+  }
+
   function applyTemplate(ct, c) {
     const tpl = templateLibrary.find(t => t.component_type === ct) || {};
     c = c || tpl.default_config || {};
@@ -1735,7 +1753,7 @@ async function openEditor(cardId, prefill, initStep) {
     }
     state.component_type = ct;
     if (ct === "form.structured") state.echo_results = false;
-    state.display = selectorDisplayOf(ct) || c.display || "";
+    state.display = c.display || selectorDisplayOf(ct) || "";
     if (c.options) state.optionRows = c.options.map(o => ({
       text: o, prompt: (c.option_actions || {})[o]?.prompt || "", api: (c.option_actions || {})[o]?.api || "",
       desc: (c.option_meta || {})[o]?.desc || "", image: (c.option_meta || {})[o]?.image || "" }));
@@ -1836,7 +1854,7 @@ async function openEditor(cardId, prefill, initStep) {
             : Math.round((5 + ((i * 3 + j * 2 + o.length) % 40) / 10) * 10) / 10;
         }));
     }
-    const selectorDisplay = selectorDisplayOf(ct);
+    const selectorDisplay = resolveDisplay(ct, state.display);
     if (selectorDisplay) params.display = selectorDisplay;
     else if (state.display) params.display = state.display;
     if (ct === "scale.likert") params.likert = state.contentMode === "fixed" && state.likertCfg
@@ -1862,13 +1880,13 @@ async function openEditor(cardId, prefill, initStep) {
       const t = (r.text || "").trim();
       if (!t) return;
       const m = { ...(r.desc ? { desc: r.desc } : {}), ...(r.image ? { image: r.image } : {}) };
-      const tg = (r.tags || "").split(/[，,]/).map(x => x.trim()).filter(Boolean);
+      const tg = (r.tags || "").split(/[，,、]/).map(x => x.trim()).filter(Boolean);
       if (tg.length) m.tags = tg;
       if (state.component_type === "commerce.order") {
         if (r.price !== "") m.price = Number(r.price);
         if (r.price_original !== "") m.price_original = Number(r.price_original);
         if (r.sales !== "") m.sales = Number(r.sales);
-        const tg = (r.tags || "").split(/[，,]/).map(x => x.trim()).filter(Boolean);
+        const tg = (r.tags || "").split(/[，,、]/).map(x => x.trim()).filter(Boolean);
         if (tg.length) m.tags = tg;
       }
       if (Object.keys(m).length) metaPrev[t] = m;
@@ -1889,6 +1907,7 @@ async function openEditor(cardId, prefill, initStep) {
       params.confirm_label = mock.confirm_label || "确认";
       params.cancel_label = mock.cancel_label || "取消";
     }
+    if ((state.submittedLabel || "").trim()) params.submitted_label = state.submittedLabel.trim();
     if (ct === "input.followup") params.placeholder = state.placeholder.trim() || mock.placeholder || "请输入你的回答";
     if (ct === "slider.range") {
       const slider0 = state.contentMode === "fixed" ? (state.sliderCfg || {}) : (mock.slider || {});
@@ -1934,6 +1953,13 @@ async function openEditor(cardId, prefill, initStep) {
       `.pv-dark .comp, .pv-dark .comp.brand-scope, .pv-dark .brand-scope{${decls}${extra}}`;
   }
   function previewWithStyle(env) { if (env && Object.keys(state.styleOv || {}).length) env.style_overrides = state.styleOv; return env; }
+  // 文本逐字输入时不必每个按键都重建预览 DOM：整棵树重画会让选中态的勾一闪一闪。
+  // 状态照常立即更新，只把「重画」这一步按住约一帧半再做。
+  let previewTimer = null;
+  function renderPreviewSoon() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => renderPreview(), 120);
+  }
   function renderPreview() {
     previewBox.innerHTML = "";
     if (!state.component_type) {
@@ -1974,9 +2000,10 @@ async function openEditor(cardId, prefill, initStep) {
             const key = labels[i];
             const sceneMeta = (scene.option_meta || {})[sceneOptions[i]] || {};
             const sceneTags = Array.isArray(sceneMeta.tags) ? sceneMeta.tags : (sceneMeta.badge ? [sceneMeta.badge] : []);
+            // 固定内容下配置者说了算：标签留空就是不要标签，不拿示例标签顶上
             const tags = String(r?.tags || "").trim()
-              ? String(r.tags).split(/[，,]/).map(x => x.trim()).filter(Boolean)
-              : sceneTags;
+              ? String(r.tags).split(/[，,、]/).map(x => x.trim()).filter(Boolean)
+              : (state.contentMode === "fixed" ? [] : sceneTags);
             const item = {};
             const desc = String(r?.desc || "").trim() || sceneMeta.desc || "";
             if (desc) item.desc = desc;
@@ -2291,21 +2318,26 @@ async function openEditor(cardId, prefill, initStep) {
     };
     // 选择容器页直接按交互任务分类，避免先选大类再选子类。
     const BASE_PICK_TABS = [
-      ["choose", "选择", ["select.single", "select.multi", "select.card", "feedback.preference"]],
+      ["choose", "选择", ["select.single", "select.multi"]],
       ["rank", "排序", ["rank.priority"]],
       ["form", "表单", ["form.structured"]],
       ["number", "数值", ["slider.range"]],
       ["rating", "评价", ["scale.likert", "feedback.binary"]],
       ["datetime", "日期时间", ["picker.datetime"]],
       ["confirm", "确认", ["control.confirm"]],
-      ["chart", "图表", ["chart.line", "chart.bar", "chart.pie", "chart.waterfall", "metric.card"]],
-      ["table", "表格", ["table", "matrix.compare"]],
-      ["flow", "流程", ["timeline", "steps"]],
-      ["text", "文本", ["list.ordered", "text.emphasis"]],
+      ["chart", "图表", ["chart.line", "chart.bar", "chart.pie", "chart.waterfall"]],
+      ["table", "表格", ["table"]],
+      // 指标卡、流程线与文本块都是「摆一段信息给人看」，不需要用户操作，归一类
+      ["text", "信息展示", ["text.emphasis", "metric.card", "timeline", "steps"]],
     ];
     // 未来新增的 demo 模板如果尚未归类，仍会自动出现在「其他」中，不会被隐藏。
     const categorizedTypes = new Set(BASE_PICK_TABS.flatMap(([, , types]) => types));
-    const uncategorizedTypes = V2_TEMPLATES.map(t => t.component_type).filter(type => !categorizedTypes.has(type));
+    // 卡片选择器不再是独立入口：它就是选择器的一种呈现方式，在样式设计里选
+    // 不再作为新建入口：卡片选择器是选择器的呈现方式；要点清单与对比矩阵已下架。
+    // 渲染能力保留，已有实例照常显示。
+    const HIDDEN_TYPES = new Set(["select.card", "list.ordered", "matrix.compare", "feedback.preference"]);
+    const uncategorizedTypes = V2_TEMPLATES.map(t => t.component_type)
+      .filter(type => !categorizedTypes.has(type) && !HIDDEN_TYPES.has(type));
     const PICK_TABS = uncategorizedTypes.length
       ? [...BASE_PICK_TABS, ["other", "其他", uncategorizedTypes]]
       : BASE_PICK_TABS;
@@ -2358,13 +2390,27 @@ async function openEditor(cardId, prefill, initStep) {
           pv2.appendChild(el("div", { class: "brand-scope" }, [Components.render({
             schema_version: "1.0.0", render_id: "pick-" + curVar, component_type: curVar,
             semantic_category: isP2 ? "present" : "collect", trigger_source: "pick_preview", card_ref: null,
-            params: WB_DEMO[curVar] || DEMO_PRESENT[curVar] || {},
+            params: pickPreviewParams(curVar),
           }, { sendEvent: () => {}, onCollectSubmit: () => {}, onControl: () => {}, preview: true, titleInBubble: true })]));
         } catch (e) { pv2.appendChild(el("div", { class: "muted" }, ["示例预览暂不可用"])); }
+        // 卡片定高，示例比框高时等比缩小，让人看到完整形态而不是被裁掉一半
+        requestAnimationFrame(() => {
+          const inner = pv2.firstElementChild;
+          if (!inner) return;
+          const avail = pv2.clientHeight - 28;          // 扣掉上下内边距
+          const need = inner.scrollHeight;
+          if (avail > 0 && need > avail) {
+            const k = Math.max(0.62, avail / need);
+            inner.style.transformOrigin = "top center";
+            inner.style.transform = `scale(${k.toFixed(3)})`;
+            if (need * k <= avail + 1) pv2.classList.add("pv-fits");
+          } else { pv2.classList.add("pv-fits"); }
+        });
         gridBox.appendChild(el("div", {
           class: "tpl-rich" + (selAny ? " selected" : "") + (r && !selAny ? " recommended" : ""),
           role: "radio", "aria-checked": selAny ? "true" : "false", tabindex: "0",
-          onclick: pick,
+          onclick: () => pick(),   // 不能直接传 pick：onclick 会把事件对象当成 asType
+
           onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } } },
           [el("div", { class: "tpl-head" }, [
              el("span", { class: "tpl-ico", style: "width:30px;height:30px" }, [UI.icon(CT_ICONS[curVar] || "grid", 16)]),
@@ -2468,7 +2514,7 @@ async function openEditor(cardId, prefill, initStep) {
       state.name = nm;
     }
     const upd = () => {
-      autosave(); renderPreview();
+      autosave(); renderPreviewSoon();
       // 回显开关一变，预览头部那个按钮跟着显隐
       if (window.__pvEchoBtn) {
         window.__pvEchoBtn.hidden = !state.echo_results;
@@ -3273,7 +3319,22 @@ async function openEditor(cardId, prefill, initStep) {
               const prefillTags = Array.isArray(prefillMeta.tags) ? prefillMeta.tags : (prefillMeta.badge ? [prefillMeta.badge] : []);
               const nameIn = el("input", { type: "text", value: o.text || "", maxlength: "30", placeholder: exampleText(prefillName, "GPT-5.6") });
               const descIn = el("input", { type: "text", value: o.desc || "", maxlength: "40", placeholder: exampleText(prefillMeta.desc, "适合复杂推理任务") });
-              const tagIn = el("input", { type: "text", value: o.tags || "", maxlength: "20", placeholder: exampleText(prefillTags.join("，"), "推荐、速度快") });
+              const tagIn = el("input", { type: "text", value: o.tags || "", maxlength: "15",
+                placeholder: exampleText(prefillTags.join("，"), "推荐、速度快") });
+              const tagTip = el("span", { class: "opt-tag-tip" }, [""]);
+              // 标签是选项上的小角标，长了会把选项名挤走：限 2 个、每个 6 字
+              const checkTag = () => {
+                const parts = String(tagIn.value || "").split(/[，,、]/).map(x => x.trim()).filter(Boolean);
+                const tooLong = parts.filter(x => [...x].length > 6);
+                let msg = "";
+                if (parts.length > 2) msg = "最多 2 个标签";
+                else if (tooLong.length) msg = `「${tooLong[0]}」超过 6 个字`;
+                tagTip.textContent = msg;
+                tagIn.classList.toggle("err", !!msg);
+                return !msg;
+              };
+              tagIn.addEventListener("input", checkTag);
+              checkTag();
               const patch = (idx, cb) => {
                 const l2 = items();
                 const cur = l2[idx] || { text: "", desc: "", tags: "" };
@@ -3355,7 +3416,9 @@ async function openEditor(cardId, prefill, initStep) {
                     : "用户首先看到的主名称", nameIn, true),
                   isPriority ? null : imageField,
                   isPriority ? null : optionField("选项描述", "补充说明该选项的特点", descIn, false),
-                  isPriority ? null : optionField("推荐标签", "用简短标签说明推荐理由", tagIn, false),
+                  isPriority ? null : optionField("推荐标签",
+                    "留空则不显示标签；最多 2 个，每个 6 字以内，用顿号或逗号分隔",
+                    el("div", { class: "opt-tag-wrap" }, [tagIn, tagTip]), false),
                 ]),
               ]));
             });
@@ -3429,7 +3492,7 @@ async function openEditor(cardId, prefill, initStep) {
     // 0913Mia调整：仅初始化保留的选择数量字段，选择器固定显示提交按钮
     if (state.minSelect === undefined) state.minSelect = cfg1.min_select || "";
     const upd = () => {
-      autosave(); renderPreview();
+      autosave(); renderPreviewSoon();
       if (window.__pvEchoBtn) {
         window.__pvEchoBtn.hidden = !state.echo_results;
         if (!state.echo_results) { window.__pvEchoOn = false; window.__pvEchoBtn.textContent = "看回显效果"; }
@@ -3462,13 +3525,24 @@ async function openEditor(cardId, prefill, initStep) {
           placeholder: "1", class: "num", style: "width:90px" });
         const maxSel = el("input", { type: "number", min: "0", max: "8", value: state.maxSelect || "",
           placeholder: "不限", class: "num", style: "width:90px" });
-        // 选项总数：固定内容时可数，AI 动态内容时未知（不校验上限）
-        const optCount = state.contentMode === "fixed"
-          ? (state.fixedOptions || []).map(x => String(x || "").trim()).filter(Boolean).length : 0;
+        // 选项总数：固定内容时可数，AI 动态内容时未知（不校验上限）。
+        // 必须每次实时数：选项存在 fixedOptionRows 里且用户随时会增删，
+        // 渲染时算一次的话，改完选项这里就对不上了。
+        const countOptions = () => {
+          if (state.contentMode !== "fixed") return 0;
+          const rows = (state.fixedOptionRows && state.fixedOptionRows.length)
+            ? state.fixedOptionRows : (state.optionRows || []);
+          const fromRows = rows.map(r => String((r && r.text) || "").trim()).filter(Boolean).length;
+          if (fromRows) return fromRows;
+          return (state.fixedOptions || []).map(x => String(x || "").trim()).filter(Boolean).length;
+        };
         const selHint = el("div", { class: "sel-count-hint muted" }, [""]);
         const checkSelCount = () => {
+          const optCount = countOptions();
           const mn = minSel.value === "" ? null : Number(minSel.value);
           const mx = maxSel.value === "" ? null : Number(maxSel.value);
+          // 上限跟着选项总数走，拖数字拖不到选项数之外
+          if (optCount) { minSel.max = String(optCount); maxSel.max = String(optCount); }
           let msg = "", bad = null;
           if (mn !== null && (!Number.isInteger(mn) || mn < 1)) { msg = "最少选择数至少为 1"; bad = minSel; }
           else if (mx !== null && mx !== 0 && !Number.isInteger(mx)) { msg = "最多选择数要填整数"; bad = maxSel; }
@@ -3549,6 +3623,14 @@ async function openEditor(cardId, prefill, initStep) {
       box.appendChild(el("div", { class: "sty-section" }, [
         el("div", { class: "sty-label" }, [ct === "control.confirm" ? "确认文案" : "按钮文案",
           UI.help(ct === "control.confirm" ? "写清动作本身，如「取消订单」，好过泛泛的「确认执行」" : "留空则用默认文案")]), sub]));
+      // 提交完成后按钮会变成这句，默认「已提交」
+      if (state.submittedLabel === undefined) state.submittedLabel = ((card || {}).text_templates || {}).submitted || "";
+      const doneIn = el("input", { type: "text", maxlength: "8", value: state.submittedLabel || "",
+        placeholder: ct === "control.confirm" ? "已确认" : "已提交", style: "max-width:200px" });
+      doneIn.oninput = () => { state.submittedLabel = doneIn.value; upd(); };
+      box.appendChild(el("div", { class: "sty-section" }, [
+        el("div", { class: "sty-label" }, ["提交后文案",
+          UI.help("用户点完之后按钮显示的字，同时表示这次已经交上去了；留空用默认")]), doneIn]));
       if (ct === "control.confirm") {
         const cxl = el("input", { type: "text", maxlength: "6", value: state.cancelLabel || "",
           placeholder: interactionScene.cancel_label || "取消", style: "max-width:200px" });
@@ -3623,7 +3705,7 @@ async function openEditor(cardId, prefill, initStep) {
       state.name = nm;
     }
     const upd = () => {
-      autosave(); renderPreview();
+      autosave(); renderPreviewSoon();
       // 回显开关一变，预览头部那个按钮跟着显隐
       if (window.__pvEchoBtn) {
         window.__pvEchoBtn.hidden = !state.echo_results;
@@ -3684,8 +3766,14 @@ async function openEditor(cardId, prefill, initStep) {
         }));
         inherit.classList.toggle("is-custom", !following);
       };
+      // 边框色多一个「无边框」：以前只能换颜色、去不掉边框（只有面板那一项有开关）
+      const NONE = "#00000000";
+      const isBorder = /\.bc$/.test(key);
       const draw = () => {
         row.innerHTML = "";
+        if (isBorder) row.appendChild(el("button", { type: "button",
+          class: "sty-swatch sw-none" + (so[key] === NONE ? " on" : ""),
+          title: "无边框", onclick: () => { so[key] = NONE; draw(); upd(); } }));
         SWATCHES.forEach(cx => row.appendChild(el("button", { type: "button",
           class: "sty-swatch" + (so[key] === cx ? " on" : ""), style: `background:${cx}`,
           title: cx, onclick: () => { so[key] = cx; draw(); upd(); } })));
@@ -3871,7 +3959,16 @@ async function openEditor(cardId, prefill, initStep) {
     // 滑杆有轨道与滑块两项、量表有刻度尺寸——统一的「控件高度」对它们没有可见效果，不展示
     const NO_CTRL_H = ["feedback.binary", "control.confirm", "slider.range", "scale.likert", "feedback.preference"];
     if (!IS_PRESENT && !NO_CTRL_H.includes(ct)) {
-      zpush("option", numRow("height", "控件高度", 28, 56, 40, "选项行 / 输入框等可点控件的高度"));
+      // 这一项在不同组件里管的是不同东西，提示语跟着组件走
+      const H_HINT = {
+        "form.structured": "每个输入框的高度",
+        "picker.datetime": "日期时间输入框的高度",
+        "rank.priority": "每个可拖动条目的高度",
+        "select.single": "每个选项行的最小高度",
+        "select.multi": "每个选项行的最小高度",
+        "select.card": "每张选项卡的最小高度",
+      }[ct] || "组件内可点控件的高度";
+      zpush("option", numRow("height", "控件高度", 28, 56, 40, H_HINT));
       if (SEL_STYLE_OK) {
         const seg2 = el("div", { class: "segmented" });
         const drawSel = () => {
@@ -4012,11 +4109,13 @@ async function openEditor(cardId, prefill, initStep) {
       ["tag", "05 标签", "推荐标签的文字、背景、圆角与预设"],
       ["button", "06 按钮", "提交按钮的高度、底色、文字颜色与圆角"],
     ];
+    // 单选画的是 Radio、多选画的是 Checkbox，面板上就该叫当下这一个，不摆「Radio / Checkbox」
+    const PICK_CTRL = state.multiSelect ? "Checkbox" : "Radio";
     const subgroupMaps = LAY ? LAY.sub : {
         panel: [["尺寸", ["container.width"]], ["背景", ["panel.bg"]], ["内边距", ["spacing"]], ["圆角", ["radius"]], ["边框", ["panel.bc", "panel.border"]], ["阴影", ["shadow"]]],
         layout: [["内容密度", ["density"]], ["模块间距", ["module.gap"]], ["选项排列", ["options.layout"]]],
         text: [["标题", ["title.size", "title.weight", "title.color"]], ["标题描述", ["desc.size", "desc.color"]], ["选项名称", ["option.name.size", "option.name.weight", "option.name.color"]], ["选项描述", ["desc.show", "option.desc.size", "option.desc.color"]]],
-        option: [["容器", ["height", "opt.radius", "opt.padding.x"]], ["Radio / Checkbox", ["radio.show", "radio.size", "radio.color"]], ["间距", ["opt.gap", "card.gap"]], ["状态 · 默认", ["opt.bg", "opt.bc"]], ["状态 · 选中", ["color.primary", "sel_style", "state.selected.bg", "state.selected.bc"]]],
+        option: [["容器", ["height", "opt.radius", "opt.padding.x"]], [PICK_CTRL, ["radio.show", "radio.size", "radio.color"]], ["间距", ["opt.gap", "card.gap"]], ["状态 · 默认", ["opt.bg", "opt.bc"]], ["状态 · 选中", ["color.primary", "sel_style", "state.selected.bg", "state.selected.bc"]]],
         tag: [["文字", ["tag.text"]], ["背景", ["tag.bg"]], ["圆角", ["tag.radius"]], ["间距", ["tag.gap"]], ["预设样式", ["rec_chip", "tag.style"]]],
         button: [["高度", ["btn.height"]], ["底色", ["btn.bg"]], ["文字颜色", ["btn.fg"]], ["圆角", ["btn.radius"]]],
       };
@@ -4035,8 +4134,8 @@ async function openEditor(cardId, prefill, initStep) {
       "option.name.weight": "选项名称字重", "option.name.color": "选项名称颜色",
       "option.desc.size": "选项描述字号", "option.desc.color": "选项描述颜色", "desc.show": "卡片说明文字",
       "height": "选项最小高度", "opt.radius": "选项圆角",
-      "opt.padding.x": "选项水平留白", "radio.show": "Radio / Checkbox", "radio.size": "Radio / Checkbox 尺寸",
-      "radio.color": "Radio / Checkbox 颜色", "opt.gap": "选项间距",
+      "opt.padding.x": "选项水平留白", "radio.show": PICK_CTRL, "radio.size": PICK_CTRL + " 尺寸",
+      "radio.color": PICK_CTRL + " 颜色", "opt.gap": "选项间距",
       "card.gap": effectiveDisplay === "inline" ? "胶囊间距" : "卡片间距",
       "opt.bg": "默认背景色", "opt.bc": "默认边框色",
       "color.primary": "选中主色", "sel_style": "选中态样式",
@@ -4227,7 +4326,7 @@ async function openEditor(cardId, prefill, initStep) {
               const meta = {};
               if (String(row?.desc || "").trim()) meta.desc = String(row.desc).trim();
               if (String(row?.image || "").trim()) meta.image = String(row.image).trim();
-              const tags = String(row?.tags || "").split(/[，,]/).map(x => x.trim()).filter(Boolean);
+              const tags = String(row?.tags || "").split(/[，,、]/).map(x => x.trim()).filter(Boolean);
               if (tags.length) meta.tags = tags;
               if (Object.keys(meta).length) optionMeta[name] = meta;
             });
@@ -4684,12 +4783,24 @@ async function openEditor(cardId, prefill, initStep) {
             const nm = (V2_TEMPLATES.find(t => t.component_type === state.component_type) || {}).name || "预览";
             return el("span", { class: "pv-title", style: "font-weight:600" }, [nm]);
           })(), UI.help("用户在对话中看到的效果，与线上同一套渲染器；预览中提交不产生数据"),
+          (() => {
+            // 回显按钮放在标题这一侧：它是条件显示的，摆在右边会把明暗切换和重置挤得左右乱跳
+            const b = el("button", { class: "btn small ghost", type: "button", hidden: !state.echo_results,
+              title: "看看用户提交后，大家的选择分布长什么样",
+              onclick: () => {
+                window.__pvEchoOn = !window.__pvEchoOn;
+                b.textContent = window.__pvEchoOn ? "看提交前" : "看回显效果";
+                renderPreview();
+              } }, ["看回显效果"]);
+            window.__pvEchoBtn = b;
+            return b;
+          })(),
           el("div", { style: "flex:1" }),
           (() => {
             // 明暗切换：主题有深色一套时才给。
             // 注意不能在这里直接判断就 return null——Brand 是异步加载的，
             // 构建 DOM 时可能还没就绪（本地快、静态站慢），那样切换器会永久消失。
-            const seg = el("div", { class: "segmented small pv-mode" });
+            const seg = el("div", { class: "segmented pv-mode" });
             const syncSegVisible = () => {
               const t = (window.Brand && Brand.get && Brand.get()) || {};
               seg.hidden = !(t.color_dark && Object.keys(t.color_dark).length);
@@ -4699,13 +4810,13 @@ async function openEditor(cardId, prefill, initStep) {
             setTimeout(syncSegVisible, 1500);
             // 上次留下的偏好要落到这次新建的预览容器上，否则按钮显示深色、画布却是浅色
             if (window.__pvDark) setTimeout(() => applyPreviewDark(previewBox, true), 0);
-            [["light", "浅色"], ["dark", "深色"]].forEach(([k, nm]) => {
+            [["light", "浅色模式"], ["dark", "深色模式"]].forEach(([k, nm]) => {
               const on = (k === "dark") === !!window.__pvDark;
-              seg.appendChild(el("button", { type: "button", class: on ? "on" : "",
+              seg.appendChild(el("button", { type: "button", class: "seg" + (on ? " active" : ""),
                 title: k === "dark" ? "看组件在深色模式下的样子" : "看组件在浅色模式下的样子",
                 onclick: () => {
                   window.__pvDark = k === "dark";
-                  [...seg.children].forEach((b2, i) => b2.classList.toggle("on", (i === 1) === !!window.__pvDark));
+                  [...seg.children].forEach((b2, i) => b2.classList.toggle("active", (i === 1) === !!window.__pvDark));
                   applyPreviewDark(previewBox, window.__pvDark);
                 } }, [nm]));
             });
@@ -4719,18 +4830,6 @@ async function openEditor(cardId, prefill, initStep) {
                 state.display = selectorDisplayOf(state.component_type) || ""; autosave(); rebuild();
               } }, ["重置"]);
             return window.__pvResetBtn;
-          })(),
-          (() => {
-            // 回显是提交之后才出现的形态，给个按钮让人直接看到，不用真去点提交
-            const b = el("button", { class: "btn small ghost", type: "button", hidden: !state.echo_results,
-              title: "看看用户提交后，大家的选择分布长什么样",
-              onclick: () => {
-                window.__pvEchoOn = !window.__pvEchoOn;
-                b.textContent = window.__pvEchoOn ? "看提交前" : "看回显效果";
-                renderPreview();
-              } }, ["看回显效果"]);
-            window.__pvEchoBtn = b;
-            return b;
           })(),
         ]),
         previewBox,
@@ -4774,7 +4873,7 @@ async function openEditor(cardId, prefill, initStep) {
       }));
       if (vals.some(row => row.some(v => v != null))) config.values = vals;
     }
-    const selectorDisplay = selectorDisplayOf(state.component_type);
+    const selectorDisplay = resolveDisplay(state.component_type, state.display);
     if (selectorDisplay) config.display = selectorDisplay;
     else if (state.display) config.display = state.display;
     if (state.component_type === "scale.likert") {
@@ -4790,13 +4889,13 @@ async function openEditor(cardId, prefill, initStep) {
       const t = (r.text || "").trim();
       if (!t) return;
       const m = { ...(r.desc?.trim() ? { desc: r.desc.trim() } : {}), ...(r.image?.trim() ? { image: r.image.trim() } : {}) };
-      const tg = (r.tags || "").split(/[，,]/).map(x => x.trim()).filter(Boolean);
+      const tg = (r.tags || "").split(/[，,、]/).map(x => x.trim()).filter(Boolean);
       if (tg.length) m.tags = tg;
       if (state.component_type === "commerce.order") {
         if (r.price !== "" && !isNaN(Number(r.price))) m.price = Number(r.price);
         if (r.price_original !== "" && !isNaN(Number(r.price_original))) m.price_original = Number(r.price_original);
         if (r.sales !== "" && !isNaN(Number(r.sales))) m.sales = Number(r.sales);
-        const tg = (r.tags || "").split(/[，,]/).map(x => x.trim()).filter(Boolean);
+        const tg = (r.tags || "").split(/[，,、]/).map(x => x.trim()).filter(Boolean);
         if (tg.length) m.tags = tg;
       }
       if (Object.keys(m).length) optionMeta[t] = m;
@@ -4841,7 +4940,7 @@ async function openEditor(cardId, prefill, initStep) {
   function collectPayloadLite() {
     const cfg0 = card ? (((card.field_bindings || {}).config) || {}) : {};
     const config = { ...cfg0 };
-    const selectorDisplay = selectorDisplayOf(state.component_type);
+    const selectorDisplay = resolveDisplay(state.component_type, state.display);
     if (selectorDisplay) config.display = selectorDisplay;
     else if (state.display) config.display = state.display;
     else delete config.display;
@@ -4874,7 +4973,7 @@ async function openEditor(cardId, prefill, initStep) {
           if (row.description.trim()) f.description = row.description.trim();
           if (["select", "radio", "checkbox"].includes(type)) f.options = row.options.map(x => String(x).trim()).filter(Boolean);
           if (row.default_value.trim()) f.default_value = type === "checkbox"
-            ? row.default_value.split(/[，,]/).map(x => x.trim()).filter(Boolean)
+            ? row.default_value.split(/[，,、]/).map(x => x.trim()).filter(Boolean)
             : row.default_value.trim();
           return f;
         }).filter(f => f.label);
@@ -4887,7 +4986,7 @@ async function openEditor(cardId, prefill, initStep) {
           const t = (r.text || "").trim();
           if (!t) return;
           const m = { ...(r.desc?.trim() ? { desc: r.desc.trim() } : {}), ...(r.image?.trim() ? { image: r.image.trim() } : {}) };
-          const tg = (r.tags || "").split(/[，,]/).map(x => x.trim()).filter(Boolean);
+          const tg = (r.tags || "").split(/[，,、]/).map(x => x.trim()).filter(Boolean);
           if (tg.length) m.tags = tg;
           if (Object.keys(m).length) optionMeta2[t] = m;
         });
@@ -4952,6 +5051,7 @@ async function openEditor(cardId, prefill, initStep) {
           ? state.fixedPrompt.trim()
           : ((card?.text_templates || {}).prompt || "请补充信息"),
         submit: (state.submitLabel || "").trim() || (card?.text_templates || {}).submit || "提交",
+        ...((state.submittedLabel || "").trim() ? { submitted: state.submittedLabel.trim() } : {}),
         ...(state.component_type === "form.structured"
           ? { success: (state.submitFeedback || "").trim() || "提交成功，感谢填写" }
           : {}),
@@ -4964,11 +5064,14 @@ async function openEditor(cardId, prefill, initStep) {
     };
   }
 
-  function clientValidate() {
+  // draftOnly：存草稿是「先把活儿存下来」，只认名称这一条硬要求，
+  // 数量规则等到发布前再把关，免得刚起个头就被拦住存不了。
+  function clientValidate({ draftOnly = false } = {}) {
     const errs = [];
     if (!state.name.trim()) errs.push({ field: "name", message: "请填写组件名称" });
     else if (state.name.trim().length > 15) errs.push({ field: "name", message: "名称不能超过 15 字" });
     if (!state.component_type) errs.push({ field: "component_type", message: "请选择一个组件" });
+    if (draftOnly) return errs;
     if (["select.single", "select.multi", "select.card"].includes(state.component_type) && state.multiSelect) {
       const minSelect = Number(state.minSelect) > 0 ? Number(state.minSelect) : 1;
       const maxSelect = Number(state.maxSelect) > 0 ? Number(state.maxSelect) : 0;
@@ -4976,8 +5079,11 @@ async function openEditor(cardId, prefill, initStep) {
         errs.push({ field: "min_select", message: "最少选择数至少为 1" });
       if (maxSelect && minSelect > maxSelect)
         errs.push({ field: "max_select", message: "最多选择数不能小于最少选择数" });
-      const optionCount = state.contentMode === "fixed"
-        ? (state.fixedOptions || []).map(x => String(x || "").trim()).filter(Boolean).length : 0;
+      const optionRowsNow = (state.fixedOptionRows && state.fixedOptionRows.length)
+        ? state.fixedOptionRows : (state.optionRows || []);
+      const optionCount = state.contentMode !== "fixed" ? 0
+        : (optionRowsNow.map(r => String((r && r.text) || "").trim()).filter(Boolean).length
+           || (state.fixedOptions || []).map(x => String(x || "").trim()).filter(Boolean).length);
       if (optionCount && minSelect > optionCount)
         errs.push({ field: "min_select", message: `最少选择数不能超过选项总数（当前 ${optionCount} 项）` });
       if (optionCount && maxSelect > optionCount)
@@ -5004,7 +5110,7 @@ async function openEditor(cardId, prefill, initStep) {
   }
 
   async function save(thenPublish, btn, thenClose) {
-    const cerrs = clientValidate();
+    const cerrs = clientValidate({ draftOnly: !thenPublish });
     if (cerrs.length) {
       // 错误可能在前面的步骤：跳回第一个有错的步骤
       const stepOf = (e) => Object.keys(STEP_FIELDS).find(k => STEP_FIELDS[k].includes(fieldKeyOf(e)));

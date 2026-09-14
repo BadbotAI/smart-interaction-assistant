@@ -276,8 +276,10 @@ function overallFilterBar() {
     el("span", { class: "fl" }, ["组件筛选"]),
     UI.fancySelect({
       value: overallState.card_id,
-      width: "240px",
-      options: [["", "全部组件"], ...cards.map(c => [c.card_id, c.name])],
+      width: "260px",
+      options: [["", "全部组件"],
+        ...cards.map(c => [c.card_id, c.name, "ID " + String(c.card_id).slice(0, 8)])],
+      searchable: true, searchHint: "搜索组件名称或 ID",
       onChange: (v) => { overallState.card_id = v; loadOverall(); },
     }),
   ]);
@@ -327,10 +329,13 @@ function filterBar() {
   const product = FILTERS.products.find(p => p.product_id === pickState.product);
   const productCardIds = new Set((product || {}).card_ids || []);
   const productCards = FILTERS.cards.filter(c => productCardIds.has(c.card_id));
-  const cardOpts = [["", "全部组件"], ...productCards.map(c => [c.card_id, c.name])];
+  // 组件多了之后逐个翻找太慢：下拉里直接搜名称或 ID
+  const cardOpts = [["", "全部组件"],
+    ...productCards.map(c => [c.card_id, c.name, "ID " + String(c.card_id).slice(0, 8)])];
   bar.append(
     el("span", { class: "fl" }, ["组件筛选"]),
-    UI.fancySelect({ value: pickState.card_id, width: "240px", options: cardOpts,
+    UI.fancySelect({ value: pickState.card_id, width: "260px", options: cardOpts,
+      searchable: true, searchHint: "搜索组件名称或 ID",
       onChange: (v) => { pickState.card_id = v; loadSingle(); } }),
   );
   return bar;
@@ -373,8 +378,10 @@ function echoFilterBar() {
   const cardPool = currentProductCards();
   bar.append(
     el("span", { class: "fl" }, ["筛选"]),
-    UI.fancySelect({ value: echoState.card_id, width: "220px",
-      options: [["", "全部组件实例"], ...cardPool.map(c => [c.card_id, c.name])],
+    UI.fancySelect({ value: echoState.card_id, width: "260px",
+      options: [["", "全部组件实例"],
+        ...cardPool.map(c => [c.card_id, c.name, "ID " + String(c.card_id).slice(0, 8)])],
+      searchable: true, searchHint: "搜索组件名称或 ID",
       onChange: (v) => { echoState.card_id = v; loadEcho(); } }),
   );
   if (echoState.card_id) {

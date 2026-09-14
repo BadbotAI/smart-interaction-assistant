@@ -162,7 +162,9 @@ window.UI = (function () {
   }
 
   // 自绘下拉：闭合态与输入体系同款，展开态用主题弹层（替代系统原生下拉）
-  function fancySelect({ value = "", options = [], onChange, width, display }) {
+  // options 支持 [value, label] 或 [value, label, sub]；sub 作为右侧小字（如 ID），也参与搜索
+  function fancySelect({ value = "", options = [], onChange, width, display,
+                         searchable = false, searchHint = "输入关键词筛选" }) {
     const labelOf = v => { const hit = options.find(o => o[0] === v); return hit ? hit[1] : v; };
     const shown = v => display ? display(v, labelOf(v)) : labelOf(v);
     const lab = el("span", { class: "fsel-label" }, [shown(value)]);
@@ -171,11 +173,31 @@ window.UI = (function () {
     let cur = value;
     btn.onclick = () => {
       document.querySelectorAll(".menu-pop").forEach(n => n.remove());
-      const pop = el("div", { class: "menu-pop fsel-pop", role: "listbox" },
-        options.map(([v, l]) => el("button", {
-          class: "menu-item" + (v === cur ? " on" : ""), role: "option", "aria-selected": v === cur ? "true" : "false",
-          onclick: () => { pop.remove(); if (v === cur) return; cur = v; lab.textContent = shown(v); onChange && onChange(v); },
-        }, [l])));
+      const pop = el("div", { class: "menu-pop fsel-pop", role: "listbox" }, []);
+      const list = el("div", { class: "fsel-list" });
+      const rowOf = ([v, l, sub]) => el("button", {
+        class: "menu-item" + (v === cur ? " on" : ""), role: "option", "aria-selected": v === cur ? "true" : "false",
+        onclick: () => { pop.remove(); if (v === cur) return; cur = v; lab.textContent = shown(v); onChange && onChange(v); },
+      }, [el("span", { class: "fsel-item-main" }, [l]),
+          sub ? el("span", { class: "fsel-item-sub" }, [sub]) : null]);
+      const draw = (kw) => {
+        list.innerHTML = "";
+        const k = String(kw || "").trim().toLowerCase();
+        const hit = k ? options.filter(([v, l, sub]) =>
+          String(l).toLowerCase().includes(k) || String(sub || "").toLowerCase().includes(k)
+          || String(v).toLowerCase().includes(k)) : options;
+        if (!hit.length) { list.appendChild(el("div", { class: "fsel-empty muted" }, ["没有匹配的结果"])); return; }
+        hit.forEach(o => list.appendChild(rowOf(o)));
+      };
+      if (searchable) {
+        const si = el("input", { class: "fsel-search", type: "text", placeholder: searchHint });
+        si.oninput = () => draw(si.value);
+        si.onclick = (e) => e.stopPropagation();
+        pop.appendChild(el("div", { class: "fsel-search-wrap" }, [si]));
+        setTimeout(() => si.focus(), 0);
+      }
+      pop.appendChild(list);
+      draw("");
       document.body.appendChild(pop);
       const r = btn.getBoundingClientRect();
       pop.style.minWidth = r.width + "px";
@@ -846,13 +868,37 @@ window.UI = (function () {
     const sv = el("div", { class: "cp-sv" }, [el("i", { class: "cp-cursor" })]);
     const hue = el("div", { class: "cp-slider cp-hue" }, [el("i", { class: "cp-knob" })]);
     const al = alpha ? el("div", { class: "cp-slider cp-alpha" }, [el("i", { class: "cp-knob" })]) : null;
-    const hexIn = el("input", { type: "text", class: "num cp-hex", spellcheck: "false", maxlength: "9" });
-    const alIn = alpha ? el("input", { type: "number", class: "num cp-a", min: "0", max: "100" }) : null;
+    // 三种取色格式，每种一行等宽输入列：输入框和它下面的名称同宽，切换模式时列宽不跳
+    let cpMode = "hex";
+    const modeBar = el("div", { class: "cp-modes segmented" });
+    const inputsBox = el("div", { class: "cp-inputs" });
+    const mkCell = (name, attrs) => {
+      const inp = el("input", { class: "num cp-in", spellcheck: "false", ...attrs });
+      return { inp, cell: el("label", { class: "cp-cell" }, [inp, el("span", { class: "cp-cell-lb" }, [name])]) };
+    };
+    const rgbToHsl = (r, g, b) => {
+      const r1 = r / 255, g1 = g / 255, b1 = b / 255;
+      const mx = Math.max(r1, g1, b1), mn = Math.min(r1, g1, b1), d = mx - mn;
+      let hh = 0;
+      if (d) hh = mx === r1 ? ((g1 - b1) / d + (g1 < b1 ? 6 : 0)) : mx === g1 ? (b1 - r1) / d + 2 : (r1 - g1) / d + 4;
+      const l = (mx + mn) / 2;
+      const ss = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+      return [Math.round(hh * 60), Math.round(ss * 100), Math.round(l * 100)];
+    };
+    const hslToRgb = (hh, ss, ll) => {
+      const S = ss / 100, L = ll / 100;
+      const c = (1 - Math.abs(2 * L - 1)) * S, x = c * (1 - Math.abs(((hh / 60) % 2) - 1)), m = L - c / 2;
+      const seg = [[c, x, 0], [x, c, 0], [0, c, x], [0, x, c], [x, 0, c], [c, 0, x]][Math.floor((hh % 360) / 60)] || [0, 0, 0];
+      return seg.map(n => Math.round((n + m) * 255));
+    };
+    let cells = {};
     const emit = () => {
       const [r, g, b] = hsvToRgb(h, s, v);
       const hex = toHex(r, g, b, a);
-      hexIn.value = hex.toUpperCase();
-      if (alIn) alIn.value = String(Math.round(a * 100));
+      if (cells.hex) cells.hex.value = hex.toUpperCase();
+      if (cells.r) { cells.r.value = r; cells.g.value = g; cells.b.value = b; }
+      if (cells.h) { const [H, S, L] = rgbToHsl(r, g, b); cells.h.value = H; cells.s.value = S; cells.l.value = L; }
+      if (cells.a) cells.a.value = String(Math.round(a * 100));
       sv.style.background = `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${h},100%,50%))`;
       sv.querySelector(".cp-cursor").style.cssText = `left:${s * 100}%;top:${(1 - v) * 100}%`;
       hue.querySelector(".cp-knob").style.left = (h / 360 * 100) + "%";
@@ -879,16 +925,53 @@ window.UI = (function () {
     drag(sv, (x, y) => { s = x; v = 1 - y; });
     drag(hue, (x) => { h = Math.round(x * 360); });
     if (al) drag(al, (x) => { a = Math.round(x * 100) / 100; });
-    hexIn.onchange = () => {
-      const p2 = hexParse(hexIn.value);
-      if (p2) { [h, s, v] = rgbToHsv(p2.r, p2.g, p2.b); a = p2.a; }
+    function drawInputs() {
+      inputsBox.innerHTML = "";
+      cells = {};
+      inputsBox.className = "cp-inputs cp-mode-" + cpMode;
+      const push = (key, name, attrs, onCommit) => {
+        const { inp, cell } = mkCell(name, attrs);
+        cells[key] = inp;
+        inp.onchange = onCommit;
+        inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); inp.blur(); } };
+        inputsBox.appendChild(cell);
+      };
+      const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number(n) || 0));
+      if (cpMode === "hex") {
+        push("hex", "HEX", { type: "text", maxlength: "9" }, () => {
+          const p2 = hexParse(cells.hex.value);
+          if (p2) { [h, s, v] = rgbToHsv(p2.r, p2.g, p2.b); a = p2.a; }
+          emit();
+        });
+      } else if (cpMode === "rgb") {
+        const commit = () => {
+          const [H, S, V] = rgbToHsv(clamp(cells.r.value, 0, 255), clamp(cells.g.value, 0, 255), clamp(cells.b.value, 0, 255));
+          h = H; s = S; v = V; emit();
+        };
+        ["r", "g", "b"].forEach(k => push(k, k.toUpperCase(), { type: "number", min: "0", max: "255" }, commit));
+      } else {
+        const commit = () => {
+          const [R, G, B] = hslToRgb(clamp(cells.h.value, 0, 360), clamp(cells.s.value, 0, 100), clamp(cells.l.value, 0, 100));
+          const [H, S, V] = rgbToHsv(R, G, B); h = H; s = S; v = V; emit();
+        };
+        [["h", "H"], ["s", "S"], ["l", "L"]].forEach(([k, nm]) =>
+          push(k, nm, { type: "number", min: "0", max: k === "h" ? "360" : "100" }, commit));
+      }
+      if (alpha) push("a", "A %", { type: "number", min: "0", max: "100" },
+        () => { a = clamp(cells.a.value, 0, 100) / 100; emit(); });
       emit();
-    };
-    if (alIn) alIn.onchange = () => { a = Math.max(0, Math.min(100, Number(alIn.value) || 0)) / 100; emit(); };
+    }
+    [["hex", "HEX"], ["rgb", "RGB"], ["hsl", "HSL"]].forEach(([k, nm]) =>
+      modeBar.appendChild(el("button", { type: "button", class: "seg" + (cpMode === k ? " active" : ""),
+        onclick: () => {
+          cpMode = k;
+          [...modeBar.children].forEach((b2, i) => b2.classList.toggle("active", ["hex", "rgb", "hsl"][i] === k));
+          drawInputs();
+        } }, [nm])));
     pop.append(sv, hue);
     if (al) pop.appendChild(al);
-    pop.appendChild(el("div", { class: "cp-inputs" }, [hexIn,
-      ...(alIn ? [alIn, el("span", { class: "muted", style: "font-size:11px" }, ["%"])] : [])]));
+    pop.append(modeBar, inputsBox);
+    drawInputs();
     document.body.appendChild(pop);
     const r3 = anchorEl.getBoundingClientRect();
     pop.style.position = "fixed";

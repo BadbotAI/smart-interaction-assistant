@@ -352,7 +352,7 @@ window.Components = (function () {
     return compCard([
       el("div", { class: "secondary metric-label" }, [p.label || ""]),
       el("div", { style: "display:flex;align-items:baseline;gap:10px;margin-top:2px" }, [
-        el("span", { class: "metric-value", style: "font-size:var(--mv-size, 30px)" }, [String(p.value)]),
+        el("span", { class: "metric-value", style: "font-size:var(--mv-size, var(--font-hero, 30px))" }, [String(p.value)]),
         p.unit ? el("span", { class: "secondary" }, [p.unit]) : null,
         deltaStr ? el("span", { class: "delta-chip " + deltaCls, title: up ? "较基线上升" : "较基线下降" }, [
           UI.icon(up ? "arrowup" : "arrowdown", 11), deltaStr.replace("-", "")]) : null,
@@ -685,7 +685,7 @@ window.Components = (function () {
         setTimeout(() => {
           btn.classList.remove("submitting");
           btn.classList.add("submitted");
-          btn.textContent = "已提交";
+          btn.textContent = env.params.submitted_label || "已提交";
           if (feedback) feedback.hidden = false;
         }, 420);
         ctx.onCollectSubmit(payload, env);
@@ -857,7 +857,8 @@ window.Components = (function () {
       // 0913Mia调整：选项列表只反映用户当前选择，不再读取默认选中配置
       const m = (p.option_meta || {})[o] || {};
       const on = multi ? getPicked().has(o) : getPicked() === o;
-      const badge = m.badge || (o === p.recommended_default ? "推荐" : "");
+      // 标签文字由配置者填；没填就不显示，不再因为「是推荐项」自动补一个「推荐」
+        const badge = m.badge || "";
       const row = el("button", { class: "opt-item" + (on ? " on" : ""), type: "button", role: multi ? "checkbox" : "radio",
         "aria-checked": on ? "true" : "false", "data-opt": String(o) }, [
         selDot(on, multi),
@@ -888,8 +889,8 @@ window.Components = (function () {
     if (p.multi === true) return rSelectMulti(env, ctx);
     const opts = p.options || [];
     if (!opts.length) return compCard([compTitle(p.prompt), emptyState(env)]);
-    // 展示形式由组件类型决定：列表选择器与卡片选择器是两个独立组件。
-    const display = env.component_type === "select.card" ? "card" : "list";
+    // 呈现方式是选择器的可配项（列表 / 卡片）；没传就按组件类型给默认值
+    const display = p.display || (env.component_type === "select.card" ? "card" : "list");
     // 0913Mia调整：单选不再默认选中，始终由用户主动选择
     let picked = p.preview_selected_default && opts.includes(p.recommended_default) ? p.recommended_default : null;
     let body;
@@ -899,14 +900,16 @@ window.Components = (function () {
         onclick: () => { picked = o;
           btns.forEach(b => { const on = b.getAttribute("data-opt") === picked; b.classList.toggle("primary", on); b.setAttribute("aria-checked", on ? "true" : "false"); }); },
         "data-opt": String(o),
-      }, [o, o === p.recommended_default ? el("span", { class: "rec-chip chip blue" }, ["推荐"]) : null]));
+      }, [o, ((p.option_meta || {})[o] || {}).badge
+            ? el("span", { class: "rec-chip chip blue" }, [((p.option_meta || {})[o] || {}).badge]) : null]));
       body = el("div", { class: display === "composer" ? "quick-float" : "opt-row" }, btns);
     } else if (display === "card") {
       const meta = p.option_meta || {};
       const summary = cardSelectionSummary(picked, false);
       const cards = opts.map(o => {
         const m = meta[o] || {};
-        const badge = m.badge || (o === p.recommended_default ? "推荐" : "");
+        // 标签文字由配置者填；没填就不显示，不再因为「是推荐项」自动补一个「推荐」
+        const badge = m.badge || "";
         const node = cardOptionNode(o, m, badge, picked === o, false);
         node.onclick = () => {
           picked = o;
@@ -943,8 +946,8 @@ window.Components = (function () {
     if (p.multi === false) return rSelectSingle(env, ctx);
     const opts = p.options || [];
     if (!opts.length) return compCard([compTitle(p.prompt), emptyState(env)]);
-    // 多选是交互行为，不改变组件的固定展示形式。
-    const display = env.component_type === "select.card" ? "card" : "list";
+    // 多选是交互行为，不改变呈现方式；呈现方式按配置走，没配就用类型默认值
+    const display = p.display || (env.component_type === "select.card" ? "card" : "list");
     // 0913Mia调整：多选不再读取默认值和取消限制，保留最少选择数
     const picked = new Set();
     const minSel = Number(p.min_select) > 0 ? Number(p.min_select) : 1;
@@ -967,7 +970,8 @@ window.Components = (function () {
       const summary = cardSelectionSummary(picked, true);
       const cards = opts.map(o => {
         const m = meta[o] || {};
-        const badge = m.badge || (o === p.recommended_default ? "推荐" : "");
+        // 标签文字由配置者填；没填就不显示，不再因为「是推荐项」自动补一个「推荐」
+        const badge = m.badge || "";
         const node = cardOptionNode(o, m, badge, picked.has(o), true);
         node.onclick = () => {
           if (!picked.has(o) && !canAdd()) { limitTip(); return; }
