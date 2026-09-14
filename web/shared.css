@@ -1186,6 +1186,9 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: a
 .modal.editor .ed-form .sec-head { margin-bottom: 14px; }
 .modal.editor .ed-form input[type=text], .modal.editor .ed-form input[type=number], .modal.editor .ed-form input[type=url],
 .modal.editor .ed-form select, .modal.editor .ed-form input[type=date] { min-height: 36px; }
+/* 色值框跟色块一样高，不跟着通用输入框走 36px。
+   上面那条用了 input[type=text]，属性选择器也算一级特异性，所以这里得带上 input */
+.modal.editor .ed-form input.sty-hex { min-height: 30px; height: 30px; padding: 0 10px; }
 .modal.editor .ed-form .form-grid { gap: 0 16px; }
 .modal.editor .ed-form .segmented .seg { padding: 5px 14px; }
 /* 选项编辑块：统一浅底块结构 */
@@ -1809,8 +1812,17 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 
 /* 颜色行的「跟随主题」开关：开着时色板置灰不可点 */
 .sty-inherit-tag { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-caption); }
-.sty-inherit-tag .toggle { margin-left: 2px; }
-.sty-section:has(.sty-inherit-tag:not(.is-custom)) .sty-swatches { opacity: .62; }
+.sty-reset:disabled { opacity: .42; cursor: default; }
+/* 色值输入框与色块同高，一行里不高一块低一块。
+   写成后代选择器是为了压过弹窗里通用的 input 规则（那条给了 min-height:36px） */
+.sty-swatches .sty-hex, .sty-section .sty-hex {
+  width: 104px; height: 30px; min-height: 30px; box-sizing: border-box;
+  padding: 0 10px; font-size: 12px; text-transform: uppercase;
+  border: 1px solid var(--border); border-radius: 9px;
+  background: var(--bg-surface); color: var(--text-primary); }
+.sty-swatches .sty-hex:focus, .sty-section .sty-hex:focus {
+  outline: none; border-color: var(--primary); }
+
 
 /* 群体回显：比例直接画在选项里，选项行下方一条占比线 */
 .comp [data-opt].has-echo { position: relative; }
@@ -2874,7 +2886,9 @@ body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
   background: linear-gradient(transparent, var(--bg-sunken)); pointer-events: none; }
 
 /* 选择组件步：卡片等高，预览占满剩余高度且裁切溢出 */
-.modal.editor .tpl-grid { align-items: stretch; }
+/* 容器选择：卡片区定高、内部滚动，切分类时弹窗不忽高忽低 */
+.modal.editor .tpl-grid { align-items: stretch; align-content: start;
+  height: 612px; overflow-y: auto; padding-right: 4px; }
 .tpl-rich { display: flex; flex-direction: column; }
 .tpl-rich .tpl-preview.pick-pv { flex: 1; min-height: 150px; max-height: 180px; }
 /* 示例只是给人看形态，字号压到比卡片文案更小，别喧宾夺主也更容易整个装下 */

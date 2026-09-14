@@ -99,6 +99,63 @@ const LIKERT_PRESETS = [["1 ~ 5", 1, 5], ["0 ~ 5", 0, 5], ["0 ~ 3", 0, 3], ["1 ~
 function isoAgo(hours) { return new Date(Date.now() - hours * 3600e3).toISOString(); }
 
 // 工作台卡片预览的示例参数：套用实例的样式覆盖与固定内容后渲染成真实缩略预览
+// ---------- 用户视角预览 ----------
+// 字段未填时的兜底场景：保证预览始终是一段完整的业务对话
+const PREVIEW_SCENES = {
+  "select.single": { q: "帮我选择一个合适的模型", reply: "可以，根据能力、速度和成本为你整理如下。",
+    prompt: "请选择一个模型", description: "不同模型在能力、速度和成本上有所差异，请根据你的需求进行选择。",
+    options: ["GPT-5.6", "Claude 3.7", "Qwen3", "Gemini 2.5"], recommended_default: "GPT-5.6", submit_label: "确认选择",
+    option_meta: {
+      "GPT-5.6": { desc: "适合复杂推理任务，综合能力最强", badge: "推荐", badge_tone: "blue" },
+      "Claude 3.7": { desc: "擅长长文本理解与分析，适合内容创作" },
+      "Qwen3": { desc: "中文能力较好，适合日常对话与文案生成", badge: "性价比高", badge_tone: "green" },
+      "Gemini 2.5": { desc: "多模态能力强，支持文本、图像、视频等多种输入" },
+    } },
+  "select.multi": { q: "我的货延误了", reply: "很抱歉，我们已记录该异常。", prompt: "需要我们做什么？可多选",
+    description: "可同时选择多项，我们会按你的选择继续处理。", options: ["加急催办", "改约送达时间", "申请赔付"], submit_label: "提交处理" },
+  "select.card": { q: "帮我选个运输方案", reply: "两个方案供你选择：", prompt: "选择运输方案",
+    description: "综合时效与成本选择更适合你的运输方案。", options: ["海运直达", "海铁联运"], submit_label: "确认方案",
+    option_meta: { "海运直达": { desc: "35 天 · 成本低，适合不赶时间" }, "海铁联运": { desc: "26 天 · 快 9 天，成本略高" } } },
+  "rank.priority": { q: "这批货怎么安排比较好", reply: "请把你的诉求按重要程度排个序：", prompt: "哪个对你最重要？",
+    description: "拖动条目调整顺序，排在越前面代表越重要。", options: ["时效最快", "成本最低", "风险最小"], submit_label: "提交排序" },
+  "matrix.compare+select": { q: "对比一下这几家供应商", reply: "按价格、时效、合规评估如下：", prompt: "选定供应商", options: ["中远供应链", "环球捷运"], dimensions: ["价格", "时效", "合规"] },
+  "scale.likert": { q: "谢谢，问题解决了", reply: "不客气。", prompt: "这次服务满意吗？",
+    likert: { levels: ["1", "2", "3", "4", "5"], left: "很不满意", right: "非常满意" }, submit_label: "提交评价" },
+  "feedback.binary": { q: "这批货能赶上月底到吗？", reply: "按当前舱位，26 日可到港，月底前能完成交付。", prompt: "这条回答怎么样" },
+  "feedback.preference": { q: "帮我写个催单话术", reply: "给你两版，挑你更满意的：", prompt: "哪个回答更好？",
+    candidates: [
+      { label: "简洁版", content: "您好，订单已超过预计发货时间，请尽快确认最新进度，谢谢。" },
+      { label: "正式版", content: "您好，烦请协助核实该订单当前处理进度，并告知预计发货时间，谢谢。" },
+    ] },
+  "guide.steps": { q: "破损赔付怎么申请？", reply: "按下面三步操作即可，全程在对话里完成。", prompt: "赔付申请指引" },
+  "form.structured": { q: "我要退货", reply: "请补充以下信息，我来为你登记。", prompt: "退货登记",
+    description: "请补充以下信息，我们将尽快为你处理。",
+    fields: [
+      { key: "order_no", label: "订单号", type: "text", placeholder: "请输入订单号", description: "可在订单详情中查看", required: true },
+      { key: "phone", label: "联系电话", type: "text", placeholder: "请输入联系电话", description: "用于接收处理进度通知", required: true },
+    ], submit_label: "提交申请" },
+  "slider.range": { q: "帮我做个采购预算", reply: "先确认一下预算范围。", prompt: "预算上限（万元）",
+    slider: { min: 0, max: 100, step: 5, unit: "万元", default: 50 } },
+  "input.followup": { q: "送货有点要求", reply: "好的，请留下送货备注：", prompt: "送货备注", placeholder: "例如：周五前送到，放前台即可" },
+  "picker.datetime": { q: "帮我约个提货时间", reply: "好的，请选择提货日期：", prompt: "期望提货日期",
+    mode: "date", submit_label: "确认时间" },
+  "picker.timerange": { q: "什么时候方便上门取件", reply: "请选择方便的时间段：", prompt: "取件时间段" },
+  "picker.location": { q: "这批货送到仓库", reply: "请确认收货地点：", prompt: "收货地点", options: ["上海仓", "宁波港", "青岛港"] },
+  "upload.file": { q: "报关材料给你", reply: "请上传相关单据：", prompt: "上传报关单", placeholder: "请上传报关单或合同文件（PDF / Excel）" },
+  "upload.image": { q: "货有点破损，我拍了照片", reply: "请上传破损部位的照片，我们据此核定赔付：", prompt: "上传破损照片", placeholder: "请拍摄或上传清晰照片" },
+  "suggest.followup": { q: "帮我查一下这票货到哪了", reply: "这票货已到宁波舟山港中转，预计后天送达。", prompt: "你可能还想问",
+    options: ["为什么会延误", "预计什么时候能到", "帮我催一下这票货"] },
+  "entry.link": { q: "还有什么优惠活动吗", reply: "为你找到两个专区，点击直达：", prompt: "",
+    options: ["神券团购专区", "增值服务商城"],
+    option_meta: { "神券团购专区": { desc: "咖啡茶饮 5 折起，限时领券" }, "增值服务商城": { desc: "加固 · 保价 · 包装耗材" } } },
+  "commerce.order": { q: "这批设备怕震，帮我加固一下", reply: "推荐以下增值服务，可直接下单：", prompt: "选择增值服务",
+    options: ["木箱加固", "运输保价"],
+    option_meta: { "木箱加固": { desc: "出口级木箱，防潮防震，适合精密设备", price: 120, price_original: 150, sales: 2300, tags: ["防潮", "承重加强"] },
+                   "运输保价": { desc: "按货值 0.3% 投保，破损丢失全额赔付", price: 50, price_original: 60, sales: 5100, tags: ["全额赔付"] } } },
+  "control.confirm": { q: "帮我下这个订单", reply: "即将执行下单操作，请确认。", prompt: "确认提交这笔订单？提交后将进入履约流程。",
+    confirm_label: "确认提交", cancel_label: "暂不提交" },
+};
+
 const WB_DEMO = {
   "select.single": { prompt: "请选择处理方式", options: ["方案 A · 时效优先", "方案 B · 成本优先"], submit_label: "确认" },
   "select.multi": { prompt: "请勾选适用项", options: ["需要发票", "需要保价"], multi: true, submit_label: "提交" },
@@ -179,10 +236,23 @@ function presetOnboard() {
   return box;
 }
 
+// 卡片外壳和配置弹窗此前各用一套示例数据（WB_DEMO / PREVIEW_SCENES），
+// 字段多寡不同，于是外面的卡片总比里面的预览简陋——这是「内外不一致」的根源。
+// 统一成一份：场景数据为主，缺的字段由 WB_DEMO 补。
+function demoParamsOf(ct) {
+  const scene = PREVIEW_SCENES[ct];
+  // 有场景数据就整份用它，不跟 WB_DEMO 合并：两边都有 items / options 这类同义字段，
+  // 混在一起渲染器会挑到旧的那份，外卡和内预览的选项就对不上了
+  const p = scene ? { ...scene } : { ...(WB_DEMO[ct] || DEMO_PRESENT[ct] || {}) };
+  delete p.q; delete p.reply;              // 这两个是对话上下文，不是组件参数
+  if (ct === "rank.priority" && p.options && !p.items) p.items = p.options;
+  return JSON.parse(JSON.stringify(p));
+}
+
 function tileEnv(c) {
   const cfg = (c.field_bindings || {}).config || {};
   const tt = c.text_templates || {};
-  const params = { ...(WB_DEMO[c.component_type] || {}) };
+  const params = demoParamsOf(c.component_type);
   if (tt.prompt) params.prompt = tt.prompt;
   if (tt.submit) params.submit_label = tt.submit;
   if (tt.submitted) params.submitted_label = tt.submitted;
@@ -1725,8 +1795,7 @@ async function openEditor(cardId, prefill, initStep) {
   // 切换组件：套用模板默认内容（不覆盖已填的提问 / 说明）
   // 容器选择只看形态，示例条目截到 3 条：卡片是定高的，条目太多会撑出框被裁掉
   function pickPreviewParams(ct) {
-    const src = WB_DEMO[ct] || DEMO_PRESENT[ct] || {};
-    const p = JSON.parse(JSON.stringify(src));
+    const p = demoParamsOf(ct);
     ["options", "fields", "items", "events", "steps", "slices", "candidates", "rows", "dimensions"]
       .forEach(k => { if (Array.isArray(p[k]) && p[k].length > 3) p[k] = p[k].slice(0, 3); });
     if (p.option_meta && Array.isArray(p.options)) {
@@ -1765,62 +1834,6 @@ async function openEditor(cardId, prefill, initStep) {
     state.recommended_default = c.recommended_default || "";
   }
 
-  // ---------- 用户视角预览 ----------
-  // 字段未填时的兜底场景：保证预览始终是一段完整的业务对话
-  const PREVIEW_SCENES = {
-    "select.single": { q: "帮我选择一个合适的模型", reply: "可以，根据能力、速度和成本为你整理如下。",
-      prompt: "请选择一个模型", description: "不同模型在能力、速度和成本上有所差异，请根据你的需求进行选择。",
-      options: ["GPT-5.6", "Claude 3.7", "Qwen3", "Gemini 2.5"], recommended_default: "GPT-5.6", submit_label: "确认选择",
-      option_meta: {
-        "GPT-5.6": { desc: "适合复杂推理任务，综合能力最强", badge: "推荐", badge_tone: "blue" },
-        "Claude 3.7": { desc: "擅长长文本理解与分析，适合内容创作" },
-        "Qwen3": { desc: "中文能力较好，适合日常对话与文案生成", badge: "性价比高", badge_tone: "green" },
-        "Gemini 2.5": { desc: "多模态能力强，支持文本、图像、视频等多种输入" },
-      } },
-    "select.multi": { q: "我的货延误了", reply: "很抱歉，我们已记录该异常。", prompt: "需要我们做什么？可多选",
-      description: "可同时选择多项，我们会按你的选择继续处理。", options: ["加急催办", "改约送达时间", "申请赔付"], submit_label: "提交处理" },
-    "select.card": { q: "帮我选个运输方案", reply: "两个方案供你选择：", prompt: "选择运输方案",
-      description: "综合时效与成本选择更适合你的运输方案。", options: ["海运直达", "海铁联运"], submit_label: "确认方案",
-      option_meta: { "海运直达": { desc: "35 天 · 成本低，适合不赶时间" }, "海铁联运": { desc: "26 天 · 快 9 天，成本略高" } } },
-    "rank.priority": { q: "这批货怎么安排比较好", reply: "请把你的诉求按重要程度排个序：", prompt: "哪个对你最重要？",
-      description: "拖动条目调整顺序，排在越前面代表越重要。", options: ["时效最快", "成本最低", "风险最小"], submit_label: "提交排序" },
-    "matrix.compare+select": { q: "对比一下这几家供应商", reply: "按价格、时效、合规评估如下：", prompt: "选定供应商", options: ["中远供应链", "环球捷运"], dimensions: ["价格", "时效", "合规"] },
-    "scale.likert": { q: "谢谢，问题解决了", reply: "不客气。", prompt: "这次服务满意吗？",
-      likert: { levels: ["1", "2", "3", "4", "5"], left: "很不满意", right: "非常满意" }, submit_label: "提交评价" },
-    "feedback.binary": { q: "这批货能赶上月底到吗？", reply: "按当前舱位，26 日可到港，月底前能完成交付。", prompt: "这条回答怎么样" },
-    "feedback.preference": { q: "帮我写个催单话术", reply: "给你两版，挑你更满意的：", prompt: "哪个回答更好？",
-      candidates: [
-        { label: "简洁版", content: "您好，订单已超过预计发货时间，请尽快确认最新进度，谢谢。" },
-        { label: "正式版", content: "您好，烦请协助核实该订单当前处理进度，并告知预计发货时间，谢谢。" },
-      ] },
-    "guide.steps": { q: "破损赔付怎么申请？", reply: "按下面三步操作即可，全程在对话里完成。", prompt: "赔付申请指引" },
-    "form.structured": { q: "我要退货", reply: "请补充以下信息，我来为你登记。", prompt: "退货登记",
-      description: "请补充以下信息，我们将尽快为你处理。",
-      fields: [
-        { key: "order_no", label: "订单号", type: "text", placeholder: "请输入订单号", description: "可在订单详情中查看", required: true },
-        { key: "phone", label: "联系电话", type: "text", placeholder: "请输入联系电话", description: "用于接收处理进度通知", required: true },
-      ], submit_label: "提交申请" },
-    "slider.range": { q: "帮我做个采购预算", reply: "先确认一下预算范围。", prompt: "预算上限（万元）",
-      slider: { min: 0, max: 100, step: 5, unit: "万元", default: 50 } },
-    "input.followup": { q: "送货有点要求", reply: "好的，请留下送货备注：", prompt: "送货备注", placeholder: "例如：周五前送到，放前台即可" },
-    "picker.datetime": { q: "帮我约个提货时间", reply: "好的，请选择提货日期：", prompt: "期望提货日期",
-      mode: "date", submit_label: "确认时间" },
-    "picker.timerange": { q: "什么时候方便上门取件", reply: "请选择方便的时间段：", prompt: "取件时间段" },
-    "picker.location": { q: "这批货送到仓库", reply: "请确认收货地点：", prompt: "收货地点", options: ["上海仓", "宁波港", "青岛港"] },
-    "upload.file": { q: "报关材料给你", reply: "请上传相关单据：", prompt: "上传报关单", placeholder: "请上传报关单或合同文件（PDF / Excel）" },
-    "upload.image": { q: "货有点破损，我拍了照片", reply: "请上传破损部位的照片，我们据此核定赔付：", prompt: "上传破损照片", placeholder: "请拍摄或上传清晰照片" },
-    "suggest.followup": { q: "帮我查一下这票货到哪了", reply: "这票货已到宁波舟山港中转，预计后天送达。", prompt: "你可能还想问",
-      options: ["为什么会延误", "预计什么时候能到", "帮我催一下这票货"] },
-    "entry.link": { q: "还有什么优惠活动吗", reply: "为你找到两个专区，点击直达：", prompt: "",
-      options: ["神券团购专区", "增值服务商城"],
-      option_meta: { "神券团购专区": { desc: "咖啡茶饮 5 折起，限时领券" }, "增值服务商城": { desc: "加固 · 保价 · 包装耗材" } } },
-    "commerce.order": { q: "这批设备怕震，帮我加固一下", reply: "推荐以下增值服务，可直接下单：", prompt: "选择增值服务",
-      options: ["木箱加固", "运输保价"],
-      option_meta: { "木箱加固": { desc: "出口级木箱，防潮防震，适合精密设备", price: 120, price_original: 150, sales: 2300, tags: ["防潮", "承重加强"] },
-                     "运输保价": { desc: "按货值 0.3% 投保，破损丢失全额赔付", price: 50, price_original: 60, sales: 5100, tags: ["全额赔付"] } } },
-    "control.confirm": { q: "帮我下这个订单", reply: "即将执行下单操作，请确认。", prompt: "确认提交这笔订单？提交后将进入履约流程。",
-      confirm_label: "确认提交", cancel_label: "暂不提交" },
-  };
   function buildPreviewEnvelope() {
     const options = getOptions();
     const dims = state.dimensions.split("\n").map(s => s.trim()).filter(Boolean);
@@ -1897,8 +1910,16 @@ async function openEditor(cardId, prefill, initStep) {
       params.steps = st2.length ? st2 : (mock.steps || []);
     }
     if (ct === "form.structured") {
-      const fs = state.fieldRows.filter(f => f.key || f.label).map(f => ({ key: f.key || f.label, label: f.label || f.key, required: !!f.required }));
-      params.fields = fs.length ? fs : (mock.fields || []);
+      const fs = state.fieldRows.filter(f => f.key || f.label).map(f => {
+        const o2 = { key: f.key || f.label, label: f.label || f.key, required: !!f.required };
+        if (f.type) o2.type = f.type;
+        if (String(f.description || "").trim()) o2.description = f.description.trim();
+        if (String(f.placeholder || "").trim()) o2.placeholder = f.placeholder.trim();
+        return o2;
+      });
+      // AI 动态内容时字段由模型实时给，预览用场景示例（带字段说明），
+      // 不用配置里残留的简化字段——否则外面的卡片比里面的预览还详细
+      params.fields = (state.contentMode === "fixed" && fs.length) ? fs : (mock.fields || fs);
     }
     if (ct === "feedback.preference") params.candidates = JSON.parse(JSON.stringify(mock.candidates || []));
     if (ct === "control.confirm") {
@@ -2144,14 +2165,6 @@ async function openEditor(cardId, prefill, initStep) {
         : ct3 === "rank.priority" ? !!rankMissing3
         : titleOnlyFixed ? !(state.fixedPrompt || "").trim()
         : (!effectiveTitle3 || effectiveOptions3.length < 2);
-      if (incomplete) previewBox.appendChild(el("div", { class: "pv-demo-note" },
-        ["以下为示例数据预览：固定内容还没配置完成（", ct3 === "form.structured" ? "待补：固定字段" :
-          ct3 === "feedback.preference" ? prefMissing3 :
-          ct3 === "scale.likert" ? likertMissing3 :
-          ct3 === "slider.range" ? sliderMissing3 :
-          ct3 === "rank.priority" ? rankMissing3 :
-          titleOnlyFixed ? "待补：标题" :
-        [!effectiveTitle3 ? "待补：标题" : "", effectiveOptions3.length < 2 ? "待补：至少 2 个选项" : ""].filter(Boolean).join("、"), "）"]));
     }
     previewBox.appendChild(UI.chatMock({ question: state.trigger_examples[0] || mock.q || "", reply: state.reply_text.trim() || mock.reply || "", node, prompt: pv }));
     // 回显是提交之后才有的形态：预览默认给「还没提交」的样子，点「看回显效果」才切过去
@@ -2363,7 +2376,7 @@ async function openEditor(cardId, prefill, initStep) {
             schema_version: "1.0.0", render_id: "pick-" + curVar, component_type: curVar,
             semantic_category: isP2 ? "present" : "collect", trigger_source: "pick_preview", card_ref: null,
             params: pickPreviewParams(curVar),
-          }, { sendEvent: () => {}, onCollectSubmit: () => {}, onControl: () => {}, preview: true, titleInBubble: true })]));
+          }, { sendEvent: () => {}, onCollectSubmit: () => {}, onControl: () => {}, preview: true })]));
         } catch (e) { pv2.appendChild(el("div", { class: "muted" }, ["示例预览暂不可用"])); }
         // 卡片定高，示例比框高时等比缩小，让人看到完整形态而不是被裁掉一半
         requestAnimationFrame(() => {
@@ -3703,15 +3716,27 @@ async function openEditor(cardId, prefill, initStep) {
     const SW_SURFACE = ["#FFFFFF", "#FAFBFC", "#F4F6F8", "#EDF1F5", "#E6EBF2", "#EDF1FE", "#212837", "#161B26"];
     const SW_BORDER = ["#E5E8EE", "#DCE1E9", "#CBD2DC", "#B4BDCB", "#94A0B2", "#6B7687", "#3E63DD", "#E5484D"];
     const SW_TEXT = ["#171B26", "#3B4354", "#4A5265", "#838B9C", "#FFFFFF", "#3E63DD", "#30A46C", "#E5484D"];
+    // 主按钮的底色：实际产品里敢用的那一档沉稳色，而不是高饱和的品牌演示色
+    const SW_BUTTON = ["#2B5FCC", "#1B3A6B", "#0E7C94", "#1E7A50",
+                       "#A8722A", "#B03A2E", "#5B4B8A", "#2E3440"];
+    const BUTTON_KEYS = new Set(["btn.bg", "btn.bc"]);
     const SURFACE_KEYS = new Set(["panel.bg", "opt.bg", "input.bg", "header.bg",
       "state.selected.bg", "tag.bg", "state.hover.bg"]);
     const TEXT_KEYS = new Set(["text.color", "title.color", "desc.color", "option.name.color",
       "option.desc.color", "hl.color", "caption.color", "th.color", "td.color", "mlabel.color",
       "mv.color", "mbase.color", "ol.color", "ts.color", "ev.color", "evdesc.color",
       "flabel.color", "btn.fg", "tag.text"]);
-    const swatchesFor = (k) => /\.bc$/.test(k) ? SW_BORDER
-      : SURFACE_KEYS.has(k) ? SW_SURFACE
-      : TEXT_KEYS.has(k) ? SW_TEXT : SW_BRAND;
+    // 每行固定 8 个槽位：边框类首位让给「无边框」，所以只取 7 个颜色，
+    // 否则色块数量会一行 8 个一行 9 个，看着像在跳
+    const SW_SLOTS = 8;
+    const swatchesFor = (k) => {
+      const isBd = /\.bc$/.test(k);
+      const base = BUTTON_KEYS.has(k) ? SW_BUTTON
+        : isBd ? SW_BORDER
+        : SURFACE_KEYS.has(k) ? SW_SURFACE
+        : TEXT_KEYS.has(k) ? SW_TEXT : SW_BRAND;
+      return base.slice(0, isBd ? SW_SLOTS - 1 : SW_SLOTS);
+    };
     function colorRow(key, label, hintC) {
       const row = el("div", { class: "sty-swatches" });
       // 继承状态行：未覆盖=跟随主题（显示主题当前色），已覆盖=可一键恢复。
@@ -3734,20 +3759,17 @@ async function openEditor(cardId, prefill, initStep) {
           .getPropertyValue(THEME_VAR[key] || "--primary").trim();
         return v || "#3E63DD";
       };
-      // 固定一个开关：开 = 跟随主题（色板不可用），关 = 自己定色。文案不随状态变来变去
+      // 没改过就是主题默认值，此时按钮置灰；改过之后点一下回到默认。
+      // 比「跟随主题」开关直白：用户想的是「我改乱了，还原」，不是去想跟不跟随
       const drawInherit = () => {
         inherit.innerHTML = "";
         const following = !so[key];
-        inherit.appendChild(el("span", { class: "muted" }, ["跟随主题"]));
-        inherit.appendChild(UI.toggle({
-          checked: following,
-          onChange: (on) => {
-            if (on) delete so[key];
-            else so[key] = themeVarOf() || "#3E63DD";   // 从当前主题色起步，用户接着调
-            draw(); upd();
-            return true;
-          },
-        }));
+        inherit.appendChild(el("button", {
+          class: "btn small ghost sty-reset", type: "button",
+          ...(following ? { disabled: "" } : {}),
+          title: following ? "当前就是风格主题的默认值" : "清除这一项的自定义，回到风格主题的默认值",
+          onclick: () => { if (so[key]) { delete so[key]; draw(); upd(); } },
+        }, ["恢复默认"]));
         inherit.classList.toggle("is-custom", !following);
       };
       // 边框色多一个「无边框」：以前只能换颜色、去不掉边框（只有面板那一项有开关）
@@ -3767,7 +3789,7 @@ async function openEditor(cardId, prefill, initStep) {
         // 占位显示的是"不覆盖时实际会用的颜色"，不能一律写成主色
         const hex = el("input", { type: "text", value: so[key] || "",
           placeholder: (themeVarOf() || "#3E63DD").toUpperCase(), maxlength: "9", spellcheck: "false",
-          class: "num", style: "width:92px;padding:5px 8px;font-size:12px;text-transform:uppercase" });
+          class: "num sty-hex" });
         hex.onchange = () => {
           let v = hex.value.trim();
           if (/^[0-9a-f]{6}([0-9a-f]{2})?$/i.test(v)) v = "#" + v;
@@ -4293,36 +4315,32 @@ async function openEditor(cardId, prefill, initStep) {
     box.appendChild(host);
     (async () => {
       try {
-        const schemaConfig = { display: selectorDisplayOf(ct) || state.display || undefined,
+        // 直接取发布时那份完整配置：这一步此前自己另拼了一份简化的，
+        // 只带了选择器的选项，表格的列、表单的字段都没进去——
+        // 结果内容改了，数据结构还是旧的。
+        // 用 collectPayloadLite：它才是发布时那份完整配置（含展示类的 present_params）；
+        // collectPayload 是旧的一份，展示类内容不在里面
+        const fullCfg = ((collectPayloadLite().field_bindings || {}).config) || {};
+        const schemaConfig = { ...fullCfg,
+          display: resolveDisplay(ct, state.display) || undefined,
           content_mode: state.contentMode || "dynamic" };
-        if (["select.single", "select.multi", "select.card"].includes(ct)) {
-          schemaConfig.multi = state.multiSelect === undefined ? ct === "select.multi" : !!state.multiSelect;
-          if (schemaConfig.multi) {
-            schemaConfig.min_select = Number(state.minSelect) > 0 ? Number(state.minSelect) : 1;
-            if (Number(state.maxSelect) > 0) schemaConfig.max_select = Number(state.maxSelect);
-          }
-          if (schemaConfig.content_mode === "fixed") {
-            schemaConfig.options = (state.fixedOptions || []).map(x => String(x || "").trim()).filter(Boolean);
-            const optionMeta = {};
-            (state.fixedOptionRows || []).forEach(row => {
-              const name = String(row?.text || "").trim();
-              if (!name) return;
-              const meta = {};
-              if (String(row?.desc || "").trim()) meta.desc = String(row.desc).trim();
-              if (String(row?.image || "").trim()) meta.image = String(row.image).trim();
-              const tags = String(row?.tags || "").split(/[，,、]/).map(x => x.trim()).filter(Boolean);
-              if (tags.length) meta.tags = tags;
-              if (Object.keys(meta).length) optionMeta[name] = meta;
-            });
-            if (Object.keys(optionMeta).length) schemaConfig.option_meta = optionMeta;
-          }
-        }
         const r = await UI.api("/api/components/schema-preview", { method: "POST",
           body: { component_type: ct, config: schemaConfig,
             text_templates: { prompt: (state.fixedPrompt || "").trim(), submit: (state.submitLabel || "").trim() } } });
         host.innerHTML = "";
-        host.appendChild(sec("params_schema", "模型调用本组件时要填的参数",
-          el("div", {}, [pre(r.params_schema || {}), fieldsFold(fieldTable(r.params_schema))]), r.params_schema || {}));
+        // 固定内容时模型不传任何参数，params_schema 是空对象——摆一段空 JSON 没有意义。
+        // 这一块换成「平台固定下发的内容」，内容配置改了这里就跟着变。
+        const isFixed = (state.contentMode || "dynamic") === "fixed";
+        if (isFixed) {
+          const fixed = { ...schemaConfig };
+          if (fixed.present_params) { Object.assign(fixed, fixed.present_params); delete fixed.present_params; }
+          ["content_mode", "display", "option_ids", "option_aliases"].forEach(k => delete fixed[k]);
+          host.appendChild(sec("fixed_content", "平台固定下发的内容，模型不用传",
+            el("div", {}, [pre(fixed)]), fixed));
+        } else {
+          host.appendChild(sec("params_schema", "模型调用本组件时要填的参数",
+            el("div", {}, [pre(r.params_schema || {}), fieldsFold(fieldTable(r.params_schema))]), r.params_schema || {}));
+        }
         if (r.submit_schema && Object.keys(r.submit_schema).length) {
           host.appendChild(sec("submit_schema", "用户提交后回传给 agent 的结构",
             el("div", {}, [

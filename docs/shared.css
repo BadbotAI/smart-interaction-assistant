@@ -1095,6 +1095,8 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: a
 .modal.editor .ed-form .sec-head { margin-bottom: 14px; }
 .modal.editor .ed-form input[type=text], .modal.editor .ed-form input[type=number], .modal.editor .ed-form input[type=url],
 .modal.editor .ed-form select, .modal.editor .ed-form input[type=date] { min-height: 36px; }
+
+.modal.editor .ed-form input.sty-hex { min-height: 30px; height: 30px; padding: 0 10px; }
 .modal.editor .ed-form .form-grid { gap: 0 16px; }
 .modal.editor .ed-form .segmented .seg { padding: 5px 14px; }
 
@@ -1663,8 +1665,15 @@ input.invalid, textarea.invalid { border-color: var(--danger); }
 input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent); }
 
 .sty-inherit-tag { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-caption); }
-.sty-inherit-tag .toggle { margin-left: 2px; }
-.sty-section:has(.sty-inherit-tag:not(.is-custom)) .sty-swatches { opacity: .62; }
+.sty-reset:disabled { opacity: .42; cursor: default; }
+
+.sty-swatches .sty-hex, .sty-section .sty-hex {
+  width: 104px; height: 30px; min-height: 30px; box-sizing: border-box;
+  padding: 0 10px; font-size: 12px; text-transform: uppercase;
+  border: 1px solid var(--border); border-radius: 9px;
+  background: var(--bg-surface); color: var(--text-primary); }
+.sty-swatches .sty-hex:focus, .sty-section .sty-hex:focus {
+  outline: none; border-color: var(--primary); }
 
 .comp [data-opt].has-echo { position: relative; }
 .comp .opt-item.has-echo { flex-wrap: wrap; padding-bottom: 8px; }
@@ -2653,7 +2662,8 @@ body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
 .tpl-preview::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 44px;
   background: linear-gradient(transparent, var(--bg-sunken)); pointer-events: none; }
 
-.modal.editor .tpl-grid { align-items: stretch; }
+.modal.editor .tpl-grid { align-items: stretch; align-content: start;
+  height: 612px; overflow-y: auto; padding-right: 4px; }
 .tpl-rich { display: flex; flex-direction: column; }
 .tpl-rich .tpl-preview.pick-pv { flex: 1; min-height: 150px; max-height: 180px; }
 
