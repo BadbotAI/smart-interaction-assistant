@@ -66,7 +66,7 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=d26b26ec"></script>
+<script src="./mock_data.js?v=d8a5a2c1"></script>
 <script src="./mock_api.js?v=9f335920"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
 <script src="./ui.js?v=1e211feb"></script>
@@ -247,9 +247,20 @@ function demoParamsOf(ct) {
   const scene = PREVIEW_SCENES[ct];
   // 有场景数据就整份用它，不跟 WB_DEMO 合并：两边都有 items / options 这类同义字段，
   // 混在一起渲染器会挑到旧的那份，外卡和内预览的选项就对不上了
-  const p = scene ? { ...scene } : { ...(WB_DEMO[ct] || DEMO_PRESENT[ct] || {}) };
+  // 展示类的完整示例在 DEMO_PRESENT，WB_DEMO 里存的是更早的简写版；
+  // 两份都留着又各取一份，正是外卡和内预览对不上的原因，这里定死优先级
+  const p = scene ? { ...scene } : { ...(DEMO_PRESENT[ct] || WB_DEMO[ct] || {}) };
   delete p.q; delete p.reply;              // 这两个是对话上下文，不是组件参数
   if (ct === "rank.priority" && p.options && !p.items) p.items = p.options;
+  // 示例数据把滑杆、量表的参数收在子对象里，渲染器读的却是顶层字段，
+  // 不摊平的话模板卡会少显示单位、刻度这些东西
+  if (p.slider) { ["min", "max", "step", "unit", "default"].forEach(k => {
+    if (p[k] === undefined && p.slider[k] !== undefined) p[k] = p.slider[k]; }); }
+  if (p.likert) {
+    if (p.scale === undefined && p.likert.to !== undefined) p.scale = p.likert.to;
+    if (p.low_label === undefined && p.likert.left) p.low_label = p.likert.left;
+    if (p.high_label === undefined && p.likert.right) p.high_label = p.likert.right;
+  }
   return JSON.parse(JSON.stringify(p));
 }
 
@@ -1799,17 +1810,11 @@ async function openEditor(cardId, prefill, initStep) {
   const getOptions = () => state.optionRows.map(r => (r.text || "").trim()).filter(Boolean);
 
   // 切换组件：套用模板默认内容（不覆盖已填的提问 / 说明）
-  // 容器选择只看形态，示例条目截到 3 条：卡片是定高的，条目太多会撑出框被裁掉
+  // 容器选择的示例与配置预览用同一份数据，不做截断——
+  // 截了之后饼图的百分比会按剩下几项重算（外卡 54% / 内预览 42%），看着就是两个组件。
+  // 卡片装不下时由预览区的等比缩小兜底。
   function pickPreviewParams(ct) {
-    const p = demoParamsOf(ct);
-    ["options", "fields", "items", "events", "steps", "slices", "candidates", "rows", "dimensions"]
-      .forEach(k => { if (Array.isArray(p[k]) && p[k].length > 3) p[k] = p[k].slice(0, 3); });
-    if (p.option_meta && Array.isArray(p.options)) {
-      const keep = {};
-      p.options.forEach(o => { if (p.option_meta[o]) keep[o] = p.option_meta[o]; });
-      p.option_meta = keep;
-    }
-    return p;
+    return demoParamsOf(ct);
   }
 
   function applyTemplate(ct, c) {
@@ -2401,6 +2406,7 @@ async function openEditor(cardId, prefill, initStep) {
         });
         gridBox.appendChild(el("div", {
           class: "tpl-rich" + (selAny ? " selected" : "") + (r && !selAny ? " recommended" : ""),
+          "data-ct": curVar,
           role: "radio", "aria-checked": selAny ? "true" : "false", tabindex: "0",
           onclick: () => pick(),   // 不能直接传 pick：onclick 会把事件对象当成 asType
 
@@ -2949,7 +2955,7 @@ async function openEditor(cardId, prefill, initStep) {
                 ? "选项名称、说明、图片和推荐项都由 AI 按当前对话实时给出，这里不用配。"
                 : "选项和推荐项都由 AI 按当前对话实时给出，这里不用配。",
                cardDisplay ? "如需为每张卡片上传图片，请选择上方「固定配置内容」。" : null,
-               "推荐项要不要显示角标，在「样式设计 - 选项与控件」里控制。"]));
+               "推荐项要不要显示角标，在「样式设计 - 05 标签」里控制。"]));
           } else if (ct === "control.confirm") {
             fixedArea.appendChild(el("div", { class: "ed-note" },
               ["要确认的那句话由 AI 按当前对话给出；下面两个按钮的文案由你定。"]));
@@ -4263,7 +4269,8 @@ async function openEditor(cardId, prefill, initStep) {
       if (IS_SELECTOR) return;
       // 改一个配置会重绘整个面板：用户手动展开/收起过哪些区要记住，不能每次弹回默认
       state.styOpen = state.styOpen || null;
-      const DEFAULT_OPEN = new Set(["整体面板", "选项与控件", "条目与标记"]);
+      // 分组现已一律用 section 平铺（不再折叠），这里只剩「高级」需要保持收起
+      const DEFAULT_OPEN = new Set();
       const OPEN = state.styOpen ? new Set(state.styOpen) : DEFAULT_OPEN;
       const kids = [...box.children];
       const out = [];
