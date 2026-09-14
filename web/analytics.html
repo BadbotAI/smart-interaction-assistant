@@ -267,6 +267,17 @@ const rangeQS = () => range.start || range.end
 const rangeLabel = () => range.start || range.end
   ? `${range.start || "最早"} 至 ${range.end || "今天"}` : `近 ${range.days} 天`;
 
+// 清除筛选：常驻一个小 × 占位，没筛选时是禁用态。
+// 做成条件显示的文字按钮会让它一出现就把整行往左推。
+function clearFilterBtn(active, onClear) {
+  return el("button", {
+    class: "an-clear" + (active ? " on" : ""), type: "button",
+    ...(active ? {} : { disabled: "" }),
+    title: active ? "清除筛选，回到全部组件" : "当前没有筛选条件",
+    onclick: () => { if (active) onClear(); },
+  }, [UI.icon("close", 12)]);
+}
+
 // ---------- 模块一：整体交互情况 ----------
 const overallState = { card_id: "" };
 
@@ -283,11 +294,9 @@ function overallFilterBar() {
       onChange: (v) => { overallState.card_id = v; loadOverall(); },
     }),
   ]);
-  if (overallState.card_id) {
-    bar.appendChild(el("button", { class: "btn small ghost", type: "button", onclick: () => {
-      overallState.card_id = ""; loadOverall();
-    } }, ["清除筛选"]));
-  }
+  bar.appendChild(clearFilterBtn(!!overallState.card_id, () => {
+    overallState.card_id = ""; loadOverall();
+  }));
   return bar;
 }
 
@@ -337,6 +346,7 @@ function filterBar() {
     UI.fancySelect({ value: pickState.card_id, width: "260px", options: cardOpts,
       searchable: true, searchHint: "搜索组件名称或 ID",
       onChange: (v) => { pickState.card_id = v; loadSingle(); } }),
+    clearFilterBtn(!!pickState.card_id, () => { pickState.card_id = ""; loadSingle(); }),
   );
   return bar;
 }
@@ -384,11 +394,9 @@ function echoFilterBar() {
       searchable: true, searchHint: "搜索组件名称或 ID",
       onChange: (v) => { echoState.card_id = v; loadEcho(); } }),
   );
-  if (echoState.card_id) {
-    bar.appendChild(el("button", { class: "btn small ghost", type: "button", onclick: () => {
-      echoState.card_id = ""; loadEcho();
-    } }, ["清除筛选"]));
-  }
+  bar.appendChild(clearFilterBtn(!!echoState.card_id, () => {
+    echoState.card_id = ""; loadEcho();
+  }));
   return bar;
 }
 
