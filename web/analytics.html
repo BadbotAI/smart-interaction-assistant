@@ -21,7 +21,7 @@
   .an-grid > div > .an-card:only-child > .fn-row:first-of-type { margin-top: auto; }
   .an-grid > div > .an-card:only-child > .fn-row:last-of-type { margin-bottom: auto; }
   @media (max-width: 1100px) { .an-grid { grid-template-columns: 1fr; } }
-  .an-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; }
+  .an-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 16px 18px; margin-bottom: 14px; }
   .an-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
   .an-head .t { font-weight: 700; font-size: 15px; }
   .an-head .d { font-size: var(--font-caption); color: var(--text-muted); }
@@ -91,7 +91,10 @@
 <body>
 <div class="page">
   <div class="page-head" style="display:flex;align-items:center;gap:12px">
-    <div class="page-title">数据分析</div>
+    <div class="page-head-main">
+      <div class="page-title">数据分析</div>
+      <div class="page-desc">组件的曝光、提交与用户的选择分布。</div>
+    </div>
     <div style="flex:1"></div>
     <span id="rangeMount"></span>
   </div>
@@ -275,7 +278,7 @@ function clearFilterBtn(active, onClear) {
     ...(active ? {} : { disabled: "" }),
     title: active ? "清除筛选，回到全部组件" : "当前没有筛选条件",
     onclick: () => { if (active) onClear(); },
-  }, [UI.icon("close", 12)]);
+  }, [UI.icon("x", 12)]);
 }
 
 // ---------- 模块一：整体交互情况 ----------
@@ -322,7 +325,7 @@ async function loadOverall() {
   }
   box.appendChild(el("div", { class: "an-kpis" }, [
     kpiCard("曝光", k.rendered, "次", rangeLabel(), "组件在对话里出现的次数"),
-    kpiCard("有效响应", k.submitted, "次", "", "包括提交、赞踩和确认/取消操作"),
+    kpiCard("有效响应", k.submitted, "次", "提交 · 赞踩 · 确认", "包括提交、赞踩和确认/取消操作"),
     kpiCard("交互率", pct(k.interact_rate), "", `${o.funnel[1].value} 次有操作`, "曝光后有操作的比例"),
   ]));
   box.appendChild(trendCard(o));

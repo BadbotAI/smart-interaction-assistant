@@ -2068,6 +2068,10 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
   font-variant-numeric: tabular-nums; min-width: 76px; text-align: right; }
 .fsel-empty { padding: 14px 12px; font-size: var(--font-small); text-align: center; }
 
+/* 页头：标题 + 一句话说明，说明只讲这页能做什么 */
+.page-head-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.page-desc { font-size: var(--font-small); color: var(--text-muted); line-height: 1.5; }
+
 /* 配色分组下的一句层级说明 */
 .tok-group-note { font-size: var(--font-caption); color: var(--text-muted);
   line-height: 1.55; padding: 6px 0 2px; }
@@ -2399,7 +2403,7 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 /* ===== 工作台实例卡片 ===== */
 .wb-grid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-self: start; }
 @media (max-width: 1200px) { .wb-grid { grid-template-columns: 1fr; } }
-.wb-card { border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elevated);
+.wb-card { border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--bg-elevated);
   padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 10px;
   height: 318px;                       /* 所有卡片定高，一行里对得齐 */
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }

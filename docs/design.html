@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>风格主题 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=c1e78798">
+<link rel="stylesheet" href="./shared.css?v=f821fcba">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
@@ -49,7 +49,10 @@
 <div class="page design-page">
   <!-- 标题只出现一次：列表态是「风格主题」，编辑态换成「返回 + 主题名 + 操作」 -->
   <div class="page-head ds-head" id="brandHead">
-    <div class="page-title" id="brandHeadTitle">风格主题</div>
+    <div class="page-head-main">
+      <div class="page-title" id="brandHeadTitle">风格主题</div>
+      <div class="page-desc" id="brandHeadDesc">定义组件的视觉风格，选定后成为产品的品牌默认。</div>
+    </div>
     <span class="muted" id="brandCount" style="font-size:var(--font-caption)"></span>
     <div style="flex:1"></div>
     <span id="brandHeadActions"></span>
@@ -81,7 +84,7 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=ee526298"></script>
+<script src="./mock_data.js?v=d26b26ec"></script>
 <script src="./mock_api.js?v=9f335920"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
 <script src="./ui.js?v=1e211feb"></script>
@@ -960,6 +963,10 @@ function setHead(mode, ctx) {
     const { existing, close, doSave } = ctx;
     head.classList.add("is-edit");
     title.textContent = existing ? "编辑主题" : "新建主题";
+    const descE = document.getElementById("brandHeadDesc");
+    if (descE) descE.textContent = existing
+      ? "改动实时反映在右侧预览；保存后，绑定这套主题的产品全部跟着变。"
+      : "先选一套行业风格起步，再按需要调关键颜色与形态。";
     title.className = "page-title";        // 与列表态同一个类，字号才一致
     count.textContent = existing ? existing.brand_name : "";
     actions.innerHTML = "";
@@ -971,14 +978,22 @@ function setHead(mode, ctx) {
     );
     // 返回按钮放在标题左边，和工作台详情页一个位置
     head.querySelector(".ds-back")?.remove();
-    head.insertBefore(UI.el("button", { class: "btn small ds-back", type: "button", onclick: close }, ["返回"]), title);
+    // 标题外面包了 .page-head-main，锚点要取那一层：title 已不是 head 的直接子节点
+    const headAnchor = head.querySelector(".page-head-main") || title;
+    head.insertBefore(UI.el("button", { class: "btn small ds-back", type: "button", onclick: close }, ["返回"]), headAnchor);
   } else {
+    const descL = document.getElementById("brandHeadDesc");
+    if (descL) descL.textContent = "定义组件的视觉风格，选定后成为产品的品牌默认。";
     head.classList.remove("is-edit");
     title.textContent = "风格主题";
     title.className = "page-title";
     count.textContent = "";
     head.querySelector(".ds-back")?.remove();   // .btn 的 display 会盖掉 [hidden]，直接移除最稳
     actions.innerHTML = "";
+    actions.classList.remove("theme-ed-actions");
+    // 新建入口此前只有 ?new=1 深链，页面上找不到；与工作台、产品页对齐放在页头右上
+    actions.appendChild(UI.el("button", { class: "btn primary", type: "button",
+      onclick: () => brandDialog(null) }, ["新建主题"]));
   }
 }
 
