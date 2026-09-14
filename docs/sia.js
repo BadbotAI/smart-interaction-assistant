@@ -97,6 +97,12 @@
     const env = await fetchEnvelope(call.component_id);
     if (!env) return null;
     const p = { ...(call.params || {}) };
+    // 选择行为是平台固定契约，即使模型越过 schema 传入也不允许覆盖。
+    if (["select.single", "select.multi", "select.card"].includes(env.component_type)) {
+      delete p.multi;
+      delete p.min_select;
+      delete p.max_select;
+    }
     // 模型参数不可信：数量与长度截断兜底（schema 上限之外的输入不放大渲染面）
     if (Array.isArray(p.options)) p.options = p.options.slice(0, 8).map(x => String(x).slice(0, 60));
     if (Array.isArray(p.candidates)) p.candidates = p.candidates.slice(0, 4);

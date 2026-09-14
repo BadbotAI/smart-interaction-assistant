@@ -3,6 +3,28 @@
   const D = window.MOCK_DATA || {};
   const realFetch = window.fetch.bind(window);
   const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
+  const csv = (content) => new Response("\ufeff" + content, { status: 200, headers: {
+    "Content-Type": "text/csv;charset=utf-8", "Content-Disposition": "attachment; filename=responses.csv" } });
+
+  function formResponsesCsv(full) {
+    const q = new URLSearchParams((full || "").split("?")[1] || "");
+    const cardId = q.get("card_id") || "";
+    const detail = (D["/api/analytics/by-card"] || {})[cardId] || {};
+    const count = Number((((detail.overview || {}).kpi || {}).submitted) || 0);
+    const card = allCardsMerged().find(c => c.card_id === cardId) || {};
+    const fields = ((((card.field_bindings || {}).config || {}).fields) || []);
+    const quote = value => `"${String(value == null ? "" : value).replaceAll('"', '""')}"`;
+    const rows = [["time", "card_id", "component_type", "user_pseudonym", "selection", "modified_from_default"]];
+    for (let i = 0; i < count; i++) {
+      const values = Object.fromEntries(fields.map((field, j) => [field.key || `field_${j + 1}`, `演示数据 ${i + 1}`]));
+      rows.push([
+        new Date(Date.now() - i * 86400e3).toISOString().replace("T", " ").slice(0, 19),
+        cardId, "form.structured", `u_demo_${String(i + 1).padStart(3, "0")}`,
+        JSON.stringify(values), "",
+      ]);
+    }
+    return rows.map(row => row.map(quote).join(",")).join("\n") + "\n";
+  }
 
   // v7 会话状态机：配置智能路由模型 → benchmark 得分表（点格修正）→ 判维路由（静态站可走完整动线）
   const v7 = { router: null, overrides: {}, asof: null, keys: {} };
@@ -99,20 +121,48 @@
     }
     if (pn.startsWith("/api/analytics/")) {
       // 快照里按 30 天存了一份；换时间范围时按比例缩放，保持演示可读
-      const cid0 = new URLSearchParams((full || "").split("?")[1] || "").get("card_id");
+      const q = new URLSearchParams((full || "").split("?")[1] || "");
+      const cid0 = q.get("card_id");
       // 单组件分析要能按实例筛：快照里给每个实例各存了一份
       const byCard = (D["/api/analytics/by-card"] || {})[cid0 || ""];
       let base = D[pn] || {};
       if (byCard) {
         if (pn.endsWith("/overview") && byCard.overview) base = byCard.overview;
         if (pn.endsWith("/options") && byCard.options) base = byCard.options;
+        if (pn.endsWith("/echo") && byCard.echo) base = byCard.echo;
       }
-      const q = new URLSearchParams((full || "").split("?")[1] || "");
+      // 群体回显必须严格限定到当前产品；静态快照没有服务端过滤，需在 mock 层补齐。
+      const productId = q.get("product");
+      // 实例排行迁入单组件分析后同样必须服从当前产品和组件类型筛选，
+      // 否则会列出不可下钻的跨产品实例。
+      if (pn.endsWith("/instances") && base.rows) {
+        let rows = base.rows;
+        if (productId) {
+          const product = ((getMock("/api/products") || {}).products || [])
+            .find(p => p.product_id === productId);
+          const allowed = new Set((product || {}).card_ids || []);
+          rows = rows.filter(row => allowed.has(row.card_id));
+        }
+        const componentType = q.get("ct");
+        if (componentType) rows = rows.filter(row => row.component_type === componentType);
+        base = { ...base, rows };
+      }
+      if (productId && pn.endsWith("/options") && base.groups) {
+        const product = ((getMock("/api/products") || {}).products || [])
+          .find(p => p.product_id === productId);
+        const allowed = new Set((product || {}).card_ids || []);
+        base = { ...base, groups: base.groups.filter(g => allowed.has(g.card_id)) };
+      }
       const d = Number(q.get("days") || 30);
       if (d === 30 || !base.kpi) return base;
       const k = Math.max(0.1, Math.min(3, d / 30));
       const out = JSON.parse(JSON.stringify(base));
-      if (out.kpi) { out.kpi.rendered = Math.round(out.kpi.rendered * k); out.kpi.submitted = Math.round(out.kpi.submitted * k); }
+      if (out.kpi) {
+        out.kpi.rendered = Math.round((out.kpi.rendered || 0) * k);
+        if ("submitted" in out.kpi) out.kpi.submitted = Math.round((out.kpi.submitted || 0) * k);
+        if ("echo_triggers" in out.kpi) out.kpi.echo_triggers = Math.round((out.kpi.echo_triggers || 0) * k);
+        if ("respondents" in out.kpi) out.kpi.respondents = Math.round((out.kpi.respondents || 0) * k);
+      }
       if (out.funnel) out.funnel.forEach(f => { f.value = Math.round(f.value * k); });
       out.days = d;
       return out;
@@ -296,6 +346,37 @@
     if (pn === "/api/components/schema-preview") {
       const cat = ((D["/api/components/catalog"] || {}).catalog) || [];
       const ct = (body && body.component_type) || "";
+      const cfg = (body && body.config) || {};
+      if (ct.startsWith("select.")) {
+        const multi = Object.prototype.hasOwnProperty.call(cfg, "multi") ? !!cfg.multi : ct === "select.multi";
+        const selected = multi
+          ? { type: "array", items: { type: "string" }, minItems: Number(cfg.min_select) || 1,
+              ...(Number(cfg.max_select) > 0 ? { maxItems: Number(cfg.max_select) } : {}), description: "用户勾选的选项文本" }
+          : { type: "string", description: "用户选中的选项文本" };
+        // 列表 / 卡片选择器是独立类型，忽略历史实例里可切换的 display 值。
+        const fixed = { display: ct === "select.card" ? "card" : "list", multi };
+        if (multi) {
+          fixed.min_select = Number(cfg.min_select) || 1;
+          if (Number(cfg.max_select) > 0) fixed.max_select = Number(cfg.max_select);
+        }
+        if (cfg.content_mode === "fixed") {
+          fixed.content_mode = "fixed";
+          if (Array.isArray(cfg.options) && cfg.options.length) fixed.options = cfg.options;
+          if (cfg.option_meta && Object.keys(cfg.option_meta).length) fixed.option_meta = cfg.option_meta;
+          if (body.text_templates?.prompt) fixed.prompt = body.text_templates.prompt;
+          if (body.text_templates?.submit) fixed.submit_label = body.text_templates.submit;
+        }
+        const params = cfg.content_mode === "fixed"
+          ? { type: "object", properties: {}, required: [], description: "内容与选择行为已由平台固定，模型无需传入参数" }
+          : { type: "object", properties: {
+              prompt: { type: "string", description: "向用户提出的问题" },
+              options: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 8, description: "候选项文本，按当前对话给出" } },
+              required: ["prompt", "options"] };
+        return { params_schema: params, fixed, submit_schema: { type: "object", properties: {
+          user_selection: selected,
+          options_offered: { type: "array", items: { type: "string" }, description: "本次展示给用户的候选项" } },
+          required: ["user_selection"] } };
+      }
       const t = ct === "chart.line" || ct === "chart.bar" ? "chart" : ct.startsWith("select.") ? "select"
         : ct === "form.structured" ? "form" : ct === "control.confirm" ? "confirm"
         : ct === "feedback.binary" ? "feedback" : ct === "feedback.preference" ? "preference" : ct;
@@ -359,6 +440,7 @@
         });
       }
       prodLocal.created.push({ product_id: pid, name, brand_file: (body && body.brand_file) || "brand-tokens.default.json",
+        image: (body && body.image) || "",
         card_ids: cardIds, created_at: Date.now() / 1000,
         mcp_key: "sk-mcp-demo" + Math.random().toString(36).slice(2, 10),
         pub_key: "pk-web-demo" + Math.random().toString(36).slice(2, 8) });
@@ -787,6 +869,9 @@
     let body = null;
     if (opts.body) { try { body = JSON.parse(opts.body); } catch (e) {} }
     if (pn === "/v1/route") return Promise.resolve(sseRoute(body));
+    if (method === "GET" && pn === "/api/export/responses.csv") {
+      return Promise.resolve(csv(formResponsesCsv(u)));
+    }
     if (method === "GET") return Promise.resolve(json(getMock(pn, u)));
     const out = postMock(pn, body);
     const st = out && out.__status ? out.__status : (out && out.error ? 400 : 200);

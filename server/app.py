@@ -335,8 +335,9 @@ def _build_ask_envelope(card: dict, query: str):
     degraded = None
     params = {"prompt": templates.get("prompt") or f"请补充「{card['name']}」相关信息",
               "submit_label": templates.get("submit") or "提交",
+              "submit_feedback": templates.get("success") or ("提交成功，感谢填写" if ct == "form.structured" else ""),
               "reply_text": templates.get("reply") or "",
-              "echo_results": bool(card.get("echo_results"))}
+              "echo_results": bool(card.get("echo_results")) and ct != "form.structured"}
     if ct == "feedback.binary" and config.get("down_reasons"):
         params["down_reasons"] = config["down_reasons"]  # 踩后原因按业务改写
     if ct == "feedback.preference" and not config.get("candidates"):
@@ -346,7 +347,7 @@ def _build_ask_envelope(card: dict, query: str):
             {"alias": "方案 B", "label": "方案 B", "content": "优先控制成本：维持现有线路，预计多用 2 天。"}]
     if config.get("steps"):
         params["steps"] = config["steps"]
-    if config.get("display"):
+    if config.get("display") and not (ct == "picker.datetime" and config.get("content_mode") != "fixed"):
         params["display"] = config["display"]  # 显示样式变体
     if config.get("option_meta"):
         params["option_meta"] = config["option_meta"]  # 卡片样式的描述 / 配图
@@ -367,12 +368,17 @@ def _build_ask_envelope(card: dict, query: str):
         # 选项后续动作（每个选项可配置提交后的 prompt 与服务接口）随信封下发，前端提交时回传
         if config.get("option_actions"):
             params["option_actions"] = config["option_actions"]
-        if ct == "select.multi" and config.get("max_select"):
-            params["max_select"] = config["max_select"]
+        # 选择行为由平台配置决定；显式下发 false，防止 select.multi 类型残留为多选。
+        params["multi"] = bool(config["multi"]) if "multi" in config else ct == "select.multi"
+        for key in ("min_select", "max_select"):
+            if params["multi"] and key in config:
+                params[key] = config[key]
     elif ct == "scale.likert":
-        params["likert"] = config.get("likert") or {"left": "非常不认可", "right": "非常认可", "steps": 5}
+        params["likert"] = (config.get("likert") if config.get("content_mode") == "fixed" else None) or {
+            "levels": ["1", "2", "3", "4", "5"], "left": "非常不认可", "right": "非常认可"
+        }
     elif ct == "slider.range":
-        slider = config.get("slider") or {}
+        slider = (config.get("slider") if config.get("content_mode") == "fixed" else None) or {}
         params["min"] = slider.get("min", 0)
         params["max"] = slider.get("max", 100)
         params["unit"] = slider.get("unit", "")
@@ -398,6 +404,7 @@ def _build_ask_envelope(card: dict, query: str):
             params["recommended_default"] = config.get("recommended_default") or options[best]
     elif ct == "form.structured":
         params["fields"] = config.get("fields") or (card.get("field_bindings") or {}).get("fields") or []
+        params["description"] = config.get("form_description") or ""
     elif ct == "input.followup":
         params["placeholder"] = config.get("placeholder") or "请输入你的回答"
     elif ct == "rank.priority":
@@ -407,7 +414,9 @@ def _build_ask_envelope(card: dict, query: str):
         options, _ = get_options()
         params["options"] = options or []
         params["placeholder"] = config.get("placeholder") or ""
-    elif ct in ("picker.datetime", "picker.timerange"):
+    elif ct == "picker.datetime":
+        params["mode"] = config.get("display") if config.get("content_mode") == "fixed" else "date"
+    elif ct == "picker.timerange":
         pass  # 仅 display 变体
     elif ct in ("upload.file", "upload.image"):
         params["placeholder"] = config.get("placeholder") or ""
@@ -573,7 +582,8 @@ def card_responses(card_id: str):
         return JSONResponse({"error": "echo_disabled", "message": "该配置未开启回显"}, status_code=403)
     conn = db.get_conn()
     rows = conn.execute(
-        "SELECT payload, user_id, ts FROM events WHERE event_type='card_submitted' AND admitted=1 "
+        "SELECT event_type, card, payload, user_id, ts FROM events "
+        "WHERE event_type IN ('card_submitted','feedback_given','control_invoked') AND admitted=1 "
         "AND COALESCE(channel,'')!='test' "
         "AND json_extract(card,'$.card_id')=? ORDER BY ts DESC", (card_id,)).fetchall()
     cfg_now = ((card.get("field_bindings") or {}).get("config") or {})
@@ -582,10 +592,14 @@ def card_responses(card_id: str):
     respondents = set()
     for r in rows:
         p = db.dj(r["payload"], {})
-        respondents.add(r["user_id"])
-        sel = p.get("user_selection")
+        card_event = db.dj(r["card"], {})
+        sel = analytics._response_value({
+            "type": r["event_type"], "ct": card_event.get("component_type") or card["component_type"],
+            "payload": p,
+        })
         if sel is None:
             continue
+        respondents.add(r["user_id"])
         if isinstance(sel, list):
             for item in sel:
                 k = cards.resolve_option_alias(cfg_now, str(item))
@@ -595,7 +609,14 @@ def card_responses(card_id: str):
         else:
             k = cards.resolve_option_alias(cfg_now, str(sel))
             distribution[k] = distribution.get(k, 0) + 1
-    return {"card_id": card_id, "total_submissions": len(rows),
+    total_responses = sum(distribution.values()) if distribution else len(recent_texts)
+    # 多选会让 distribution 总和大于响应次数，因此总数以去重后的有效事件口径返回。
+    valid_responses = sum(1 for r in rows if analytics._response_value({
+        "type": r["event_type"],
+        "ct": (db.dj(r["card"], {}) or {}).get("component_type") or card["component_type"],
+        "payload": db.dj(r["payload"], {}),
+    }) is not None)
+    return {"card_id": card_id, "total_submissions": valid_responses,
             "respondents": len(respondents),
             "distribution": dict(sorted(distribution.items(), key=lambda x: -x[1])),
             "recent_texts": recent_texts}
@@ -647,10 +668,12 @@ def dashboard_questions(days: int = Query(30, ge=1, le=90)):
                 stats["rendered"] += 1
             elif et == "card_interaction_started":
                 stats["started"] += 1
-            elif et == "card_submitted":
+            elif analytics._is_response({
+                    "type": et, "ct": card["component_type"], "payload": db.dj(r["payload"], {})}):
                 stats["submitted"] += 1
                 stats["respondents"].add(r["user_id"])
-                sel = db.dj(r["payload"], {}).get("user_selection")
+                sel = analytics._response_value({
+                    "type": et, "ct": card["component_type"], "payload": db.dj(r["payload"], {})})
                 cfg_now = ((card.get("field_bindings") or {}).get("config") or {})
                 if isinstance(sel, list):
                     for item in sel:
@@ -783,6 +806,7 @@ def _product_row(r):
     pulled_hash = r["pulled_hash"] if "pulled_hash" in keys else None
     pulled_at = r["pulled_at"] if "pulled_at" in keys else None
     return {"product_id": r["product_id"], "name": r["name"], "brand_file": r["brand_file"],
+            "image": (r["image"] if "image" in keys else "") or "",
             "card_ids": db.dj(r["card_ids"], []), "created_at": r["created_at"],
             "mcp_key": _mcp_key(r["product_id"]), "pub_key": _pub_key(r["product_id"]),
             "current_hash": cur_hash, "pulled_hash": pulled_hash, "pulled_at": pulled_at,
@@ -818,7 +842,8 @@ async def components_schema_preview(request: Request):
     """编辑器的数据 schema 预览：按当前配置实时生成注册 schema（与正式注册表同源）。"""
     body = await request.json()
     stub = {"component_type": body.get("component_type") or "",
-            "field_bindings": {"config": body.get("config") or {}}}
+            "field_bindings": {"config": body.get("config") or {}},
+            "text_templates": body.get("text_templates") or {}}
     return {"params_schema": registry.params_schema_for(stub),
             "fixed": registry.fixed_config_for(stub),
             "submit_schema": registry.submit_schema_for(stub)}
@@ -908,6 +933,10 @@ async def create_product(request: Request):
     if not name or len(name) > 15:
         return JSONResponse({"error": "产品名称必填，1-15 字"}, status_code=422)
     brand_file = (body.get("brand_file") or "").strip() or "brand-tokens.default.json"
+    image = body.get("image") or ""
+    image_prefixes = ("data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,")
+    if not isinstance(image, str) or (image and (not image.startswith(image_prefixes) or len(image) > 3000000)):
+        return JSONResponse({"error": "产品图片格式不正确或文件过大"}, status_code=422)
     conn = db.get_conn()
     valid = {r["card_id"] for r in conn.execute("SELECT card_id FROM cards").fetchall()}
     card_ids = [c for c in (body.get("card_ids") or []) if isinstance(c, str) and c in valid]
@@ -917,8 +946,8 @@ async def create_product(request: Request):
     # 新产品预置全套组件模板实例（已下线）：用户从「上线需要的」开始，而不是从零配置
     if not card_ids:
         card_ids = _make_presets(conn)
-    conn.execute("INSERT INTO products (product_id, name, brand_file, card_ids, created_at) VALUES (?,?,?,?,?)",
-                 (pid, name, brand_file, db.j(card_ids), db.now_ts()))
+    conn.execute("INSERT INTO products (product_id, name, brand_file, card_ids, image, created_at) VALUES (?,?,?,?,?,?)",
+                 (pid, name, brand_file, db.j(card_ids), image, db.now_ts()))
     conn.commit()
     db.audit("demo-admin", "product_create", {"product_id": pid, "name": name, "cards": len(card_ids)})
     return {"product_id": pid, "mcp_key": _mcp_key(pid)}
@@ -937,6 +966,10 @@ async def update_product(product_id: str, request: Request):
     if conn.execute("SELECT 1 FROM products WHERE name=? AND product_id!=?", (name, product_id)).fetchone():
         return JSONResponse({"error": "已有同名产品"}, status_code=409)
     brand_file = (body.get("brand_file") or row["brand_file"]).strip()
+    image = body.get("image", row["image"] or "")
+    image_prefixes = ("data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,")
+    if not isinstance(image, str) or (image and (not image.startswith(image_prefixes) or len(image) > 3000000)):
+        return JSONResponse({"error": "产品图片格式不正确或文件过大"}, status_code=422)
     card_ids = body.get("card_ids")
     if isinstance(card_ids, list):
         valid = {r["card_id"] for r in conn.execute("SELECT card_id FROM cards").fetchall()}
@@ -950,8 +983,8 @@ async def update_product(product_id: str, request: Request):
         if _os.path.basename(str(_bf)) != str(_bf) or not str(_bf).endswith(".json") or not _os.path.exists(
                 _os.path.join(BASE, "brand", str(_bf))):
             return JSONResponse({"error": "风格主题文件不合法"}, status_code=422)
-    conn.execute("UPDATE products SET name=?, brand_file=?, card_ids=? WHERE product_id=?",
-                 (name, brand_file, card_ids, product_id))
+    conn.execute("UPDATE products SET name=?, brand_file=?, card_ids=?, image=? WHERE product_id=?",
+                 (name, brand_file, card_ids, image, product_id))
     conn.commit()
     db.audit("demo-admin", "product_update", {"product_id": product_id, "name": name})
     return {"ok": True}
@@ -997,13 +1030,24 @@ def analytics_by_type(days: int = 30, start: str = "", end: str = "", product: s
 
 @app.get("/api/analytics/options")
 def analytics_options(days: int = 30, start: str = "", end: str = "",
-                      card_id: str = "", ct: str = "", product: str = ""):
-    return analytics.options(days, 6, start or None, end or None, card_id or None, ct or None, product or None)
+                      card_id: str = "", ct: str = "", product: str = "", echo_only: bool = False,
+                      group_by_card: bool = False, limit: int = 6):
+    return analytics.options(days, min(max(limit, 1), 100), start or None, end or None,
+                             card_id or None, ct or None, product or None, echo_only, group_by_card)
+
+
+@app.get("/api/analytics/echo")
+def analytics_echo(days: int = 30, start: str = "", end: str = "",
+                   card_id: str = "", ct: str = "", product: str = ""):
+    return analytics.echo_analysis(days, start or None, end or None, card_id or None, ct or None,
+                                   product or None)
 
 
 @app.get("/api/analytics/instances")
-def analytics_instances(days: int = 30, start: str = "", end: str = "", ct: str = "", product: str = ""):
-    return analytics.instances(days, 12, start or None, end or None, ct or None, product or None)
+def analytics_instances(days: int = 30, start: str = "", end: str = "", ct: str = "", product: str = "",
+                        limit: int = 12):
+    return analytics.instances(days, min(max(limit, 1), 100), start or None, end or None,
+                               ct or None, product or None)
 
 
 @app.get("/api/analytics/filters")
@@ -1696,14 +1740,16 @@ def export_traces_csv(days: int = Query(30, ge=1, le=90), mode: str = None,
 
 
 @app.get("/api/export/responses.csv")
-def export_responses_csv(card_id: str = None, days: int = Query(30, ge=1, le=90)):
+def export_responses_csv(card_id: str = None, days: int = Query(30, ge=1, le=365),
+                         start: str = "", end: str = ""):
     import csv
     import io
     from fastapi.responses import Response
     conn = db.get_conn()
-    since = time.time() - days * 86400
-    where = "event_type='card_submitted' AND admitted=1 AND COALESCE(channel,'')!='test' AND ts>?"
-    args = [since]
+    since, until = analytics._range(days, start or None, end or None)
+    where = ("event_type='card_submitted' AND admitted=1 "
+             "AND COALESCE(channel,'')!='test' AND ts>=? AND ts<?")
+    args = [since, until]
     if card_id:
         where += " AND json_extract(card,'$.card_id')=?"
         args.append(card_id)
@@ -1720,7 +1766,10 @@ def export_responses_csv(card_id: str = None, days: int = Query(30, ge=1, le=90)
         w.writerow([time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["ts"])),
                     card.get("card_id"), card.get("component_type"), r["user_id"],
                     sel_out, p.get("modified_from_default")])
-    db.audit("demo-admin", "export_csv", {"kind": "responses", "card_id": card_id, "days": days})
+    db.audit("demo-admin", "export_csv", {
+        "kind": "responses", "card_id": card_id, "days": days,
+        "start": start or None, "end": end or None,
+    })
     return Response(content="﻿" + buf.getvalue(), media_type="text/csv",
                     headers={"Content-Disposition": "attachment; filename=responses.csv"})
 

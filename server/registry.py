@@ -36,7 +36,7 @@ V2_ALLOWED_CT = set(V2_TYPE_MAP)
 # v2.1：平台只管「组件 + 样式」，说明与内容全部参数化——描述默认用类型说明，agent 侧可自行改写。
 V2_META = {
     "select":     {"label": "选择器", "interactive": True,
-                   "desc": "需要用户在若干候选中做选择时使用（单选或多选由参数 multi 决定）；支持 2-8 个候选项，由调用参数给出。"},
+                   "desc": "需要用户在若干候选中做选择时使用；单/多选与数量限制由平台配置，动态模式下由调用参数给出 2-8 个候选项。"},
     "form":       {"label": "表单", "interactive": True,
                    "desc": "需要用户补充结构化信息时使用；字段列表由调用参数定义（key / 标签 / 是否必填）。"},
     "confirm":    {"label": "确认器", "interactive": True,
@@ -91,9 +91,17 @@ def _cfg(card: dict) -> dict:
     return ((card.get("field_bindings") or {}).get("config") or {})
 
 
+def _int_cfg(cfg: dict, key: str, default: int = 0) -> int:
+    """容错读取历史配置，避免旧草稿中的非数字值拖垮注册表或 Schema 预览。"""
+    try:
+        return int(cfg.get(key) or default)
+    except (TypeError, ValueError):
+        return default
+
+
 def params_schema_for(card: dict) -> dict:
     """模型调用该组件实例时要填的参数（JSON Schema 子集）。
-    v2.1：平台不配内容——说明与内容全部参数化，实例只携带样式。"""
+    v2.2：内容可固定或动态；选择行为始终由平台实例配置。"""
     ct = card.get("component_type") or ""
     v2 = V2_TYPE_MAP.get(ct)
     cfg = _cfg(card)
@@ -105,15 +113,14 @@ def params_schema_for(card: dict) -> dict:
         schema["description"] = "内容已由平台固定配置，模型只需选用本组件，无需传数据参数"
         return schema
     if v2 == "select":
-        props["prompt"] = S("向用户提出的问题")
         if fixed_mode:
-            # 固定组件：选项由平台定死（业务定义），模型不可覆盖
-            req.append("prompt")
+            # 固定组件：标题、选项与选择行为均由平台定义，模型只需选用组件。
+            schema["description"] = "内容与选择行为已由平台固定，模型无需传入参数"
         else:
+            props["prompt"] = S("向用户提出的问题")
             props["options"] = {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 8,
                                 "description": "候选项文本，按当前对话给出"}
             req.extend(["prompt", "options"])
-        props["multi"] = {"type": "boolean", "description": "true=多选（勾选后提交），false=单选"}
     elif v2 == "form" and fixed_mode:
         props["prompt"] = S("表单引导语")
         props["prefill"] = {"type": "object", "description": "可选：按字段 key 预填已知值"}
@@ -188,28 +195,38 @@ def params_schema_for(card: dict) -> dict:
         props["current_index"] = {"type": "integer", "description": "当前进行到第几步（0 起）"}
         req.append("steps")
     elif v2 == "slider":
-        props["prompt"] = S("向用户提出的问题")
-        props["min"] = {"type": "number", "description": "最小值"}
-        props["max"] = {"type": "number", "description": "最大值"}
-        props["step"] = {"type": "number", "description": "步长，可选，默认 1"}
-        props["unit"] = S("单位，可选（元 / 件 / 天）")
-        props["default"] = {"type": "number", "description": "初始值，可选"}
-        req.extend(["prompt", "min", "max"])
-    elif v2 == "rating":
-        props["prompt"] = S("评分引导语")
-        props["scale"] = {"type": "integer", "minimum": 2, "maximum": 11, "description": "刻度档数（5 或 10 常用）"}
-        props["low_label"] = S("低端含义，可选（如 很不满意）")
-        props["high_label"] = S("高端含义，可选（如 非常满意）")
-        req.extend(["prompt", "scale"])
-    elif v2 == "datetime":
-        props["prompt"] = S("选择引导语")
-        props["mode"] = {"type": "string", "enum": ["date", "datetime"], "description": "选日期还是日期+时间"}
-        req.append("prompt")
-    elif v2 == "rank":
-        props["prompt"] = S("排序引导语")
         if fixed_mode:
-            req.append("prompt")
+            schema["description"] = "标题、数值范围、步长、单位和初始值已由平台固定配置，模型无需传入参数"
         else:
+            props["prompt"] = S("数值选择标题")
+            props["min"] = {"type": "number", "description": "最小值"}
+            props["max"] = {"type": "number", "description": "最大值，必须大于最小值"}
+            props["step"] = {"type": "number", "exclusiveMinimum": 0, "description": "每次变化的步长"}
+            props["unit"] = S("显示单位；不需要单位时传空字符串")
+            props["default"] = {"type": "number", "description": "初始值，必须位于最小值和最大值之间"}
+            req.extend(["prompt", "min", "max", "step", "unit", "default"])
+    elif v2 == "rating":
+        if fixed_mode:
+            schema["description"] = "标题、档位和两端标签已由平台固定配置，模型无需传入参数"
+        else:
+            props["prompt"] = S("评分标题")
+            props["levels"] = {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 11,
+                               "description": "评分档位，按当前对话生成；可以是数字，也可以是文字"}
+            props["left_label"] = S("量表左端标签")
+            props["right_label"] = S("量表右端标签")
+            req.extend(["prompt", "levels", "left_label", "right_label"])
+    elif v2 == "datetime":
+        if fixed_mode:
+            schema["description"] = "标题和日期时间选择模式已由平台固定配置，模型无需传入参数"
+        else:
+            props["prompt"] = S("日期时间选择标题")
+            props["mode"] = {"type": "string", "enum": ["date", "datetime"], "description": "选择仅日期，还是日期和具体时间"}
+            req.extend(["prompt", "mode"])
+    elif v2 == "rank":
+        if fixed_mode:
+            schema["description"] = "标题和待排序项已由平台固定配置，模型无需传入参数"
+        else:
+            props["prompt"] = S("排序标题")
             props["items"] = {"type": "array", "minItems": 2, "maxItems": 8, "items": {"type": "string"},
                               "description": "待排序条目，按当前对话给出"}
             req.extend(["prompt", "items"])
@@ -243,22 +260,45 @@ def params_schema_for(card: dict) -> dict:
 
 
 def fixed_config_for(card: dict) -> dict:
-    """平台侧固定项：v2.1 内容全参数化后，只剩样式相关（选择表单的展现样式变体等）。"""
+    """平台侧固定项：展现变体、选择行为，以及固定模式下的业务内容。"""
     ct = card.get("component_type") or ""
     cfg = _cfg(card)
+    templates = card.get("text_templates") or {}
+    if isinstance(templates, str):
+        templates = db.dj(templates, {})
     v2 = V2_TYPE_MAP.get(ct)
     fixed = {}
     if v2 == "select":
-        fixed["display"] = "card" if (ct == "select.card" or cfg.get("display") == "card") else "text"
+        # 列表 / 卡片是独立组件类型，展示形式不再由实例配置或模型覆盖。
+        fixed["display"] = "card" if ct == "select.card" else "list"
+        # 单/多选及数量限制是组件实例的交互契约，不允许模型通过 params 覆盖。
+        multi = bool(cfg["multi"]) if "multi" in cfg else ct == "select.multi"
+        fixed["multi"] = multi
+        if multi:
+            fixed["min_select"] = max(1, _int_cfg(cfg, "min_select", 1))
+            if _int_cfg(cfg, "max_select") > 0:
+                fixed["max_select"] = _int_cfg(cfg, "max_select")
     if cfg.get("content_mode") == "fixed":
         # 固定组件：业务内容平台定死，随注册表下发（模型只读）
         fixed["content_mode"] = "fixed"
+        if templates.get("prompt"):
+            fixed["prompt"] = templates["prompt"]
+        if templates.get("submit"):
+            fixed["submit_label"] = templates["submit"]
         if v2 == "select" and cfg.get("options"):
             fixed["options"] = cfg.get("options")
+            if cfg.get("option_meta"):
+                fixed["option_meta"] = cfg.get("option_meta")
         if v2 == "form" and cfg.get("fields"):
             fixed["fields"] = cfg.get("fields")
         if v2 == "rank" and cfg.get("options"):
             fixed["items"] = cfg.get("options")
+        if v2 == "slider" and cfg.get("slider"):
+            fixed.update(cfg.get("slider"))
+        if v2 == "rating" and cfg.get("likert"):
+            fixed["likert"] = cfg.get("likert")
+        if v2 == "datetime":
+            fixed["mode"] = cfg.get("display") or "date"
         if cfg.get("recommended_default"):
             fixed["recommended_default"] = cfg.get("recommended_default")
         if cfg.get("present_params") and not (V2_META.get(v2) or {}).get("interactive", True):
@@ -270,7 +310,21 @@ def submit_schema_for(card: dict) -> dict:
     """交互类组件提交时回传给 agent 的数据结构；展示类无提交返回 None。"""
     v2 = V2_TYPE_MAP.get(card.get("component_type") or "")
     if v2 == "select":
-        return {"selected": "string[] 用户勾选的选项文本"}
+        cfg = _cfg(card)
+        ct = card.get("component_type") or ""
+        multi = bool(cfg["multi"]) if "multi" in cfg else ct == "select.multi"
+        selected = {"type": "array", "items": {"type": "string"},
+                    "description": "用户勾选的选项文本"} if multi else {
+                    "type": "string", "description": "用户选中的选项文本"}
+        if multi:
+            selected["minItems"] = max(1, _int_cfg(cfg, "min_select", 1))
+            if _int_cfg(cfg, "max_select") > 0:
+                selected["maxItems"] = _int_cfg(cfg, "max_select")
+        return {"type": "object", "properties": {
+                    "user_selection": selected,
+                    "options_offered": {"type": "array", "items": {"type": "string"},
+                                        "description": "本次展示给用户的候选项"}},
+                "required": ["user_selection"]}
     if v2 == "form":
         return {"values": "object 按字段 key 的填写值"}
     if v2 == "confirm":
@@ -282,7 +336,8 @@ def submit_schema_for(card: dict) -> dict:
     if v2 == "slider":
         return {"value": "number 用户选定的数值"}
     if v2 == "rating":
-        return {"score": "number 用户打出的分数"}
+        return {"user_selection": "string 用户选择的档位（数字档位也按原值回传）",
+                "options_offered": "string[] 本次展示的全部档位"}
     if v2 == "datetime":
         return {"datetime": "string 用户选择的日期时间（ISO）"}
     if v2 == "rank":
@@ -326,7 +381,7 @@ def build_registry(product: dict) -> dict:
     body_key = _h.md5(repr((product.get("brand_file"), sorted(style_map.items()),
         sorted((c["component_id"], c["name"], str(c["params_schema"]), str(c["fixed"])) for c in comps))).encode()).hexdigest()[:10]
     return {
-        "registry_version": "2.1",
+        "registry_version": "2.2",
         "generated_at": _t.strftime("%Y-%m-%dT%H:%M:%S"),
         "content_hash": body_key,
         "product_id": product.get("product_id"),

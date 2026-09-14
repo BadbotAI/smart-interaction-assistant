@@ -153,6 +153,21 @@ assert(cat.length === 20, "组件目录应为 20 类，实际 " + cat.length);
 assert(cat.filter(c => c.interactive).length === 9 && cat.filter(c => !c.interactive).length === 11, "交互 9 + 展示 11");
 r = await post("/api/components/schema-preview", { component_type: "select.single", config: {} });
 assert(r.params_schema && r.params_schema.properties && r.params_schema.properties.options, "选择表单 schema 应含 options");
+assert(r.fixed?.display === "list", "列表选择器应固定 display=list");
+assert(!r.params_schema.properties.multi, "单/多选行为由平台固定，不应暴露给模型参数");
+assert(r.submit_schema?.properties?.user_selection?.type === "string", "单选回传应为 user_selection:string");
+r = await post("/api/components/schema-preview", { component_type: "select.single", config: { display: "card" } });
+assert(r.fixed?.display === "list", "列表选择器应忽略历史卡片 display 配置");
+r = await post("/api/components/schema-preview", { component_type: "select.card", config: { display: "list" } });
+assert(r.fixed?.display === "card", "卡片选择器应固定 display=card");
+r = await post("/api/components/schema-preview", { component_type: "select.single",
+  config: { multi: true, min_select: 2, max_select: 3 } });
+assert(r.fixed?.multi === true && r.fixed?.min_select === 2 && r.fixed?.max_select === 3,
+  "多选行为与数量限制应进入 fixed 契约");
+assert(r.submit_schema?.properties?.user_selection?.type === "array"
+  && r.submit_schema.properties.user_selection.minItems === 2
+  && r.submit_schema.properties.user_selection.maxItems === 3,
+  "多选回传 schema 应反映 min/max 限制");
 evts = await sse({ text: "取消这笔订单", skip_card_match: false });
 fin = evts.find(e => e.ask_card) || {};
 assert(fin.ask_card && fin.ask_card.component_type === "control.confirm", "「取消订单」应选出操作确认: " + (fin.ask_card || {}).component_type);
@@ -163,6 +178,15 @@ evts = await sse({ text: "我的货延误了有哪些处理方式可以选", ski
 fin = evts.find(e => e.ask_card) || {};
 assert(fin.ask_card && fin.ask_card.component_type.startsWith("select.") && (fin.ask_card.params.options || []).length >= 2,
   "「处理方式」应选出选择表单并动态给选项");
+
+// 12) 群体回显：分布必须按组件实例聚合，不能把同一评分卡的各档位拆成多张卡片
+const echoOptions = await api(
+  "/api/analytics/options?days=30&product=prod-2501a13a&limit=100&group_by_card=true");
+const serviceScoreGroups = (echoOptions.groups || []).filter(g => g.card_name === "服务评分");
+assert(serviceScoreGroups.length === 1,
+  "服务评分应只对应 1 张实例卡，实际 " + serviceScoreGroups.length);
+assert(serviceScoreGroups[0]?.total === 35 && serviceScoreGroups[0]?.dist?.length === 4,
+  "服务评分应在同一卡片汇总 35 次响应和 4 个评分档位");
 
 // 8) 品牌风格 mock（曾因 mock 缺失导致「新增风格保存永远无效」——保存 / 列表 / 预览 / 删除全链路断言）
 let br = await api("/api/brands");

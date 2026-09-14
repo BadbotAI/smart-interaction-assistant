@@ -594,14 +594,15 @@ window.UI = (function () {
     return Math.max(8, Math.min(16, Math.round(base * 0.72)));
   }
 
-  function lineChart(container, { series, labels, height = 180, unit = "", grid = true, gridStyle = "solid",
+  function lineChart(container, { series, labels, width, height = 180, unit = "", grid = true, gridStyle = "solid",
     gridCount = 3, yZero = true, lastEmph = true,
     lineWidth = 2, lineStyle = "solid", smooth = false, pointShow = true, pointShape = "circle", pointSize = 3,
-    areaFill = true, areaOpacity = 0.16, axisShow = false, axisColor, valueLabels = false, lineColor }) {
+    areaFill = true, areaOpacity = 0.16, axisShow = false, axisColor, valueLabels = false, lineColor,
+    legendShow = false }) {
     container.innerHTML = "";
     const pal = Brand.chartPalette().categorical;
-    // 多系列要在右端标系列名，右边距得留够，否则文字叠在一起、还被画布裁掉
-    const w = 560, h = height, padL = 44, padR = 14, padT = 14, padB = 26;
+    // 系列名统一放到图表下方，避免末值接近时文字叠在数据点上。
+    const w = width || 560, h = height, padL = 44, padR = 14, padT = 14, padB = 26;
     // 图表里的文字跟着组件字号走：样式步调「字号」时，轴与标签要一起变
     const _fs = chartFontSize(container);
     const svg = chartFrame(w, h);
@@ -693,9 +694,21 @@ window.UI = (function () {
       // 系列名交给下方图例，右端不再标一次——末值接近时两个名字会叠在数据点上
     });
     container.appendChild(svg);
+    if (legendShow) {
+      const namedSeries = series.filter(s => String(s.name || "").trim());
+      if (namedSeries.length) {
+        container.appendChild(el("div", { class: "line-legend" }, namedSeries.map((s, si) => {
+          const color = (si === 0 && lineColor) || pal[si % pal.length];
+          return el("span", { class: "line-lg" }, [
+            el("span", { class: "line-dot", style: `background:${color}` }),
+            el("span", { class: "line-lb" }, [String(s.name)]),
+          ]);
+        })));
+      }
+    }
   }
 
-  function barChart(container, { categories, values, height = 190, unit = "", color, horizontal = false, maxValue, format, grid = true, gridStyle = "solid", valueLabels = true, barWidthPct = 0.55, barRadius = 4, axisColor }) {
+  function barChart(container, { categories, values, width, height = 190, unit = "", color, horizontal = false, maxValue, format, grid = true, gridStyle = "solid", valueLabels = true, barWidthPct = 0.55, barRadius = 4, axisColor }) {
     container.innerHTML = "";
     const _fs = chartFontSize(container);
     const barColor = color || "var(--primary)";
@@ -720,7 +733,7 @@ window.UI = (function () {
       container.appendChild(wrap);
       return;
     }
-    const w = 560, h = height, padL = 44, padR = 12, padT = 14, padB = 30;
+    const w = width || 560, h = height, padL = 44, padR = 12, padT = 14, padB = 30;
     const svg = chartFrame(w, h);
     const maxV = maxValue || Math.max(...values, 1);
     const n = categories.length;

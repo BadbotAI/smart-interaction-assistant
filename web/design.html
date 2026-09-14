@@ -8,21 +8,9 @@
 <link rel="stylesheet" href="/web/shared.css">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
-  .style-split { display: grid; grid-template-columns: 404px minmax(0, 620px); gap: 14px; align-items: start; }
+  .style-split { display: grid; grid-template-columns: minmax(440px, 48fr) minmax(0, 52fr); gap: 16px; align-items: start; }
   @media (max-width: 1000px) { .style-split { grid-template-columns: 1fr; } }
-  .brand-list { display: flex; flex-direction: column; gap: 8px; max-height: 372px; overflow-y: auto; padding-right: 2px; }
-  /* 定高约 5 张卡（每卡 ~68px + 间距），新导入的风格追加进列表后内部滚动 */
   .demo-one { max-width: none; }
-  .brand-card { position: relative; border: 1px solid var(--border); border-radius: var(--radius-control); padding: 12px 14px; cursor: pointer; background: var(--bg-elevated); }
-  .brand-card:hover { border-color: var(--primary-border); }
-  .brand-card.selected { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); background: var(--primary-weak); }
-  .brand-card .sel-ico { position: absolute; top: 9px; right: 10px; color: var(--primary); }
-  .brand-card .del-ico { color: var(--text-muted); opacity: 0; transition: opacity var(--dur-fast); }
-  .brand-card:hover .del-ico, .brand-card.selected .del-ico { opacity: 1; }
-  .brand-card .del-ico .icon-btn:hover { color: var(--danger); background: var(--danger-bg); }
-  .brand-card .bname { font-weight: 600; font-size: var(--font-base); display: flex; align-items: center; gap: 6px; }
-  .brand-card .bsub { font-size: var(--font-caption); color: var(--text-muted); margin-top: 3px; }
-  /* 导入编辑器 */
   /* 组件示例网格（与组件模板同款陈列） */
   .demo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; align-items: stretch; }
   .demo-card { display: flex; flex-direction: column; gap: 8px; height: 100%; }
@@ -63,16 +51,14 @@
     <div class="page-title" id="brandHeadTitle">风格主题</div>
     <span class="muted" id="brandCount" style="font-size:var(--font-caption)"></span>
     <div style="flex:1"></div>
-    <span id="brandHeadActions">
-      <button class="btn small primary" id="newBrandBtn" disabled>新建主题</button>
-    </span>
+    <span id="brandHeadActions"></span>
   </div>
 
   <div class="style-split">
     <div class="ds-left">
-      <div class="card" id="brandLibCard" style="flex:1;display:flex;flex-direction:column;min-height:0">
-        <div id="brandGrid" class="brand-list" style="flex:1;max-height:none"></div>
-      </div>
+      <aside class="card ds-theme-detail" id="currentThemeCard" aria-label="当前主题详细设置">
+        <div id="currentThemeDetail"></div>
+      </aside>
       <div class="card ds-editor" id="editorCard" hidden>
         <div id="styleEditor"></div>
       </div>
@@ -81,7 +67,10 @@
     <div class="card ds-preview">
       <!-- 预览固定不滚：左边表单再长，右边这块也不动 -->
       <div class="ds-preview-head">
-        <span style="font-weight:600">组件预览</span>
+        <div class="ds-preview-title">
+          <span style="font-weight:600">组件预览</span>
+          <span class="muted">配置修改会实时显示在这里</span>
+        </div>
         <div style="flex:1"></div>
         <span id="compSelMount"></span>
       </div>
@@ -225,7 +214,6 @@ function mountDemoControls() {
 
 // ---------- 导入 / 编辑风格主题：弹窗建卡片（名称 + 风格代码），创建后出现在列表，可编辑 / 删除 ----------
 function brandDialog(existing, onClose) {
-  const grid = document.getElementById("brandGrid");
   const host = document.getElementById("styleEditor");
   // 成套色盘：主色 / 浅主色(浅色模式) / 深主色底(深色模式) / 成功 / 警告 / 危险
   // ================= Figma 级 token 体系：整套预设起步 + 逐 token 细颗粒度编辑 + 明暗双模式 =================
@@ -759,27 +747,41 @@ function brandDialog(existing, onClose) {
       onChange: (v) => { opts.font = Number(v); drawFsCards(); applyPreview(); } });
     return fontSel;
   }
-  const optPanel = el("div", {}, [
-    el("div", { class: "field" }, [
+  const editorGroup = (title, desc, children, extraClass = "") => el("section", {
+    class: "theme-editor-group selector-style-section" + (extraClass ? " " + extraClass : "")
+  }, [
+    el("div", { class: "theme-editor-group-head sty-group" }, [
+      el("div", { class: "theme-editor-group-title" }, [title]),
+      el("div", { class: "muted" }, [desc]),
+    ]),
+    ...children,
+  ]);
+  const presetField = el("div", { class: "field" }, [
       el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:6px" }, [
         el("span", { class: "label-text", style: "margin:0" }, ["主题预设"]),
         el("div", { style: "flex:1" }),
         modeSeg,
       ]),
       palGrid,
-    ]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["快速配色"]), quickPanel]),
-    el("div", { class: "field" }, [
+    ]);
+  const quickField = el("div", { class: "field" }, [el("span", { class: "label-text" }, ["快速配色"]), quickPanel]);
+  const advancedField = el("div", { class: "field" }, [
       el("details", { class: "adv-colors" }, [
         el("summary", {}, ["高级配色"]),
         el("div", { style: "padding-top:10px" }, [tokenPanel]),
-      ])]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["圆角"]), radBox]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["字体"]), mountFontSel()]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字重"]), wBox]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字号"]), sizeRow]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["阴影"]), shadowSl, shadowCustom]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["紧凑度"]), densSl]),
+      ])]);
+  const optPanel = el("div", { class: "theme-editor-sections" }, [
+    editorGroup("02 颜色与模式", "选择一套预设起步，再按需调整关键颜色。", [presetField, quickField, advancedField], "theme-color-group"),
+    editorGroup("03 组件外观", "统一控制组件的形状、层次与信息密度。", [
+      el("div", { class: "field" }, [el("span", { class: "label-text" }, ["圆角"]), radBox]),
+      el("div", { class: "field" }, [el("span", { class: "label-text" }, ["阴影"]), shadowSl, shadowCustom]),
+      el("div", { class: "field" }, [el("span", { class: "label-text" }, ["紧凑度"]), densSl]),
+    ]),
+    editorGroup("04 排版", "设置组件正文的字体、字重和字号。", [
+      el("div", { class: "field" }, [el("span", { class: "label-text" }, ["字体"]), mountFontSel()]),
+      el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字重"]), wBox]),
+      el("div", { class: "field" }, [el("span", { class: "label-text" }, ["正文字号"]), sizeRow]),
+    ]),
   ]);
   // v2：风格主题只走选项定义（代码导入下线）
   const modeTabs = el("div", {});
@@ -787,7 +789,7 @@ function brandDialog(existing, onClose) {
   function close() {
     host.hidden = true; host.innerHTML = "";
     document.getElementById("editorCard").hidden = true;
-    document.getElementById("brandLibCard").hidden = false;
+    document.getElementById("currentThemeCard").hidden = false;
     window._editingStyle = false;
     setHead("list");
     document.getElementById("demoOne")?.removeAttribute("style");
@@ -818,11 +820,11 @@ function brandDialog(existing, onClose) {
         if (saved) previewFile = saved.file;
         host.hidden = true; host.innerHTML = "";
         document.getElementById("editorCard").hidden = true;
-        document.getElementById("brandLibCard").hidden = false;
+        document.getElementById("currentThemeCard").hidden = false;
         window._editingStyle = false;
         setHead("list");
         document.getElementById("demoOne")?.removeAttribute("style");
-        renderBrands(); renderDemos();
+        renderDemos(); renderCurrentThemeDetail(saved, tokens);
         UI.emit("brands-changed", { file: (saved || {}).file });
         UI.toast(existing ? "主题已更新" : "主题已创建，在「产品与接入」里配给产品即可生效");
         onClose && onClose();
@@ -840,10 +842,16 @@ function brandDialog(existing, onClose) {
 
   host.innerHTML = "";
   host.appendChild(el("div", { class: "style-ed" }, [
-    el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["主题名称"]), nameIn, nameErr]),
+    el("div", { class: "theme-editor-note" }, [
+      UI.icon("palette", 15),
+      el("span", {}, ["主题会作为产品内所有组件的默认样式"]),
+    ]),
+    editorGroup("01 主题信息", "给主题一个便于识别的名称，保存后可分配给产品。", [
+      el("label", { class: "field theme-name-field" }, [el("span", { class: "label-text req" }, ["主题名称"]), nameIn, nameErr]),
+    ], "theme-identity-group"),
     modeTabs, optPanel, err,
   ]));
-  document.getElementById("brandLibCard").hidden = true;
+  document.getElementById("currentThemeCard").hidden = true;
   document.getElementById("editorCard").hidden = false;
   host.hidden = false;
   window._editingStyle = true;
@@ -901,7 +909,7 @@ function brandDialog(existing, onClose) {
 // ---------- 风格预设 ----------
 
 
-// 页头两态：列表时是「风格主题 + 新建主题」，编辑时是「返回 + 在改哪套 + 取消/保存」
+// 页头两态：详情时只显示标题，编辑时显示「返回 + 在改哪套 + 取消/保存」
 function setHead(mode, ctx) {
   const title = document.getElementById("brandHeadTitle");
   const actions = document.getElementById("brandHeadActions");
@@ -926,78 +934,118 @@ function setHead(mode, ctx) {
     head.classList.remove("is-edit");
     title.textContent = "风格主题";
     title.className = "page-title";
-    count.textContent = brands.length + " 套";
+    count.textContent = "";
     head.querySelector(".ds-back")?.remove();   // .btn 的 display 会盖掉 [hidden]，直接移除最稳
     actions.innerHTML = "";
-    const b = UI.el("button", { class: "btn small primary", id: "newBrandBtn", type: "button" }, ["新建主题"]);
-    b.onclick = () => brandDialog(null);
-    actions.appendChild(b);
   }
 }
 
-function renderBrands() {
-  const grid = document.getElementById("brandGrid");
-  grid.innerHTML = "";
-  const cnt = document.getElementById("brandCount");
-  if (cnt && !document.getElementById("brandHead").classList.contains("is-edit")) {
-    cnt.textContent = brands.length + " 套";
-  }
-  brands.forEach(b => {
-    const users = products.filter(p => p.brand_file === b.file);
-    const isSel = b.file === previewFile;
-    const editBtn = (b.brand_id !== "default")
-      ? el("span", { class: "sel-ico del-ico", style: "right:38px" }, [UI.iconBtn("edit", "编辑此主题", (e) => {
-          e?.stopPropagation?.();
-          brandDialog(b);
-        })])
-      : null;
-    const delBtn = (b.brand_id !== "default")
-      ? el("span", { class: "sel-ico del-ico" }, [UI.iconBtn("trash", "删除此主题", async (e) => {
-          e?.stopPropagation?.();
-          const ok = await UI.confirm("删除主题", `删除「${b.brand_name || b.file}」？使用它的产品将回退到默认主题，不可恢复。`, { okText: "删除", danger: true });
-          if (!ok) return;
-          try {
-            await UI.api("/api/brands/delete", { method: "POST", body: { file: b.file } });
-            brands = (await UI.api("/api/brands")).brands;
-            renderBrands(); UI.emit("brands-changed"); UI.toast("已删除");
-          } catch (err) { UI.toast(err.data?.error || err.message, true); }
-        })])
-      : null;
-    const cardEl = el("div", {
-      class: "brand-card" + (isSel ? " selected" : ""), role: "radio", "aria-checked": isSel ? "true" : "false", tabindex: "0",
-      onclick: () => previewBrand(b),
-      onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); previewBrand(b); } },
-    }, [
-      editBtn, delBtn,
-      el("div", { class: "bname" }, [b.brand_name || b.file,
-        users.length ? el("span", { class: "chip blue", title: "使用中的产品：" + users.map(p => p.name).join("、") }, [`${users.length} 个产品使用`]) : null]),
-      el("div", { class: "bsub" }, [b.brand_id === "default" ? "平台默认主题" : "自定义主题"]),
-    ]);
-    if (delBtn) delBtn.onclick = (e) => e.stopPropagation();
-    if (editBtn) editBtn.onclick = (e) => e.stopPropagation();
-    grid.appendChild(cardEl);
-  });
+const THEME_FONT_NAMES = ["苹方", "冬青黑体", "宋体", "楷体", "圆体", "Menlo 等宽"];
+const THEME_WEIGHT_NAMES = ["细", "常规", "中等", "半粗", "加粗"];
+const THEME_SHADOW_NAMES = ["无阴影", "轻阴影", "中阴影", "重阴影"];
+const THEME_DENSITY_NAMES = ["极紧凑", "紧凑", "标准", "宽松", "极宽松"];
+
+function themeSettingRow(label, value, sample) {
+  return el("div", { class: "theme-detail-row" }, [
+    el("span", { class: "theme-detail-label" }, [label]),
+    el("span", { class: "theme-detail-value" }, [sample || null, value]),
+  ]);
 }
 
-function usedByCount(file) { return (products || []).filter(p => p.brand_file === file).length; }
+function themePaletteBlock(label, colors) {
+  const entries = [
+    ["主色", colors.primary], ["强调", colors.accent], ["页面", colors.bg_page],
+    ["卡片", colors.bg_elevated || colors.bg_surface], ["文字", colors.text_primary], ["边框", colors.border],
+  ];
+  return el("div", { class: "theme-palette-block" }, [
+    el("div", { class: "theme-palette-label" }, [label]),
+    el("div", { class: "theme-palette-strip" }, entries.map(([name, color]) =>
+      el("span", { class: "theme-palette-swatch", title: `${name} ${color || "未设置"}`,
+        style: `background:${color || "transparent"}` }))),
+  ]);
+}
 
-async function previewBrand(b) {
+function renderCurrentThemeDetail(brand, tokens) {
+  const host = document.getElementById("currentThemeDetail");
+  if (!host) return;
+  brand = brand || brands.find(b => b.file === previewFile) || brands[0];
+  if (!brand || !tokens) {
+    host.innerHTML = "";
+    host.appendChild(el("div", { class: "muted", style: "font-size:var(--font-small)" }, ["暂无主题设置"]));
+    return;
+  }
+  const light = tokens.color || {};
+  const dark = tokens.color_dark || {};
+  const options = tokens._options || {};
+  const radius = tokens.radius || {};
+  const font = tokens.font || {};
+  const users = products.filter(p => p.brand_file === brand.file);
+  const densityFallback = { compact: "紧凑", regular: "标准", loose: "宽松" }[tokens.density] || "标准";
+  const densityIndex = options.density_scale === "v2" ? options.density : ({ 0: 1, 1: 2, 2: 3 }[options.density]);
+  const density = densityIndex != null ? (THEME_DENSITY_NAMES[densityIndex] || densityFallback) : densityFallback;
+  const fontName = options.font != null ? (THEME_FONT_NAMES[options.font] || "系统字体")
+    : (/Songti|SimSun|STSong/.test(font.family || "") ? "宋体" : /Menlo|monospace/.test(font.family || "") ? "Menlo 等宽" : "系统字体");
+  const fontSize = `${options.size_px || parseInt(font.size_base, 10) || 14}px`;
+  const weight = options.weight != null ? (THEME_WEIGHT_NAMES[options.weight] || "常规") : "常规";
+  const shadow = options.shadow_custom ? "自定义阴影"
+    : (options.shadow != null ? (THEME_SHADOW_NAMES[options.shadow] || "轻阴影") : (tokens.shadow ? "轻阴影" : "无阴影"));
+  const canEdit = brand.brand_id !== "default";
+  host.innerHTML = "";
+  host.appendChild(el("div", { class: "theme-detail-head" }, [
+    el("div", { class: "theme-detail-heading" }, [
+      el("span", { class: "ds-side-section-title" }, ["当前主题"]),
+      el("strong", {}, [brand.brand_name || brand.file]),
+      el("span", { class: "muted" }, [brand.brand_id === "default" ? "平台默认主题" : "自定义主题"]),
+    ]),
+    canEdit ? el("button", {
+      class: "btn small theme-detail-edit", type: "button", title: "编辑当前主题",
+      onclick: () => brandDialog(brand),
+    }, ["编辑主题"]) : null,
+  ]));
+  if (users.length) host.appendChild(el("div", { class: "theme-detail-usage", title: users.map(p => p.name).join("、") }, [
+    UI.icon("box", 13), el("span", {}, [`已用于 ${users.length} 个产品`]),
+  ]));
+  host.append(
+    el("section", { class: "theme-detail-section" }, [
+      el("div", { class: "theme-detail-section-title" }, ["颜色模式"]),
+      themePaletteBlock("浅色", light),
+      themePaletteBlock("深色", Object.keys(dark).length ? dark : light),
+    ]),
+    el("section", { class: "theme-detail-section" }, [
+      el("div", { class: "theme-detail-section-title" }, ["组件外观"]),
+      themeSettingRow("卡片圆角", radius.card || `${options.radius ?? 16}px`, el("i", { class: "theme-radius-sample", style: `border-radius:${radius.card || `${options.radius ?? 16}px`}` })),
+      themeSettingRow("控件圆角", radius.control || `${Math.max(4, Math.round((options.radius ?? 16) * .6))}px`),
+      themeSettingRow("阴影", shadow),
+      themeSettingRow("信息密度", density),
+    ]),
+    el("section", { class: "theme-detail-section" }, [
+      el("div", { class: "theme-detail-section-title" }, ["排版"]),
+      themeSettingRow("字体", fontName),
+      themeSettingRow("正文字号", fontSize),
+      themeSettingRow("正文字重", weight),
+    ]),
+  );
+}
+
+async function refreshCurrentThemeDetail() {
+  const brand = brands.find(b => b.file === previewFile) || brands[0];
+  if (!brand) return renderCurrentThemeDetail();
   try {
-    const tokens = await (await fetch("/brand/" + b.file)).json();
-    Brand.apply(tokens);
-    previewFile = b.file;
-    renderBrands(); renderDemos();
-  } catch (e) { UI.toast("加载风格失败：" + e.message, true); }
+    const tokens = await (await fetch("/brand/" + brand.file)).json();
+    renderCurrentThemeDetail(brand, tokens);
+  } catch (e) { renderCurrentThemeDetail(brand, Brand.get()); }
 }
-
 
 // 初始化
 (async function init() {
   await new Promise(r => { const t = setInterval(() => { if (Brand.get()) { clearInterval(t); r(); } }, 60); setTimeout(() => { clearInterval(t); r(); }, 2500); });
   try { brands = (await UI.api("/api/brands")).brands; } catch (e) { brands = []; }
   try { products = (await UI.api("/api/products")).products || []; } catch (e) { products = []; }
-  renderBrands();
-  setHead("list");          // 页头由 setHead 统一渲染，含「新建主题」
+  const activeTokens = Brand.get();
+  const activeBrand = brands.find(b => b.brand_id === activeTokens?.brand_id);
+  if (activeBrand) previewFile = activeBrand.file;
+  refreshCurrentThemeDetail();
+  setHead("list");          // 页头由 setHead 统一渲染
   mountDemoControls();
   renderDemos();
   // 走查深链：?new=1 直接打开风格编辑器

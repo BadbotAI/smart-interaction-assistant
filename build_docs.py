@@ -22,14 +22,15 @@ ROUTER_PAGES = ["home-router.html", "router.html", "playground.html", "dashboard
 
 
 def snapshot():
-    base = "http://127.0.0.1:8787"
+    base = os.environ.get("SNAPSHOT_BASE", "http://127.0.0.1:8787").rstrip("/")
     keys = ["/api/apikeys", "/api/products", "/api/audit?limit=100", "/api/brands", "/api/brands/active", "/api/cards",
             "/api/dashboard/insights?days=30", "/api/dashboard/overview?days=30",
             "/api/dashboard/questions?days=30", "/api/profile",
             "/api/templates", "/api/benchmark", "/api/settings/router-model",
             "/api/components/catalog",
             "/api/analytics/overview?days=30", "/api/analytics/by-type?days=30",
-            "/api/analytics/options?days=30", "/api/analytics/instances?days=30",
+            "/api/analytics/echo?days=30",
+            "/api/analytics/options?days=30&limit=100&group_by_card=true", "/api/analytics/instances?days=30",
             "/api/analytics/filters",
             "/api/traces?limit=30", "/v1/models", "/v1/policies"]
 
@@ -49,7 +50,8 @@ def snapshot():
         try:
             by_card[cid] = {
                 "overview": get(f"/api/analytics/overview?days=30&card_id={cid}"),
-                "options": get(f"/api/analytics/options?days=30&card_id={cid}"),
+                "options": get(f"/api/analytics/options?days=30&card_id={cid}&group_by_card=true"),
+                "echo": get(f"/api/analytics/echo?days=30&card_id={cid}"),
             }
         except Exception:
             pass

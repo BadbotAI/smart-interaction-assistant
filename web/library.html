@@ -205,9 +205,10 @@ async function boot() {
     ? [["all", "全部"], ["chart", "图表", ["trend", "bar", "pie", "waterfall", "metric"]],
        ["tbl", "表格", ["table", "compare"]], ["flow", "流程", ["timeline", "steps"]],
        ["text", "文本", ["list", "highlight"]]]
-    : [["all", "全部"], ["sel", "选择", ["select", "preference", "rank"]],
-       ["form", "表单", ["form", "datetime", "slider", "rating"]],
-       ["cfm", "确认", ["confirm"]], ["fb", "反馈", ["feedback"]]];
+    : [["all", "全部"], ["sel", "选择", ["select", "preference"]],
+       ["rank", "排序", ["rank"]], ["form", "表单", ["form"]],
+       ["number", "数值", ["slider"]], ["rating", "评价", ["rating", "feedback"]],
+       ["datetime", "日期时间", ["datetime"]], ["cfm", "确认", ["confirm"]]];
   if (!window.__libCat || !CATS.some(c => c[0] === window.__libCat)) window.__libCat = "all";
   const pool = libTab === "present" ? present : interact;
   const catNav = el("div", { class: "lib-cats" }, CATS.map(([k, nm, types]) => {

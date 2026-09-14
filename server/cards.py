@@ -73,14 +73,21 @@ def validate_card(payload: dict, strict: bool = False) -> list:
                  "halo", "best.highlight", "sum.show", "legend.show", "legend.pct", "quick.show", "handle.show",
                  "caption.show", "tone.color", "opt.border", "icon.show", "total.show",
                  "y.zero", "last.emph", "bar.horizontal", "pie.sort", "delta.invert", "stepnum.show", "radio.show",
-                 "arrows.show", "now.emph", "connector.show"}
+                 "arrows.show", "now.emph", "connector.show", "panel.border", "btn.icon.show"}
     SPEC_NUM = {"line.width": (1, 4), "point.size": (2, 6), "area.opacity": (4, 40), "bar.width": (20, 75),
                 "bar.radius": (0, 8), "pie.height": (10, 28), "value.size": (22, 40), "hl.size": (16, 30),
                 "node.size": (20, 32), "stepline.width": (1, 4), "list.gap": (4, 16), "opt.gap": (4, 16),
                 "card.gap": (4, 16), "track.height": (4, 10), "thumb.size": (14, 22), "dot.size": (24, 36),
                 "dot.gap": (4, 14), "grid.count": (2, 5), "donut.thickness": (12, 28),
                 "tbl.font": (11, 14), "steplabel.size": (10, 13), "opt.radius": (0, 16),
-                "caption.size": (11, 18)}
+                "caption.size": (11, 18),
+                "container.width": (280, 640), "module.gap": (6, 20),
+                "title.size": (12, 20), "desc.size": (10, 16),
+                "option.name.size": (11, 18), "option.desc.size": (10, 16),
+                "opt.padding.x": (8, 24), "radio.size": (14, 24),
+                "state.disabled.opacity": (30, 100), "tag.radius": (0, 24), "tag.gap": (0, 16),
+                "btn.height": (28, 52), "btn.padding.x": (10, 28), "btn.text.size": (11, 18),
+                "btn.radius": (0, 26), "btn.disabled.opacity": (30, 100)}
     SPEC_ENUM = {"sel_style": ("fill", "outline"), "line.style": ("solid", "dashed", "dotted"),
                  "grid.style": ("solid", "dashed"), "point.shape": ("circle", "square", "diamond"),
                  "pie.style": ("bar", "donut"), "row.divider": ("line", "none", "all"),
@@ -93,12 +100,20 @@ def validate_card(payload: dict, strict: bool = False) -> list:
                  "steps.dir": ("horizontal", "vertical"), "ts.format": ("time", "datetime", "date", "relative"),
                  "delta.good": ("higher", "lower", "neutral"), "pick.submit": ("button", "auto"),
                  "hl.weight": ("500", "400"), "caption.weight": ("500", "600"),
-                 "text.weight": ("500", "600"), "title.align": ("center", "right"), "legend.align": ("center", "flex-end")}
+                 "text.weight": ("500", "600"), "title.align": ("center", "right"), "legend.align": ("center", "flex-end"),
+                 "layout.direction": ("horizontal",), "layout.align": ("center", "stretch"),
+                 "density": ("compact", "regular", "loose"), "options.layout": ("grid", "inline"),
+                 "opt.content.align": ("center",), "title.weight": ("400", "500", "700"),
+                 "option.name.weight": ("500", "600"), "tag.style": ("solid", "outline"),
+                 "btn.text.weight": ("400", "500", "700"), "btn.icon.position": ("right",)}
     SPEC_COLOR = {"color.primary", "color.accent", "panel.bg", "line.color", "axis.color", "bar.color",
                   "hl.color", "caption.color", "text.color",
                   "done.color", "marker.color", "header.bg", "dot.color", "input.bg", "tlline.color", "icon.color",
                   "wf.pos", "wf.neg", "total.color",
-                  "panel.bc", "opt.bg", "opt.bc", "btn.bg", "btn.bc", "btn.fg"}
+                  "panel.bc", "opt.bg", "opt.bc", "btn.bg", "btn.bc", "btn.fg",
+                  "title.color", "desc.color", "option.name.color", "option.desc.color", "radio.color",
+                  "state.hover.bg", "state.hover.bc", "state.selected.bg", "state.selected.bc",
+                  "tag.text", "tag.bg", "btn.hover.bg", "btn.submitted.bg"}
     allowed_tokens = ({"height", "radius", "spacing", "shadow", "font_scale",
                       # 旧 token 兼容读取（编辑器已不再写入）
                       "radius.card", "radius.control", "font.size_base", "spacing.card_padding", "density"}
@@ -159,9 +174,27 @@ def validate_card_content(payload: dict) -> list:
         # v2：选项留空 = 模型按对话动态填充（合法）；预置了选项则至少 2 个
         if options and len(options) < 2:
             errors.append({"field": "options", "message": "预置选项至少 2 个；留空表示由模型动态给出"})
+        if ct in ("select.single", "select.multi", "select.card"):
+            multi = bool(config["multi"]) if "multi" in config else ct == "select.multi"
+            if multi:
+                try:
+                    min_select = int(config.get("min_select") or 1)
+                    max_select = int(config.get("max_select") or 0)
+                    if not 1 <= min_select <= 8:
+                        errors.append({"field": "min_select", "message": "最少选择数须在 1-8 之间"})
+                    if not 0 <= max_select <= 8:
+                        errors.append({"field": "max_select", "message": "最多选择数须在 1-8 之间，0 表示不限"})
+                    if max_select and min_select > max_select:
+                        errors.append({"field": "max_select", "message": "最多选择数不能小于最少选择数"})
+                    if options and max_select > len(options):
+                        errors.append({"field": "max_select", "message": "最多选择数不能超过选项数"})
+                except (TypeError, ValueError):
+                    errors.append({"field": "min_select", "message": "选择数量必须是整数"})
     elif ct == "rank.priority":
-        # v2：条目留空 = 模型按对话动态给出（合法）；预置了则至少 2 个
-        if options and len(options) < 2:
+        # AI 模式由模型给出条目；固定模式必须由平台配置完整。
+        if config.get("content_mode") == "fixed" and len(options) < 2:
+            errors.append({"field": "options", "message": "固定待排序项至少 2 个"})
+        elif options and len(options) < 2:
             errors.append({"field": "options", "message": "预置条目至少 2 个；留空表示由模型动态给出"})
     if ct == "commerce.order" and len(options) < 1:
         errors.append({"field": "options", "message": "至少 1 个商品"})
@@ -176,18 +209,37 @@ def validate_card_content(payload: dict) -> list:
     if ct == "slider.range":
         sl = config.get("slider") or {}
         try:
-            if not (float(sl.get("min", 0)) < float(sl.get("max", 100))):
+            minimum, maximum = float(sl.get("min", 0)), float(sl.get("max", 100))
+            step = float(sl.get("step", 1))
+            if not minimum < maximum:
                 errors.append({"field": "slider_max", "message": "最大值必须大于最小值"})
+            if step <= 0:
+                errors.append({"field": "slider_step", "message": "步长必须大于 0"})
+            if sl.get("default") is not None and not minimum <= float(sl["default"]) <= maximum:
+                errors.append({"field": "slider_default", "message": "初始值必须位于数值范围内"})
         except (TypeError, ValueError):
-            errors.append({"field": "slider_max", "message": "滑杆区间必须是数字"})
+            errors.append({"field": "slider_max", "message": "滑杆范围、步长和初始值必须是数字"})
     if ct == "scale.likert":
         lk = config.get("likert") or {}
-        try:
-            f, t = int(lk.get("from", 1)), int(lk.get("to", 5))
-            if not (t > f and 2 <= (t - f + 1) <= 11):
-                errors.append({"field": "likert", "message": "刻度档位需在 2-11 档之间"})
-        except (TypeError, ValueError):
-            errors.append({"field": "likert", "message": "刻度必须是整数"})
+        if isinstance(lk.get("levels"), list):
+            levels = [str(v).strip() for v in lk["levels"]]
+            if any(not v for v in levels):
+                errors.append({"field": "likert", "message": "每个档位都需要填写内容"})
+            elif not 2 <= len(levels) <= 11:
+                errors.append({"field": "likert", "message": "评分档位需在 2-11 项之间"})
+            elif len(set(levels)) != len(levels):
+                errors.append({"field": "likert", "message": "评分档位不能重复"})
+        else:
+            # 兼容已有的数字区间配置。
+            try:
+                f, t = int(lk.get("from", 1)), int(lk.get("to", 5))
+                if not (t > f and 2 <= (t - f + 1) <= 11):
+                    errors.append({"field": "likert", "message": "刻度档位需在 2-11 档之间"})
+            except (TypeError, ValueError):
+                errors.append({"field": "likert", "message": "刻度必须是整数"})
+    if ct == "picker.datetime" and config.get("content_mode") == "fixed":
+        if config.get("display", "date") not in ("date", "datetime"):
+            errors.append({"field": "display", "message": "日期时间选择模式必须为仅日期或日期 + 时间"})
     if ct == "form.structured":
         import re as _re
         fields = [f for f in (config.get("fields") or []) if (f.get("key") or f.get("label"))]
@@ -201,6 +253,12 @@ def validate_card_content(payload: dict) -> list:
                 errors.append({"field": "fields", "message": "字段标识只能用英文、数字、下划线，且不能以数字开头"})
             elif len(set(keys)) != len(keys):
                 errors.append({"field": "fields", "message": "字段标识重复"})
+            allowed_types = {"text", "number", "select", "date", "radio", "checkbox"}
+            if any((f.get("type") or "text") not in allowed_types for f in fields):
+                errors.append({"field": "fields", "message": "字段类型不支持"})
+            elif any((f.get("type") in {"select", "radio", "checkbox"})
+                     and len([o for o in (f.get("options") or []) if str(o).strip()]) < 2 for f in fields):
+                errors.append({"field": "fields", "message": "下拉、单选、多选字段至少需要 2 个选项"})
     import re as _re2
     wh = (config.get("webhook") or "").strip()
     if wh and not _re2.fullmatch(r"https://\S+", wh):
@@ -230,7 +288,7 @@ def row_to_card(row) -> dict:
     for f in JSON_FIELDS:
         card[f] = db.dj(card.get(f))
     card["model_invokable"] = bool(card["model_invokable"])
-    card["echo_results"] = bool(card.get("echo_results"))
+    card["echo_results"] = bool(card.get("echo_results")) and card.get("component_type") != "form.structured"
     return card
 
 
@@ -642,32 +700,35 @@ def resolve_options(card: dict, query: str):
 
 TEMPLATE_LIBRARY = [
     # 选择类
-    {"component_type": "select.single", "name": "文本选择器", "desc": "文本选项中做选择；配置里可切换单选 / 多选，样式可选列表 / 胶囊 / 输入框浮现",
+    {"component_type": "select.single", "name": "列表选择器", "desc": "以纵向文本列表展示选项；配置里可切换单选 / 多选",
      "keywords": ["选择", "哪个", "选一个", "单选", "多选", "哪些", "倾向", "勾选"],
-     "default_config": {"options": ["方案 A · 时效优先", "方案 B · 成本优先"], "recommended_default": "方案 A · 时效优先"}},
+     "default_config": {"options": ["方案 A · 时效优先", "方案 B · 成本优先"], "recommended_default": "方案 A · 时效优先", "display": "list"}},
     {"component_type": "select.card", "name": "卡片选择器", "desc": "带图片、标题与文案的卡片式选择，适合方案 / 套餐类",
      "keywords": ["方案", "套餐", "版本", "对比图"],
-     "default_config": {"options": ["海运直达", "海铁联运"], "option_meta": {"海运直达": {"desc": "35 天 · 成本低，适合不赶时间"}, "海铁联运": {"desc": "26 天 · 快 9 天，成本略高"}}}},
-    {"component_type": "rank.priority", "name": "优先级排序器", "desc": "把候选项按重要程度排出先后",
-     "keywords": ["排序", "优先级", "先后", "重要", "顺序"],
-     "default_config": {"options": ["时效最快", "成本最低", "风险最小"]}},
+     "default_config": {"options": ["海运直达", "海铁联运"], "display": "card", "option_meta": {"海运直达": {"desc": "35 天 · 成本低，适合不赶时间"}, "海铁联运": {"desc": "26 天 · 快 9 天，成本略高"}}}},
     {"component_type": "matrix.compare+select", "name": "对比选择器", "desc": "多个候选按几项指标对比后选定一项",
      "keywords": ["对比", "比选", "权衡", "比较", "优劣"],
      "default_config": {"options": ["中远供应链", "环球捷运"], "dimensions": ["价格", "时效", "合规"]}},
+    # 排序类
+    {"component_type": "rank.priority", "name": "优先级排序器", "desc": "把候选项按重要程度排出先后",
+     "keywords": ["排序", "优先级", "先后", "重要", "顺序"],
+     "default_config": {"options": ["时效最快", "成本最低", "风险最小"]}},
     # 评价类
-    {"component_type": "scale.likert", "name": "评分器", "desc": "在刻度上打分；刻度可选 1-5 / 0-5 / 0-3 / 1-10 / 0-10 / -2~+2",
+    {"component_type": "scale.likert", "name": "评分器", "desc": "在量表上评价；档位支持数字或文字，并可设置左右两端标签",
      "keywords": ["满意", "同意", "程度", "评分", "打分", "认可", "NPS"],
      "default_config": {"likert": {"left": "非常不满意", "right": "非常满意", "from": 1, "to": 5}}},
     # 填写类
     {"component_type": "form.structured", "name": "表单收集工具", "desc": "表单式一次收集多个结构化字段",
      "keywords": ["填写", "登记", "信息", "表单", "资料"],
      "default_config": {"fields": [{"key": "order_no", "label": "订单号", "type": "text", "required": True}, {"key": "phone", "label": "联系电话", "type": "text", "required": True}]}},
-    {"component_type": "slider.range", "name": "数值选择器", "desc": "在区间内取一个数；样式可选滑杆 / 步进器 / 直接填写",
-     "keywords": ["多少", "数值", "比例", "预算", "百分比", "金额"],
-     "default_config": {"slider": {"min": 0, "max": 100, "unit": ""}}},
     {"component_type": "input.followup", "name": "备注填写器", "desc": "单条自由文本，适合备注类场景（如送货备注）",
      "keywords": ["备注", "留言", "要求", "说明", "补充说明"],
      "default_config": {"placeholder": "例如：周五前送到，放前台即可"}},
+    # 数值类
+    {"component_type": "slider.range", "name": "数值选择器", "desc": "在区间内取一个数；样式可选滑杆 / 步进器 / 直接填写",
+     "keywords": ["多少", "数值", "比例", "预算", "百分比", "金额"],
+     "default_config": {"slider": {"min": 0, "max": 100, "unit": ""}}},
+    # 日期时间类
     {"component_type": "picker.datetime", "name": "日期选择器", "desc": "选择日期或日期+时间",
      "keywords": ["日期", "哪天", "预约", "什么时候"],
      "default_config": {}},

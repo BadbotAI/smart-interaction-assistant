@@ -755,6 +755,272 @@ def seed_instance_events_v28():
     db.audit("system", "seed_instance_events_v28", {"rows": made})
 
 
+def seed_group_distribution_v30():
+    """为群体回显补齐多种交互组件的有效回答，确保演示页不只剩评分和滑杆。"""
+    conn = db.get_conn()
+    action = "seed_group_distribution_v30"
+    if conn.execute("SELECT 1 FROM audit_log WHERE action=? LIMIT 1", (action,)).fetchone():
+        return 0
+    specs = {
+        "通用选择": {
+            "event": "card_submitted", "field": "user_selection",
+            "options": ["加急催办", "改约送达", "申请赔付", "转人工客服"],
+            "values": ["加急催办"] * 14 + ["改约送达"] * 9 + ["申请赔付"] * 7 + ["转人工客服"] * 4,
+        },
+        "多项勾选": {
+            "event": "card_submitted", "field": "user_selection",
+            "options": ["短信通知", "电话回访", "进度提醒", "电子回单"],
+            "values": (["短信通知", "进度提醒"],) * 9 + (["短信通知"],) * 7
+                      + (["电话回访", "电子回单"],) * 6 + (["电子回单"],) * 5,
+        },
+        "高风险确认": {
+            "event": "control_invoked", "field": "action", "options": ["确认", "取消"],
+            "values": ["confirm"] * 21 + ["cancel"] * 7,
+        },
+        "方案择优": {
+            "event": "feedback_given", "field": "selected_model_id",
+            "options": ["时效优先方案", "成本优先方案", "均衡方案"],
+            "values": ["均衡方案"] * 13 + ["时效优先方案"] * 10 + ["成本优先方案"] * 7,
+        },
+        "送达时间选择": {
+            "event": "card_submitted", "field": "user_selection",
+            "options": ["今天 18:00 前", "明天上午", "明天下午", "后天全天"],
+            "values": ["明天上午"] * 10 + ["明天下午"] * 7 + ["今天 18:00 前"] * 5 + ["后天全天"] * 4,
+        },
+        "诉求优先级": {
+            "event": "card_submitted", "field": "user_selection",
+            "options": ["时效 > 安全 > 成本", "安全 > 时效 > 成本", "成本 > 时效 > 安全"],
+            "values": ["时效 > 安全 > 成本"] * 11 + ["安全 > 时效 > 成本"] * 8 + ["成本 > 时效 > 安全"] * 5,
+        },
+    }
+    rng = random.Random(20260913)
+    now = db.now_ts()
+    made = 0
+    for name, spec in specs.items():
+        row = conn.execute(
+            "SELECT card_id, version, component_type, semantic_category FROM cards "
+            "WHERE name=? AND status IN ('published','offline') ORDER BY created_at LIMIT 1", (name,)
+        ).fetchone()
+        if not row:
+            continue
+        for i, value in enumerate(spec["values"]):
+            payload = {spec["field"]: value, "options_offered": spec["options"]}
+            if spec["event"] == "card_submitted" and spec["field"] == "user_selection":
+                payload["recommended_default"] = spec["options"][0]
+                payload["modified_from_default"] = value != spec["options"][0]
+            ts = now - rng.randint(0, 29) * 86400 - rng.randint(0, 82800)
+            conn.execute(
+                """INSERT INTO events (event_id, trace_id, tenant_id, session_id, turn_id, user_id, ts,
+                   event_type, card, route_context, payload, group_info, label_hint, schema_version,
+                   admitted, reject_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NULL,'1.0.0',1,NULL)""",
+                (db.new_id(), db.new_id(), TENANT, f"sess-dist-{row['card_id'][:6]}-{i}", db.new_id(),
+                 f"u-dist-{rng.randint(1000, 9999)}", ts, spec["event"],
+                 db.j({"card_id": row["card_id"], "card_version": row["version"],
+                       "component_type": row["component_type"],
+                       "semantic_category": row["semantic_category"] or "", "trigger_source": "model"}),
+                 db.j({}), db.j(payload), db.j(None)))
+            made += 1
+    conn.commit()
+    db.audit("system", action, {"rows": made, "instances": len(specs)})
+    return made
+
+
+def seed_form_submissions_v31():
+    """把旧种子里的空表单提交补成可统计的结构化演示数据。
+
+    v28 已按真实漏斗生成表单提交事件，但当时没有写 user_selection，分析层会把
+    这些记录视为无效响应。这里只修复已有空提交，不额外增加提交量，避免漏斗失真。
+    """
+    conn = db.get_conn()
+    action = "seed_form_submissions_v31"
+    if conn.execute("SELECT 1 FROM audit_log WHERE action=? LIMIT 1", (action,)).fetchone():
+        return 0
+
+    rows = conn.execute(
+        """SELECT e.event_id, e.payload, c.card_id, c.field_bindings
+           FROM events e
+           JOIN cards c ON c.card_id=json_extract(e.card,'$.card_id')
+           WHERE e.event_type='card_submitted' AND e.admitted=1
+             AND c.component_type='form.structured'
+           ORDER BY e.ts, e.event_id"""
+    ).fetchall()
+    samples = {
+        "contact_name": lambda i: f"示例用户{i % 12 + 1:02d}",
+        "contact_phone": lambda i: f"138****{1000 + i % 9000:04d}",
+        "name": lambda i: f"示例用户{i % 12 + 1:02d}",
+        "phone": lambda i: f"138****{1000 + i % 9000:04d}",
+        "email": lambda i: f"demo{i % 20 + 1:02d}@example.com",
+        "company": lambda i: ["海川供应链", "远航物流", "华辰贸易"][i % 3],
+        "remark": lambda i: ["请工作日联系", "希望尽快处理", "无需电话回访"][i % 3],
+    }
+    updated, card_ids = 0, set()
+    for i, row in enumerate(rows):
+        payload = db.dj(row["payload"], {}) or {}
+        if payload.get("user_selection") is not None:
+            continue
+        config = (db.dj(row["field_bindings"], {}) or {}).get("config") or {}
+        fields = config.get("fields") or []
+        values = {}
+        for j, field in enumerate(fields):
+            key = str(field.get("key") or f"field_{j + 1}")
+            make = samples.get(key.lower())
+            if make:
+                value = make(i)
+            elif field.get("type") == "number":
+                value = 10 + i % 90
+            elif field.get("type") in ("date", "datetime"):
+                value = f"2026-09-{i % 28 + 1:02d}"
+            else:
+                value = f"演示内容 {i % 20 + 1}"
+            values[key] = value
+        if not values:
+            values = {"content": f"演示表单记录 {i % 20 + 1}"}
+        payload.update({
+            "form_values": values,
+            # 与真实组件 rForm 的事件格式保持一致；分析层只据此判断提交有效。
+            "user_selection": db.j(values),
+            "data_source": "demo_seed",
+        })
+        conn.execute("UPDATE events SET payload=? WHERE event_id=?", (db.j(payload), row["event_id"]))
+        updated += 1
+        card_ids.add(row["card_id"])
+    conn.commit()
+    db.audit("system", action, {"rows": updated, "forms": len(card_ids)})
+    return updated
+
+
+def seed_product_forms_v32():
+    """为每个产品建立独立、业务相关的表单和统计数据。
+
+    事件契约本身不带 product_id，因此一个表单实例不能同时归属多个产品，否则各产品
+    会看到相同提交量。这里给每个产品建立唯一表单，并替换产品原有的表单关联。
+    """
+    conn = db.get_conn()
+    action = "seed_product_forms_v32"
+    if conn.execute("SELECT 1 FROM audit_log WHERE action=? LIMIT 1", (action,)).fetchone():
+        return 0
+
+    def spec_for(product_name):
+        if "链运宝" in product_name:
+            return "装运信息登记", [
+                {"key": "shipment_no", "label": "运单号", "type": "text", "required": True},
+                {"key": "cargo_name", "label": "货物名称", "type": "text", "required": True},
+                {"key": "contact_phone", "label": "联系电话", "type": "text", "required": True},
+            ]
+        if "智会纪要" in product_name:
+            return "会议跟进登记", [
+                {"key": "meeting_title", "label": "会议主题", "type": "text", "required": True},
+                {"key": "attendee_name", "label": "参会人", "type": "text", "required": True},
+                {"key": "followup", "label": "后续事项", "type": "text", "required": False},
+            ]
+        if "财税" in product_name:
+            return "企业财税登记", [
+                {"key": "company", "label": "企业名称", "type": "text", "required": True},
+                {"key": "tax_id", "label": "纳税人识别号", "type": "text", "required": True},
+                {"key": "request_type", "label": "咨询类型", "type": "text", "required": True},
+            ]
+        suffix = "（副本）" if "副本" in product_name else ""
+        return "客服诉求登记" + suffix, [
+            {"key": "issue_type", "label": "问题类型", "type": "text", "required": True},
+            {"key": "contact_name", "label": "联系人", "type": "text", "required": True},
+            {"key": "contact_phone", "label": "联系方式", "type": "text", "required": True},
+        ]
+
+    value_pool = {
+        "shipment_no": lambda i: f"YD202609{1000 + i:04d}",
+        "cargo_name": lambda i: ["工业设备", "电子元件", "包装材料"][i % 3],
+        "meeting_title": lambda i: ["项目周会", "客户需求评审", "经营分析会"][i % 3],
+        "attendee_name": lambda i: f"参会人{i % 10 + 1:02d}",
+        "followup": lambda i: ["整理行动项", "补充会议材料", "确认下次会议时间"][i % 3],
+        "company": lambda i: ["海川科技", "远航商贸", "华辰服务"][i % 3],
+        "tax_id": lambda i: f"DEMO-TAX-{100000 + i:06d}",
+        "request_type": lambda i: ["发票咨询", "纳税申报", "费用归集"][i % 3],
+        "issue_type": lambda i: ["订单咨询", "售后处理", "产品使用"][i % 3],
+        "contact_name": lambda i: f"示例客户{i % 12 + 1:02d}",
+        "contact_phone": lambda i: f"138****{2000 + i % 7000:04d}",
+    }
+    products = conn.execute(
+        "SELECT product_id, name, card_ids FROM products ORDER BY created_at, product_id"
+    ).fetchall()
+    form_ids = {r["card_id"] for r in conn.execute(
+        "SELECT card_id FROM cards WHERE component_type='form.structured'"
+    ).fetchall()}
+    rng = random.Random(20260914)
+    made = 0
+    for product_index, product in enumerate(products):
+        form_name, fields = spec_for(product["name"])
+        marker = f"[product_form:{product['product_id']}]"
+        existing = conn.execute(
+            "SELECT card_id, version FROM cards WHERE description LIKE ? LIMIT 1", (marker + "%",)
+        ).fetchone()
+        if existing:
+            card_id, version = existing["card_id"], existing["version"]
+        else:
+            payload = {
+                "name": form_name,
+                "component_type": "form.structured",
+                "semantic_category": "collect",
+                "description": marker + " 当前产品专属的结构化信息登记表单。",
+                "trigger_description": f"{product['name']}需要用户补充业务信息时调用。",
+                "trigger_examples": ["我要补充信息", "登记一下相关资料"],
+                "field_bindings": {"config": {"fields": fields}},
+                "text_templates": {"prompt": f"请填写{form_name}", "submit": "提交"},
+                "emit_fields": ["form_values"],
+                "emit_targets": ["dashboard"],
+            }
+            card, errors = cards.create_card(TENANT, payload)
+            if errors:
+                raise RuntimeError(f"product form seed failed: {errors}")
+            card, err = cards.transition(card["card_id"], "publish", actor="system")
+            if err:
+                raise RuntimeError(f"product form publish failed: {err}")
+            card_id, version = card["card_id"], card["version"]
+
+        # 每个产品只关联自己的专属表单；其他类型组件保持原关联不变。
+        card_ids = [cid for cid in (db.dj(product["card_ids"], []) or []) if cid not in form_ids]
+        if card_id not in card_ids:
+            card_ids.append(card_id)
+        conn.execute("UPDATE products SET card_ids=? WHERE product_id=?", (db.j(card_ids), product["product_id"]))
+
+        submit_count = 18 + (product_index * 5) % 17
+        total = submit_count + 6
+        for i in range(total):
+            ts = db.now_ts() - rng.randint(0, 28) * 86400 - rng.randint(0, 78000)
+            trace, session, turn = db.new_id(), db.new_id(), db.new_id()
+            card_blob = db.j({
+                "card_id": card_id, "card_version": version,
+                "component_type": "form.structured", "semantic_category": "collect",
+                "trigger_source": "model_tool_call",
+            })
+
+            def add_event(kind, at, payload):
+                conn.execute(
+                    """INSERT INTO events (event_id, trace_id, tenant_id, session_id, turn_id, user_id, ts,
+                       event_type, card, route_context, payload, group_info, label_hint, schema_version,
+                       admitted, reject_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NULL,'1.0.0',1,NULL)""",
+                    (db.new_id(), trace, TENANT, session, turn, f"u_appform_{product_index}_{i}", at,
+                     kind, card_blob, db.j({}), db.j(payload), db.j(None)))
+
+            add_event("card_rendered", ts, {})
+            if i >= submit_count + 3:
+                add_event("card_abandoned", ts + rng.randint(8, 45), {})
+                continue
+            add_event("card_interaction_started", ts + rng.randint(2, 8), {})
+            if i >= submit_count:
+                continue
+            values = {field["key"]: value_pool.get(field["key"], lambda n: f"演示内容 {n + 1}")(i)
+                      for field in fields}
+            add_event("card_submitted", ts + rng.randint(12, 80), {
+                "form_values": values,
+                "user_selection": db.j(values),
+                "data_source": "product_demo_seed",
+            })
+            made += 1
+    conn.commit()
+    db.audit("system", action, {"products": len(products), "submissions": made})
+    return made
+
+
 def migrate_questionnaire():
     """问卷模版化改造的存量迁移：
     1. 旧的复杂群体模式（group_mode）转为简单回显开关（echo_results）
@@ -1215,6 +1481,9 @@ def run_all():
     migrate_preset_names_v27()
     seed_instance_events_v28()
     migrate_preset_suffix_v29()
+    seed_group_distribution_v30()
+    seed_form_submissions_v31()
+    seed_product_forms_v32()
     return {"bank_queries": n_bank, "ab_feedback": n_fb, "history_traces": n_hist}
 
 

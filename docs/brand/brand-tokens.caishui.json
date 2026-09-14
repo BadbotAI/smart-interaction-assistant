@@ -16,7 +16,7 @@
     "accent": "#A87F2C",
     "ring": "#1E7A50",
     "bg_elevated": "#FFFFFF",
-    "bg_sunken": "#ECF2EE"
+    "bg_sunken": "#EEF0F4"
   },
   "chart": {
     "categorical": [
@@ -25,8 +25,8 @@
       "#4C6FE7",
       "#C74E68",
       "#58A08C",
-      "#6E4BD8",
-      "#B97A17",
+      "#5B8C51",
+      "#B08968",
       "#E5484D"
     ],
     "sequential": [
@@ -50,15 +50,16 @@
     "chip": "999px"
   },
   "font": {
-    "family": "'Open Sans', 'Noto Sans SC', -apple-system, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif",
-    "size_base": "14px",
+    "family": "\"PingFang SC\", -apple-system, \"Microsoft YaHei\", sans-serif",
+    "size_base": "13px",
     "size_small": "12px",
     "size_title": "16px",
-    "size_hero": "26px"
+    "size_hero": "26px",
+    "weight_base": "600"
   },
   "spacing": {
     "unit": "8px",
-    "card_padding": "16px",
+    "card_padding": "13px",
     "gap": "12px"
   },
   "density": "compact",
@@ -76,24 +77,28 @@
     "ring": "#34A873",
     "bg_page": "#0E1512",
     "bg_surface": "#16211B",
+    "bg_elevated": "#1B2130",
+    "bg_sunken": "#0C0F16",
     "border": "#283A2F",
     "text_primary": "#EAF3EE",
     "text_secondary": "#A2B8AB",
     "text_muted": "#7D9287",
     "success": "#34A873",
     "warning": "#DCA43B",
-    "danger": "#C94646",
-    "bg_elevated": "#1B2620",
-    "bg_sunken": "#0A100D"
+    "danger": "#C94646"
   },
   "_options": {
-    "preset": 5,
+    "preset": 0,
     "radius": 8,
     "font": 0,
-    "weight": 1,
+    "weight": 3,
     "size": 1,
     "shadow": 0,
-    "density": 0,
-    "radius_unit": "px"
-  }
+    "density": 1,
+    "shadow_custom": null,
+    "size_px": 13,
+    "radius_unit": "px",
+    "density_scale": "v2"
+  },
+  "shadow": "none"
 }

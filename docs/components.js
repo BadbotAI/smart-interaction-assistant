@@ -86,11 +86,11 @@ window.Components = (function () {
     return inkOn(bg) || fg;
   }
 
-  function applyStyleOverrides(node, so) {
+  function applyStyleOverrides(node, so, componentType) {
     if (!so || typeof so !== "object") return;
     const set = (k, v) => { if (v) node.style.setProperty(k, v); };
     set("--primary", so["color.primary"]);
-    set("--brand-accent", so["color.accent"]);
+    if (!String(componentType || "").startsWith("select.")) set("--brand-accent", so["color.accent"]);
     // v2.4：数值型覆盖（px，样式设计器滑块输出）优先；旧档位 key 继续兼容
     const px = (v, min) => { if (v == null || v === "") return null; const n = Number(v); return Number.isFinite(n) && n >= (min ?? 0) ? n : null; };
     const rN = px(so.radius);
@@ -104,10 +104,11 @@ window.Components = (function () {
     set("--control-height", hN != null ? hN + "px" : OV_HEIGHT[so.height]);
     set("--brand-shadow", OV_SHADOW[so.shadow]);
     // 底色 → 这块底色上该用的墨色；次要文字按墨色派生，不再沿用浅底上的灰
-    const inkSet = (bg, vars) => {
+    const inkSet = (bg, vars, updateSurface = true) => {
       const ink = inkOn(bg);
       if (!ink) return;
       vars.forEach(v => set(v, ink));
+      if (!updateSurface) return;
       set("--text-primary", ink);
       set("--text-secondary", `color-mix(in srgb, ${ink} 76%, ${bg})`);
       set("--text-muted", `color-mix(in srgb, ${ink} 62%, ${bg})`);
@@ -119,7 +120,8 @@ window.Components = (function () {
       set("--border-strong", `color-mix(in srgb, ${ink} 28%, ${bg})`);
     };
     if (so["panel.bg"]) { set("--bg-elevated", so["panel.bg"]); inkSet(so["panel.bg"], ["--ink-panel"]); }
-    if (so["opt.bg"]) inkSet(so["opt.bg"], ["--ink-opt"]);
+    // 选项底色只能影响选项本身；不能改写组件面板的 --bg-elevated / 全局文字色。
+    if (so["opt.bg"]) inkSet(so["opt.bg"], ["--ink-opt"], false);
     if (so.sel_style === "outline") node.classList.add("sel-outline");
     if (so.rec_chip === false) node.classList.add("no-rec");
     // —— 组件参数（规格表键）：CSS 变量 ——
@@ -156,7 +158,6 @@ window.Components = (function () {
     if (so["input.bg"]) set("--input-bg", so["input.bg"]);
     // —— 结构显隐 / 形态类 ——
     const cls = (cond, name) => { if (cond) node.classList.add(name); };
-    cls(so["opt.border"] === false, "no-optborder");
     cls(so["fb.shape"] === "square", "fb-square");
     cls(so["btn.align"] === "stretch", "btn-stretch");
     cls(so["icon.show"] === false, "no-cicon");
@@ -205,6 +206,40 @@ window.Components = (function () {
     if (so["btn.bg"]) set("--btn-bg", so["btn.bg"]);
     if (so["btn.bc"]) set("--btn-bc", so["btn.bc"]);
     if (so["btn.fg"]) set("--btn-fg", so["btn.fg"]);
+    // 选择器 Style 六区细项：全部转成受限 token / class，不接受任意 CSS。
+    pxv("container.width", "--comp-max-w");
+    pxv("module.gap", "--module-gap");
+    pxv("title.size", "--title-size"); pxv("desc.size", "--desc-size");
+    pxv("option.name.size", "--opt-name-size"); pxv("option.desc.size", "--opt-desc-size");
+    pxv("opt.padding.x", "--opt-px"); pxv("radio.size", "--radio-size");
+    pxv("tag.radius", "--tag-radius"); pxv("tag.gap", "--tag-gap");
+    pxv("btn.height", "--btn-height"); pxv("btn.padding.x", "--btn-px");
+    pxv("btn.text.size", "--btn-text-size"); pxv("btn.radius", "--btn-radius");
+    const pctv = (k, cssVar) => { const n = Number(so[k]); if (Number.isFinite(n)) set(cssVar, Math.max(0, Math.min(100, n)) / 100); };
+    pctv("btn.disabled.opacity", "--btn-disabled-opacity");
+    if (so["title.weight"]) set("--title-weight", so["title.weight"]);
+    if (so["title.color"]) set("--title-color", so["title.color"]);
+    if (so["desc.color"]) set("--desc-color", so["desc.color"]);
+    if (so["option.name.weight"]) set("--opt-name-weight", so["option.name.weight"]);
+    if (so["option.name.color"]) set("--opt-name-color", so["option.name.color"]);
+    if (so["option.desc.color"]) set("--opt-desc-color", so["option.desc.color"]);
+    if (so["radio.color"]) set("--radio-color", so["radio.color"]);
+    if (so["state.selected.bg"]) set("--opt-selected-bg", so["state.selected.bg"]);
+    if (so["state.selected.bc"]) set("--opt-selected-bc", so["state.selected.bc"]);
+    if (so["tag.text"]) set("--tag-text", so["tag.text"]);
+    if (so["tag.bg"]) set("--tag-bg", so["tag.bg"]);
+    if (so["btn.text.weight"]) set("--btn-text-weight", so["btn.text.weight"]);
+    if (so["btn.submitted.bg"]) set("--btn-submitted-bg", so["btn.submitted.bg"]);
+    cls(so["panel.border"] === false, "no-panel-border");
+    cls(so["layout.direction"] === "horizontal", "layout-horizontal");
+    cls(so["layout.align"] === "center", "layout-center");
+    cls(so["layout.align"] === "stretch", "layout-stretch");
+    cls(so.density === "compact", "density-compact");
+    cls(so.density === "loose", "density-loose");
+    cls(so["options.layout"] === "grid" && !node.classList.contains("display-inline"), "options-grid");
+    cls(so["options.layout"] === "inline", "options-inline");
+    cls(so["tag.style"] === "solid", "tag-solid");
+    cls(so["tag.style"] === "outline", "tag-outline");
     cls(so["arrows.show"] === false, "no-arrows");
     cls(so["steps.dir"] === "vertical", "steps-vert");
     cls(so["connector.show"] === false, "no-connector");
@@ -216,7 +251,8 @@ window.Components = (function () {
       const fn = RENDERERS[envelope.component_type];
       if (!fn) throw new Error("unsupported component_type");
       const node = fn(envelope, ctx);
-      applyStyleOverrides(node, envelope.style_overrides);
+      envelope._node = node;
+      applyStyleOverrides(node, envelope.style_overrides, envelope.component_type);
       // 溯源信息：每个由配置触发的组件都带配置 ID 与版本（后台按此统计），dataset 供埋点与自动化测试定位
       node.dataset.componentType = envelope.component_type;
       node.dataset.renderId = envelope.render_id || "";
@@ -256,7 +292,7 @@ window.Components = (function () {
   }
 
   const CT_LABEL = {
-    "select.single": "文本选择", "select.multi": "文本选择", "select.card": "卡片选择", "scale.likert": "评分",
+    "select.single": "列表选择", "select.multi": "列表选择", "select.card": "卡片选择", "scale.likert": "评分",
     "matrix.compare+select": "对比选择", "form.structured": "信息登记", "input.followup": "备注填写", "slider.range": "数值选择",
     "picker.datetime": "日期选择", "picker.timerange": "时间段选择", "picker.location": "地址卡片", "rank.priority": "优先级排序", "upload.file": "文件上传", "upload.image": "图片上传", "suggest.followup": "追问引导", "commerce.order": "商品下单", "entry.link": "入口跳转", "guide.steps": "步骤说明书", "track.map": "物流轨迹",
     "control.confirm": "操作确认",
@@ -423,7 +459,7 @@ window.Components = (function () {
       pointSize: Number(so["point.size"]) || 3,
       areaFill: so["area.fill"] !== false, areaOpacity: (Number(so["area.opacity"]) || 16) / 100,
       axisShow: so["axis.show"] === true, axisColor: so["axis.color"],
-      valueLabels: so.value_labels === true,
+      valueLabels: so.value_labels === true, legendShow: so["legend.show"] !== false,
     }));
     return box;
   }
@@ -454,7 +490,7 @@ window.Components = (function () {
   function rChartPie(env) {
     const p = env.params;
     const so = env.style_overrides || {};
-    let slices = (p.slices || []).slice(0, 7);
+    let slices = (p.slices || []).slice(0, 7).map(s => ({ ...s, value: Math.max(0, Number(s.value) || 0) }));
     if (so["pie.sort"] === true) slices = [...slices].sort((a, b2) => b2.value - a.value);
     const total = slices.reduce((s, x) => s + x.value, 0) || 1;
     const pal = (window.Brand ? Brand.chartPalette() : {}).categorical
@@ -465,26 +501,44 @@ window.Components = (function () {
         el("span", { class: "pie-lb" }, [s.label]),
         el("span", { class: "pie-pct num" }, [`${(s.value / total * 100).toFixed(0)}%`]),
       ])));
-    if (so["pie.style"] === "donut") {
-      // 环形图：SVG stroke 圆环
+    if (so["pie.style"] !== "bar") {
+      // 默认是语义一致的实心饼图；donut 时改为圆环。
       const R = 52, C = 2 * Math.PI * R;
       const svg = el("div", { style: "display:flex;justify-content:center" });
       const sv = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       sv.setAttribute("viewBox", "0 0 140 140"); sv.setAttribute("width", "150");
+      sv.setAttribute("role", "img");
+      sv.setAttribute("aria-label", slices.map(s => `${s.label} ${(s.value / total * 100).toFixed(0)}%`).join("，"));
       let acc = 0;
       slices.forEach((s, i) => {
         const frac = s.value / total;
-        const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        ring.setAttribute("cx", "70"); ring.setAttribute("cy", "70"); ring.setAttribute("r", String(R));
-        ring.setAttribute("fill", "none"); ring.setAttribute("stroke", pal[i % pal.length]);
-        ring.setAttribute("stroke-width", String(Number(so["donut.thickness"]) || 20));
-        ring.setAttribute("stroke-dasharray", `${Math.max(0, frac * C - 2)} ${C}`);
-        ring.setAttribute("stroke-dashoffset", String(-acc * C));
-        ring.setAttribute("transform", "rotate(-90 70 70)");
+        if (frac <= 0) return;
+        let shape;
+        if (so["pie.style"] === "donut") {
+          shape = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          shape.setAttribute("cx", "70"); shape.setAttribute("cy", "70"); shape.setAttribute("r", String(R));
+          shape.setAttribute("fill", "none"); shape.setAttribute("stroke", pal[i % pal.length]);
+          shape.setAttribute("stroke-width", String(Number(so["donut.thickness"]) || 20));
+          shape.setAttribute("stroke-dasharray", `${Math.max(0, frac * C - 2)} ${C}`);
+          shape.setAttribute("stroke-dashoffset", String(-acc * C));
+          shape.setAttribute("transform", "rotate(-90 70 70)");
+        } else if (frac >= 0.999999) {
+          shape = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          shape.setAttribute("cx", "70"); shape.setAttribute("cy", "70"); shape.setAttribute("r", "58");
+          shape.setAttribute("fill", pal[i % pal.length]);
+        } else {
+          const a0 = acc * Math.PI * 2 - Math.PI / 2;
+          const a1 = (acc + frac) * Math.PI * 2 - Math.PI / 2;
+          const x0 = 70 + 58 * Math.cos(a0), y0 = 70 + 58 * Math.sin(a0);
+          const x1 = 70 + 58 * Math.cos(a1), y1 = 70 + 58 * Math.sin(a1);
+          shape = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          shape.setAttribute("d", `M 70 70 L ${x0} ${y0} A 58 58 0 ${frac > 0.5 ? 1 : 0} 1 ${x1} ${y1} Z`);
+          shape.setAttribute("fill", pal[i % pal.length]);
+        }
         const t = document.createElementNS("http://www.w3.org/2000/svg", "title");
         t.textContent = `${s.label}: ${(frac * 100).toFixed(1)}%`;
-        ring.appendChild(t);
-        sv.appendChild(ring);
+        shape.appendChild(t);
+        sv.appendChild(shape);
         acc += frac;
       });
       svg.appendChild(sv);
@@ -571,8 +625,32 @@ window.Components = (function () {
 
   // ================= 采集型 =================
 
+  // 按钮样式直接落到真实提交按钮，避免外层继承在富选择器、状态样式中被通用按钮规则盖掉。
+  function applySubmitButtonStyle(btn, overrides) {
+    const so = overrides || {};
+    const set = (name, value) => { if (value !== undefined && value !== null && value !== "") btn.style.setProperty(name, String(value)); };
+    const px = (key, name) => { const value = Number(so[key]); if (Number.isFinite(value)) set(name, value + "px"); };
+    px("btn.height", "--btn-height");
+    px("btn.padding.x", "--btn-px");
+    px("btn.text.size", "--btn-text-size");
+    px("btn.radius", "--btn-radius");
+    set("--btn-bg", so["btn.bg"]);
+    set("--btn-bc", so["btn.bc"]);
+    set("--btn-fg", so["btn.fg"]);
+    set("--btn-text-weight", so["btn.text.weight"]);
+    set("--btn-submitted-bg", so["btn.submitted.bg"]);
+    const disabledOpacity = Number(so["btn.disabled.opacity"]);
+    if (Number.isFinite(disabledOpacity)) set("--btn-disabled-opacity", Math.max(0, Math.min(100, disabledOpacity)) / 100);
+  }
+
   function submitBar(env, ctx, getPayload, validate) {
     const bar = el("div", { class: "submit-bar" });
+    const label = el("span", { class: "submit-label" }, [env.params.submit_label || "提交"]);
+    const feedback = env.params.submit_feedback
+      ? el("span", { class: "submit-feedback", role: "status", "aria-live": "polite", hidden: "" }, [
+          UI.icon("check", 14), el("span", {}, [env.params.submit_feedback]),
+        ])
+      : null;
     const btn = el("button", {
       class: "btn primary", onclick: () => {
         const err = validate && validate();
@@ -588,6 +666,7 @@ window.Components = (function () {
           btn.classList.remove("submitting");
           btn.classList.add("submitted");
           btn.textContent = "已提交";
+          if (feedback) feedback.hidden = false;
         }, 420);
         ctx.onCollectSubmit(payload, env);
         // 群体回显开关：提交完成后显示其他人的选择情况
@@ -595,8 +674,10 @@ window.Components = (function () {
           showEcho(env, bar, payload.user_selection);
         }
       },
-    }, [env.params.submit_label || "提交"]);
+    }, [label]);
+    applySubmitButtonStyle(btn, env.style_overrides);
     bar.appendChild(btn);
+    if (feedback) bar.appendChild(feedback);
     return bar;
   }
 
@@ -633,6 +714,14 @@ window.Components = (function () {
       else if (ownCount <= 1) headline = `${people} 人回答 · 你的选择比较独特`;
       else headline = `${people} 人回答 · ${ownPct}% 和你选了一样`;
       box.appendChild(el("div", { class: "echo-head" }, [headline]));
+      const ownValues = own.filter(o => o !== "null" && o !== "undefined" && o.trim());
+      if (ownValues.length) {
+        box.appendChild(el("div", { class: "echo-own-summary" }, [
+          el("span", { class: "echo-own-label" }, ["你的选择"]),
+          el("span", { class: "echo-own-values" }, ownValues.map(o =>
+            el("span", { class: "echo-own-chip" }, [UI.icon("check", 12), o]))),
+        ]));
+      }
       // 优先把比例画进选项本身：选项下方一条占比线 + 百分比，不再另起一块把选项重列一遍
       const host = container.closest ? (container.closest(".comp") || container.parentNode) : container.parentNode;
       const cells = host ? [...host.querySelectorAll("[data-opt]")] : [];
@@ -690,13 +779,73 @@ window.Components = (function () {
     return el("span", { class: "sel-dot" + (on ? " on" : "") + (multi ? " sq" : "") }, on ? [UI.icon("check", 12)] : []);
   }
 
+  // 卡片展现的图片位始终保留：未配图或图片加载失败时显示空白占位，避免文案左右跳动。
+  function cardOptionMedia(meta, name) {
+    const blank = () => el("span", { class: "card-image-placeholder", "aria-hidden": "true" });
+    const shell = el("span", { class: "card-image-shell" }, [blank()]);
+    if (meta && meta.image) {
+      const img = el("img", { src: meta.image, alt: name });
+      img.onerror = () => shell.replaceChildren(blank());
+      shell.replaceChildren(img);
+    }
+    return shell;
+  }
+
+  function cardChoiceMark(on, multi) {
+    return el("span", { class: "card-choice-mark" + (on ? " on" : "") + (multi ? " multi" : ""), "aria-hidden": "true" },
+      on ? [UI.icon("check", 13)] : []);
+  }
+
+  function setCardChoiceState(node, on, multi) {
+    node.classList.toggle("on", on);
+    node.setAttribute("aria-checked", on ? "true" : "false");
+    const mark = node.querySelector(".card-choice-mark");
+    if (mark) mark.replaceWith(cardChoiceMark(on, multi));
+  }
+
+  function cardSelectionSummary(value, multi) {
+    const values = multi ? [...(value || [])] : (value ? [value] : []);
+    return el("div", { class: "card-selection-summary", ...(values.length ? {} : { hidden: "" }) }, [
+      el("span", { class: "card-selection-icon" }, [UI.icon("check", 14)]),
+      el("span", { class: "card-selection-label" }, ["已选择："]),
+      el("strong", { class: "card-selection-value" }, [values.join("、")]),
+    ]);
+  }
+
+  function updateCardSelectionSummary(node, value, multi) {
+    const values = multi ? [...(value || [])] : (value ? [value] : []);
+    node.hidden = !values.length;
+    const valueNode = node.querySelector(".card-selection-value");
+    if (valueNode) valueNode.textContent = values.join("、");
+  }
+
+  function cardOptionNode(name, meta, badge, on, multi) {
+    return el("div", { class: "opt-card media" + (on ? " on" : ""), role: multi ? "checkbox" : "radio",
+      "aria-checked": on ? "true" : "false", "data-opt": String(name), tabindex: "0" }, [
+      cardOptionMedia(meta, name),
+      el("span", { class: "oc-copy" }, [
+        el("span", { class: "oc-name" }, [name]),
+        meta && meta.desc ? el("span", { class: "oc-desc" }, [meta.desc]) : null,
+        badge ? el("span", { class: "rec-chip chip " + ((meta && meta.badge_tone) || "blue") }, [badge]) : null,
+      ]),
+      cardChoiceMark(on, multi),
+    ]);
+  }
+
   function optionList(opts, p, multi, getPicked, setPicked) {
     const rows = opts.map(o => {
-      const row = el("button", { class: "opt-item", type: "button", role: multi ? "checkbox" : "radio",
-        "aria-checked": "false", "data-opt": String(o) }, [
-        selDot(false, multi),
-        el("span", { class: "opt-text" }, [o]),
-        o === p.recommended_default ? el("span", { class: "chip blue rec-chip", style: "flex:none" }, ["推荐"]) : null,
+      // 0913Mia调整：选项列表只反映用户当前选择，不再读取默认选中配置
+      const m = (p.option_meta || {})[o] || {};
+      const on = multi ? getPicked().has(o) : getPicked() === o;
+      const badge = m.badge || (o === p.recommended_default ? "推荐" : "");
+      const row = el("button", { class: "opt-item" + (on ? " on" : ""), type: "button", role: multi ? "checkbox" : "radio",
+        "aria-checked": on ? "true" : "false", "data-opt": String(o) }, [
+        selDot(on, multi),
+        el("span", { class: "opt-copy opt-text" }, [
+          el("span", { class: "opt-title" }, [o,
+            badge ? el("span", { class: "opt-badge rec-chip " + (m.badge_tone || "blue") }, [badge]) : null]),
+          m.desc ? el("span", { class: "opt-desc" }, [m.desc]) : null,
+        ]),
       ]);
       row._opt = o;
       row.onclick = () => {
@@ -719,72 +868,74 @@ window.Components = (function () {
     if (p.multi === true) return rSelectMulti(env, ctx);
     const opts = p.options || [];
     if (!opts.length) return compCard([compTitle(p.prompt), emptyState(env)]);
-    const display = p.display || "list";
-    let picked = null;
+    // 展示形式由组件类型决定：列表选择器与卡片选择器是两个独立组件。
+    const display = env.component_type === "select.card" ? "card" : "list";
+    // 0913Mia调整：单选不再默认选中，始终由用户主动选择
+    let picked = p.preview_selected_default && opts.includes(p.recommended_default) ? p.recommended_default : null;
     let body;
     if (display === "inline" || display === "composer") {
       const btns = opts.map(o => el("button", {
-        class: "btn opt", type: "button", role: "radio", "aria-checked": "false",
-        onclick: (e) => { picked = o;
-          btns.forEach(b => { b.classList.remove("primary"); b.setAttribute("aria-checked", "false"); });
-          e.currentTarget.classList.add("primary"); e.currentTarget.setAttribute("aria-checked", "true"); },
+        class: "btn opt" + (picked === o ? " primary" : ""), type: "button", role: "radio", "aria-checked": picked === o ? "true" : "false",
+        onclick: () => { picked = o;
+          btns.forEach(b => { const on = b.getAttribute("data-opt") === picked; b.classList.toggle("primary", on); b.setAttribute("aria-checked", on ? "true" : "false"); }); },
         "data-opt": String(o),
       }, [o, o === p.recommended_default ? el("span", { class: "rec-chip chip blue" }, ["推荐"]) : null]));
       body = el("div", { class: display === "composer" ? "quick-float" : "opt-row" }, btns);
     } else if (display === "card") {
       const meta = p.option_meta || {};
+      const summary = cardSelectionSummary(picked, false);
       const cards = opts.map(o => {
         const m = meta[o] || {};
-        const node = el("div", { class: "opt-card", role: "radio", "aria-checked": "false", "data-opt": String(o) }, [
-          m.image ? el("img", { src: m.image, alt: o }) : (m.desc ? el("div", { class: "img-ph" }, [o.slice(0, 1)]) : null),
-          el("div", { style: "font-weight:600;display:flex;align-items:center;gap:6px" }, [o,
-            o === p.recommended_default ? el("span", { class: "rec-chip chip blue" }, ["推荐"]) : null]),
-          m.desc ? el("div", { class: "muted" }, [m.desc]) : null,
-        ]);
+        const badge = m.badge || (o === p.recommended_default ? "推荐" : "");
+        const node = cardOptionNode(o, m, badge, picked === o, false);
         node.onclick = () => {
           picked = o;
-          cards.forEach(c => { c.classList.remove("on"); c.setAttribute("aria-checked", "false"); });
-          node.classList.add("on");
-          node.setAttribute("aria-checked", "true");
+          cards.forEach(c => setCardChoiceState(c, c === node, false));
+          updateCardSelectionSummary(summary, picked, false);
         };
+        node.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); node.click(); } };
         return node;
       });
-      body = el("div", { class: "opt-row" }, cards);   // 间距交给 --cand-gap，内联样式会盖掉配置
+      body = el("div", { class: "card-choice-body" }, [
+        el("div", { class: "opt-row card-options" }, cards),
+        summary,
+      ]);   // 间距交给 --cand-gap，内联样式会盖掉配置
     } else {
       body = optionList(opts, p, false, () => picked, (o) => picked = o);
     }
     const cardEl = compCard([
       compTitle(p.prompt),
+      p.description ? el("div", { class: "comp-subtitle" }, [p.description]) : null,
       body,
       submitBar(env, ctx, () => ({
         options_offered: opts, recommended_default: p.recommended_default || null,
         user_selection: picked, modified_from_default: picked !== p.recommended_default,
       }), () => picked == null ? "请先选择一项" : null),
     ]);
-    // 选择即提交：点选后自动触发提交（快捷追问场景）；默认仍是显式按钮提交
-    if ((env.style_overrides || {})["pick.submit"] === "auto") {
-      cardEl.classList.add("auto-submit");
-      cardEl.addEventListener("click", (e) => {
-        if (!e.target.closest(".opt-item, .btn.opt, .opt-card")) return;
-        setTimeout(() => { if (picked != null) cardEl.querySelector(".submit-bar .btn.primary:not(:disabled)")?.click(); }, 160);
-      });
-    }
+    cardEl.classList.add("display-" + (display === "composer" ? "inline" : display));
+    if (p.preview_rich || Object.values(p.option_meta || {}).some(m => m && (m.desc || m.badge))) cardEl.classList.add("rich-select");
+    // 0913Mia调整：选择器必须由用户点击提交按钮确认，不再支持选择即提交
     return cardEl;
   }
 
   function rSelectMulti(env, ctx) {
     const p = env.params;
+    if (p.multi === false) return rSelectSingle(env, ctx);
     const opts = p.options || [];
     if (!opts.length) return compCard([compTitle(p.prompt), emptyState(env)]);
-    const display = p.display || "list";
+    // 多选是交互行为，不改变组件的固定展示形式。
+    const display = env.component_type === "select.card" ? "card" : "list";
+    // 0913Mia调整：多选不再读取默认值和取消限制，保留最少选择数
     const picked = new Set();
+    const minSel = Number(p.min_select) > 0 ? Number(p.min_select) : 1;
     const maxSel = Number(p.max_select) > 0 ? Number(p.max_select) : 0;
     const canAdd = () => !maxSel || picked.size < maxSel;
     const limitTip = () => { if (maxSel) UI.toast(`最多可选 ${maxSel} 项`, true); };
     let body;
     if (display === "inline" || display === "composer") {
       body = el("div", { class: display === "composer" ? "quick-float" : "opt-row" }, opts.map(o => el("button", {
-        class: "btn opt", type: "button", role: "checkbox", "aria-checked": "false",
+        class: "btn opt" + (picked.has(o) ? " primary" : ""), type: "button", role: "checkbox", "aria-checked": picked.has(o) ? "true" : "false",
+        "data-opt": String(o),
         onclick: (e) => {
           if (picked.has(o)) { picked.delete(o); e.currentTarget.classList.remove("primary"); e.currentTarget.setAttribute("aria-checked", "false"); }
           else if (canAdd()) { picked.add(o); e.currentTarget.classList.add("primary"); e.currentTarget.setAttribute("aria-checked", "true"); }
@@ -793,96 +944,77 @@ window.Components = (function () {
       }, [o])));
     } else if (display === "card") {
       const meta = p.option_meta || {};
+      const summary = cardSelectionSummary(picked, true);
       const cards = opts.map(o => {
         const m = meta[o] || {};
-        const node = el("div", { class: "opt-card", role: "checkbox", "aria-checked": "false", "data-opt": String(o) }, [
-          m.image ? el("img", { src: m.image, alt: o }) : (m.desc ? el("div", { class: "img-ph" }, [o.slice(0, 1)]) : null),
-          el("div", { style: "font-weight:600" }, [o]),
-          m.desc ? el("div", { class: "muted" }, [m.desc]) : null,
-        ]);
+        const badge = m.badge || (o === p.recommended_default ? "推荐" : "");
+        const node = cardOptionNode(o, m, badge, picked.has(o), true);
         node.onclick = () => {
           if (!picked.has(o) && !canAdd()) { limitTip(); return; }
           picked.has(o) ? picked.delete(o) : picked.add(o);
           const on = picked.has(o);
-          node.classList.toggle("on", on);
-          node.setAttribute("aria-checked", on ? "true" : "false");
+          setCardChoiceState(node, on, true);
+          updateCardSelectionSummary(summary, picked, true);
         };
+        node.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); node.click(); } };
         return node;
       });
-      body = el("div", { class: "opt-row" }, cards);   // 间距交给 --cand-gap，内联样式会盖掉配置
+      body = el("div", { class: "card-choice-body" }, [
+        el("div", { class: "opt-row card-options" }, cards),
+        summary,
+      ]);   // 间距交给 --cand-gap，内联样式会盖掉配置
     } else {
       body = optionList(opts, p, true, () => picked, (o) => {
         if (!picked.has(o) && !canAdd()) { limitTip(); return; }
         picked.has(o) ? picked.delete(o) : picked.add(o);
       });
     }
-    return compCard([
+    const cardEl = compCard([
       compTitle(p.prompt),
-      maxSel ? el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [`最多可选 ${maxSel} 项`]) : null,
+      p.description ? el("div", { class: "comp-subtitle" }, [p.description]) : null,
+      (minSel || maxSel) ? el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [
+        minSel && maxSel ? `请选择 ${minSel}-${maxSel} 项` : minSel ? `至少选择 ${minSel} 项` : `最多可选 ${maxSel} 项`,
+      ]) : null,
       body,
       submitBar(env, ctx, () => ({
         options_offered: opts, user_selection: [...picked],
-      }), () => picked.size === 0 ? "请至少选择一项" : null),
+      }), () => picked.size < minSel ? `请至少选择 ${minSel} 项` : null),
     ]);
+    cardEl.classList.add("display-" + (display === "composer" ? "inline" : display));
+    if (p.preview_rich || Object.values(p.option_meta || {}).some(m => m && (m.desc || m.badge))) cardEl.classList.add("rich-select");
+    return cardEl;
   }
 
   function rSelectCard(env, ctx) {
     const p = env.params;
     const opts = p.options || [];
     if (!opts.length) return compCard([compTitle(p.prompt), emptyState(env)]);
-    const display = p.display || "card";
     const names = opts.map(o => typeof o === "object" ? o.label : o);
-    let picked = null;
-    let body;
-    if (display === "list") {
-      body = optionList(names, p, false, () => picked, (o) => picked = o);
-    } else {
-      const meta = p.option_meta || {};
-      const cards = opts.map(o => {
-        const isObj = typeof o === "object";
-        const name = isObj ? o.label : o;
-        const m = meta[name] || {};
-        const desc = m.desc || (isObj ? o.desc : null);
-        const node = el("div", {
-          class: "opt-card" + (m.image ? " media" : ""), role: "radio", "aria-checked": "false",
-          "data-opt": String(name),
-          onclick: () => {
-            picked = name;
-            cards.forEach(c => { c.classList.remove("on"); c.setAttribute("aria-checked", "false"); });
-            node.classList.add("on");
-            node.setAttribute("aria-checked", "true");
-          },
-        }, [
-          m.image ? el("img", { src: m.image, alt: name }) : null,
-          el("div", { class: "oc-name" }, [name,
-            name === p.recommended_default ? el("span", { class: "rec-chip chip blue" }, ["推荐"]) : null]),
-          desc ? el("div", { class: "oc-desc" }, [desc]) : null,
-        ]);
-        return node;
-      });
-      body = el("div", { class: "opt-row" }, cards);   // 间距交给 --cand-gap，内联样式会盖掉配置
-    }
-    return compCard([
-      compTitle(p.prompt),
-      body,
-      submitBar(env, ctx, () => ({
-        options_offered: names,
-        recommended_default: p.recommended_default || null,
-        user_selection: picked, modified_from_default: picked !== p.recommended_default,
-      }), () => picked == null ? "请先选择一项" : null),
-    ]);
+    const normalizedMeta = { ...(p.option_meta || {}) };
+    opts.forEach(o => {
+      if (!o || typeof o !== "object" || !o.label) return;
+      normalizedMeta[o.label] = { ...(o.desc ? { desc: o.desc } : {}), ...(o.image ? { image: o.image } : {}),
+        ...(normalizedMeta[o.label] || {}) };
+    });
+    const normalizedEnv = { ...env, params: { ...p, options: names, option_meta: normalizedMeta } };
+    // 卡片选择器复用已补齐的单 / 多选交互，但展示结构永远是卡片。
+    // 因此同时获得：标题描述、推荐标签、预览默认选中、已选择反馈和富内容态。
+    if (p.multi === true) return rSelectMulti(normalizedEnv, ctx);
+    return rSelectSingle(normalizedEnv, ctx);
   }
 
   function rSlider(env, ctx) {
     const p = env.params;
     const min = p.min ?? 0, max = p.max ?? 100;
-    const init = p.default ?? p.recommended_default ?? Math.round((min + max) / 2);
+    const configuredStep = Number(p.step);
+    const step = Number.isFinite(configuredStep) && configuredStep > 0 ? configuredStep : 1;
+    const rawInit = p.default ?? p.recommended_default ?? (min + max) / 2;
+    const init = Math.min(max, Math.max(min, rawInit));
     const display = (env.style_overrides || {})["sl.style"] || p.display || "slider";
     let getVal;
     let body;
     if (display === "stepper") {
       let v = init;
-      const step = Math.max(1, Math.round((max - min) / 20));
       const valEl = el("span", { class: "val" }, [String(v) + (p.unit ? " " + p.unit : "")]);
       const draw = () => valEl.textContent = String(v) + (p.unit ? " " + p.unit : "");
       body = el("div", { class: "stepper" }, [
@@ -893,7 +1025,7 @@ window.Components = (function () {
       ]);
       getVal = () => v;
     } else if (display === "input") {
-      const num = el("input", { type: "number", min, max, value: init, style: "max-width:140px" });
+      const num = el("input", { type: "number", min, max, step, value: init, style: "max-width:140px" });
       body = el("div", { style: "display:flex;align-items:center;gap:8px" }, [
         num, p.unit ? el("span", { class: "muted" }, [p.unit]) : null,
         el("span", { class: "muted" }, [`范围 ${min} ~ ${max}`]),
@@ -901,7 +1033,7 @@ window.Components = (function () {
       getVal = () => Math.min(max, Math.max(min, Number(num.value) || min));
     } else {
       const val = el("span", { style: "font-weight:600;font-variant-numeric:tabular-nums" }, [String(init)]);
-      const slider = el("input", { type: "range", min, max, value: init, style: "width:100%" });
+      const slider = el("input", { type: "range", min, max, step, value: init, style: "width:100%" });
       const setFill = () => slider.style.setProperty("--fill", ((Number(slider.value) - min) / (max - min || 1) * 100) + "%");
       setFill();
       slider.oninput = () => { val.textContent = slider.value; setFill(); };
@@ -922,41 +1054,71 @@ window.Components = (function () {
     const p = env.params;
     const fields = p.fields || [];
     const display = p.display || "stacked";
-    const inputs = {};
+    const controls = {};
     const errBoxes = {};
-    const fieldNodes = fields.map(f => {
-      const input = f.multiline
-        ? el("textarea", { rows: 3, placeholder: f.placeholder || "" })
-        : el("input", { type: f.type === "number" ? "number" : f.type === "date" ? "date"
-              : f.format === "phone" ? "tel" : f.format === "email" ? "email" : "text",
-            ...(f.format === "phone" ? { inputmode: "tel" } : {}), placeholder: f.placeholder || "" });
-      inputs[f.key] = input;
+    const fieldNodes = fields.map((f, fieldIndex) => {
+      const type = ["select", "radio", "checkbox"].includes(f.type) ? f.type : f.type || "text";
+      const defaultValue = f.default_value ?? f.default ?? "";
+      const options = Array.isArray(f.options) ? f.options.map(String) : [];
+      let control;
+      let getValue;
+      if (type === "select") {
+        control = el("select", {}, [
+          el("option", { value: "" }, [f.placeholder || "请选择"]),
+          ...options.map(option => el("option", { value: option, ...(String(defaultValue) === option ? { selected: "" } : {}) }, [option])),
+        ]);
+        getValue = () => control.value;
+      } else if (type === "radio" || type === "checkbox") {
+        const selected = new Set(Array.isArray(defaultValue) ? defaultValue.map(String)
+          : String(defaultValue || "").split(/[，,]/).map(x => x.trim()).filter(Boolean));
+        const choiceInputs = options.map((option, optionIndex) => el("input", {
+          type, name: type === "radio" ? `form_${env.render_id || "field"}_${fieldIndex}` : undefined,
+          value: option, ...(selected.has(option) ? { checked: "" } : {}), id: `form_${env.render_id || "field"}_${fieldIndex}_${optionIndex}`,
+        }));
+        control = el("div", { class: "form-choice-group " + (type === "checkbox" ? "is-multi" : "is-single") },
+          choiceInputs.map((input, optionIndex) => el("label", { class: "form-choice" }, [input, el("span", {}, [options[optionIndex]])])));
+        getValue = () => type === "checkbox"
+          ? choiceInputs.filter(input => input.checked).map(input => input.value)
+          : (choiceInputs.find(input => input.checked)?.value || "");
+      } else {
+        control = (type === "textarea" || f.multiline)
+          ? el("textarea", { rows: 3, placeholder: f.placeholder || "" })
+          : el("input", { type: type === "number" ? "number" : type === "date" ? "date"
+                : f.format === "phone" ? "tel" : f.format === "email" ? "email" : "text",
+              ...(f.format === "phone" ? { inputmode: "tel" } : {}), placeholder: f.placeholder || "" });
+        control.value = String(defaultValue ?? "");
+        getValue = () => control.value.trim();
+      }
+      controls[f.key] = { node: control, getValue };
       const errBox = el("div", { class: "field-error" });
       errBoxes[f.key] = errBox;
-      return el("label", { class: "field" }, [
+      return el("div", { class: "field form-structured-field" }, [
         el("span", { class: "label-text" + (f.required ? " req" : "") }, [f.label]),
-        input, errBox,
+        f.description ? el("span", { class: "form-field-description" }, [f.description]) : null,
+        control, errBox,
       ]);
     });
     return compCard([
       compTitle(p.prompt),
+      p.description ? el("div", { class: "comp-subtitle" }, [p.description]) : null,
       display === "compact" ? el("div", { class: "form-grid" }, fieldNodes) : el("div", {}, fieldNodes),
       submitBar(env, ctx, () => {
         const values = {};
-        fields.forEach(f => values[f.key] = inputs[f.key].value.trim());
+        fields.forEach(f => values[f.key] = controls[f.key].getValue());
         return { form_values: values, user_selection: JSON.stringify(values) };
       }, () => {
         let bad = null;
         fields.forEach(f => {
           errBoxes[f.key].textContent = "";
-          const v = inputs[f.key].value.trim();
-          if (f.required && !v) {
+          const v = controls[f.key].getValue();
+          const empty = Array.isArray(v) ? !v.length : !v;
+          if (f.required && empty) {
             errBoxes[f.key].textContent = "此项必填";
             bad = bad || "请补全必填字段";
-          } else if (v && f.format === "phone" && !/^[\d+\-\s]{6,20}$/.test(v)) {
+          } else if (!empty && f.format === "phone" && !/^[\d+\-\s]{6,20}$/.test(v)) {
             errBoxes[f.key].textContent = "请输入有效的手机号";
             bad = bad || "手机号格式不正确";
-          } else if (v && f.format === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+          } else if (!empty && f.format === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
             errBoxes[f.key].textContent = "请输入有效的邮箱地址";
             bad = bad || "邮箱格式不正确";
           }
@@ -1034,12 +1196,8 @@ window.Components = (function () {
     const p = env.params;
     const withTime = (p.mode || p.display || "date") === "datetime";
     const input = el("input", { type: withTime ? "datetime-local" : "date", style: "max-width:240px" });
-    // 快捷选项：多数人约的就是这三天
-    let quick = withTime ? null : _quickChips([["今天", 0], ["明天", 1], ["后天", 2]], pr => { input.value = _dstr(pr[1]); });
-    if (quick) quick.classList.add("dt-quick");
     return compCard([
       compTitle(p.prompt),
-      quick,
       input,
       submitBar(env, ctx, () => ({ user_selection: input.value }),
         () => !input.value ? (withTime ? "请选择日期和时间" : "请选择日期") : null),
@@ -1514,6 +1672,11 @@ window.Components = (function () {
   }
 
   function likertRange(lk) {
+    // 新版允许档位是数字或文字；统一按文本展示和回传。
+    if (Array.isArray(lk.levels)) {
+      const levels = lk.levels.map(v => String(v == null ? "" : v).trim()).filter(Boolean).slice(0, 11);
+      if (levels.length >= 2) return levels;
+    }
     // 新协议 from/to（如 -2~2、0-10）；兼容旧 steps（1..steps）
     if (lk.from != null && lk.to != null && lk.to > lk.from) {
       const span = Math.min(11, lk.to - lk.from + 1);
@@ -1525,7 +1688,9 @@ window.Components = (function () {
 
   function rScaleLikert(env, ctx) {
     const p = env.params;
-    const lk = p.likert || (p.scale
+    const lk = p.likert || (Array.isArray(p.levels)
+      ? { levels: p.levels, left: p.left_label || "", right: p.right_label || "" }
+      : p.scale
       ? { from: 1, to: Math.max(2, Math.min(11, p.scale)), left: p.low_label || "", right: p.high_label || "" }
       : { left: "非常不认可", right: "非常认可", steps: 5 });
     const values = likertRange(lk);
@@ -1591,14 +1756,21 @@ window.Components = (function () {
         ]),
       ]),
       el("div", { style: "margin-top:14px;display:flex;gap:8px;justify-content:flex-end" }, [
-        el("button", { class: "btn", onclick: (e) => { disableSiblings(e); ctx.onControl("cancel", env); } }, [p.cancel_label || "取消"]),
-        el("button", { class: okCls, onclick: (e) => { disableSiblings(e); ctx.onControl("confirm", env); } }, [p.confirm_label || "确认执行"]),
+        el("button", { class: "btn", onclick: (e) => { disableSiblings(e); ctx.onControl("cancel", env); showActionEcho(env, "取消"); } }, [p.cancel_label || "取消"]),
+        el("button", { class: okCls, onclick: (e) => { disableSiblings(e); ctx.onControl("confirm", env); showActionEcho(env, "确认"); } }, [p.confirm_label || "确认执行"]),
       ]),
     ]);
   }
 
   function disableSiblings(e) {
     e.target.parentElement.querySelectorAll("button").forEach(b => b.disabled = true);
+  }
+
+  function showActionEcho(env, selection) {
+    if (!env.params.echo_results || !env.card_ref?.card_id || !env._node) return;
+    const marker = el("div", { class: "echo-anchor" });
+    env._node.appendChild(marker);
+    showEcho(env, marker, selection);
   }
 
   function rRetry(env, ctx) {
@@ -1672,6 +1844,7 @@ window.Components = (function () {
         label_kind: dim.key === "capability" ? "capability" : "preference",
         polarity: polarityVal >= 0.5 ? 1.0 : -1.0, confidence: 0.6,
         target_models: env.params.target_models || [], source: "explicit_binary" } });
+    showActionEcho(env, polarityVal >= 0.5 ? "赞" : "踩");
     UI.toast(ctx && ctx.preview ? "演示预览：反馈不会保存" : "反馈已记录，将用于优化模型调度");
   }
 

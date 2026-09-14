@@ -65,7 +65,7 @@
       "flow.reasoning": { "required": ["nodes"], "optional": ["edges", "evidence_refs"] },
       "citation.card": { "required": ["claim", "sources"] },
       "select.single": { "required": ["prompt", "options"], "optional": ["recommended_default"] },
-      "select.multi": { "required": ["prompt", "options"], "optional": ["min", "max"] },
+      "select.multi": { "required": ["prompt", "options"], "optional": ["min_select", "max_select"], "note": "选择行为由平台固定配置合并，模型不可覆盖" },
       "form.structured": { "required": ["fields"] },
       "control.confirm": { "required": ["action_desc", "risk_level"] },
       "feedback.binary": { "required": ["dimensions"], "note": "必须区分 capability 与 preference 两种语义" },

@@ -1,30 +1,30 @@
 {
-  "brand_id": "caishui",
-  "brand_name": "政务蓝",
+  "brand_id": "brand-y4ds7y",
+  "brand_name": "4444",
   "color": {
-    "primary": "#1E7A50",
-    "primary_weak": "#E7F4EC",
+    "primary": "#3E63DD",
+    "primary_weak": "#EDF2FE",
     "bg_page": "#FFFFFF",
-    "bg_surface": "#F7FAF8",
-    "text_primary": "#182720",
-    "text_secondary": "#4C5F55",
-    "text_muted": "#66776E",
-    "border": "#DEE9E1",
-    "success": "#1E7A50",
-    "warning": "#C98A0B",
-    "danger": "#D04040",
-    "accent": "#A87F2C",
-    "ring": "#1E7A50",
+    "bg_surface": "#F9FAFB",
+    "text_primary": "#1C2434",
+    "text_secondary": "#57627B",
+    "text_muted": "#8D96AA",
+    "border": "#E4E9F0",
+    "success": "#30A46C",
+    "warning": "#D6970A",
+    "danger": "#E5484D",
+    "accent": "#8E4EC6",
+    "ring": "#3E63DD",
     "bg_elevated": "#FFFFFF",
     "bg_sunken": "#EEF0F4"
   },
   "chart": {
     "categorical": [
-      "#1E7A50",
-      "#A87F2C",
-      "#4C6FE7",
-      "#C74E68",
-      "#58A08C",
+      "#3E63DD",
+      "#0FA3A3",
+      "#8E4EC6",
+      "#EE7712",
+      "#D6409F",
       "#5B8C51",
       "#B08968",
       "#E5484D"
@@ -45,8 +45,8 @@
     "axis": "#C7D0D8"
   },
   "radius": {
-    "card": "8px",
-    "control": "6px",
+    "card": "16px",
+    "control": "12px",
     "chip": "999px"
   },
   "font": {
@@ -55,14 +55,14 @@
     "size_small": "12px",
     "size_title": "16px",
     "size_hero": "26px",
-    "weight_base": "600"
+    "weight_base": "400"
   },
   "spacing": {
     "unit": "8px",
-    "card_padding": "13px",
+    "card_padding": "16px",
     "gap": "12px"
   },
-  "density": "compact",
+  "density": "regular",
   "motion": {
     "duration_fast": "120ms",
     "duration_base": "220ms"
@@ -71,34 +71,34 @@
     "control_style": "rounded"
   },
   "color_dark": {
-    "primary": "#34A873",
-    "primary_weak": "#10291D",
-    "accent": "#C3A050",
-    "ring": "#34A873",
-    "bg_page": "#0E1512",
-    "bg_surface": "#16211B",
+    "primary": "#5472E4",
+    "primary_weak": "#202C55",
+    "accent": "#A06FE0",
+    "ring": "#5472E4",
+    "bg_page": "#101319",
+    "bg_surface": "#171B24",
     "bg_elevated": "#1B2130",
     "bg_sunken": "#0C0F16",
-    "border": "#283A2F",
-    "text_primary": "#EAF3EE",
-    "text_secondary": "#A2B8AB",
-    "text_muted": "#7D9287",
-    "success": "#34A873",
-    "warning": "#DCA43B",
-    "danger": "#C94646"
+    "border": "#2A3140",
+    "text_primary": "#EDEFF5",
+    "text_secondary": "#A3ACC2",
+    "text_muted": "#6E7891",
+    "success": "#33B074",
+    "warning": "#E2A336",
+    "danger": "#EB6F76"
   },
+  "shadow": "0 1px 3px rgba(15,27,38,.08)",
   "_options": {
     "preset": 0,
-    "radius": 8,
+    "radius": 16,
     "font": 0,
-    "weight": 3,
+    "weight": 1,
     "size": 1,
-    "shadow": 0,
-    "density": 1,
+    "shadow": 1,
+    "density": 2,
     "shadow_custom": null,
     "size_px": 13,
     "radius_unit": "px",
     "density_scale": "v2"
-  },
-  "shadow": "none"
+  }
 }

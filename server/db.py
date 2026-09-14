@@ -309,7 +309,11 @@ def init_db():
         prefix TEXT NOT NULL, created_at REAL NOT NULL, last_used REAL)""")
     conn.execute("""CREATE TABLE IF NOT EXISTS products (
         product_id TEXT PRIMARY KEY, name TEXT NOT NULL, brand_file TEXT NOT NULL,
-        card_ids TEXT NOT NULL DEFAULT '[]', created_at REAL NOT NULL)""")
+        card_ids TEXT NOT NULL DEFAULT '[]', image TEXT DEFAULT '', created_at REAL NOT NULL)""")
+    try:
+        conn.execute("ALTER TABLE products ADD COLUMN image TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
 
 
