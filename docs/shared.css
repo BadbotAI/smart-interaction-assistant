@@ -1665,6 +1665,11 @@ input.invalid, textarea.invalid { border-color: var(--danger); }
 input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent); }
 
 .sty-inherit-tag { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-caption); }
+
+.sty-src { display: inline-flex; align-items: center; gap: 6px; flex: none; white-space: nowrap; }
+.sty-src-lb { font-size: var(--font-caption); color: var(--text-muted); }
+.sty-src.is-own .sty-src-lb { color: var(--primary); font-weight: 600; }
+.sty-restore { padding: 2px 8px; font-size: var(--font-caption); }
 .sty-reset:disabled { opacity: .42; cursor: default; }
 
 .sty-swatches .sty-hex, .sty-section .sty-hex {

@@ -1812,6 +1812,11 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 
 /* 颜色行的「跟随主题」开关：开着时色板置灰不可点 */
 .sty-inherit-tag { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-caption); }
+/* 来源徽标：这一项当前的值来自哪一层。改过的才给「恢复继承」 */
+.sty-src { display: inline-flex; align-items: center; gap: 6px; flex: none; white-space: nowrap; }
+.sty-src-lb { font-size: var(--font-caption); color: var(--text-muted); }
+.sty-src.is-own .sty-src-lb { color: var(--primary); font-weight: 600; }
+.sty-restore { padding: 2px 8px; font-size: var(--font-caption); }
 .sty-reset:disabled { opacity: .42; cursor: default; }
 /* 色值输入框与色块同高，一行里不高一块低一块。
    写成后代选择器是为了压过弹窗里通用的 input 规则（那条给了 min-height:36px） */
