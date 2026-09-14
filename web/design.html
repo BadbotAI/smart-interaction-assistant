@@ -319,11 +319,11 @@ function brandDialog(existing, onClose) {
       ["warning", "警告", "需要注意但不阻断的提示", "--warning", "chip"],
       ["danger", "警示色", "确认执行、校验失败、下跌", "--danger", "chip"],
     ]],
-    ["组件内的容器", [
-      ["opt_bg", "选项背景", "每个选项行 / 候选卡的底色", "--opt-bg", "optsel"],
-      ["opt_bc", "选项边框", "每个选项行 / 候选卡的描边", "--opt-bc", "border"],
-      ["btn_bg", "按钮背景", "提交 / 确认按钮的填充色", "--btn-bg", "btn"],
-      ["btn_fg", "按钮文字", "按钮上的文字颜色", "--btn-fg", "btnfg"],
+    ["选项与按钮", [
+      ["opt_bg", "选项背景", "每个选项行 / 候选卡的底色；留空时跟卡片底色一致", "--opt-bg", "optsel"],
+      ["opt_bc", "选项边框", "每个选项行 / 候选卡的描边；留空时用上面的边框色", "--opt-bc", "border"],
+      ["btn_bg", "按钮背景", "提交 / 确认按钮的填充色；留空时用主色", "--btn-bg", "btn"],
+      ["btn_fg", "按钮文字", "按钮上的文字颜色；留空时按底色亮度自动取白或近黑", "--btn-fg", "btnfg"],
     ]],
   ];
   // 「用在哪」的实物示意：直接用该颜色画出它作用的真实元素
@@ -609,8 +609,13 @@ function brandDialog(existing, onClose) {
       };
       refreshSw();
       grpRefreshers.push(refreshSw);
+      // 这一组和组件样式改的是同一批变量，说清层级：这里定的是默认值
+      const gnote = gname === "选项与按钮"
+        ? el("div", { class: "tok-group-note" },
+            ["这里定的是产品内所有组件的默认值；个别组件要破例，在它自己的「样式设计」里改。"])
+        : null;
       tokenPanel.appendChild(el("details", { class: "tok-group" }, [
-        el("summary", {}, [el("span", {}, [gname]), swRow]), rows]));
+        el("summary", {}, [el("span", {}, [gname]), swRow]), gnote, rows]));
     });
     // 图表序列色（明暗共用）
     const rows = el("div", { class: "tok-rows" });

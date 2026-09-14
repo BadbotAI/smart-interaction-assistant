@@ -1900,6 +1900,9 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
   font-variant-numeric: tabular-nums; min-width: 76px; text-align: right; }
 .fsel-empty { padding: 14px 12px; font-size: var(--font-small); text-align: center; }
 
+.tok-group-note { font-size: var(--font-caption); color: var(--text-muted);
+  line-height: 1.55; padding: 6px 0 2px; }
+
 .theme-field-row { display: flex; align-items: center; gap: 8px; }
 .theme-field-row .fsel { flex: 1; min-width: 0; }
 .theme-field-row .btn.small { flex: none; }
