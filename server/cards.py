@@ -81,6 +81,9 @@ def validate_card(payload: dict, strict: bool = False) -> list:
                 "dot.gap": (4, 14), "grid.count": (2, 5), "donut.thickness": (12, 28),
                 "tbl.font": (11, 14), "steplabel.size": (10, 13), "opt.radius": (0, 16),
                 "caption.size": (11, 18),
+                # 文字角色：时间线的时间 / 事件标题 / 描述
+                "ts.size": (10, 15), "ev.size": (12, 18), "evdesc.size": (10, 15),
+                "flabel.size": (11, 17), "th.size": (10, 14), "mlabel.size": (10, 16), "mbase.size": (10, 14), "ol.size": (12, 17),
                 "container.width": (280, 640), "module.gap": (6, 20),
                 "title.size": (12, 20), "desc.size": (10, 16),
                 "option.name.size": (11, 18), "option.desc.size": (10, 16),
@@ -99,7 +102,7 @@ def validate_card(payload: dict, strict: bool = False) -> list:
                  "sl.style": ("slider", "stepper", "input"), "tl.order": ("asc", "desc"),
                  "steps.dir": ("horizontal", "vertical"), "ts.format": ("time", "datetime", "date", "relative"),
                  "delta.good": ("higher", "lower", "neutral"), "pick.submit": ("button", "auto"),
-                 "hl.weight": ("500", "400"), "caption.weight": ("500", "600"),
+                 "ev.weight": ("500", "600"), "mv.weight": ("500", "600"), "flabel.weight": ("400", "600"), "hl.weight": ("500", "400"), "caption.weight": ("500", "600"),
                  "text.weight": ("500", "600"), "title.align": ("center", "right"), "legend.align": ("center", "flex-end"),
                  "layout.direction": ("horizontal",), "layout.align": ("center", "stretch"),
                  "density": ("compact", "regular", "loose"), "options.layout": ("grid", "inline"),
@@ -108,6 +111,8 @@ def validate_card(payload: dict, strict: bool = False) -> list:
                  "btn.text.weight": ("400", "500", "700"), "btn.icon.position": ("right",)}
     SPEC_COLOR = {"color.primary", "color.accent", "panel.bg", "line.color", "axis.color", "bar.color",
                   "hl.color", "caption.color", "text.color",
+                  "ts.color", "ev.color", "evdesc.color",
+                  "flabel.color", "th.color", "td.color", "mlabel.color", "mv.color", "mbase.color", "ol.color",
                   "done.color", "marker.color", "header.bg", "dot.color", "input.bg", "tlline.color", "icon.color",
                   "wf.pos", "wf.neg", "total.color",
                   "panel.bc", "opt.bg", "opt.bc", "btn.bg", "btn.bc", "btn.fg",
@@ -496,7 +501,7 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
         args.extend([db.now_ts(), card_id])
         conn.execute(f"UPDATE cards SET {', '.join(sets)} WHERE card_id=?", args)
         conn.commit()
-        db.audit(actor, "card_restore_draft", {"card_id": card_id, "name": card["name"], "from_version": int(force or 0)})
+        db.audit(actor, "card_restore_draft", {"card_id": card_id, "name": row["name"], "from_version": int(force or 0)})
         return get_card(card_id), None
 
     if action == "offline":
@@ -505,7 +510,7 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
             return None, {"message": "仅已上线配置可下线"}
         conn.execute("UPDATE cards SET status='offline', updated_at=? WHERE card_id=?", (db.now_ts(), card_id))
         conn.commit()
-        db.audit(actor, "card_offline", {"card_id": card_id, "name": card["name"]})
+        db.audit(actor, "card_offline", {"card_id": card_id, "name": row["name"]})
         return get_card(card_id), None
 
     if action == "delete":
@@ -525,7 +530,9 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
                              (db.j([x for x in _ids if x != card_id]), _r["product_id"]))
         # 历史快照保留，不随卡片删除消失（§2.7）
         conn.commit()
-        db.audit(actor, "card_delete", {"card_id": card_id, "name": card["name"], "force": force, "refs": len(refs)})
+        # card 只在 publish 分支里赋值，这里要用行记录取名字，否则删除已提交却抛 UnboundLocalError：
+        # 前端收到 500 以为没删掉，审计日志也跟着丢了
+        db.audit(actor, "card_delete", {"card_id": card_id, "name": row["name"], "force": force, "refs": len(refs)})
         return get_card(card_id), None
 
     if action == "rollback":

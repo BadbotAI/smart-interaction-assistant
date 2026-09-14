@@ -186,6 +186,25 @@ window.Components = (function () {
     cls(so["quick.show"] === false, "no-quick");
     // 二轮规格键
     pxv("opt.radius", "--opt-radius"); pxv("tbl.font", "--tbl-font"); pxv("steplabel.size", "--stp-label");
+    // 文字角色：同一个组件里不同用途的文字各自成套（时间线：时间 / 事件标题 / 描述）
+    pxv("ts.size", "--tl-ts-size"); pxv("ev.size", "--tl-title-size"); pxv("evdesc.size", "--tl-desc-size");
+    if (so["ts.color"]) set("--tl-ts-color", so["ts.color"]);
+    if (so["ev.weight"]) set("--tl-title-weight", so["ev.weight"]);
+    if (so["ev.color"]) set("--tl-title-color", so["ev.color"]);
+    if (so["evdesc.color"]) set("--tl-desc-color", so["evdesc.color"]);
+    // 表格：表头 / 单元格；指标卡：指标名 / 数值 / 对比说明；要点清单：条目
+    pxv("th.size", "--th-size"); pxv("mlabel.size", "--mlabel-size");
+    pxv("mbase.size", "--mbase-size"); pxv("ol.size", "--ol-size");
+    if (so["th.color"]) set("--th-color", so["th.color"]);
+    if (so["td.color"]) set("--td-color", so["td.color"]);
+    if (so["mlabel.color"]) set("--mlabel-color", so["mlabel.color"]);
+    if (so["mv.weight"]) set("--mv-weight", so["mv.weight"]);
+    if (so["mv.color"]) set("--mv-color", so["mv.color"]);
+    if (so["mbase.color"]) set("--mbase-color", so["mbase.color"]);
+    if (so["ol.color"]) set("--ol-color", so["ol.color"]);
+    pxv("flabel.size", "--flabel-size");
+    if (so["flabel.weight"]) set("--flabel-weight", so["flabel.weight"]);
+    if (so["flabel.color"]) set("--flabel-color", so["flabel.color"]);
     if (so["tlline.color"]) set("--tl-line-c", so["tlline.color"]);
     if (so["icon.color"]) set("--cicon-c", so["icon.color"]);
     cls(so["radio.show"] === false, "no-radio");
@@ -331,14 +350,14 @@ window.Components = (function () {
     const good = soM["delta.good"] || (soM["delta.invert"] ? "lower" : "");
     const deltaCls = good === "neutral" ? "neutral" : (up === (good !== "lower")) ? "up" : "down";
     return compCard([
-      el("div", { class: "secondary metric-label", style: "font-size:var(--font-caption)" }, [p.label || ""]),
+      el("div", { class: "secondary metric-label" }, [p.label || ""]),
       el("div", { style: "display:flex;align-items:baseline;gap:10px;margin-top:2px" }, [
         el("span", { class: "metric-value", style: "font-size:var(--mv-size, 30px)" }, [String(p.value)]),
         p.unit ? el("span", { class: "secondary" }, [p.unit]) : null,
         deltaStr ? el("span", { class: "delta-chip " + deltaCls, title: up ? "较基线上升" : "较基线下降" }, [
           UI.icon(up ? "arrowup" : "arrowdown", 11), deltaStr.replace("-", "")]) : null,
       ]),
-      p.baseline ? el("div", { class: "muted metric-baseline", style: "font-size:var(--font-caption);margin-top:4px" }, [p.baseline]) : null,
+      p.baseline ? el("div", { class: "muted metric-baseline", style: "margin-top:4px" }, [p.baseline]) : null,
     ]);
   }
 
@@ -394,7 +413,7 @@ window.Components = (function () {
         ]),
         el("div", { class: "tl-body" }, [
           el("div", { class: "tl-title" + (emph && i === newestIdx ? " now" : "") }, [e.title || ""]),
-          e.desc ? el("div", { class: "muted", style: "font-size:var(--font-caption)" }, [e.desc]) : null,
+          e.desc ? el("div", { class: "muted tl-desc" }, [e.desc]) : null,
         ]),
       ]))),
     ]);
@@ -491,7 +510,8 @@ window.Components = (function () {
     const p = env.params;
     const so = env.style_overrides || {};
     let slices = (p.slices || []).slice(0, 7).map(s => ({ ...s, value: Math.max(0, Number(s.value) || 0) }));
-    if (so["pie.sort"] === true) slices = [...slices].sort((a, b2) => b2.value - a.value);
+    // 默认开启：未设置时按占比排序，关掉才保持原始顺序（=== true 会让默认值永远落不到实处）
+    if (so["pie.sort"] !== false) slices = [...slices].sort((a, b2) => b2.value - a.value);
     const total = slices.reduce((s, x) => s + x.value, 0) || 1;
     const pal = (window.Brand ? Brand.chartPalette() : {}).categorical
       || ["#3E63DD", "#0FA3A3", "#8E4EC6", "#EE7712", "#D6409F"];

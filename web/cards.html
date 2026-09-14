@@ -941,7 +941,7 @@ const DEMO_PRESENT = {
   "table": { title: "分区域概览", columns: ["区域", "数量", "环比"], rows: [["华东", "352", "2.3%"], ["华南", "332", "1.5%"], ["华北", "372", "3.2%"]] },
   "chart.line": { title: "近半年走势", categories: ["4月", "5月", "6月", "7月", "8月", "9月"], series: [{ name: "金额（万元）", values: [122, 165, 148, 161, 178, 190] }] },
   "chart.bar": { title: "分区域对比", categories: ["华东", "华南", "华北", "西南"], series: [{ name: "数量", values: [352, 332, 372, 222] }] },
-  "chart.pie": { title: "构成占比", slices: [{ label: "华东", value: 42 }, { label: "华南", value: 27 }, { label: "华北", value: 22 }, { label: "其他", value: 9 }] },
+  "chart.pie": { title: "构成占比", slices: [{ label: "华南", value: 27 }, { label: "华东", value: 42 }, { label: "其他", value: 9 }, { label: "华北", value: 22 }] },
   "metric.card": { label: "本月累计金额", value: "1,286", unit: "万元", delta: "4.2%", baseline: "对比上月同期" },
   "timeline": { title: "处理进度", events: [
     { ts: isoAgo(50), title: "已受理", desc: "工单创建" },
@@ -964,7 +964,10 @@ const PARAM_ZONE = {
   text: ["font_scale", "text.color", "text.weight", "title.size", "title.weight", "title.color",
          "desc.size", "desc.color", "option.name.size", "option.name.weight", "option.name.color", "option.desc.size", "option.desc.color",
          "hl.size", "hl.weight", "hl.color", "tbl.font", "steplabel.size", "text.align",
-         "tone.color", "caption.show", "caption.size", "caption.weight", "caption.color", "desc.show"],
+         "tone.color", "caption.show", "caption.size", "caption.weight", "caption.color", "desc.show",
+         "ts.size", "ts.color", "ev.size", "ev.weight", "ev.color", "evdesc.size", "evdesc.color",
+         "flabel.size", "flabel.weight", "flabel.color", "th.size", "th.color", "td.color", "mlabel.size", "mlabel.color",
+         "mv.weight", "mv.color", "mbase.size", "mbase.color", "ol.size", "ol.color"],
   tag: ["rec_chip", "tag.text", "tag.bg", "tag.radius", "tag.gap", "tag.style"],
   button: ["__submitLabel", "__cancelLabel", "btn.height", "btn.bg", "btn.fg", "btn.radius", "btn.align", "danger"],
   chart: ["title.align", "legend.align", "line.color", "line.width", "line.smooth", "line.style", "point.show", "point.size", "point.shape",
@@ -991,6 +994,300 @@ const ZONE_META = [
   ["tag", "标签", "推荐标签的文字与外观"],
   ["button", "提交按钮", "按钮文案与配色"],
 ];
+// —— 每个组件的样式分层：按它自己的结构从外到内分组，分组名与说明只讲这个组件的事 ——
+// 通用属性名（同一个 key 在多数组件里含义一致；个别组件用 CT_LAYOUT[ct].labels 覆盖）
+const L_COMMON = {
+  "container.width": "最大宽度", "panel.bg": "面板底色", "panel.bc": "面板边框色",
+  "panel.border": "边框", "radius": "圆角", "spacing": "内边距", "shadow": "阴影",
+  "density": "内容密度", "module.gap": "模块间距",
+  "color.primary": "主色", "color.accent": "强调色",
+  "font_scale": "字号", "text.color": "文字颜色", "text.weight": "字重", "text.align": "对齐",
+  "title.size": "标题字号", "title.weight": "标题字重", "title.color": "标题颜色",
+  "desc.size": "描述字号", "desc.color": "描述颜色", "desc.show": "显示描述",
+  "btn.height": "按钮高度", "btn.bg": "按钮底色", "btn.bc": "按钮边框色",
+  "btn.fg": "按钮文字颜色", "btn.radius": "按钮圆角", "btn.align": "按钮排列",
+  "height": "控件高度", "input.bg": "输入框底色", "input.border": "输入框描边",
+  "label.pos": "标签位置", "opt.bg": "默认底色", "opt.bc": "默认边框色",
+  "opt.radius": "圆角", "opt.gap": "间距", "card.gap": "卡片间距", "sel_style": "选中态样式",
+  "no.style": "序号样式", "handle.show": "拖动手柄", "arrows.show": "上下箭头",
+  "fb.shape": "按钮形态", "sl.style": "形态", "track.height": "轨道高度", "thumb.size": "滑块尺寸",
+  "lk.style": "形态", "dot.size": "刻度尺寸", "dot.gap": "刻度间距", "quick.show": "快捷选项",
+  "striped": "隔行变色", "header_bold": "表头加粗", "header.bg": "表头底色",
+  "row.height": "行高", "outline": "外边框", "row.divider": "行分隔线", "col.align": "列对齐",
+  "tbl.font": "表格字号", "best.highlight": "最优项高亮", "sum.show": "合计行",
+  "title.align": "标题对齐", "legend.align": "图例对齐", "legend.show": "图例",
+  "legend.pct": "图例带百分比", "line.color": "折线颜色", "line.width": "线宽",
+  "line.smooth": "平滑曲线", "line.style": "线型", "point.show": "数据点",
+  "point.size": "点大小", "point.shape": "点形状", "area.fill": "面积填充",
+  "area.opacity": "面积浓度", "grid": "网格线", "grid.style": "网格线型",
+  "grid.count": "网格密度", "axis.show": "底部轴线", "axis.color": "轴线颜色",
+  "y.zero": "纵轴从 0 起", "last.emph": "突出最新数据点", "value_labels": "数值标签",
+  "bar.color": "柱体颜色", "bar.width": "柱宽占比", "bar.radius": "柱端圆角",
+  "bar.horizontal": "横向条形", "bar.sort": "排序",
+  "pie.style": "形态", "pie.height": "条高", "pie.sort": "按占比排序", "donut.thickness": "环形厚度",
+  "value.size": "数值字号", "delta.show": "涨跌标签", "delta.good": "涨跌语义",
+  "delta.invert": "涨跌反转", "baseline.show": "对比说明", "metric.align": "对齐",
+  "ts.format": "时间显示形式", "ts.show": "显示时间",
+  "flabel.size": "字段标签字号", "flabel.weight": "字段标签字重", "flabel.color": "字段标签颜色",
+  "th.size": "表头字号", "th.color": "表头文字颜色", "td.color": "单元格文字颜色",
+  "mlabel.size": "指标名字号", "mlabel.color": "指标名颜色",
+  "mv.weight": "数值字重", "mv.color": "数值颜色",
+  "mbase.size": "说明字号", "mbase.color": "说明颜色",
+  "ol.size": "条目字号", "ol.color": "条目颜色",
+  "ts.size": "时间字号", "ts.color": "时间颜色", "ev.size": "事件标题字号",
+  "ev.weight": "事件标题字重", "ev.color": "事件标题颜色",
+  "evdesc.size": "描述字号", "evdesc.color": "描述颜色", "tl.order": "排列方向",
+  "now.emph": "突出最新", "dot.shape": "节点形状", "dot.color": "节点颜色",
+  "tlline.style": "连线线型", "tlline.color": "连线颜色",
+  "steps.dir": "布局方向", "node.size": "节点尺寸", "done.color": "完成色", "halo": "节点光晕",
+  "stepnum.show": "显示序号", "stepline.width": "连线粗细", "steplabel.size": "标签字号",
+  "marker.style": "序号样式", "marker.color": "序号颜色", "list.gap": "条目间距",
+  "hl.size": "结论字号", "hl.weight": "结论字重", "hl.color": "结论颜色",
+  "tone.color": "按语气着色", "caption.show": "补充说明",
+  "caption.size": "说明字号", "caption.weight": "说明字重", "caption.color": "说明颜色",
+};
+// 子分组下的短名：分组标题已表达对象，属性只留「底色 / 字号 / 圆角」这类短词
+const S_COMMON = {
+  "panel.bg": "底色", "panel.bc": "边框色", "panel.border": "边框",
+  "input.bg": "底色", "input.border": "描边",
+  "title.size": "字号", "title.weight": "字重", "title.color": "颜色",
+  "desc.size": "字号", "desc.color": "颜色", "desc.show": "显示",
+  "font_scale": "字号", "text.color": "颜色", "text.weight": "字重",
+  "btn.height": "高度", "btn.bg": "底色", "btn.bc": "边框色",
+  "btn.fg": "文字颜色", "btn.radius": "圆角", "btn.align": "排列",
+  "opt.bg": "底色", "opt.bc": "边框色", "opt.radius": "圆角", "opt.gap": "间距",
+  "color.primary": "主色", "color.accent": "强调色",
+  "header.bg": "底色", "header_bold": "加粗",
+  "hl.size": "字号", "hl.weight": "字重", "hl.color": "颜色",
+  "caption.show": "显示", "caption.size": "字号",
+  "caption.weight": "字重", "caption.color": "颜色",
+  "dot.shape": "形状", "dot.color": "颜色", "dot.size": "尺寸", "dot.gap": "间距",
+  "flabel.size": "字号", "flabel.weight": "字重", "flabel.color": "颜色",
+  "th.size": "字号", "th.color": "文字颜色", "td.color": "文字颜色", "tbl.font": "字号",
+  "mlabel.size": "字号", "mlabel.color": "颜色", "mv.weight": "字重", "mv.color": "颜色",
+  "mbase.size": "字号", "mbase.color": "颜色", "ol.size": "字号", "ol.color": "颜色",
+  "ts.size": "字号", "ts.color": "颜色", "ts.show": "显示", "ts.format": "显示形式",
+  "ev.size": "字号", "ev.weight": "字重", "ev.color": "颜色",
+  "evdesc.size": "字号", "evdesc.color": "颜色",
+  "tlline.style": "线型", "tlline.color": "颜色",
+  "marker.style": "样式", "marker.color": "颜色",
+  "node.size": "尺寸", "done.color": "完成色", "halo": "光晕",
+  "grid.style": "线型", "grid.count": "密度",
+  "axis.show": "显示", "axis.color": "颜色",
+  "point.show": "显示", "point.size": "大小", "point.shape": "形状",
+  "area.fill": "填充", "area.opacity": "浓度",
+  "line.color": "颜色", "line.width": "线宽", "line.smooth": "平滑", "line.style": "线型",
+  "bar.color": "颜色", "bar.width": "宽度占比", "bar.radius": "端圆角",
+  "legend.show": "显示", "legend.align": "对齐", "legend.pct": "带百分比",
+  "value.size": "字号", "delta.show": "显示", "delta.good": "语义",
+};
+// 每个组件的分层：zones = [zone, 分组名, 只讲本组件的说明]；sub = 分组内的子分组
+const P_BOX = [["背景", ["panel.bg"]], ["内边距", ["spacing"]], ["圆角", ["radius"]],
+               ["边框", ["panel.bc", "panel.border"]], ["阴影", ["shadow"]]];
+const T_BASE = [["整体", ["font_scale", "text.color", "text.weight"]],
+                ["标题", ["title.size", "title.weight", "title.color"]]];
+const BTN_SUB = [["高度", ["btn.height"]], ["底色", ["btn.bg"]], ["边框", ["btn.bc"]],
+                 ["文字颜色", ["btn.fg"]], ["圆角", ["btn.radius"]], ["排列", ["btn.align"]]];
+const CT_LAYOUT = {
+  "form.structured": {
+    zones: [["panel", "01 容器", "表单外层卡片的底色、边框与留白"],
+            ["option", "02 字段控件", "输入框的高度、底色、描边与标签位置"],
+            ["text", "03 文字", "标题、字段标签与输入文字"],
+            ["button", "04 提交按钮", "按钮的底色、边框与文字颜色"]],
+    sub: { panel: P_BOX,
+           option: [["尺寸", ["height"]], ["标签位置", ["label.pos"]],
+                    ["输入框", ["input.bg", "input.border"]],
+                    ["聚焦与选中", ["color.primary", "color.accent"]]],
+           text: [["整体", ["font_scale", "text.color", "text.weight"]],
+                  ["标题", ["title.size", "title.weight", "title.color"]],
+                  ["字段标签", ["flabel.size", "flabel.weight", "flabel.color"]]],
+           button: BTN_SUB },
+    labels: { height: "控件高度" },
+  },
+  "control.confirm": {
+    zones: [["panel", "01 容器", "确认框的底色、边框与留白"],
+            ["text", "02 文字", "确认语与补充说明"],
+            ["button", "03 按钮", "确认 / 取消按钮的排列与配色"]],
+    sub: { panel: P_BOX, text: T_BASE,
+           button: [["排列", ["btn.align"]], ["底色", ["btn.bg"]], ["边框", ["btn.bc"]],
+                    ["文字颜色", ["btn.fg"]], ["悬停", ["color.accent"]]] },
+  },
+  "feedback.binary": {
+    zones: [["panel", "01 容器", "外层卡片的底色、边框与留白"],
+            ["option", "02 赞踩按钮", "按钮形态与选中后的配色"],
+            ["text", "03 文字", "问题文字与回显文字"]],
+    sub: { panel: P_BOX,
+           option: [["形态", ["fb.shape"]], ["选中色", ["color.primary", "color.accent"]]],
+           text: T_BASE },
+  },
+  "feedback.preference": {
+    zones: [["panel", "01 容器", "外层卡片的底色、边框与留白"],
+            ["option", "02 候选卡", "卡片的底色、边框、圆角与间距"],
+            ["text", "03 文字", "题干与候选项文字"]],
+    sub: { panel: P_BOX,
+           option: [["底色与边框", ["opt.bg", "opt.bc"]], ["圆角", ["opt.radius"]],
+                    ["间距", ["card.gap"]], ["选中色", ["color.primary", "color.accent"]]],
+           text: T_BASE },
+  },
+  "slider.range": {
+    zones: [["panel", "01 容器", "外层卡片的底色、边框与留白"],
+            ["option", "02 轨道与滑块", "滑杆形态、轨道高度与滑块尺寸"],
+            ["text", "03 文字", "标题与当前取值"],
+            ["button", "04 提交按钮", "按钮的底色、边框与文字颜色"]],
+    sub: { panel: P_BOX,
+           option: [["形态", ["sl.style"]], ["轨道", ["track.height"]], ["滑块", ["thumb.size"]],
+                    ["主色", ["color.primary", "color.accent"]]],
+           text: T_BASE, button: BTN_SUB },
+  },
+  "scale.likert": {
+    zones: [["panel", "01 容器", "外层卡片的底色、边框与留白"],
+            ["option", "02 刻度", "刻度的形态、尺寸与间距"],
+            ["text", "03 文字", "题干与刻度标签"],
+            ["button", "04 提交按钮", "按钮的底色、边框与文字颜色"]],
+    sub: { panel: P_BOX,
+           option: [["形态", ["lk.style"]], ["刻度", ["dot.size", "dot.gap"]],
+                    ["选中色", ["color.primary", "color.accent"]]],
+           text: T_BASE, button: BTN_SUB },
+  },
+  "picker.datetime": {
+    zones: [["panel", "01 容器", "外层卡片的底色、边框与留白"],
+            ["option", "02 输入控件", "输入框高度与快捷选项"],
+            ["text", "03 文字", "标题与输入文字"],
+            ["button", "04 提交按钮", "按钮的底色、边框与文字颜色"]],
+    sub: { panel: P_BOX,
+           option: [["尺寸", ["height"]], ["快捷选项", ["quick.show"]],
+                    ["主色", ["color.primary", "color.accent"]]],
+           text: T_BASE, button: BTN_SUB },
+    labels: { height: "输入框高度" },
+  },
+  "rank.priority": {
+    zones: [["panel", "01 容器", "外层卡片的底色、边框与留白"],
+            ["option", "02 条目", "条目的底色、边框、高度与序号手柄"],
+            ["text", "03 文字", "标题与条目名"],
+            ["button", "04 提交按钮", "按钮的底色、边框与文字颜色"]],
+    sub: { panel: P_BOX,
+           option: [["容器", ["height", "opt.bg", "opt.bc"]],
+                    ["序号与手柄", ["no.style", "handle.show", "arrows.show"]],
+                    ["选中态", ["sel_style", "color.primary", "color.accent"]]],
+           text: T_BASE, button: BTN_SUB },
+    labels: { height: "条目高度" },
+    short: { height: "高度", "opt.bg": "底色", "opt.bc": "边框色" },
+  },
+  "table": {
+    zones: [["panel", "01 容器", "表格外层卡片的底色、边框与留白"],
+            ["table", "02 表格", "表头、行高与分隔线"],
+            ["text", "03 文字", "表头文字与单元格文字"]],
+    sub: { panel: P_BOX,
+           table: [["表头", ["header.bg", "header_bold"]], ["行", ["row.height", "striped"]],
+                   ["分隔与边框", ["row.divider", "outline"]], ["列对齐", ["col.align"]]],
+           text: [["整体", ["font_scale", "text.color", "text.weight"]],
+                  ["标题", ["title.size", "title.weight", "title.color"]],
+                  ["表头", ["th.size", "th.color"]],
+                  ["单元格", ["tbl.font", "td.color"]]] },
+  },
+  "matrix.compare": {
+    zones: [["panel", "01 容器", "矩阵外层卡片的底色、边框与留白"],
+            ["table", "02 矩阵", "表头、斑马纹与最优项高亮"],
+            ["text", "03 文字", "表头文字与单元格文字"]],
+    sub: { panel: P_BOX,
+           table: [["表头", ["header.bg"]], ["行", ["striped"]],
+                   ["高亮与合计", ["best.highlight", "sum.show"]]],
+           text: [["整体", ["font_scale", "text.color", "text.weight"]],
+                  ["标题", ["title.size", "title.weight", "title.color"]],
+                  ["表格内", ["tbl.font"]]] },
+  },
+  "chart.line": {
+    zones: [["panel", "01 容器", "图表外层卡片的底色、边框与留白"],
+            ["chart", "02 折线与数据点", "线条画法、数据点与面积填充"],
+            ["text", "03 文字", "标题、轴标签与数值标签"]],
+    sub: { panel: P_BOX,
+           chart: [["折线", ["line.color", "line.width", "line.smooth", "line.style"]],
+                   ["数据点", ["point.show", "point.size", "point.shape", "last.emph"]],
+                   ["面积", ["area.fill", "area.opacity"]],
+                   ["坐标轴与网格", ["grid", "grid.style", "grid.count", "axis.show", "axis.color", "y.zero"]],
+                   ["标注", ["title.align", "legend.show", "value_labels"]]],
+           text: [["整体", ["font_scale", "text.color", "text.weight"]],
+                  ["标题", ["title.size", "title.weight", "title.color"]]] },
+  },
+  "chart.bar": {
+    zones: [["panel", "01 容器", "图表外层卡片的底色、边框与留白"],
+            ["chart", "02 柱体", "柱宽、圆角、方向与排序"],
+            ["text", "03 文字", "标题、轴标签与柱顶数值"]],
+    sub: { panel: P_BOX,
+           chart: [["柱体", ["bar.color", "bar.width", "bar.radius"]],
+                   ["方向与排序", ["bar.horizontal", "bar.sort"]],
+                   ["坐标轴与网格", ["grid", "grid.style", "axis.color"]],
+                   ["标注", ["title.align", "value_labels"]]],
+           text: [["整体", ["font_scale", "text.color", "text.weight"]],
+                  ["标题", ["title.size", "title.weight", "title.color"]]] },
+  },
+  "chart.pie": {
+    zones: [["panel", "01 容器", "图表外层卡片的底色、边框与留白"],
+            ["chart", "02 扇区", "饼 / 环 / 百分比条的形态与排序"],
+            ["text", "03 文字", "标题与图例文字"]],
+    sub: { panel: P_BOX,
+           chart: [["形态", ["pie.style", "donut.thickness", "pie.height"]],
+                   ["排序", ["pie.sort"]],
+                   ["图例", ["legend.show", "legend.align", "legend.pct"]],
+                   ["标注", ["title.align"]]],
+           text: [["整体", ["font_scale", "text.color", "text.weight"]],
+                  ["标题", ["title.size", "title.weight", "title.color"]]] },
+  },
+  "metric.card": {
+    zones: [["panel", "01 容器", "卡片的底色、边框与留白"],
+            ["metric", "02 数值与涨跌", "数值字号、涨跌语义与整体对齐"],
+            ["text", "03 文字", "指标名与对比说明"]],
+    sub: { panel: P_BOX,
+           metric: [["数值", ["value.size"]], ["涨跌", ["delta.show", "delta.good", "delta.invert"]],
+                    ["对齐", ["metric.align"]], ["对比说明", ["baseline.show"]]],
+           text: [["整体", ["font_scale", "text.color", "text.weight"]],
+                  ["指标名", ["mlabel.size", "mlabel.color"]],
+                  ["数值", ["mv.weight", "mv.color"]],
+                  ["对比说明", ["mbase.size", "mbase.color"]]] },
+  },
+  "timeline": {
+    zones: [["panel", "01 容器", "外层卡片的底色、边框与留白"],
+            ["node", "02 节点与连线", "节点形状颜色与连线样式"],
+            ["text", "03 文字", "时间、事件标题与描述"]],
+    sub: { panel: P_BOX,
+           node: [["节点", ["dot.shape", "dot.color"]], ["连线", ["tlline.style", "tlline.color"]],
+                  ["排列", ["tl.order", "now.emph"]]],
+           text: [["整体", ["font_scale", "text.color", "text.weight"]],
+                  ["标题", ["title.size", "title.weight", "title.color"]],
+                  ["时间", ["ts.show", "ts.format", "ts.size", "ts.color"]],
+                  ["事件标题", ["ev.size", "ev.weight", "ev.color"]],
+                  ["描述", ["desc.show", "evdesc.size", "evdesc.color"]]] },
+  },
+  "steps": {
+    zones: [["panel", "01 容器", "外层卡片的底色、边框与留白"],
+            ["node", "02 节点与连线", "节点尺寸、完成色与连线粗细"],
+            ["text", "03 文字", "步骤标签"]],
+    sub: { panel: P_BOX,
+           node: [["节点", ["node.size", "done.color", "halo"]],
+                  ["连线", ["stepline.width"]], ["排列", ["steps.dir", "stepnum.show"]]],
+           text: [["整体", ["font_scale", "text.color", "text.weight"]],
+                  ["标题", ["title.size", "title.weight", "title.color"]],
+                  ["步骤标签", ["steplabel.size"]]] },
+  },
+  "list.ordered": {
+    zones: [["panel", "01 容器", "外层卡片的底色、边框与留白"],
+            ["option", "02 条目与序号", "序号样式、颜色与条目间距"],
+            ["text", "03 文字", "条目文字"]],
+    sub: { panel: P_BOX,
+           option: [["序号", ["marker.style", "marker.color"]], ["间距", ["list.gap"]]],
+           text: [["整体", ["font_scale", "text.color", "text.weight"]],
+                  ["标题", ["title.size", "title.weight", "title.color"]],
+                  ["条目", ["ol.size", "ol.color"]]] },
+  },
+  "text.emphasis": {
+    zones: [["panel", "01 容器", "外层卡片的底色、边框与留白"],
+            ["text", "02 结论与说明", "结论文字与补充说明的字号、字重与颜色"]],
+    sub: { panel: P_BOX,
+           text: [["结论", ["hl.size", "hl.weight", "hl.color", "tone.color"]],
+                  ["补充说明", ["caption.show", "caption.size", "caption.weight", "caption.color"]],
+                  ["整体", ["font_scale", "text.color", "text.weight", "text.align"]]] },
+  },
+};
 const zoneOf = (key) => {
   for (const z in PARAM_ZONE) if (PARAM_ZONE[z].includes(key)) return z;
   return "option";   // 未归类的专属参数归到「选项与控件」，不单独开组
@@ -1048,6 +1345,13 @@ const COMPONENT_PARAMS = {
       { deps: ["delta.show", true], hint: "决定涨跌颜色的业务含义：如投诉量下降应显示为改善（绿）" }],
     ["metric.align", "对齐", "enum", [["", "左对齐"], ["center", "居中"]]],
     ["baseline.show", "对比说明", "bool", true, { hint: "数值下方的一行小字，如「对比上月同期」" }],
+    // 文字角色：指标名 / 数值 / 对比说明各自成套
+    ["mlabel.size", "指标名字号", "num", 10, 16, 12],
+    ["mlabel.color", "指标名颜色", "color"],
+    ["mv.weight", "数值字重", "enum", [["", "加粗"], ["500", "中黑"], ["600", "半粗"]]],
+    ["mv.color", "数值颜色", "color"],
+    ["mbase.size", "说明字号", "num", 10, 14, 12, { deps: ["baseline.show", true] }],
+    ["mbase.color", "说明颜色", "color", { deps: ["baseline.show", true] }],
   ],
   "table": [
     ["striped", "隔行变色", "bool", true],
@@ -1056,7 +1360,10 @@ const COMPONENT_PARAMS = {
     ["row.height", "行高", "num", 32, 52, 40],
     ["outline", "外边框", "bool", false],
     ["row.divider", "行分隔线", "enum", [["", "横线"], ["none", "无"], ["all", "全框"]], { hint: "全框时建议关闭隔行变色" }],
-    ["tbl.font", "表格字号", "num", 11, 14, 12, { adv: true, hint: "覆盖通用「字号」在表格内的取值" }],
+    ["tbl.font", "单元格字号", "num", 11, 14, 12, { hint: "表格正文的字号" }],
+    ["td.color", "单元格文字颜色", "color"],
+    ["th.size", "表头字号", "num", 10, 14, 11],
+    ["th.color", "表头文字颜色", "color"],
     ["col.align", "列对齐", "enum", [["", "智能（数字右对齐）"], ["left", "全部左对齐"]], { adv: true }],
   ],
   "timeline": [
@@ -1071,6 +1378,14 @@ const COMPONENT_PARAMS = {
     ["tlline.color", "连线颜色", "color"],
     ["ts.show", "时间戳", "bool", true],
     ["desc.show", "描述文字", "bool", true],
+    // 文字角色：时间 / 事件标题 / 描述各自成套（次要文字只给字号与颜色，字重用默认）
+    ["ts.size", "时间字号", "num", 10, 15, 12, { deps: ["ts.show", true] }],
+    ["ts.color", "时间颜色", "color", { deps: ["ts.show", true] }],
+    ["ev.size", "事件标题字号", "num", 12, 18, 14],
+    ["ev.weight", "事件标题字重", "enum", [["", "常规"], ["500", "中黑"], ["600", "加粗"]]],
+    ["ev.color", "事件标题颜色", "color"],
+    ["evdesc.size", "描述字号", "num", 10, 15, 12, { deps: ["desc.show", true] }],
+    ["evdesc.color", "描述颜色", "color", { deps: ["desc.show", true] }],
   ],
   "steps": [
     ["steps.dir", "布局方向", "enum", [["", "横向"], ["vertical", "纵向"]], { hint: "超过 4 步建议纵向，标签不挤" }],
@@ -1089,6 +1404,8 @@ const COMPONENT_PARAMS = {
     ["tbl.font", "表格字号", "num", 11, 14, 12, { adv: true }],
   ],
   "list.ordered": [
+    ["ol.size", "条目字号", "num", 12, 17, 14],
+    ["ol.color", "条目颜色", "color"],
     ["marker.style", "序号样式", "enum", [["", "数字圆标"], ["dot", "圆点"], ["none", "无"]]],
     ["marker.color", "序号颜色", "color", { deps: ["marker.style", ["", "dot"]] }],
     ["list.gap", "条目间距", "num", 4, 16, 8],
@@ -1218,6 +1535,20 @@ const NO_CONTENT_TYPES = ["feedback.preference", "table", "chart.line", "chart.b
 
 
 // v2.1 极简：内容与说明不在平台配（全参数化）——选组件 → 调样式 → 发布
+// 同一类交互收成一个入口，形态在卡片上切换——选组件时只看 12 个入口，不必在 20 个里挑
+// 主 type 排第一位；切换形态等同于换组件类型，内容配置随之重置（此时还没配内容，代价为零）
+const CT_VARIANTS = {
+  "select.single": [["select.single", "列表"], ["select.card", "卡片"], ["feedback.preference", "候选对比"]],
+  "table": [["table", "普通表格"], ["matrix.compare", "对比矩阵"]],
+  "timeline": [["timeline", "时间线"], ["steps", "步骤条"]],
+  "text.emphasis": [["text.emphasis", "重点结论"], ["list.ordered", "要点清单"]],
+  "chart.line": [["chart.line", "折线图"], ["chart.bar", "柱状图"], ["chart.pie", "饼图"]],
+};
+// 变体成员 → 主 type（主 type 自己也映射到自己）
+const VARIANT_HOST = {};
+Object.entries(CT_VARIANTS).forEach(([host, list]) =>
+  list.forEach(([ct]) => { VARIANT_HOST[ct] = host; }));
+
 const STEP_DEFS = [
   { key: "pick", label: "容器选择" },
   { key: "content", label: "内容设置" },
@@ -1367,7 +1698,8 @@ async function openEditor(cardId, prefill, initStep) {
   const steps = () => STEP_DEFS.filter(s => {
     if (s.key === "pick") return isNew;
     if (s.key === "content") return true;   // 展示类同样有内容步（固定数据 / AI 生成二选一）
-
+    // 展示类组件用户不能操作，交互定义这一步没有内容可配，整步不出现（而不是留一片空白）
+    if (s.key === "interaction") return !PRESENT_TYPES.includes(state.component_type);
     return true;
   });
   const entryStep = () => "content";
@@ -1389,6 +1721,15 @@ async function openEditor(cardId, prefill, initStep) {
   function applyTemplate(ct, c) {
     const tpl = templateLibrary.find(t => t.component_type === ct) || {};
     c = c || tpl.default_config || {};
+    // 换组件（含在容器选择步切换形态）时，上一个组件的专属样式对新组件没有意义，
+    // 留着只会变成看不见的脏数据；通用样式（面板 / 文字 / 按钮）保留，品牌化不用重配。
+    const prevCt = state.component_type;
+    if (prevCt && prevCt !== ct && state.styleOv) {
+      const nextKeys = new Set((COMPONENT_PARAMS[ct] || []).map(x => x[0]));
+      (COMPONENT_PARAMS[prevCt] || []).forEach(([k]) => {
+        if (!nextKeys.has(k)) delete state.styleOv[k];
+      });
+    }
     state.component_type = ct;
     if (ct === "form.structured") state.echo_results = false;
     state.display = selectorDisplayOf(ct) || c.display || "";
@@ -1562,6 +1903,33 @@ async function openEditor(cardId, prefill, initStep) {
   }
 
   const previewBox = el("div", {});
+  // 组件预览的明暗切换：主题带 color_dark 两套 token，预览要能看到深色下的实际效果
+  const PV_DARK_VARS = {
+    primary: "--primary", primary_weak: "--primary-weak", accent: "--brand-accent", ring: "--brand-ring",
+    bg_page: "--bg-page", bg_surface: "--bg-surface", bg_elevated: "--bg-elevated", bg_sunken: "--bg-sunken",
+    text_primary: "--text-primary", text_secondary: "--text-secondary", text_muted: "--text-muted",
+    border: "--border", success: "--success", warning: "--warning", danger: "--danger",
+  };
+  // Brand 把主题变量写在 `.brand-scope{}` 规则里，所以深色覆盖要用更高特异性的规则，
+  // 而不是设在祖先元素上——否则组件自己的 .brand-scope 定义会盖掉继承值。
+  let __pvDarkStyle = null;
+  function applyPreviewDark(host, on) {
+    if (!host) return;
+    host.classList.toggle("pv-dark", !!on);
+    if (!__pvDarkStyle) {
+      __pvDarkStyle = document.createElement("style");
+      document.head.appendChild(__pvDarkStyle);
+    }
+    if (!on) { __pvDarkStyle.textContent = ""; return; }
+    const t = (window.Brand && Brand.get && Brand.get()) || {};
+    const c = { ...(t.color || {}), ...(t.color_dark || {}) };
+    const decls = Object.entries(PV_DARK_VARS)
+      .filter(([k]) => c[k]).map(([k, v]) => `${v}:${c[k]}`).join(";");
+    if (!decls) { __pvDarkStyle.textContent = ""; return; }
+    const extra = c.border ? `;--border-strong:${c.border}` : "";
+    __pvDarkStyle.textContent =
+      `.pv-dark .comp, .pv-dark .comp.brand-scope, .pv-dark .brand-scope{${decls}${extra}}`;
+  }
   function previewWithStyle(env) { if (env && Object.keys(state.styleOv || {}).length) env.style_overrides = state.styleOv; return env; }
   function renderPreview() {
     previewBox.innerHTML = "";
@@ -1953,17 +2321,26 @@ async function openEditor(cardId, prefill, initStep) {
       gridBox.innerHTML = "";
       // 有推荐时推荐卡置顶（已选组件时也一眼可见），组内保持原顺序
       const tabDef = PICK_TABS.find(t => t[0] === pickTab);
-      const list = V2_TEMPLATES.filter(t => tabDef[2].includes(t.component_type));
+      // 只列主入口：变体成员收进主卡的形态切换里
+      const list = V2_TEMPLATES.filter(t => tabDef[2].includes(t.component_type)
+        && (!VARIANT_HOST[t.component_type] || VARIANT_HOST[t.component_type] === t.component_type));
       list.forEach(t => {
+        const variants = CT_VARIANTS[t.component_type] || null;
+        // 当前落在这一组里的具体形态（没选过就用主 type）
+        const curVar = variants && variants.some(([c]) => c === state.component_type)
+          ? state.component_type : t.component_type;
         const selAny = state.component_type === t.component_type ||
-          (t.component_type === "select.single" && state.component_type === "select.multi");
+          (t.component_type === "select.single" && state.component_type === "select.multi") ||
+          (variants && variants.some(([c]) => c === state.component_type));
         const r = rec[t.component_type];
-        const pick = () => {
-          applyTemplate(t.component_type, r ? (r.s.prefill_config || r.s.default_config) : null);
+        const pick = (asType) => {
+          const target = asType || curVar;
+          applyTemplate(target, r ? (r.s.prefill_config || r.s.default_config) : null);
           if (!state.name.trim()) {
             const taken = new Set((window.__allCards || []).map(x => x.name));
-            let nm = t.name, i2 = 2;
-            while (taken.has(nm)) nm = t.name + " " + (i2++);
+            const baseName = (V2_TEMPLATES.find(x => x.component_type === target) || t).name;
+            let nm = baseName, i2 = 2;
+            while (taken.has(nm)) nm = baseName + " " + (i2++);
             state.name = nm;
             nameInput.value = nm;
           }
@@ -1971,14 +2348,14 @@ async function openEditor(cardId, prefill, initStep) {
           autosave(); drawGrid(); renderPreview(); updateFoot(); drawStepBar();
         };
         // 容器模板式富卡：名称 + 类别 chip + 描述 + 真实示例预览（原组件模板页整体并入本步）
-        const isP2 = PRESENT_TYPES.includes(t.component_type);
-        const kindLabel = t.component_type === "form.structured" ? "容器" : (isP2 ? "非交互组件" : "交互组件");
+        const isP2 = PRESENT_TYPES.includes(curVar);
+        const kindLabel = curVar === "form.structured" ? "容器" : (isP2 ? "非交互组件" : "交互组件");
         const pv2 = el("div", { class: "tpl-preview pick-pv" });
         try {
           pv2.appendChild(el("div", { class: "brand-scope" }, [Components.render({
-            schema_version: "1.0.0", render_id: "pick-" + t.component_type, component_type: t.component_type,
+            schema_version: "1.0.0", render_id: "pick-" + curVar, component_type: curVar,
             semantic_category: isP2 ? "present" : "collect", trigger_source: "pick_preview", card_ref: null,
-            params: WB_DEMO[t.component_type] || DEMO_PRESENT[t.component_type] || {},
+            params: WB_DEMO[curVar] || DEMO_PRESENT[curVar] || {},
           }, { sendEvent: () => {}, onCollectSubmit: () => {}, onControl: () => {}, preview: true, titleInBubble: true })]));
         } catch (e) { pv2.appendChild(el("div", { class: "muted" }, ["示例预览暂不可用"])); }
         gridBox.appendChild(el("div", {
@@ -1987,13 +2364,19 @@ async function openEditor(cardId, prefill, initStep) {
           onclick: pick,
           onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } } },
           [el("div", { class: "tpl-head" }, [
-             el("span", { class: "tpl-ico", style: "width:30px;height:30px" }, [UI.icon(CT_ICONS[t.component_type] || "grid", 16)]),
-             el("span", { style: "font-weight:700" }, [t.name]),
+             el("span", { class: "tpl-ico", style: "width:30px;height:30px" }, [UI.icon(CT_ICONS[curVar] || "grid", 16)]),
+             el("span", { style: "font-weight:700" }, [(V2_TEMPLATES.find(x => x.component_type === curVar) || t).name]),
              el("span", { class: "chip " + (isP2 ? "gray" : "blue") }, [kindLabel]),
              r ? el("span", { class: (r.top ? "chip ai" : "chip gray") + " rec-chip" }, [r.top ? "最推荐" : "推荐"]) : null,
            ]),
            el("div", { class: "d", style: "color:var(--text-muted);font-size:var(--font-caption);line-height:1.55;margin:4px 0 8px" },
-             [WIZ_DESC[t.component_type] || t.desc]),
+             [WIZ_DESC[curVar] || t.desc]),
+           variants ? el("div", { class: "tpl-variants" },
+             variants.map(([vt, vn]) => el("button", {
+               type: "button", class: "tpl-variant" + (vt === curVar ? " on" : ""),
+               title: WIZ_DESC[vt] || "",
+               onclick: (e) => { e.stopPropagation(); pick(vt); },
+             }, [vn]))) : null,
            pv2]));
       });
     }
@@ -3076,15 +3459,39 @@ async function openEditor(cardId, prefill, initStep) {
           placeholder: "1", class: "num", style: "width:90px" });
         const maxSel = el("input", { type: "number", min: "0", max: "8", value: state.maxSelect || "",
           placeholder: "不限", class: "num", style: "width:90px" });
-        minSel.oninput = () => { state.minSelect = minSel.value; upd(); };
-        maxSel.oninput = () => { state.maxSelect = maxSel.value; upd(); };
+        // 选项总数：固定内容时可数，AI 动态内容时未知（不校验上限）
+        const optCount = state.contentMode === "fixed"
+          ? (state.fixedOptions || []).map(x => String(x || "").trim()).filter(Boolean).length : 0;
+        const selHint = el("div", { class: "sel-count-hint muted" }, [""]);
+        const checkSelCount = () => {
+          const mn = minSel.value === "" ? null : Number(minSel.value);
+          const mx = maxSel.value === "" ? null : Number(maxSel.value);
+          let msg = "", bad = null;
+          if (mn !== null && (!Number.isInteger(mn) || mn < 1)) { msg = "最少选择数至少为 1"; bad = minSel; }
+          else if (mx !== null && mx !== 0 && !Number.isInteger(mx)) { msg = "最多选择数要填整数"; bad = maxSel; }
+          else if (mn !== null && mx) { if (mx < mn) { msg = "最多选择数不能小于最少选择数"; bad = maxSel; } }
+          if (!msg && optCount) {
+            if (mn !== null && mn > optCount) { msg = `最少选择数不能超过选项总数（当前 ${optCount} 项）`; bad = minSel; }
+            else if (mx && mx > optCount) { msg = `最多选择数不能超过选项总数（当前 ${optCount} 项）`; bad = maxSel; }
+          }
+          [minSel, maxSel].forEach(n => n.classList.remove("err"));
+          if (bad) bad.classList.add("err");
+          selHint.textContent = msg || (optCount ? `共 ${optCount} 个选项` : "最多留空表示不限");
+          selHint.classList.toggle("bad", !!msg);
+          // 最多选择数的下限随最少选择数走，拖数字时不会拉出非法区间
+          maxSel.min = String(Math.max(0, mn || 1));
+        };
+        minSel.oninput = () => { state.minSelect = minSel.value; checkSelCount(); upd(); };
+        maxSel.oninput = () => { state.maxSelect = maxSel.value; checkSelCount(); upd(); };
         box.appendChild(el("div", { class: "sty-section" }, [
           el("div", { class: "sty-label" }, ["选择数量", UI.help("最少默认 1 项；最多留空表示不限，且不能小于最少选择数")]),
           el("div", { class: "fx-row" }, [
             el("span", { class: "muted" }, ["最少选择数"]), minSel,
             el("span", { class: "muted" }, ["最多选择数"]), maxSel,
           ]),
+          selHint,
         ]));
+        checkSelCount();
       }
 
       // 0913Mia调整：移除“允许取消选择”，单选固定支持改选，多选固定支持取消勾选
@@ -3107,7 +3514,7 @@ async function openEditor(cardId, prefill, initStep) {
 
     // 0913Mia调整：群体回显从内容配置迁移到交互 Tab
     const echoSupported = ct === "feedback.binary" || ["select.single", "select.multi", "select.card",
-      "rank.priority", "scale.likert", "control.confirm"].includes(ct);
+      "rank.priority", "scale.likert", "control.confirm", "feedback.preference"].includes(ct);
     if (echoSupported) {
       // 0913Mia调整：明确这是用户完成提交后的结果反馈
       box.appendChild(groupHead("提交后反馈"));
@@ -3150,7 +3557,11 @@ async function openEditor(cardId, prefill, initStep) {
       }
     }
 
-    if (!box.children.length) box.appendChild(el("div", { class: "ed-note" }, ["当前展示类组件无需配置交互行为。"]));
+    if (!box.children.length) {
+      box.appendChild(el("div", { class: "ed-note" }, [PRESENT_TYPES.includes(ct)
+        ? "当前展示类组件无需配置交互行为。"
+        : "本组件的操作方式是固定的（选中即提交），没有需要配置的交互行为。"]));
+    }
     return box;
   }
 
@@ -3159,7 +3570,16 @@ async function openEditor(cardId, prefill, initStep) {
     const box = el("div", {});
     const ct = state.component_type;
     const IS_SELECTOR = ["select.single", "select.multi", "select.card"].includes(ct);
-    if (IS_SELECTOR) box.classList.add("selector-style-stack");
+    const LAY = CT_LAYOUT[ct] || null;           // 组件自己的分层定义
+    // 分层定义里写了这个属性归哪一组，就以它为准——属性归到它真正作用的层
+    const layZoneOf = (key) => {
+      if (!LAY || !LAY.sub) return null;
+      for (const z in LAY.sub)
+        if ((LAY.sub[z] || []).some(([, keys]) => keys.includes(key))) return z;
+      return null;
+    };
+    const USE_LAY = IS_SELECTOR || !!LAY;        // 有分层定义就走分层渲染
+    if (USE_LAY) box.classList.add("selector-style-stack");
     // 布局已精简，清理旧版隐藏值，避免预览仍受“横向 / 居中 / 行内”等历史配置影响。
     if (IS_SELECTOR) {
       delete so["layout.direction"];
@@ -3428,10 +3848,10 @@ async function openEditor(cardId, prefill, initStep) {
     if (!IS_PRESENT) {
       // 确认器的主按钮恒定用警示红，改主色看不出变化，这一项就不给它
       if (ct !== "control.confirm") {
-        zpush(IS_SELECTOR ? "option" : "panel", colorRow("color.primary", IS_SELECTOR ? "选中主色" : "主色（按钮 / 选中态）",
+        zpush(layZoneOf("color.primary") || (IS_SELECTOR ? "option" : "panel"), colorRow("color.primary", IS_SELECTOR ? "选中主色" : "主色（按钮 / 选中态）",
           ct === "feedback.binary" ? "赞踩按钮平时是中性色，这个颜色用在悬停与点选之后" : undefined));
       }
-      if (!IS_SELECTOR) zpush("panel", colorRow("color.accent", "强调色（悬停 / 高亮）"));
+      if (!IS_SELECTOR) zpush(layZoneOf("color.accent") || "panel", colorRow("color.accent", "强调色（悬停 / 高亮）"));
     }
     zpush("panel", colorRow("panel.bg", "面板底色"));
     zpush("panel", colorRow("panel.bc", "面板边框色"));
@@ -3547,7 +3967,7 @@ async function openEditor(cardId, prefill, initStep) {
       // 基础项直接进所属区域；高级项按区域各自收进「高级」折叠
       const advByZone = {};
       specList.forEach(it => {
-        const z = zoneOf(it[0]);
+        const z = layZoneOf(it[0]) || zoneOf(it[0]);
         const holder = el("div", {});
         renderItem(it, holder);
         if (!holder.children.length) return;      // deps 未满足
@@ -3563,13 +3983,25 @@ async function openEditor(cardId, prefill, initStep) {
       });
     }
     // 组件专属参数按 zone 分发：基础项进所属区域，高级项仍收进各区的「高级」折叠
+    // 标题是几乎每个组件都有的文字角色，统一在文字层给一套（选择器已有自己的一套）。
+    // 放在这里是因为 enumRow 在上面才定义，提前调用会踩 TDZ。
+    if (!IS_SELECTOR && !["metric.card", "text.emphasis", "control.confirm"].includes(ct)) {
+      zpush("text", numRow("title.size", "标题字号", 12, 22, 15));
+      zpush("text", enumRow("title.weight", "标题字重", [["", "常规"], ["500", "中黑"], ["700", "加粗"]], upd));
+      zpush("text", colorRow("title.color", "标题颜色"));
+    }
+    if (ct === "form.structured") {
+      zpush("text", numRow("flabel.size", "字段标签字号", 11, 17, 13));
+      zpush("text", enumRow("flabel.weight", "字段标签字重", [["", "中黑"], ["400", "常规"], ["600", "加粗"]], upd));
+      zpush("text", colorRow("flabel.color", "字段标签颜色"));
+    }
     drawSpecArea(zpush);
 
     // 按区域依次输出：每个区 = 一个折叠组，区内含该区全部属性
     // 展示类组件没有"用户操作的那一层"，同一个区在它们身上换个说法
     const zoneTitle = (z, title, desc) => (z === "option" && PRESENT_TYPES.includes(ct))
       ? ["条目与标记", "每一条内容的呈现方式"] : [title, desc];
-    const selectorMeta = [
+    const selectorMeta = LAY ? LAY.zones : [
       ["panel", "01 容器", "组件最外层的尺寸与视觉"],
       ["layout", "02 布局", "控制内容密度、模块间距与选项排列"],
       ["option", "03 选项", "选项容器、选择控件、间距与状态"],
@@ -3577,7 +4009,7 @@ async function openEditor(cardId, prefill, initStep) {
       ["tag", "05 标签", "推荐标签的文字、背景、圆角与预设"],
       ["button", "06 按钮", "提交按钮的高度、底色、文字颜色与圆角"],
     ];
-    const subgroupMaps = {
+    const subgroupMaps = LAY ? LAY.sub : {
         panel: [["尺寸", ["container.width"]], ["背景", ["panel.bg"]], ["内边距", ["spacing"]], ["圆角", ["radius"]], ["边框", ["panel.bc", "panel.border"]], ["阴影", ["shadow"]]],
         layout: [["内容密度", ["density"]], ["模块间距", ["module.gap"]], ["选项排列", ["options.layout"]]],
         text: [["标题", ["title.size", "title.weight", "title.color"]], ["标题描述", ["desc.size", "desc.color"]], ["选项名称", ["option.name.size", "option.name.weight", "option.name.color"]], ["选项描述", ["desc.show", "option.desc.size", "option.desc.color"]]],
@@ -3590,7 +4022,7 @@ async function openEditor(cardId, prefill, initStep) {
       return hit ? hit[0] : "其他";
     };
     // 子分组已经表达了语义，卡片内只写具体属性，避免出现“圆角 → 圆角”一类重复名称。
-    const selectorPropLabels = {
+    const selectorPropLabels = LAY ? { ...L_COMMON, ...(LAY.labels || {}) } : {
       "container.width": "最大宽度", "panel.bg": "背景色", "spacing": "四周留白", "radius": "圆角",
       "panel.bc": "边框颜色", "panel.border": "边框", "shadow": "阴影",
       "layout.direction": "内容方向", "layout.align": "内容位置", "density": "内容密度",
@@ -3611,7 +4043,7 @@ async function openEditor(cardId, prefill, initStep) {
       "btn.height": "按钮高度", "btn.bg": "按钮底色", "btn.fg": "按钮文字颜色", "btn.radius": "按钮圆角",
     };
     // 当同一模块下有多个属性时，模块名由子标题统一表达，属性只保留“显示 / 尺寸 / 颜色”等短名称。
-    const selectorGroupedLabels = {
+    const selectorGroupedLabels = LAY ? { ...S_COMMON, ...(LAY.short || {}) } : {
       "height": "最小高度", "opt.radius": "圆角", "opt.padding.x": "水平留白",
       "radio.show": "显示", "radio.size": "尺寸", "radio.color": "颜色",
       "opt.gap": "选项间距", "card.gap": effectiveDisplay === "inline" ? "胶囊间距" : "卡片间距",
@@ -3644,11 +4076,11 @@ async function openEditor(cardId, prefill, initStep) {
       const textNode = [...label.childNodes].find(x => x.nodeType === 3);
       if (textNode) textNode.nodeValue = text;
     };
-    (IS_SELECTOR ? selectorMeta : ZONE_META).forEach(([z, title0, desc0]) => {
+    (USE_LAY ? selectorMeta : ZONE_META).forEach(([z, title0, desc0]) => {
       const items = ZBUF[z];
       if (!items || !items.length) return;
       const [title, desc] = zoneTitle(z, title0, desc0);
-      if (!IS_SELECTOR) {
+      if (!USE_LAY) {
         box.appendChild(groupHead(title, desc));
         items.forEach(n => box.appendChild(n));
       } else {
@@ -3756,9 +4188,11 @@ async function openEditor(cardId, prefill, initStep) {
         })),
       ]);
     };
-    const pre = (obj) => el("details", { class: "schema-raw" }, [
-      el("summary", {}, ["查看原始 JSON"]),
-      el("pre", { class: "code num", style: "max-height:280px;overflow:auto;margin-top:8px" }, [JSON.stringify(obj, null, 2)]),
+    // 这一步就是两段 JSON：入参一段、回传一段，直接摊开给开发看
+    const pre = (obj) => el("pre", { class: "code num schema-code" }, [JSON.stringify(obj, null, 2)]);
+    // 字段说明收进折叠：需要逐字段读含义时再展开，不占主位
+    const fieldsFold = (node) => el("details", { class: "schema-raw" }, [
+      el("summary", {}, ["字段说明"]), node,
     ]);
     const sec = (title, hint, node, copyObj) => el("div", { class: "schema-card" }, [
       el("div", { class: "schema-head" }, [
@@ -3802,18 +4236,18 @@ async function openEditor(cardId, prefill, initStep) {
             text_templates: { prompt: (state.fixedPrompt || "").trim(), submit: (state.submitLabel || "").trim() } } });
         host.innerHTML = "";
         host.appendChild(sec("params_schema", "模型调用本组件时要填的参数",
-          el("div", {}, [fieldTable(r.params_schema), pre(r.params_schema || {})]), r.params_schema || {}));
+          el("div", {}, [pre(r.params_schema || {}), fieldsFold(fieldTable(r.params_schema))]), r.params_schema || {}));
         if (r.submit_schema && Object.keys(r.submit_schema).length) {
           host.appendChild(sec("submit_schema", "用户提交后回传给 agent 的结构",
             el("div", {}, [
-              r.submit_schema.properties ? fieldTable(r.submit_schema) : el("table", { class: "data schema-table" }, [
+              pre(r.submit_schema),
+              fieldsFold(r.submit_schema.properties ? fieldTable(r.submit_schema) : el("table", { class: "data schema-table" }, [
                 el("thead", {}, [el("tr", {}, ["字段", "内容"].map(h => el("th", {}, [h])))]),
                 el("tbody", {}, Object.entries(r.submit_schema).map(([k, v]) => el("tr", {}, [
                   el("td", {}, [el("code", { class: "schema-key" }, [k])]),
                   el("td", { class: "muted" }, [String(v)]),
                 ]))),
-              ]),
-              pre(r.submit_schema),
+              ])),
             ]), r.submit_schema));
         } else {
           host.appendChild(sec("submit_schema", null,
@@ -4249,6 +4683,32 @@ async function openEditor(cardId, prefill, initStep) {
           })(), UI.help("用户在对话中看到的效果，与线上同一套渲染器；预览中提交不产生数据"),
           el("div", { style: "flex:1" }),
           (() => {
+            // 明暗切换：主题有深色一套时才给。
+            // 注意不能在这里直接判断就 return null——Brand 是异步加载的，
+            // 构建 DOM 时可能还没就绪（本地快、静态站慢），那样切换器会永久消失。
+            const seg = el("div", { class: "segmented small pv-mode" });
+            const syncSegVisible = () => {
+              const t = (window.Brand && Brand.get && Brand.get()) || {};
+              seg.hidden = !(t.color_dark && Object.keys(t.color_dark).length);
+            };
+            syncSegVisible();
+            setTimeout(syncSegVisible, 300);
+            setTimeout(syncSegVisible, 1500);
+            // 上次留下的偏好要落到这次新建的预览容器上，否则按钮显示深色、画布却是浅色
+            if (window.__pvDark) setTimeout(() => applyPreviewDark(previewBox, true), 0);
+            [["light", "浅色"], ["dark", "深色"]].forEach(([k, nm]) => {
+              const on = (k === "dark") === !!window.__pvDark;
+              seg.appendChild(el("button", { type: "button", class: on ? "on" : "",
+                title: k === "dark" ? "看组件在深色模式下的样子" : "看组件在浅色模式下的样子",
+                onclick: () => {
+                  window.__pvDark = k === "dark";
+                  [...seg.children].forEach((b2, i) => b2.classList.toggle("on", (i === 1) === !!window.__pvDark));
+                  applyPreviewDark(previewBox, window.__pvDark);
+                } }, [nm]));
+            });
+            return seg;
+          })(),
+          (() => {
             // 恢复主题默认：作用对象就是这张示例卡，所以放在预览卡头部对齐（仅样式步显示）
             window.__pvResetBtn = el("button", { class: "btn small ghost", type: "button", style: "color:var(--primary)",
               title: "清除本实例的全部样式覆盖，回到产品主题默认", onclick: () => {
@@ -4509,12 +4969,16 @@ async function openEditor(cardId, prefill, initStep) {
     if (["select.single", "select.multi", "select.card"].includes(state.component_type) && state.multiSelect) {
       const minSelect = Number(state.minSelect) > 0 ? Number(state.minSelect) : 1;
       const maxSelect = Number(state.maxSelect) > 0 ? Number(state.maxSelect) : 0;
+      if (state.minSelect !== "" && state.minSelect != null && Number(state.minSelect) < 1)
+        errs.push({ field: "min_select", message: "最少选择数至少为 1" });
       if (maxSelect && minSelect > maxSelect)
         errs.push({ field: "max_select", message: "最多选择数不能小于最少选择数" });
       const optionCount = state.contentMode === "fixed"
         ? (state.fixedOptions || []).map(x => String(x || "").trim()).filter(Boolean).length : 0;
+      if (optionCount && minSelect > optionCount)
+        errs.push({ field: "min_select", message: `最少选择数不能超过选项总数（当前 ${optionCount} 项）` });
       if (optionCount && maxSelect > optionCount)
-        errs.push({ field: "max_select", message: "最多选择数不能超过选项数" });
+        errs.push({ field: "max_select", message: `最多选择数不能超过选项总数（当前 ${optionCount} 项）` });
     }
     return errs;
   }

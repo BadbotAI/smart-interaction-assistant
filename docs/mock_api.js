@@ -663,7 +663,7 @@
           "table": { title: "分区域概览", columns: ["区域", "数量", "环比"], rows: [["华东", "352", "2.3%"], ["华南", "332", "1.5%"], ["华北", "372", "3.2%"]] },
           "chart.line": { title: "近半年走势", categories: ["4月", "5月", "6月", "7月", "8月", "9月"], series: [{ name: "金额（万元）", values: [122, 165, 148, 161, 178, 190] }] },
           "chart.bar": { title: "分区域对比", categories: ["华东", "华南", "华北", "西南"], series: [{ name: "数量", values: [352, 332, 372, 222] }] },
-          "chart.pie": { title: "构成占比", slices: [{ label: "华东", value: 42 }, { label: "华南", value: 27 }, { label: "华北", value: 22 }, { label: "其他", value: 9 }] },
+          "chart.pie": { title: "构成占比", slices: [{ label: "华南", value: 27 }, { label: "华东", value: 42 }, { label: "其他", value: 9 }, { label: "华北", value: 22 }] },
           "metric.card": { label: "本月累计金额", value: "1,286", unit: "万元", delta: "4.2%", baseline: "对比上月同期" },
           "timeline": { title: "处理进度", events: [{ ts: "09:20", title: "已受理", desc: "工单创建" }, { ts: "10:05", title: "处理中", desc: "已分派专员跟进" }, { ts: "14:30", title: "待确认", desc: "方案已发出" }] },
           "steps": { title: "操作指引", steps: ["填写申请信息", "上传相关凭证", "等待审核", "查收处理结果"], current_index: 1 },
