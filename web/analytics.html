@@ -219,7 +219,7 @@ function instancesCard(rows) {
       el("span", { class: "d" }, ["组件实例"])]),
     el("div", { style: "overflow-x:auto" }, [
       el("table", { class: "data" }, [
-        el("thead", {}, [el("tr", {}, ["实例", "组件类型", "状态", "曝光", "有效响应", "完成率"].map(h => el("th", {}, [h])))]),
+        el("thead", {}, [el("tr", {}, ["实例", "组件类型", "状态", "曝光", "有效响应"].map(h => el("th", {}, [h])))]),
         el("tbody", {}, rows.map(r => el("tr", {
           class: "an-inst-row" + (r.card_id === pickState.card_id ? " on" : ""),
           title: "查看这个实例的数据",
@@ -234,7 +234,7 @@ function instancesCard(rows) {
             [{ published: "已上线", offline: "已下线", draft: "草稿", deleted: "已删除" }[r.status] || r.status])]),
           el("td", { class: "num" }, [String(r.rendered)]),
           el("td", { class: "num" }, [String(r.submitted)]),
-          el("td", { class: "num" }, [r.interactive === false ? "—" : pct(r.complete_rate)]),
+
         ]))),
       ]),
     ]),
@@ -322,7 +322,7 @@ async function loadOverall() {
   }
   box.appendChild(el("div", { class: "an-kpis" }, [
     kpiCard("曝光", k.rendered, "次", rangeLabel(), "组件在对话里出现的次数"),
-    kpiCard("有效响应", k.submitted, "次", `完成率 ${pct(k.complete_rate)}`, "包括提交、赞踩和确认/取消操作"),
+    kpiCard("有效响应", k.submitted, "次", "", "包括提交、赞踩和确认/取消操作"),
     kpiCard("交互率", pct(k.interact_rate), "", `${o.funnel[1].value} 次有操作`, "曝光后有操作的比例"),
   ]));
   box.appendChild(trendCard(o));

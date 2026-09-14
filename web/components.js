@@ -1220,6 +1220,13 @@ window.Components = (function () {
     const p = env.params;
     const withTime = (p.mode || p.display || "date") === "datetime";
     const input = el("input", { type: withTime ? "datetime-local" : "date", style: "max-width:240px" });
+    // 可选范围：预约类场景选到过去的日期是错的，反过来查历史选到未来也是
+    const today = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const stamp = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+      + (withTime ? `T${pad(d.getHours())}:${pad(d.getMinutes())}` : "");
+    if (p.date_range === "future") input.min = stamp(today);
+    else if (p.date_range === "past") input.max = stamp(today);
     return compCard([
       compTitle(p.prompt),
       input,
@@ -1830,7 +1837,8 @@ window.Components = (function () {
     const down = el("button", { class: "fb-btn down", title: "踩", "data-opt": "踩", onclick: () => {
       up.disabled = down.disabled = true;
       down.classList.add("on");
-      askDownReason(env, ctx);
+      // 追问原因默认开；关掉后点踩即完成，不再弹原因
+      if (env.params.ask_reason !== false) askDownReason(env, ctx);
     } }, [UI.icon("thumbdown", 13), "踩"]);
     return compCard([
       el("div", { style: "display:flex;align-items:center;gap:12px" }, [

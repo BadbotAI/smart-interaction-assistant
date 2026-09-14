@@ -282,6 +282,8 @@ function tileEnv(c) {
   });
   if (cfg.max_select) params.max_select = cfg.max_select;
   if (cfg.down_reasons) params.down_reasons = cfg.down_reasons;
+  if (cfg.date_range) params.date_range = cfg.date_range;
+  if (cfg.ask_reason === false) params.ask_reason = false;
   const selectorDisplay = selectorDisplayOf(c.component_type);
   if (selectorDisplay) params.display = selectorDisplay;
   else if (cfg.display) params.display = cfg.display;
@@ -1930,6 +1932,8 @@ async function openEditor(cardId, prefill, initStep) {
       params.cancel_label = mock.cancel_label || "取消";
     }
     if ((state.submittedLabel || "").trim()) params.submitted_label = state.submittedLabel.trim();
+    if (ct === "picker.datetime" && state.dateRange) params.date_range = state.dateRange;
+    if (ct === "feedback.binary" && state.askReason === false) params.ask_reason = false;
     if ((state.submitFeedback || "").trim()) params.submit_feedback = state.submitFeedback.trim();
     if (ct === "input.followup") params.placeholder = state.placeholder.trim() || mock.placeholder || "请输入你的回答";
     if (ct === "slider.range") {
@@ -3564,6 +3568,34 @@ async function openEditor(cardId, prefill, initStep) {
       // 选择器固定通过默认提交按钮确认，交互 Tab 不再暴露按钮文字配置。
     }
 
+    // 各组件自己的交互行为：能做什么、做到什么程度。只放真正影响用户操作的项。
+    if (ct === "picker.datetime") {
+      box.appendChild(groupHead("交互行为"));
+      if (state.dateRange === undefined) state.dateRange = cfg1.date_range || "";
+      const rngSeg = el("div", { class: "segmented" });
+      [["", "不限"], ["future", "仅未来"], ["past", "仅过去"]].forEach(([v, nm]) =>
+        rngSeg.appendChild(el("button", { type: "button", class: "seg" + (state.dateRange === v ? " active" : ""),
+          onclick: () => {
+            state.dateRange = v;
+            [...rngSeg.children].forEach((b2, i) => b2.classList.toggle("active", ["", "future", "past"][i] === v));
+            upd();
+          } }, [nm])));
+      box.appendChild(el("div", { class: "sty-section" }, [
+        el("div", { class: "sty-label" }, ["可选范围",
+          UI.help("预约、改期这类场景选「仅未来」，查历史记录选「仅过去」")]), rngSeg]));
+    }
+    if (ct === "feedback.binary") {
+      box.appendChild(groupHead("交互行为"));
+      if (state.askReason === undefined) state.askReason = cfg1.ask_reason !== false;
+      const ar = el("input", { type: "checkbox", ...(state.askReason ? { checked: "" } : {}) });
+      ar.onchange = () => { state.askReason = ar.checked; upd(); };
+      box.appendChild(el("label", { class: "fx-echo" }, [ar,
+        el("span", { class: "fx-echo-txt" }, [
+          el("span", { class: "fx-echo-t" }, ["点踩后追问原因"]),
+          el("span", { class: "fx-echo-d" }, ["弹出几个预设原因让用户选；关掉则点踩即完成"]),
+        ])]));
+    }
+
     // 提交按钮的两句文案：按下前显示什么、按下后显示什么。
     // 赞踩与偏好选择是「点一下即提交」，没有独立按钮，所以不给这一组。
     if (!PRESENT_TYPES.includes(ct) && !["feedback.binary", "feedback.preference"].includes(ct)) {
@@ -3805,10 +3837,11 @@ async function openEditor(cardId, prefill, initStep) {
         drawInherit();
       };
       draw();
+      // 标签只放名字，「恢复默认」跟着控件走——标签要和控件排成一行，
+      // 塞在标签里会把标签列撑开
       return tagKey(el("div", { class: "sty-section" }, [
-        el("div", { class: "sty-label" }, [label, hintC ? UI.help(hintC) : null,
-          el("span", { style: "flex:1" }), inherit]),
-        row]), key);
+        el("div", { class: "sty-label" }, [label, hintC ? UI.help(hintC) : null]),
+        el("div", { class: "sty-ctrl" }, [row, inherit])]), key);
     }
 
     // —— 通用档位卡 ——
@@ -3832,8 +3865,8 @@ async function openEditor(cardId, prefill, initStep) {
       clear.onclick = () => { delete so[key]; draw(); clear.hidden = true; upd(); };
       clear.hidden = so[key] === undefined || so[key] === "";
       return tagKey(el("div", { class: "sty-section" }, [
-        el("div", { class: "sty-label" }, [label, hint ? UI.help(hint) : null,
-          el("span", { style: "flex:1" }), clear]), row]), key);
+        el("div", { class: "sty-label" }, [label, hint ? UI.help(hint) : null]),
+        el("div", { class: "sty-ctrl" }, [row, clear])]), key);
     }
     // 旧档位数据 → 数值 px（进入样式设计器即迁移，保存后落数值）
     const MIGRATE = {
@@ -4178,7 +4211,10 @@ async function openEditor(cardId, prefill, initStep) {
         const control = el("span", { class: "sty-bool-control" });
         children.forEach(child => control.appendChild(child));
         // “Radio / Checkbox”分组标题已表达对象本身；其他布尔项仍需保留属性名，避免只剩孤立的“显示”。
-        if (!(grouped && key === "radio.show")) node.appendChild(el("span", { class: "sty-label sty-bool-name" }, [text]));
+        // 子分组标题已经点明对象（Radio、边框…），项里不必再重复一遍名字
+        if (!(grouped && ["radio.show", "panel.border"].includes(key))) {
+          node.appendChild(el("span", { class: "sty-label sty-bool-name" }, [text]));
+        }
         node.appendChild(control);
         return;
       }
@@ -4934,6 +4970,12 @@ async function openEditor(cardId, prefill, initStep) {
     delete config.form_description;
     delete config.recommended_default;
     delete config.present_params;
+    if (state.component_type === "picker.datetime") {
+      if (state.dateRange) config.date_range = state.dateRange; else delete config.date_range;
+    }
+    if (state.component_type === "feedback.binary") {
+      if (state.askReason === false) config.ask_reason = false; else delete config.ask_reason;
+    }
     const IS_P = PRESENT_TYPES.includes(state.component_type);
     if (IS_P && config.content_mode === "fixed" && state.presentParams) {
       config.present_params = JSON.parse(JSON.stringify(state.presentParams));
