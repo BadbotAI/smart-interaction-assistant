@@ -674,8 +674,7 @@ window.Components = (function () {
     const btn = el("button", {
       class: "btn primary", onclick: () => {
         const err = validate && validate();
-        // 配置了自定义错误提示就用它，否则保留系统给出的具体原因
-        if (err) { UI.toast(env.params.error_hint || err, true); return; }
+        if (err) { UI.toast(err, true); return; }
         const payload = getPayload();
         env._submitted = true;
         // 提交即终态：冻结组件内全部交互控件，避免"已提交但还能改"的状态错觉

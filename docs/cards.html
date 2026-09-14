@@ -65,7 +65,7 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=a283ae41"></script>
+<script src="./mock_data.js?v=66509fd3"></script>
 <script src="./mock_api.js?v=9f335920"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
 <script src="./ui.js?v=1e211feb"></script>
@@ -189,7 +189,6 @@ function tileEnv(c) {
   if (tt.prompt) params.prompt = tt.prompt;
   if (tt.submit) params.submit_label = tt.submit;
   if (tt.submitted) params.submitted_label = tt.submitted;
-  if (tt.error) params.error_hint = tt.error;
   if (tt.success) params.submit_feedback = tt.success;
   if (tt.confirm) params.confirm_label = tt.confirm;
   if (tt.cancel) params.cancel_label = tt.cancel;
@@ -1910,7 +1909,6 @@ async function openEditor(cardId, prefill, initStep) {
       params.cancel_label = mock.cancel_label || "取消";
     }
     if ((state.submittedLabel || "").trim()) params.submitted_label = state.submittedLabel.trim();
-    if ((state.errorHint || "").trim()) params.error_hint = state.errorHint.trim();
     if ((state.submitFeedback || "").trim()) params.submit_feedback = state.submitFeedback.trim();
     if (ct === "input.followup") params.placeholder = state.placeholder.trim() || mock.placeholder || "请输入你的回答";
     if (ct === "slider.range") {
@@ -3589,19 +3587,12 @@ async function openEditor(cardId, prefill, initStep) {
     if (!PRESENT_TYPES.includes(ct)) {
       box.appendChild(groupHead("提交后反馈"));
       if (state.submitFeedback === undefined) state.submitFeedback = ((card || {}).text_templates || {}).success || "";
-      if (state.errorHint === undefined) state.errorHint = ((card || {}).text_templates || {}).error || "";
       const okIn = el("input", { type: "text", maxlength: "30", value: state.submitFeedback || "",
         placeholder: ct === "control.confirm" ? "已为你执行" : "提交成功，感谢填写", style: "max-width:360px" });
       okIn.oninput = () => { state.submitFeedback = okIn.value; upd(); };
       box.appendChild(el("div", { class: "sty-section" }, [
         el("div", { class: "sty-label" }, ["提交成功提示",
           UI.help("提交成功后立即展示的一句话；留空用默认文案")]), okIn]));
-      const errIn = el("input", { type: "text", maxlength: "30", value: state.errorHint || "",
-        placeholder: "还有必填项没有完成", style: "max-width:360px" });
-      errIn.oninput = () => { state.errorHint = errIn.value; upd(); };
-      box.appendChild(el("div", { class: "sty-section" }, [
-        el("div", { class: "sty-label" }, ["提交错误提示",
-          UI.help("校验没过时提示的一句话，如必填项没填、选择数量不够；留空用系统的具体报错")]), errIn]));
     }
     // 0913Mia调整：群体回显从内容配置迁移到交互 Tab
     const echoSupported = ct === "feedback.binary" || ["select.single", "select.multi", "select.card",
@@ -5024,7 +5015,6 @@ async function openEditor(cardId, prefill, initStep) {
         ...((state.submittedLabel || "").trim() ? { submitted: state.submittedLabel.trim() } : {}),
         ...((state.submitFeedback || "").trim() ? { success: state.submitFeedback.trim() }
           : (state.component_type === "form.structured" ? { success: "提交成功，感谢填写" } : {})),
-        ...((state.errorHint || "").trim() ? { error: state.errorHint.trim() } : {}),
         // 确认组件的主按钮渲染读 confirm_label（来自 text_templates.confirm），必须同步写入
         ...(state.component_type === "control.confirm"
           ? { confirm: (state.submitLabel || "").trim() || (card?.text_templates || {}).confirm || "确认执行",
