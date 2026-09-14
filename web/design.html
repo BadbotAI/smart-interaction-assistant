@@ -1081,8 +1081,14 @@ async function refreshCurrentThemeDetail() {
   setHead("list");          // 页头由 setHead 统一渲染
   mountDemoControls();
   renderDemos();
-  // 走查深链：?new=1 直接打开风格编辑器
-  if (new URLSearchParams(location.search).get("new")) brandDialog(null);
+  // 深链：?new=1 新建；?edit=<brand_file> 直接编辑指定主题（产品配置里点「编辑主题」过来）
+  const q1 = new URLSearchParams(location.search);
+  if (q1.get("new")) brandDialog(null);
+  else if (q1.get("edit")) {
+    const hit = (brands || []).find(b => b.file === q1.get("edit"));
+    if (hit) brandDialog(hit);
+    else UI.toast("没找到这个主题，可能已被删除", true);
+  }
 })();
 </script>
 </body>

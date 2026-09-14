@@ -171,6 +171,11 @@ function productForm(init, opts = {}) {
     const close = e => { if (!pop.contains(e.target) && !themeBtn.contains(e.target)) { pop.remove(); document.removeEventListener("click", close, true); } };
     setTimeout(() => document.addEventListener("click", close, true), 0);
   };
+  // 选完之后常见的下一步是「接着改这套主题」，给个直达入口，不用回主题页再找一遍
+  const editThemeBtn = el("button", { class: "btn small", type: "button",
+    title: "在风格主题页编辑当前这一套",
+    onclick: () => { location.href = "design.html?edit=" + encodeURIComponent(st.brand_file || ""); } },
+    [UI.icon("edit", 13), "编辑主题"]);
   const node = el("div", { class: "policy-form" }, [
     el("label", { class: "field" }, [el("span", { class: "label-text req" }, ["产品名称"]), nameIn, nameErr]),
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["产品图片", el("span", { class: "muted optional-label" }, ["（选填）"])]),
@@ -179,8 +184,13 @@ function productForm(init, opts = {}) {
           el("div", { class: "muted" }, ["建议使用正方形 PNG、JPG 或 WebP，最大 5MB"]),
           el("div", { style: "display:flex;gap:8px" }, [uploadImage, removeImage]), imageInput]),
       ])]),
-    el("div", { class: "field" }, [el("span", { class: "label-text" }, ["风格主题",
-      UI.help("该产品里所有组件渲染时使用的风格；在「风格主题」页新建与编辑")]), themeBtn]),
+    el("div", { class: "field" }, [
+      el("span", { class: "label-text" }, ["风格主题",
+        UI.help("选定后成为这个产品的品牌风格，产品内所有组件都按它渲染；之后可以随时换一套或接着改")]),
+      el("div", { class: "theme-field-row" }, [themeBtn, editThemeBtn]),
+      el("span", { class: "field-desc theme-field-desc" }, [
+        "选定后成为这个产品的品牌风格，产品内所有组件按它渲染。"]),
+    ]),
   ]);
   return { node, st, nameIn, nameErr };
 }

@@ -1900,6 +1900,12 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
   font-variant-numeric: tabular-nums; min-width: 76px; text-align: right; }
 .fsel-empty { padding: 14px 12px; font-size: var(--font-small); text-align: center; }
 
+.theme-field-row { display: flex; align-items: center; gap: 8px; }
+.theme-field-row .fsel { flex: 1; min-width: 0; }
+.theme-field-row .btn.small { flex: none; }
+.theme-field-desc { display: block; font-size: var(--font-caption);
+  color: var(--text-muted); line-height: 1.55; margin-top: 6px; }
+
 .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .preset-card { display: flex; align-items: center; gap: 10px; text-align: left;
   border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 12px;
