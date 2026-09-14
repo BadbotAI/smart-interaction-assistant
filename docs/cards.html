@@ -189,6 +189,8 @@ function tileEnv(c) {
   if (tt.prompt) params.prompt = tt.prompt;
   if (tt.submit) params.submit_label = tt.submit;
   if (tt.submitted) params.submitted_label = tt.submitted;
+  if (tt.error) params.error_hint = tt.error;
+  if (tt.success) params.submit_feedback = tt.success;
   if (tt.confirm) params.confirm_label = tt.confirm;
   if (tt.cancel) params.cancel_label = tt.cancel;
   if (cfg.content_mode === "fixed") {
@@ -1908,6 +1910,8 @@ async function openEditor(cardId, prefill, initStep) {
       params.cancel_label = mock.cancel_label || "取消";
     }
     if ((state.submittedLabel || "").trim()) params.submitted_label = state.submittedLabel.trim();
+    if ((state.errorHint || "").trim()) params.error_hint = state.errorHint.trim();
+    if ((state.submitFeedback || "").trim()) params.submit_feedback = state.submitFeedback.trim();
     if (ct === "input.followup") params.placeholder = state.placeholder.trim() || mock.placeholder || "请输入你的回答";
     if (ct === "slider.range") {
       const slider0 = state.contentMode === "fixed" ? (state.sliderCfg || {}) : (mock.slider || {});
@@ -1925,33 +1929,6 @@ async function openEditor(cardId, prefill, initStep) {
   }
 
   const previewBox = el("div", {});
-  // 组件预览的明暗切换：主题带 color_dark 两套 token，预览要能看到深色下的实际效果
-  const PV_DARK_VARS = {
-    primary: "--primary", primary_weak: "--primary-weak", accent: "--brand-accent", ring: "--brand-ring",
-    bg_page: "--bg-page", bg_surface: "--bg-surface", bg_elevated: "--bg-elevated", bg_sunken: "--bg-sunken",
-    text_primary: "--text-primary", text_secondary: "--text-secondary", text_muted: "--text-muted",
-    border: "--border", success: "--success", warning: "--warning", danger: "--danger",
-  };
-  // Brand 把主题变量写在 `.brand-scope{}` 规则里，所以深色覆盖要用更高特异性的规则，
-  // 而不是设在祖先元素上——否则组件自己的 .brand-scope 定义会盖掉继承值。
-  let __pvDarkStyle = null;
-  function applyPreviewDark(host, on) {
-    if (!host) return;
-    host.classList.toggle("pv-dark", !!on);
-    if (!__pvDarkStyle) {
-      __pvDarkStyle = document.createElement("style");
-      document.head.appendChild(__pvDarkStyle);
-    }
-    if (!on) { __pvDarkStyle.textContent = ""; return; }
-    const t = (window.Brand && Brand.get && Brand.get()) || {};
-    const c = { ...(t.color || {}), ...(t.color_dark || {}) };
-    const decls = Object.entries(PV_DARK_VARS)
-      .filter(([k]) => c[k]).map(([k, v]) => `${v}:${c[k]}`).join(";");
-    if (!decls) { __pvDarkStyle.textContent = ""; return; }
-    const extra = c.border ? `;--border-strong:${c.border}` : "";
-    __pvDarkStyle.textContent =
-      `.pv-dark .comp, .pv-dark .comp.brand-scope, .pv-dark .brand-scope{${decls}${extra}}`;
-  }
   function previewWithStyle(env) { if (env && Object.keys(state.styleOv || {}).length) env.style_overrides = state.styleOv; return env; }
   // 文本逐字输入时不必每个按键都重建预览 DOM：整棵树重画会让选中态的勾一闪一闪。
   // 状态照常立即更新，只把「重画」这一步按住约一帧半再做。
@@ -3576,43 +3553,9 @@ async function openEditor(cardId, prefill, initStep) {
       // 选择器固定通过默认提交按钮确认，交互 Tab 不再暴露按钮文字配置。
     }
 
-    // 表单提交后需要明确的成功反馈，与群体结果回显分开配置。
-    if (ct === "form.structured") {
-      box.appendChild(groupHead("提交后反馈"));
-      const successIn = el("input", { type: "text", maxlength: "30", value: state.submitFeedback || "",
-        placeholder: "提交成功，感谢填写", style: "max-width:360px" });
-      successIn.oninput = () => { state.submitFeedback = successIn.value; upd(); };
-      box.appendChild(el("div", { class: "sty-section" }, [
-        el("div", { class: "sty-label" }, ["成功提示",
-          UI.help("表单提交成功后立即展示；留空使用默认文案")]),
-        successIn,
-      ]));
-    }
-
-    // 0913Mia调整：群体回显从内容配置迁移到交互 Tab
-    const echoSupported = ct === "feedback.binary" || ["select.single", "select.multi", "select.card",
-      "rank.priority", "scale.likert", "control.confirm", "feedback.preference"].includes(ct);
-    if (echoSupported) {
-      // 0913Mia调整：明确这是用户完成提交后的结果反馈
-      box.appendChild(groupHead("提交后反馈"));
-      const echoAllowed = ct === "feedback.binary" || state.contentMode === "fixed";
-      const echo = el("input", { type: "checkbox", ...(state.echo_results ? { checked: "" } : {}),
-        ...(echoAllowed ? {} : { disabled: "" }) });
-      echo.onchange = () => { state.echo_results = echo.checked; upd(); };
-      box.appendChild(el("label", { class: "fx-echo" }, [echo,
-        el("span", { class: "fx-echo-txt" }, [
-          el("span", { class: "fx-echo-t" }, ["展示群体结果"]),
-          el("span", { class: "fx-echo-d" }, [ct === "feedback.binary"
-            ? "用户评价后展示大家的赞踩比例（如「82% 的人觉得有帮助」）"
-            : echoAllowed
-              ? "用户提交后展示所有人的选择分布（如「43%」）"
-              : "AI 动态内容每次不同，无法聚合统计；切换为固定配置内容后可开启"]),
-        ])]));
-    }
-
-    // 0913Mia调整：提交与确认按钮文案统一迁移到交互 Tab
-    // 0913Mia调整：选择器按钮文字已合并到“提交行为”，其他组件保持原分组
-    if (!PRESENT_TYPES.includes(ct) && !["feedback.binary", "feedback.preference", "select.single", "select.multi", "select.card"].includes(ct)) {
+    // 提交按钮的两句文案：按下前显示什么、按下后显示什么。
+    // 赞踩与偏好选择是「点一下即提交」，没有独立按钮，所以不给这一组。
+    if (!PRESENT_TYPES.includes(ct) && !["feedback.binary", "feedback.preference"].includes(ct)) {
       const interactionScene = PREVIEW_SCENES[ct] || {};
       box.appendChild(groupHead(ct === "control.confirm" ? "确认按钮" : "提交按钮"));
       const sub = el("input", { type: "text", maxlength: "8", value: state.submitLabel || "",
@@ -3641,6 +3584,45 @@ async function openEditor(cardId, prefill, initStep) {
         box.appendChild(el("div", { class: "ed-note" }, ["要确认的内容在“内容配置”中设置；这里定义两个操作按钮的文案。"]));
       }
     }
+
+    // 提交之后用户看到什么：成功怎么说、失败怎么说、要不要给大家的结果
+    if (!PRESENT_TYPES.includes(ct)) {
+      box.appendChild(groupHead("提交后反馈"));
+      if (state.submitFeedback === undefined) state.submitFeedback = ((card || {}).text_templates || {}).success || "";
+      if (state.errorHint === undefined) state.errorHint = ((card || {}).text_templates || {}).error || "";
+      const okIn = el("input", { type: "text", maxlength: "30", value: state.submitFeedback || "",
+        placeholder: ct === "control.confirm" ? "已为你执行" : "提交成功，感谢填写", style: "max-width:360px" });
+      okIn.oninput = () => { state.submitFeedback = okIn.value; upd(); };
+      box.appendChild(el("div", { class: "sty-section" }, [
+        el("div", { class: "sty-label" }, ["提交成功提示",
+          UI.help("提交成功后立即展示的一句话；留空用默认文案")]), okIn]));
+      const errIn = el("input", { type: "text", maxlength: "30", value: state.errorHint || "",
+        placeholder: "还有必填项没有完成", style: "max-width:360px" });
+      errIn.oninput = () => { state.errorHint = errIn.value; upd(); };
+      box.appendChild(el("div", { class: "sty-section" }, [
+        el("div", { class: "sty-label" }, ["提交错误提示",
+          UI.help("校验没过时提示的一句话，如必填项没填、选择数量不够；留空用系统的具体报错")]), errIn]));
+    }
+    // 0913Mia调整：群体回显从内容配置迁移到交互 Tab
+    const echoSupported = ct === "feedback.binary" || ["select.single", "select.multi", "select.card",
+      "rank.priority", "scale.likert", "control.confirm", "feedback.preference"].includes(ct);
+    if (echoSupported) {
+      if (PRESENT_TYPES.includes(ct)) box.appendChild(groupHead("提交后反馈"));
+      const echoAllowed = ct === "feedback.binary" || state.contentMode === "fixed";
+      const echo = el("input", { type: "checkbox", ...(state.echo_results ? { checked: "" } : {}),
+        ...(echoAllowed ? {} : { disabled: "" }) });
+      echo.onchange = () => { state.echo_results = echo.checked; upd(); };
+      box.appendChild(el("label", { class: "fx-echo" }, [echo,
+        el("span", { class: "fx-echo-txt" }, [
+          el("span", { class: "fx-echo-t" }, ["展示群体结果"]),
+          el("span", { class: "fx-echo-d" }, [ct === "feedback.binary"
+            ? "用户评价后展示大家的赞踩比例（如「82% 的人觉得有帮助」）"
+            : echoAllowed
+              ? "用户提交后展示所有人的选择分布（如「43%」）"
+              : "AI 动态内容每次不同，无法聚合统计；切换为固定配置内容后可开启"]),
+        ])]));
+    }
+
 
     if (!box.children.length) {
       box.appendChild(el("div", { class: "ed-note" }, [PRESENT_TYPES.includes(ct)
@@ -3727,7 +3709,21 @@ async function openEditor(cardId, prefill, initStep) {
     ]));
 
     // —— 颜色：主色 / 强调色（品牌 + 预设 + 自定义） ——
-    const SWATCHES = ["#3E63DD", "#0EA5A5", "#30A46C", "#D6970A", "#D97757", "#E5484D", "#7C5CD6", "#64748B"];
+    // 色板按用途给：底色要的是白到浅灰，边框要的是灰阶，文字要的是深浅墨色。
+    // 一律给品牌高饱和色的话，底色和边框这两类根本挑不出能用的。
+    const SW_BRAND = ["#3E63DD", "#0EA5A5", "#30A46C", "#D6970A", "#D97757", "#E5484D", "#7C5CD6", "#64748B"];
+    const SW_SURFACE = ["#FFFFFF", "#FAFBFC", "#F4F6F8", "#EDF1F5", "#E6EBF2", "#EDF1FE", "#212837", "#161B26"];
+    const SW_BORDER = ["#E5E8EE", "#DCE1E9", "#CBD2DC", "#B4BDCB", "#94A0B2", "#6B7687", "#3E63DD", "#E5484D"];
+    const SW_TEXT = ["#171B26", "#3B4354", "#4A5265", "#838B9C", "#FFFFFF", "#3E63DD", "#30A46C", "#E5484D"];
+    const SURFACE_KEYS = new Set(["panel.bg", "opt.bg", "input.bg", "header.bg",
+      "state.selected.bg", "tag.bg", "state.hover.bg"]);
+    const TEXT_KEYS = new Set(["text.color", "title.color", "desc.color", "option.name.color",
+      "option.desc.color", "hl.color", "caption.color", "th.color", "td.color", "mlabel.color",
+      "mv.color", "mbase.color", "ol.color", "ts.color", "ev.color", "evdesc.color",
+      "flabel.color", "btn.fg", "tag.text"]);
+    const swatchesFor = (k) => /\.bc$/.test(k) ? SW_BORDER
+      : SURFACE_KEYS.has(k) ? SW_SURFACE
+      : TEXT_KEYS.has(k) ? SW_TEXT : SW_BRAND;
     function colorRow(key, label, hintC) {
       const row = el("div", { class: "sty-swatches" });
       // 继承状态行：未覆盖=跟随主题（显示主题当前色），已覆盖=可一键恢复。
@@ -3774,7 +3770,7 @@ async function openEditor(cardId, prefill, initStep) {
         if (isBorder) row.appendChild(el("button", { type: "button",
           class: "sty-swatch sw-none" + (so[key] === NONE ? " on" : ""),
           title: "无边框", onclick: () => { so[key] = NONE; draw(); upd(); } }));
-        SWATCHES.forEach(cx => row.appendChild(el("button", { type: "button",
+        swatchesFor(key).forEach(cx => row.appendChild(el("button", { type: "button",
           class: "sty-swatch" + (so[key] === cx ? " on" : ""), style: `background:${cx}`,
           title: cx, onclick: () => { so[key] = cx; draw(); upd(); } })));
         const wheel = el("button", { type: "button", class: "sty-swatch cp-open", title: "取色器：自由取色与透明度" }, [UI.icon("pipette", 15)]);
@@ -4797,32 +4793,6 @@ async function openEditor(cardId, prefill, initStep) {
           })(),
           el("div", { style: "flex:1" }),
           (() => {
-            // 明暗切换：主题有深色一套时才给。
-            // 注意不能在这里直接判断就 return null——Brand 是异步加载的，
-            // 构建 DOM 时可能还没就绪（本地快、静态站慢），那样切换器会永久消失。
-            const seg = el("div", { class: "segmented pv-mode" });
-            const syncSegVisible = () => {
-              const t = (window.Brand && Brand.get && Brand.get()) || {};
-              seg.hidden = !(t.color_dark && Object.keys(t.color_dark).length);
-            };
-            syncSegVisible();
-            setTimeout(syncSegVisible, 300);
-            setTimeout(syncSegVisible, 1500);
-            // 上次留下的偏好要落到这次新建的预览容器上，否则按钮显示深色、画布却是浅色
-            if (window.__pvDark) setTimeout(() => applyPreviewDark(previewBox, true), 0);
-            [["light", "浅色模式"], ["dark", "深色模式"]].forEach(([k, nm]) => {
-              const on = (k === "dark") === !!window.__pvDark;
-              seg.appendChild(el("button", { type: "button", class: "seg" + (on ? " active" : ""),
-                title: k === "dark" ? "看组件在深色模式下的样子" : "看组件在浅色模式下的样子",
-                onclick: () => {
-                  window.__pvDark = k === "dark";
-                  [...seg.children].forEach((b2, i) => b2.classList.toggle("active", (i === 1) === !!window.__pvDark));
-                  applyPreviewDark(previewBox, window.__pvDark);
-                } }, [nm]));
-            });
-            return seg;
-          })(),
-          (() => {
             // 恢复主题默认：作用对象就是这张示例卡，所以放在预览卡头部对齐（仅样式步显示）
             window.__pvResetBtn = el("button", { class: "btn small ghost", type: "button", style: "color:var(--primary)",
               title: "清除本实例的全部样式覆盖，回到产品主题默认", onclick: () => {
@@ -5052,9 +5022,9 @@ async function openEditor(cardId, prefill, initStep) {
           : ((card?.text_templates || {}).prompt || "请补充信息"),
         submit: (state.submitLabel || "").trim() || (card?.text_templates || {}).submit || "提交",
         ...((state.submittedLabel || "").trim() ? { submitted: state.submittedLabel.trim() } : {}),
-        ...(state.component_type === "form.structured"
-          ? { success: (state.submitFeedback || "").trim() || "提交成功，感谢填写" }
-          : {}),
+        ...((state.submitFeedback || "").trim() ? { success: state.submitFeedback.trim() }
+          : (state.component_type === "form.structured" ? { success: "提交成功，感谢填写" } : {})),
+        ...((state.errorHint || "").trim() ? { error: state.errorHint.trim() } : {}),
         // 确认组件的主按钮渲染读 confirm_label（来自 text_templates.confirm），必须同步写入
         ...(state.component_type === "control.confirm"
           ? { confirm: (state.submitLabel || "").trim() || (card?.text_templates || {}).confirm || "确认执行",

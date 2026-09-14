@@ -438,6 +438,9 @@ input:disabled, select:disabled, textarea:disabled { background: var(--bg-page);
 .comp .comp-title { font-size: var(--title-size, var(--font-base)); font-weight: var(--title-weight, 600);
   margin: 0; color: var(--title-color, var(--text-primary)); line-height: 1.5; }
 /* 文字角色：表单的字段标签 */
+/* 组件里的输入值是内容，不是要对齐的数字列：数字类型也左对齐
+   （平台界面里的数字输入仍保持右对齐，便于比对数值） */
+.comp input[type=number], .brand-scope input[type=number] { text-align: left; }
 .comp .form-structured-field > .label-text { font-size: var(--flabel-size, inherit);
   font-weight: var(--flabel-weight, 500); color: var(--flabel-color, inherit); }
 .comp .opt-row { display: flex; gap: var(--cand-gap, 10px); flex-wrap: wrap; }
@@ -2060,8 +2063,6 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 /* 数据结构：两段 JSON 直接摊开 */
 .schema-code { max-height: 300px; overflow: auto; margin: 0 0 10px; }
 
-/* 组件预览的深色模式：画布自己铺底，不透出平台的浅色底 */
-.pv-dark { background: var(--bg-page); border-radius: 10px; padding: 10px; }
 .segmented.small .seg { padding: 3px 10px; font-size: var(--font-caption); }
 
 /* 色板里的「无边框」：斜杠示意，不是一种颜色 */

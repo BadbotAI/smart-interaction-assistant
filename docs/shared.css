@@ -389,6 +389,7 @@ input:disabled, select:disabled, textarea:disabled { background: var(--bg-page);
 .comp .comp-title { font-size: var(--title-size, var(--font-base)); font-weight: var(--title-weight, 600);
   margin: 0; color: var(--title-color, var(--text-primary)); line-height: 1.5; }
 
+.comp input[type=number], .brand-scope input[type=number] { text-align: left; }
 .comp .form-structured-field > .label-text { font-size: var(--flabel-size, inherit);
   font-weight: var(--flabel-weight, 500); color: var(--flabel-color, inherit); }
 .comp .opt-row { display: flex; gap: var(--cand-gap, 10px); flex-wrap: wrap; }
@@ -1897,7 +1898,6 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 
 .schema-code { max-height: 300px; overflow: auto; margin: 0 0 10px; }
 
-.pv-dark { background: var(--bg-page); border-radius: 10px; padding: 10px; }
 .segmented.small .seg { padding: 3px 10px; font-size: var(--font-caption); }
 
 .sty-swatch.sw-none { background: var(--bg-elevated); position: relative; }
