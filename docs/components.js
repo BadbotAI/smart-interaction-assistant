@@ -1127,12 +1127,20 @@ window.Components = (function () {
         control.value = String(defaultValue ?? "");
         getValue = () => control.value.trim();
       }
-      controls[f.key] = { node: control, getValue };
+      // 多选字段的选择数量上下界
+      const selMin = Number(f.min_select), selMax = Number(f.max_select);
+      const hasMin = Number.isFinite(selMin) && selMin > 0;
+      const hasMax = Number.isFinite(selMax) && selMax > 0;
+      const boundHint = type !== "checkbox" ? "" : hasMin && hasMax
+        ? (selMin === selMax ? `请选择 ${selMin} 项` : `请选择 ${selMin}–${selMax} 项`)
+        : hasMin ? `至少选择 ${selMin} 项` : hasMax ? `最多选择 ${selMax} 项` : "";
+      controls[f.key] = { node: control, getValue, min: hasMin ? selMin : 0, max: hasMax ? selMax : 0 };
       const errBox = el("div", { class: "field-error" });
       errBoxes[f.key] = errBox;
       return el("div", { class: "field form-structured-field" }, [
         el("span", { class: "label-text" + (f.required ? " req" : "") }, [f.label]),
         f.description ? el("span", { class: "form-field-description" }, [f.description]) : null,
+        boundHint ? el("span", { class: "form-field-description" }, [boundHint]) : null,
         control, errBox,
       ]);
     });
@@ -1159,6 +1167,15 @@ window.Components = (function () {
           } else if (!empty && f.format === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
             errBoxes[f.key].textContent = "请输入有效的邮箱地址";
             bad = bad || "邮箱格式不正确";
+          } else if (Array.isArray(v)) {
+            const c = controls[f.key];
+            if (c.min && v.length && v.length < c.min) {
+              errBoxes[f.key].textContent = `至少选择 ${c.min} 项，当前 ${v.length} 项`;
+              bad = bad || "选择数量不符合要求";
+            } else if (c.max && v.length > c.max) {
+              errBoxes[f.key].textContent = `最多选择 ${c.max} 项，当前 ${v.length} 项`;
+              bad = bad || "选择数量不符合要求";
+            }
           }
         });
         return bad;

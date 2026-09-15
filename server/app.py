@@ -1846,31 +1846,33 @@ async def set_active_brand(request: Request):
 async def delete_brand(request: Request):
     body = await request.json()
     fn = body.get("file") or ""
+    # —— 先把该拒绝的全部拒绝掉，再动任何数据 ——
+    # 原先是「先把产品改回默认、再校验文件名」，一个非法或已删除的请求会拿到 422/404，
+    # 但引用这套主题的产品早就被改掉了，等于白白丢了绑定关系。
     if fn == "brand-tokens.default.json":
         return JSONResponse({"error": "默认风格不可删除"}, status_code=409)
+    if os.path.basename(fn) != fn or not fn.startswith("brand-tokens.") or not fn.endswith(".json"):
+        return JSONResponse({"error": "非法的风格文件名"}, status_code=422)
+    path = os.path.join(BASE, "brand", fn)
+    if not os.path.exists(path):
+        return JSONResponse({"error": "风格文件不存在"}, status_code=404)
+
+    # —— 校验通过，开始改 ——
     try:
         with open(ACTIVE_BRAND_FILE, encoding="utf-8") as f:
             active = json.load(f).get("file")
     except (OSError, ValueError):
         active = "brand-tokens.default.json"
     if fn == active:
-        # 删除生效中的风格：先回退到默认，再删除
+        # 删的是当前生效的这套：先把生效主题回退到默认，再删文件
         with open(ACTIVE_BRAND_FILE, "w", encoding="utf-8") as f:
             json.dump({"file": "brand-tokens.default.json"}, f)
-    # 兑现删除确认文案：使用该风格的产品回退到默认风格（否则 sia.css token 悬空）
-    conn = db.get_conn()
-    conn.execute("UPDATE products SET brand_file='brand-tokens.default.json' WHERE brand_file=?", (fn,))
-    conn.commit()
-    if os.path.basename(fn) != fn or not fn.startswith("brand-tokens.") or not fn.endswith(".json"):
-        return JSONResponse({"error": "非法的风格文件名"}, status_code=422)
-    path = os.path.join(BASE, "brand", fn)
-    if not os.path.exists(path):
-        return JSONResponse({"error": "风格文件不存在"}, status_code=404)
-    os.remove(path)
-    # 引用该风格的产品回退默认，避免悬空引用
+    # 用这套主题的产品回退到默认，否则 sia.css 的 token 会悬空。
+    # rowcount 要在这一次拿到：之前更新了两遍，第二遍必然是 0，审计里永远记成「影响 0 个产品」
     conn = db.get_conn()
     n_reset = conn.execute("UPDATE products SET brand_file='brand-tokens.default.json' WHERE brand_file=?", (fn,)).rowcount
     conn.commit()
+    os.remove(path)
     db.audit("demo-admin", "brand_delete", {"file": fn, "products_reset": n_reset})
     return {"ok": True, "products_reset": n_reset}
 

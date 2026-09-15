@@ -1794,6 +1794,9 @@ async function openEditor(cardId, prefill, initStep) {
       : String(f.default_value ?? f.default ?? ""),
     description: String(f.description || ""),
     options: Array.isArray(f.options) ? f.options.map(String) : [],
+    // 多选字段的选择数量上下界，非多选时不用
+    min_select: Number(f.min_select) > 0 ? Number(f.min_select) : "",
+    max_select: Number(f.max_select) > 0 ? Number(f.max_select) : "",
     required: !!f.required,
   });
   // 新版表单字段用结构化数组存储；仍能恢复旧草稿中的 fixedFields 管道分隔格式。
@@ -2092,7 +2095,9 @@ async function openEditor(cardId, prefill, initStep) {
             const ex = sceneFields[i] || {};
             return { ...f, key: f.key || ex.key || `field_${i + 1}`, label: f.label || ex.label || `字段 ${i + 1}`,
               type: f.type || ex.type || "text", placeholder: f.placeholder || ex.placeholder || "",
-              description: f.description || ex.description || "", options: (f.options || []).length ? f.options : (ex.options || []) };
+              description: f.description || ex.description || "", options: (f.options || []).length ? f.options : (ex.options || []),
+              ...(Number(f.min_select) > 0 ? { min_select: Number(f.min_select) } : {}),
+              ...(Number(f.max_select) > 0 ? { max_select: Number(f.max_select) } : {}) };
           });
           else envP.params.fields = JSON.parse(JSON.stringify(sceneFields));
           envP.params.prompt = (state.fixedPrompt || "").trim() || (PREVIEW_SCENES[state.component_type] || {}).prompt || "请填写信息";
@@ -3274,7 +3279,44 @@ async function openEditor(cardId, prefill, initStep) {
                 const optionsIn = el("textarea", { rows: "3", placeholder: "每行一个选项，例如：\n选项 A\n选项 B" });
                 optionsIn.value = (f.options || []).join("\n");
                 optionsIn.oninput = () => patch(cur => { cur.options = optionsIn.value.split("\n").map(x => x.trim()).filter(Boolean); });
-                optionsField = optionField("选项配置", "每行一个选项；仅下拉、单选、多选类型需要配置", optionsIn, true);
+                optionsField = optionField("选项配置", "每行一个选项", optionsIn, true);
+              }
+              // 多选字段要能限制勾几项：少于下界或多于上界都不让提交
+              let boundsField = null;
+              if (f.type === "checkbox") {
+                // 选项总数要实时数：选项是在同一张卡里边填边改的，
+                // 渲染时算一次的话，填完选项这里还停在 0，上限就永远校验不到
+                const optCount = () => ((rows()[i] || {}).options || []).filter(x => String(x).trim()).length;
+                const minIn = el("input", { type: "number", min: "1", max: "20", class: "num",
+                  value: f.min_select || "", placeholder: "不限", style: "width:88px" });
+                const maxIn = el("input", { type: "number", min: "1", max: "20", class: "num",
+                  value: f.max_select || "", placeholder: "不限", style: "width:88px" });
+                const errLine = el("div", { class: "field-error" });
+                const syncBounds = () => {
+                  const mn = minIn.value === "" ? null : Number(minIn.value);
+                  const mx = maxIn.value === "" ? null : Number(maxIn.value);
+                  let msg = "";
+                  if (mn !== null && (!Number.isInteger(mn) || mn < 1)) msg = "最少选择数要填 1 以上的整数";
+                  else if (mx !== null && (!Number.isInteger(mx) || mx < 1)) msg = "最多选择数要填 1 以上的整数";
+                  else if (mn !== null && mx !== null && mx < mn) msg = "最多选择数不能小于最少选择数";
+                  else {
+                    const n = optCount();
+                    if (n && mn !== null && mn > n) msg = `最少选择数不能超过选项总数（当前 ${n} 项）`;
+                    else if (n && mx !== null && mx > n) msg = `最多选择数不能超过选项总数（当前 ${n} 项）`;
+                  }
+                  errLine.textContent = msg;
+                  minIn.classList.toggle("invalid", !!msg);
+                  maxIn.classList.toggle("invalid", !!msg);
+                  if (!msg) patch(cur => { cur.min_select = mn || ""; cur.max_select = mx || ""; });
+                };
+                minIn.oninput = syncBounds; maxIn.oninput = syncBounds;
+                boundsField = optionField("选择数量", "留空表示不限；两端都填时按区间校验",
+                  el("div", {}, [
+                    el("div", { style: "display:flex;align-items:center;gap:8px" }, [
+                      el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["最少"]), minIn,
+                      el("span", { class: "muted", style: "font-size:var(--font-caption)" }, ["最多"]), maxIn,
+                    ]), errLine,
+                  ]));
               }
               listBox.appendChild(el("div", { class: "selector-option-card form-field-card" }, [
                 el("div", { class: "selector-option-head" }, [
@@ -3291,6 +3333,7 @@ async function openEditor(cardId, prefill, initStep) {
                   optionField("默认值", "表单初始展示的内容", defaultIn),
                   optionField("字段说明", "对填写内容或用途做补充说明", fieldDescIn),
                   optionsField,
+                  boundsField,
                 ]),
               ]));
             });
@@ -4062,6 +4105,8 @@ async function openEditor(cardId, prefill, initStep) {
     zpush("panel", colorRow("panel.bc", "面板边框色"));
     zpush("panel", numRow("radius", "圆角", 0, 28, 16, "组件卡片圆角；控件圆角按比例跟随"));
     zpush("panel", numRow("spacing", "内边距", 8, 24, 16, "面板内边距，同时影响行距节奏"));
+    // 组件内部各块之间的间距（标题 / 主体 / 按钮）。选择器在「布局」层里已有一份，不重复给
+    if (!IS_SELECTOR) zpush("panel", numRow("module.gap", "模块间距", 4, 24, 10, "标题、内容与按钮之间的距离", "px"));
     zpush("panel", cardsRow("shadow", "阴影", [["", "主题"], ["none", "无"], ["sm", "轻"], ["md", "中"], ["lg", "重"]], shadowDemo));
 
     // 选项展现形式由组件类型决定：普通选择器使用文本列表，卡片选择器使用卡片列表。
@@ -5189,6 +5234,11 @@ async function openEditor(cardId, prefill, initStep) {
           if (row.placeholder.trim()) f.placeholder = row.placeholder.trim();
           if (row.description.trim()) f.description = row.description.trim();
           if (["select", "radio", "checkbox"].includes(type)) f.options = row.options.map(x => String(x).trim()).filter(Boolean);
+          // 多选字段的选择数量上下界
+          if (type === "checkbox") {
+            if (Number(row.min_select) > 0) f.min_select = Number(row.min_select);
+            if (Number(row.max_select) > 0) f.max_select = Number(row.max_select);
+          }
           if (row.default_value.trim()) f.default_value = type === "checkbox"
             ? row.default_value.split(/[，,、]/).map(x => x.trim()).filter(Boolean)
             : row.default_value.trim();

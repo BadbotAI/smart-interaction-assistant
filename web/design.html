@@ -1061,7 +1061,7 @@ function renderCurrentThemeDetail(brand, tokens) {
     // 删除入口原先只有后端接口，页面上找不到——补到主题自己的操作里
     canEdit ? (() => {
       const more = el("button", { class: "btn small", type: "button", onclick: () => UI.menu(more, [
-        { label: "删除主题", danger: true, onClick: () => deleteBrand(brand, users) },
+        { label: "删除", danger: true, onClick: () => deleteBrand(brand, users) },
       ]) }, ["更多"]);
       return more;
     })() : null,

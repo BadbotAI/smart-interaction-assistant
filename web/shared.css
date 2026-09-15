@@ -2282,7 +2282,7 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 .selector-data-source { margin-bottom: 0; }
 .selector-fixed-panel { border: 0; border-radius: 0; background: transparent; padding: 0; margin-top: 18px; gap: 0; overflow: visible; }
 .selector-section { padding: 0 0 20px; }
-.selector-section + .selector-section { border-top: 1px solid var(--border); padding-top: 20px; }
+.selector-section + .selector-section { padding-top: 22px; }
 .selector-section:last-child { padding-bottom: 0; }
 .selector-section-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .selector-section-title { color: var(--text-primary); font-size: var(--font-base); font-weight: 700; }
@@ -2343,7 +2343,7 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 .universal-fixed-panel .timeline-event-card input { width: 100%; max-width: none; }
 .universal-fixed-panel .fixed-data-card select { width: 100%; max-width: none; }
 .universal-fixed-panel > .field { padding: 0 0 20px; margin: 0; }
-.universal-fixed-panel > .field + .field { border-top: 1px solid var(--border); padding-top: 20px; }
+.universal-fixed-panel > .field + .field { padding-top: 18px; }
 .fx-echo { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--border);
   border-radius: 10px; background: var(--bg-elevated); padding: 10px 12px; cursor: pointer; margin-top: 2px; }
 .fx-echo input { margin-top: 3px; flex: none; }
@@ -2601,9 +2601,9 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 /* 选择器样式设计：连续单列。区域与属性按阅读顺序向下展开，属性名在上、控件在下。 */
 .selector-style-stack { width: 100%; }
 .selector-style-stack .sty-inherit { margin-bottom: 4px; }
-.selector-style-section { padding: 24px 0 26px; border-bottom: 1px solid var(--border); }
+.selector-style-section { padding: 20px 0 6px; }
 .selector-style-section:first-of-type { padding-top: 18px; }
-.selector-style-section:last-child { border-bottom: 0; padding-bottom: 8px; }
+.selector-style-section:last-child { padding-bottom: 8px; }
 .selector-style-section > .sty-group {
   display: flex; align-items: baseline; gap: 10px; margin: 0 0 20px; padding: 0; border: 0;
   font-size: 16px; line-height: 1.4;
@@ -2761,7 +2761,7 @@ body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
 @media (max-width: 1100px) { .dt-split { grid-template-columns: 1fr; } }
 .dt-left, .dt-right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .dt-sec { font-size: 15px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 5px; }
-.dt-row { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-top: 1px solid var(--border); }
+.dt-row { display: flex; align-items: center; gap: 12px; padding: 7px 0; }
 .dt-row:first-of-type { border-top: none; }
 .dt-k { width: 92px; flex: none; font-size: var(--font-small); color: var(--text-muted); }
 .dt-v { font-size: var(--font-small); color: var(--text-primary); min-width: 0; }
@@ -2834,7 +2834,9 @@ body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
 .theme-detail-heading .muted { align-self: center; font-size: var(--font-caption); white-space: nowrap; }
 .theme-detail-usage { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--primary); font-size: var(--font-caption); }
 .theme-detail-sticky .theme-detail-usage { margin-bottom: 0; }
-.theme-detail-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.theme-detail-section { margin-top: 22px; }
+/* 吸顶块自己已经带了一条下边线，紧跟着的第一段不要再画一条，否则是两条横杠 */
+.theme-detail-sticky + .theme-detail-section { margin-top: 14px; }
 .theme-detail-section-title { margin-bottom: 9px; color: var(--text-primary); font-size: var(--font-small); font-weight: 650; }
 .theme-palette-block { display: grid; grid-template-columns: 36px 1fr; align-items: center; gap: 8px; }
 .theme-palette-block + .theme-palette-block { margin-top: 8px; }
@@ -3095,9 +3097,7 @@ body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
 .modal.editor .ed-preview .chat-mock { flex: 1; }
 
 /* 主题列表行：名称 + 用量 + 启用 / 编辑 / 删除 */
-.theme-list-row { display: flex; align-items: center; gap: 8px; padding: 8px 0;
-  border-bottom: 1px solid var(--border); }
-.theme-list-row:last-child { border-bottom: none; }
+.theme-list-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; }
 .theme-list-name { font-weight: 600; }
 .theme-list-meta { font-size: var(--font-caption); }
 
