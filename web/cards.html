@@ -35,7 +35,7 @@
   <div class="page-head" style="display:flex;justify-content:space-between;align-items:center;gap:16px">
     <div class="page-head-main">
       <div class="page-title">组件工作台</div>
-      <div class="page-desc">这个产品下的所有组件实例。发布后模型即可在对话里调用。</div>
+      <div class="page-desc">基于组件模版创建组件实例，配好内容与样式后发布，模型即可按配置调用。</div>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn primary" id="newBtn" style="white-space:nowrap">新建组件</button>
@@ -188,7 +188,7 @@ function presetOnboard() {
   const box = el("div", { class: "preset-onboard" }, [
     el("div", { class: "po-head" }, [
       el("div", { class: "po-t" }, ["这个产品还没有组件"]),
-      el("div", { class: "po-d" }, ["下面这套标准组件可以一键导入，导入后默认都是下线的，挑需要的打开就行"]),
+      el("div", { class: "po-d" }, ["一键导入标准组件，导入后为下线状态，按需上线"]),
     ]),
     el("div", { class: "po-grid" }, [el("span", { class: "muted" }, ["读取中……"])]),
     el("div", { class: "po-foot" }, [
@@ -418,7 +418,7 @@ async function loadKpisAndTodos() {
     kpi.appendChild(tile("已上线配置", published.length));
     kpi.appendChild(tile("组件触发", totalRendered, "近 30 天组件被渲染到对话中的次数"));
     kpi.appendChild(tile("提交率", totalRendered && totalSubmitted <= totalRendered ? UI.fmtPct(totalSubmitted / totalRendered) : "-", "提交 / 触发，近 30 天"));
-    const echoTile = tile("回显", `${published.filter(c => c.echo_results).length}/${published.length}`, "开启后用户提交时会看到群体选择分布；点击查看开启回显的配置列表");
+    const echoTile = tile("回显", `${published.filter(c => c.echo_results).length}/${published.length}`, "用户提交后可看到群体选择分布");
     echoTile.style.cursor = "pointer";
     echoTile.onclick = () => {
       const list2 = published.filter(c => c.echo_results);
@@ -436,7 +436,7 @@ async function loadKpisAndTodos() {
         ])))
         : el("div", { class: "empty-state" }, [
             el("div", { class: "empty-title" }, ["还没有配置开启回显"]),
-            el("div", {}, ["在配置的「数据收集」步打开群体回显后出现在这里"]),
+            el("div", {}, ["在「交互定义」里开启群体结果后出现在这里"]),
           ]),
       ]));
     };
@@ -506,7 +506,7 @@ function openAccessConfig(p) {
     ]),
     el("div", { class: "access-intro" }, [
       el("div", { class: "access-intro-title" }, ["完成以下 2 步即可接入"]),
-      el("div", { class: "muted" }, ["后端负责提供组件能力，前端 Loader 负责加载、渲染与数据回传。"]),
+      el("div", { class: "muted" }, ["后端提供组件注册表，前端 Loader 负责渲染与数据回传。"]),
     ]),
     codeBlock(1, "后端 API", "Agent 服务端拉取，作为工具声明", registry),
     codeBlock(2, "前端 Loader", "粘贴到业务页面的 HTML 中", frontend),
@@ -584,7 +584,7 @@ function renderProductCover(products, brands, unboundCount) {
       el("div", { class: "pc-id" }, ["·"]),
       el("div", { class: "pc-main" }, [
         nameBtn("未绑定产品"),
-        el("div", { class: "pc-meta" }, ["这些组件还没归入任何产品，不会随任何产品的注册表下发"]),
+        el("div", { class: "pc-meta" }, ["未归入任何产品，不会随注册表下发"]),
       ]),
       el("a", { class: "btn small", href: "/web/products.html" }, ["管理产品"]),
     ]));
@@ -949,7 +949,7 @@ function showEmbedInfo(c, eff) {
   const code = "SIA.render(container, " + demo + ")";
   UI.modal(`接入信息 · ${c.name}`, el("div", {}, [
     eff !== "published" ? el("div", { class: "sty-inherit", style: "margin-bottom:10px" }, [
-      UI.icon("alert", 14), el("span", {}, ["该实例尚未上线，接入后不会被 AI 触发；上线后即可使用"])]) : null,
+      UI.icon("alert", 14), el("span", {}, ["未上线，AI 不会触发；上线后生效"])]) : null,
     el("div", { class: "field" }, [
       el("span", { class: "label-text" }, ["组件实例 ID"]), UI.keyField(null, c.card_id)]),
     el("div", { class: "field" }, [
@@ -962,7 +962,7 @@ function showEmbedInfo(c, eff) {
       ]),
       el("pre", { class: "code" }, [code]),
     ]),
-    el("div", { class: "muted" }, ["完整接入代码（注册表接口 + 前端两行）在「产品与接入 → 产品配置」里"]),
+    el("div", { class: "muted" }, ["完整接入代码见「产品与接入 → 产品配置」"]),
   ]), null, { width: "520px" });
 }
 
@@ -1015,7 +1015,7 @@ let templateLibrary = null;
 
 // 组件的一句话场景介绍（选组件步用，不写配置细节）
 const WIZ_DESC = {
-  "select.single": "列表选择表单：选项可预置，也可留空由模型按对话动态给出",
+  "select.single": "选项可预置，也可由模型按对话给出",
   "select.multi": "多选表单：勾选多项后提交",
   "select.card": "卡片样式的选择表单，适合方案对比",
   "form.structured": "可组合多个输入字段的表单容器，如联系人、联系方式",
@@ -1478,7 +1478,7 @@ const COMPONENT_PARAMS = {
     ["value.size", "数值字号", "num", 22, 40, 30],
     ["delta.show", "显示涨跌标签", "bool", true],
     ["delta.good", "涨跌语义", "enum", [["", "越高越好"], ["lower", "越低越好"], ["neutral", "中性"]],
-      { deps: ["delta.show", true], hint: "决定涨跌颜色的业务含义：如投诉量下降应显示为改善（绿）" }],
+      { deps: ["delta.show", true], hint: "决定涨跌的颜色含义，如投诉量下降应为改善（绿）" }],
     ["metric.align", "对齐", "enum", [["", "左对齐"], ["center", "居中"]]],
     ["baseline.show", "显示对比说明", "bool", true, { hint: "数值下方的一行小字，如「对比上月同期」" }],
     // 文字角色：指标名 / 数值 / 对比说明各自成套
@@ -1504,9 +1504,9 @@ const COMPONENT_PARAMS = {
   ],
   "timeline": [
     ["ts.format", "时间显示形式", "enum", [["", "时:分"], ["datetime", "日期 + 时:分"], ["date", "仅日期"], ["relative", "相对时间"]],
-      { hint: "同一条事件可显示为 09:20 / 09-12 09:20 / 3 小时前" }],
+      { hint: "可选 09:20 / 09-12 09:20 / 3 小时前" }],
     ["tl.order", "排列方向", "enum", [["", "最新在下"], ["desc", "最新在上"]],
-      { hint: "物流 / 消息类习惯最新在上；流程回顾习惯最新在下" }],
+      { hint: "物流消息类最新在上，流程回顾类最新在下" }],
     ["now.emph", "突出最新节点", "bool", true],
     ["dot.shape", "节点形状", "enum", [["", "圆形"], ["square", "方形"]]],
     ["dot.color", "节点颜色", "color"],
@@ -1534,7 +1534,7 @@ const COMPONENT_PARAMS = {
   ],
   "matrix.compare": [
     ["best.highlight", "最优项高亮", "bool", true, { hint: "高亮色使用成功色" }],
-    ["sum.show", "综合列", "bool", false, { hint: "各维度分直加；确保所有维度都是「分数越高越好」且量纲一致再开启" }],
+    ["sum.show", "综合列", "bool", false, { hint: "各维度分数直接相加，需同方向、同量纲" }],
     ["header.bg", "表头底色", "color"],
     ["striped", "隔行变色", "bool", false],
     ["tbl.font", "表格字号", "num", 11, 14, 12, { adv: true }],
@@ -2173,7 +2173,7 @@ async function openEditor(cardId, prefill, initStep) {
     // 固定内容还没配完时，预览显示的是兜底示例——明确标出，避免误以为已配置
     if (state.contentMode !== "fixed" && !PRESENT_TYPES.includes(state.component_type)) {
       previewBox.appendChild(el("div", { class: "pv-demo-note" },
-        ["以下内容为示例：当前是「AI 生成内容」，线上会由 AI 按对话实时填入"]));
+        ["示例内容，线上由 AI 按对话填入"]));
     }
     if (state.contentMode === "fixed") {
       const ct3 = state.component_type;
@@ -2508,7 +2508,7 @@ async function openEditor(cardId, prefill, initStep) {
           } }, [label]));
       });
     }
-    box.appendChild(field("name", "组件名称", nameInput, "用于在工作台中识别这个组件，最多 15 个字。", true, "pick-name-field"));
+    box.appendChild(field("name", "组件名称", nameInput, "工作台中的识别名，最多 15 字", true, "pick-name-field"));
     box.appendChild(el("div", { class: "field", style: "margin-bottom:0" }, [
       el("span", { class: "label-text req" }, ["选择容器"]),
       tabBar,
@@ -2662,7 +2662,7 @@ async function openEditor(cardId, prefill, initStep) {
             el("div", { class: "selector-option-grid" }, [
               el("label", { class: "selector-option-field" }, [
                 el("span", { class: "selector-option-label req" }, ["候选名称"]),
-                el("span", { class: "selector-option-hint" }, ["用于区分不同回答，例如「回答 A」或「简洁版」"]),
+                el("span", { class: "selector-option-hint" }, ["用于区分不同回答，如「回答 A」"]),
                 nm,
               ]),
               el("label", { class: "selector-option-field" }, [
@@ -2722,9 +2722,9 @@ async function openEditor(cardId, prefill, initStep) {
            ["fixed", "固定配置内容", "要确认的那句话由你在下方写死"]]
         : IS_PRESENT_C
         ? [["dynamic", "AI 生成内容", "数据由 AI 按对话实时给出，每次可能不同"],
-           ["fixed", "固定配置内容", "数据由你在下方配置，随组件直接展示，AI 不能改"]]
+           ["fixed", "固定配置内容", "数据在下方配置，AI 不可修改"]]
         : [["dynamic", "AI 生成内容", "选项由 AI 根据对话自动给出，每次可能不同"],
-           ["fixed", "固定配置内容", "内容由你在下方配置，AI 不能改，可统计大家的选择"]];
+           ["fixed", "固定配置内容", "内容在下方配置，AI 不可修改，可统计群体选择"]];
       // ISO 时间 → datetime-local 输入值（本地时区）；非 ISO 的旧数据返回空
       const toLocalInput = (v) => {
         const d = new Date(v);
@@ -2830,7 +2830,7 @@ async function openEditor(cardId, prefill, initStep) {
         } else if (ct === "chart.pie") {
           titleField();
           pp.slices = pp.slices || [];
-          field(fxSec("占比数据", "名称 + 数值（原始数量即可，占比自动计算），2-7 行", true),
+          field(fxSec("占比数据", "名称 + 数值，占比自动计算，2–7 行", true),
             grid([{ k: "label", label: "名称", w: 130 }, { k: "value", label: "数值", num: true, w: 100 }],
               () => pp.slices, l2 => { pp.slices = l2.map(x => ({ label: x.label, value: Number(x.value) || 0 })); upd(); }, "添加一项", 7, "切片"));
         } else if (ct === "chart.waterfall") {
@@ -2915,7 +2915,7 @@ async function openEditor(cardId, prefill, initStep) {
                 pp.values = l2.map(x => pp.dimensions.map((d2, j) => Number(x["d" + j]) || 0)); upd(); }, "添加方案", 5, "方案");
             vHost.replaceChildren(...nextGrid.childNodes);
           };
-          field(fxSec("维度", "1-5 个，注意保持「分数越高越好」的同一方向", true),
+          field(fxSec("维度", "1–5 个，需保持同一方向（分数越高越好）", true),
             grid([{ k: "v", label: "维度名", w: 130 }], () => pp.dimensions.map(x => ({ v: x })),
               l2 => { pp.dimensions = l2.map(x => x.v); pp.values = pp.values.map(r => { const r2 = [...(r || [])]; r2.length = pp.dimensions.length; return r2.map(x => Number(x) || 0); }); upd(); redrawV(); }, "添加维度", 5, "维度"));
           redrawV();
@@ -3026,7 +3026,7 @@ async function openEditor(cardId, prefill, initStep) {
             el("span", { class: "selector-option-hint" }, [hint]), inp]));
         };
         mk(isConfirm ? "确认文案" : "按钮文案",
-           isConfirm ? "写清动作本身，如「取消订单」，好过泛泛的「确认执行」" : "建议使用明确的动作表达，最多 8 个字",
+           isConfirm ? "写清动作本身，如「取消订单」优于「确认执行」" : "建议使用明确的动作表达，最多 8 个字",
            state.submitLabel, 8, v => { state.submitLabel = v; },
            phText((scene || {}).submit_label, isConfirm ? "确认执行" : (isPri ? "提交" : "确认选择")));
         if (isConfirm) {
@@ -3048,8 +3048,8 @@ async function openEditor(cardId, prefill, initStep) {
           // 上面「AI 生成内容」那张卡已经写清楚哪些内容由 AI 给了，这里只补它没说的：
           // 该去哪儿配、哪些东西是固定不变的。没有额外要说的就什么都不放。
           const extra = SELECT_TYPES.includes(ct)
-            ? [ct === "select.card" ? "要给每张卡片配图，请选上面的「固定配置内容」。" : null,
-               "「推荐」角标的显隐在「样式设计 - 05 标签」里控制。"]
+            ? [ct === "select.card" ? "配图需切换到「固定配置内容」" : null,
+               "「推荐」角标显隐在「样式设计 - 标签」里控制"]
             : ct === "control.confirm" ? ["两个按钮的文案由你定，在下面配。"]
             : ct === "feedback.binary" ? ["赞、踩两个按钮固定，不随内容变。"]
             : [];
@@ -3444,7 +3444,7 @@ async function openEditor(cardId, prefill, initStep) {
                     el("span", { class: "selector-option-label" }, ["选项图片"]),
                     el("span", { class: "chip selector-image-chip" }, ["卡片配图"]),
                   ]),
-                  el("span", { class: "selector-option-hint" }, ["未上传时展示空白图片占位。支持 PNG、JPG、WebP、GIF，小于 200KB"]),
+                  el("span", { class: "selector-option-hint" }, ["PNG / JPG / WebP / GIF，200KB 以内；未上传时留空位"]),
                   imageActions,
                   preview,
                 ]);
@@ -3470,7 +3470,7 @@ async function openEditor(cardId, prefill, initStep) {
                   isPriority ? null : imageField,
                   isPriority ? null : optionField("选项描述", "补充说明该选项的特点", descIn, false),
                   isPriority ? null : optionField("推荐标签",
-                    "留空则不显示标签；最多 2 个，每个 6 字以内，用顿号或逗号分隔",
+                    "最多 2 个、每个 6 字内，用顿号分隔；留空不显示",
                     el("div", { class: "opt-tag-wrap" }, [tagIn, tagTip]), false),
                 ]),
               ]));
@@ -3596,7 +3596,7 @@ async function openEditor(cardId, prefill, initStep) {
         minSel.oninput = () => { state.minSelect = minSel.value; checkSelCount(); upd(); };
         maxSel.oninput = () => { state.maxSelect = maxSel.value; checkSelCount(); upd(); };
         box.appendChild(el("div", { class: "sty-section" }, [
-          el("div", { class: "sty-label" }, ["选择数量", UI.help("最少默认 1 项；最多留空表示不限，且不能小于最少选择数")]),
+          el("div", { class: "sty-label" }, ["选择数量", UI.help("最少默认 1；最多留空为不限，且不小于最少")]),
           el("div", { class: "fx-row" }, [
             el("span", { class: "muted" }, ["最少选择数"]), minSel,
             el("span", { class: "muted" }, ["最多选择数"]), maxSel,
@@ -3625,7 +3625,7 @@ async function openEditor(cardId, prefill, initStep) {
           } }, [nm])));
       box.appendChild(el("div", { class: "sty-section" }, [
         el("div", { class: "sty-label" }, ["可选范围",
-          UI.help("预约、改期这类场景选「仅未来」，查历史记录选「仅过去」")]), rngSeg]));
+          UI.help("预约改期用「仅未来」，查历史用「仅过去」")]), rngSeg]));
     }
 
     // 提交之后说什么，统一在「内容设置 - 按钮」里配（按钮文案 + 提交后文案）。
@@ -3648,13 +3648,13 @@ async function openEditor(cardId, prefill, initStep) {
         el("span", { class: "fx-echo-txt" }, [
           el("span", { class: "fx-echo-t" }, ["展示群体结果"]),
           el("span", { class: "fx-echo-d" }, [ct === "feedback.binary"
-            ? "用户评价后展示大家的赞踩比例（如「82% 的人觉得有帮助」）"
-            : "用户提交后展示所有人的选择分布（如「43%」）"]),
+            ? "评价后展示群体赞踩比例"
+            : "提交后展示群体选择分布"]),
         ])]));
     } else if (ECHO_CAPABLE.includes(ct)) {
       // 这类组件本身支持，只是当前是 AI 动态内容——说明一句，不给开关
       box.appendChild(el("div", { class: "ed-note" },
-        ["AI 动态内容每次不同，聚合不出群体结果；改为「固定配置内容」后可以开启。"]));
+        ["选项不固定时无法聚合分布，改用「固定配置内容」后可开启。"]));
     }
     // 内容模式一变，这块要跟着重画
     if (state.echo_results && !echoAllowed) state.echo_results = false;
@@ -3663,7 +3663,7 @@ async function openEditor(cardId, prefill, initStep) {
     if (!box.children.length) {
       box.appendChild(el("div", { class: "ed-note" }, [PRESENT_TYPES.includes(ct)
         ? "当前展示类组件无需配置交互行为。"
-        : "本组件的操作方式是固定的（选中即提交），没有需要配置的交互行为。"]));
+        : "该组件选中即提交，无需配置交互行为。"]));
     }
     return box;
   }
@@ -3745,7 +3745,7 @@ async function openEditor(cardId, prefill, initStep) {
       if (!host) return;
       let tip = host.querySelector(".sty-noeffect");
       if (!tip) {
-        tip = el("div", { class: "sty-noeffect" }, ["当前预览内容里看不出这一项的效果，线上内容不同可能会体现"]);
+        tip = el("div", { class: "sty-noeffect" }, ["当前预览内容看不出效果，线上内容不同可能生效"]);
         (host.querySelector(".sty-ctrl") || host).appendChild(tip);
       }
       tip.hidden = false;
@@ -3794,7 +3794,7 @@ async function openEditor(cardId, prefill, initStep) {
       el("span", {}, ["未覆盖的样式项跟随产品的风格主题样式"]),
       el("div", { style: "flex:1" }),
       el("button", { class: "btn small ghost", type: "button", style: "color:var(--primary)",
-        title: "清除本组件的全部样式覆盖，回到风格主题的默认值",
+        title: "清除全部样式改动，回到主题默认",
         onclick: () => {
           Object.keys(so).forEach(k => delete so[k]);
           state.display = selectorDisplayOf(ct) || ""; autosave(); rebuild();
@@ -4049,7 +4049,7 @@ async function openEditor(cardId, prefill, initStep) {
       // 确认器的主按钮恒定用警示红，改主色看不出变化，这一项就不给它
       if (ct !== "control.confirm") {
         zpush(layZoneOf("color.primary") || (IS_SELECTOR ? "option" : "panel"), colorRow("color.primary", IS_SELECTOR ? "选中主色" : "主色（按钮 / 选中态）",
-          ct === "feedback.binary" ? "赞踩按钮平时是中性色，这个颜色用在悬停与点选之后" : undefined));
+          ct === "feedback.binary" ? "用于悬停与选中，默认为中性色" : undefined));
       }
       // 强调色只对「有悬停高亮」的组件有意义：滑杆拖着走、量表点一下就选中，
       // 都没有独立的悬停态，给了也看不出变化
@@ -4474,7 +4474,7 @@ async function openEditor(cardId, prefill, initStep) {
     const fixed = state.contentMode === "fixed";
     box.appendChild(el("div", { class: "sty-inherit" }, [
       UI.icon("palette", 14),
-      el("span", {}, ["这是本组件与 agent 之间的数据契约：模型按 params_schema 传参，用户提交后按 submit_schema 回传。开发接入时看这里，日常配置不用改。"]),
+      el("span", {}, ["开发接入用：模型按 params_schema 传参，用户提交后按 submit_schema 回传。"]),
     ]));
     // 字段表：把 JSON Schema 翻成「字段 / 类型 / 必填 / 说明」的表，开发与运营都能读
     const fieldTable = (schema) => {
@@ -4666,10 +4666,10 @@ async function openEditor(cardId, prefill, initStep) {
             el("div", { class: "ob-row" }, [apiIn]),
             el("div", { class: "ob-toggle" }, [
               UI.toggle({ checked: !!(r.prompt || r._open), onChange: (v) => { r._open = v; if (!v) r.prompt = ""; autosave(); draw(); return true; } }),
-              el("span", {}, ["AI 跟进", UI.help("开启后，用户选中此项时 AI 按你的话术接管回答")]),
+              el("span", {}, ["AI 跟进", UI.help("选中该项时，AI 按设定话术回答")]),
             ]),
             (r._open || r.prompt) ? (() => {
-              const pIn = el("input", { type: "text", value: r.prompt || "", placeholder: "用户选中后 AI 按此话术跟进，例如：告知加急申请已受理" });
+              const pIn = el("input", { type: "text", value: r.prompt || "", placeholder: "AI 按此话术跟进，如：告知加急申请已受理" });
               pIn.oninput = () => { r.prompt = pIn.value; autosave(); };
               return el("div", { class: "ob-row" }, [pIn]);
             })() : null,
@@ -4708,7 +4708,7 @@ async function openEditor(cardId, prefill, initStep) {
     const isLoc = state.component_type === "picker.location";
     const outer = el("div", { class: "field" }, [
       el("span", { class: "label-text" + (isLoc ? "" : " req") }, [isCard ? "卡片" : isCommerce ? "商品" : isEntry ? "入口" : isLoc ? "常用地点（选填，置顶展示）" : "选项",
-        withAct ? UI.help("跳转链接与 AI 跟进都是选填：配了链接，用户选中后可直达你的页面或服务；配了 AI 跟进，AI 会按你的话术继续对话") : null]),
+        withAct ? UI.help("均为选填。填链接则选中后跳转，填话术则由 AI 按话术继续对话") : null]),
       wrap,
     ]);
     fieldWraps.options = outer;
@@ -4719,7 +4719,7 @@ async function openEditor(cardId, prefill, initStep) {
     const wrap = el("div", {});
     function draw() {
       wrap.innerHTML = "";
-      wrap.appendChild(el("span", { class: "label-text" }, ["步骤", UI.help("用户按步骤翻页阅读；每步一个标题加一段说明，至少 2 步")]));
+      wrap.appendChild(el("span", { class: "label-text" }, ["步骤", UI.help("每步一个标题加一段说明，至少 2 步")]));
       state.guideSteps.forEach((st, i) => {
         const tIn = el("input", { type: "text", value: st.title, maxlength: "20", placeholder: `第 ${i + 1} 步标题，例如：准备材料`, "aria-label": "步骤标题" });
         tIn.oninput = () => { st.title = tIn.value; autosave(); };
@@ -4883,7 +4883,7 @@ async function openEditor(cardId, prefill, initStep) {
     foot.innerHTML = "";
     if (legacyType) {
       foot.appendChild(el("div", { class: "muted", style: "color:var(--danger)" },
-        ["该组件类型已下线，仅可查看历史数据，不能修改保存"]));
+        ["该类型已下线，仅可查看，不可保存"]));
       foot.appendChild(el("div", { style: "flex:1" }));
       foot.appendChild(el("button", { class: "btn", onclick: () => closeEditor() }, ["关闭"]));
       return;
@@ -5010,7 +5010,7 @@ async function openEditor(cardId, prefill, initStep) {
           (() => {
             const nm = (V2_TEMPLATES.find(t => t.component_type === state.component_type) || {}).name || "预览";
             return el("span", { class: "pv-title", style: "font-weight:600" }, [nm]);
-          })(), UI.help("用户在对话中看到的效果，与线上同一套渲染器；预览中提交不产生数据"),
+          })(), UI.help("与线上同一套渲染器；预览中的提交不产生数据"),
           (() => {
             // 回显按钮放在标题这一侧：它是条件显示的，摆在右边会把明暗切换和重置挤得左右乱跳
             const b = el("button", { class: "btn small ghost", type: "button", hidden: !state.echo_results,
@@ -5033,7 +5033,7 @@ async function openEditor(cardId, prefill, initStep) {
               state.display = selectorDisplayOf(state.component_type) || ""; autosave(); rebuild();
             };
             window.__pvResetBtn = el("button", { class: "btn small ghost", type: "button", style: "color:var(--primary)",
-              title: "清除这个组件的全部样式改动，回到风格主题的默认样式", onclick: async () => {
+              title: "清除本组件的全部样式改动，回到主题默认", onclick: async () => {
                 const n = Object.keys(state.styleOv || {}).length;
                 if (!n) { UI.toast("当前就是主题默认样式"); return; }
                 const ok = await UI.confirm("清空样式改动",
@@ -5449,7 +5449,7 @@ async function openEditor(cardId, prefill, initStep) {
         if (e.status === 409 && errs?.some(x => x.code === "conflict")) {
           conflictDialog(errs.find(x => x.code === "conflict"), payload);
         } else if (e.status === 409 && errs?.some(x => x.code === "card_deleted")) {
-          const ok = await UI.confirm("配置已被删除", "该配置已被他人删除。是否将当前内容另存为新配置？", { okText: "另存为新配置" });
+          const ok = await UI.confirm("配置已被删除", "配置已被他人删除，是否另存为新配置？", { okText: "另存为新配置" });
           if (ok) {
             payload.card_id = crypto.randomUUID();
             const savedNew = (await UI.api("/api/cards", { method: "POST", body: payload })).card;
@@ -5464,7 +5464,7 @@ async function openEditor(cardId, prefill, initStep) {
           showFieldErrors(errs);
           UI.toast("保存失败：请修正表单中标红的字段", true);
         } else {
-          UI.toast("保存失败：" + e.message + "。请检查网络后重试，重复提交不会产生重复配置。", true);
+          UI.toast("保存失败：" + e.message + "。请检查网络后重试。", true);
         }
       }
     }, thenPublish ? "发布中……" : "保存中……");
@@ -5586,7 +5586,7 @@ async function openDetail(cardId) {
       el("div", { class: "dt-right" }, [
         el("div", { class: "card" }, [
           el("div", { class: "dt-sec" }, ["数据 Schema",
-            UI.help("注册给大模型的参数结构：模型按它填内容，用户提交后按提交结构回传")]),
+            UI.help("模型按参数结构填内容，用户提交后按提交结构回传")]),
           schemaBox,
         ]),
       ]),

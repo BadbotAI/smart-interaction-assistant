@@ -12,7 +12,7 @@
   <div class="page-head" style="display:flex;align-items:center;gap:12px">
     <div class="page-head-main">
       <div class="page-title">产品与接入</div>
-      <div class="page-desc">一个产品一套接入信息，把组件能力交给你的 agent。</div>
+      <div class="page-desc">创建产品、绑定组件与风格主题，取到接入代码后交给你的 agent。</div>
     </div>
     <div style="flex:1"></div>
     <button class="btn primary" id="newBtn"></button>
@@ -89,7 +89,7 @@ async function viewSchemas(p) {
       el("div", { style: "flex:1" }),
       el("button", { class: "btn small", onclick: () => { navigator.clipboard.writeText(JSON.stringify(reg, null, 2)); UI.toast("已复制完整注册表 JSON"); } }, [UI.icon("copy", 13), "复制完整注册表"]),
     ]),
-    comps.length ? el("div", {}, blocks) : el("div", { class: "muted" }, ["该产品还没有绑定组件，去组件工作台新建并上线组件实例"]),
+    comps.length ? el("div", {}, blocks) : el("div", { class: "muted" }, ["尚未绑定组件，请在组件工作台新建并上线"]),
   ]), null, { width: "640px" });
 }
 
@@ -119,7 +119,7 @@ function productForm(init, opts = {}) {
     const file = imageInput.files && imageInput.files[0];
     if (!file) return;
     if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 5 * 1024 * 1024) {
-      UI.toast("请选择 5MB 以内的 PNG、JPG 或 WebP 图片", true); imageInput.value = ""; return;
+      UI.toast("请选择 5MB 以内的 PNG / JPG / WebP", true); imageInput.value = ""; return;
     }
     const reader = new FileReader();
     reader.onload = () => {
@@ -184,15 +184,15 @@ function productForm(init, opts = {}) {
     el("div", { class: "field" }, [el("span", { class: "label-text" }, ["产品图片", el("span", { class: "muted optional-label" }, ["（选填）"])]),
       el("div", { class: "product-image-field" }, [imagePreview,
         el("div", { class: "product-image-actions" }, [
-          el("div", { class: "muted" }, ["建议使用正方形 PNG、JPG 或 WebP，最大 5MB"]),
+          el("div", { class: "muted" }, ["正方形 PNG / JPG / WebP，5MB 以内"]),
           el("div", { style: "display:flex;gap:8px" }, [uploadImage, removeImage]), imageInput]),
       ])]),
     el("div", { class: "field" }, [
       el("span", { class: "label-text" }, ["风格主题",
-        UI.help("选定后成为这个产品的品牌风格，产品内所有组件都按它渲染；之后可以随时换一套或接着改")]),
+        UI.help("产品内所有组件的默认视觉，可随时更换或继续调整")]),
       el("div", { class: "theme-field-row" }, [themeBtn, editThemeBtn]),
       el("span", { class: "field-desc theme-field-desc" }, [
-        "选定后成为这个产品的品牌风格，产品内所有组件按它渲染。"]),
+        "产品内所有组件的默认视觉。"]),
     ]),
   ]);
   return { node, st, nameIn, nameErr };
@@ -228,7 +228,7 @@ function configProduct(p) {
   const access = el("div", { class: "field access-config product-access-config" }, [
     el("div", { class: "access-intro" }, [
       el("div", { class: "access-intro-title" }, ["接入配置"]),
-      el("div", { class: "muted" }, ["完成以下 2 步，后端提供组件能力，前端 Loader 负责加载、渲染与数据回传。"]),
+      el("div", { class: "muted" }, ["两步接入：后端拉取组件注册表，前端 Loader 负责渲染与数据回传。"]),
     ]),
     codeBlock(1, "后端 API", "Agent 服务端拉取，作为工具声明", registry),
     codeBlock(2, "前端 Loader", "粘贴到业务页面的 HTML 中", frontend),

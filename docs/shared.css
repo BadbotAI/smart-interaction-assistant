@@ -2835,3 +2835,9 @@ body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
 .theme-list-meta { font-size: var(--font-caption); }
 
 .comp .sl-end { flex: none; font-size: var(--font-caption); }
+
+.np-list { max-height: calc(5 * 58px); overflow-y: auto; overscroll-behavior: contain; }
+.np-list::-webkit-scrollbar { width: 6px; }
+.np-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
+.np-pop .np-new { position: sticky; bottom: 0; background: var(--bg-elevated); margin-top: 2px;
+  border-top: 1px solid var(--border); border-radius: 0 0 12px 12px; }

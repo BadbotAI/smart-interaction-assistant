@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>风格主题 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=f4c856f1">
+<link rel="stylesheet" href="./shared.css?v=1794c8d6">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
@@ -51,7 +51,7 @@
   <div class="page-head ds-head" id="brandHead">
     <div class="page-head-main">
       <div class="page-title" id="brandHeadTitle">风格主题</div>
-      <div class="page-desc" id="brandHeadDesc">定义组件的视觉风格，选定后成为产品的品牌默认。</div>
+      <div class="page-desc" id="brandHeadDesc">定义一套视觉风格，绑定给产品后成为其组件的默认样式。</div>
     </div>
     <span class="muted" id="brandCount" style="font-size:var(--font-caption)"></span>
     <div style="flex:1"></div>
@@ -84,11 +84,11 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=d4a3aa14"></script>
+<script src="./mock_data.js?v=381b3223"></script>
 <script src="./mock_api.js?v=9f335920"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
-<script src="./ui.js?v=875ffbde"></script>
-<script src="./components.js?v=79937acb"></script>
+<script src="./ui.js?v=c18df3a3"></script>
+<script src="./components.js?v=6156fa2e"></script>
 <script>
 // 深链直开编辑器时，先行标记以免生效风格覆盖预览
 if (new URLSearchParams(location.search).get("new")) window._editingStyle = true;
@@ -327,10 +327,10 @@ function brandDialog(existing, onClose) {
       ["danger", "警示色", "确认执行、校验失败、下跌", "--danger", "chip"],
     ]],
     ["选项与按钮", [
-      ["opt_bg", "选项背景", "每个选项行 / 候选卡的底色；留空时跟卡片底色一致", "--opt-bg", "optsel"],
-      ["opt_bc", "选项边框", "每个选项行 / 候选卡的描边；留空时用上面的边框色", "--opt-bc", "border"],
+      ["opt_bg", "选项背景", "选项行的底色，留空同卡片底色", "--opt-bg", "optsel"],
+      ["opt_bc", "选项边框", "选项行的描边，留空用上方边框色", "--opt-bc", "border"],
       ["btn_bg", "按钮背景", "提交 / 确认按钮的填充色；留空时用主色", "--btn-bg", "btn"],
-      ["btn_fg", "按钮文字", "按钮上的文字颜色；留空时按底色亮度自动取白或近黑", "--btn-fg", "btnfg"],
+      ["btn_fg", "按钮文字", "留空时按底色亮度自动取白或近黑", "--btn-fg", "btnfg"],
     ]],
   ];
   // 「用在哪」的实物示意：直接用该颜色画出它作用的真实元素
@@ -604,7 +604,7 @@ function brandDialog(existing, onClose) {
           hex,
           demoHost,
           el("span", { class: "tok-desc" }, [
-            cssVar ? el("code", { class: "tok-var", title: "对应的 CSS 变量，接入后可直接在代码里引用" }, [cssVar]) : null,
+            cssVar ? el("code", { class: "tok-var", title: "对应的 CSS 变量，可直接在代码中引用" }, [cssVar]) : null,
             el("span", {}, [kdesc || ""]),
           ]),
         ]));
@@ -619,7 +619,7 @@ function brandDialog(existing, onClose) {
       // 这一组和组件样式改的是同一批变量，说清层级：这里定的是默认值
       const gnote = gname === "选项与按钮"
         ? el("div", { class: "tok-group-note" },
-            ["这里定的是产品内所有组件的默认值；个别组件要破例，在它自己的「样式设计」里改。"])
+            ["产品内所有组件的默认值；单个组件可在自己的「样式设计」里覆盖。"])
         : null;
       tokenPanel.appendChild(el("details", { class: "tok-group" }, [
         el("summary", {}, [el("span", {}, [gname]), swRow]), gnote, rows]));
@@ -809,7 +809,7 @@ function brandDialog(existing, onClose) {
   const fieldV = (label, cssVar, desc, ...ctrls) => el("div", { class: "field" }, [
     el("span", { class: "label-text field-label-row" }, [
       el("span", { class: "field-label-text" }, [label]),
-      cssVar ? el("code", { class: "tok-var", title: "对应的 CSS 变量，接入后可直接在代码里引用" }, [cssVar]) : null,
+      cssVar ? el("code", { class: "tok-var", title: "对应的 CSS 变量，可直接在代码中引用" }, [cssVar]) : null,
     ]),
     desc ? el("span", { class: "field-desc" }, [desc]) : null,
     ...ctrls,
@@ -817,14 +817,14 @@ function brandDialog(existing, onClose) {
   const optPanel = el("div", { class: "theme-editor-sections" }, [
     editorGroup("02 颜色与模式", "选择一套预设起步，再按需调整关键颜色。", [presetField, quickField, advancedField], "theme-color-group"),
     editorGroup("03 组件外观", "统一控制组件的形状、层次与信息密度。", [
-      fieldV("圆角", "--radius-card", "组件卡片的圆角；按钮、输入框等控件圆角按比例跟随", radBox),
+      fieldV("圆角", "--radius-card", "卡片圆角，控件圆角按比例跟随", radBox),
       fieldV("阴影", "--shadow-card", "组件卡片的投影层次", shadowSl, shadowCustom),
       fieldV("卡片内边距", "--card-pad", "组件卡片四周的留白，同时带动卡片内部的行距节奏", densSl),
     ]),
     editorGroup("04 排版", "设置组件正文的字体、字重和字号。", [
       fieldV("字体", "--font-family", "组件内所有文字的字体族", mountFontSel()),
       fieldV("正文字重", "--font-weight-base", "组件正文的字重，可选档位随字体变化", wBox),
-      fieldV("正文字号", "--font-base", "其余字号按它派生：说明文字 -2px、标题 +2px、大数字 +7px", sizeRow),
+      fieldV("正文字号", "--font-base", "其余字号按此派生：说明 -2px、标题 +2px、大数字 +7px", sizeRow),
     ]),
   ]);
   // v2：风格主题只走选项定义（代码导入下线）
@@ -965,8 +965,8 @@ function setHead(mode, ctx) {
     title.textContent = existing ? "编辑主题" : "新建主题";
     const descE = document.getElementById("brandHeadDesc");
     if (descE) descE.textContent = existing
-      ? "改动实时反映在右侧预览；保存后，绑定这套主题的产品全部跟着变。"
-      : "先选一套行业风格起步，再按需要调关键颜色与形态。";
+      ? "改动实时反映在预览；保存后，绑定该主题的产品同步生效。"
+      : "先选行业风格起步，再调关键颜色与形态。";
     title.className = "page-title";        // 与列表态同一个类，字号才一致
     count.textContent = existing ? existing.brand_name : "";
     actions.innerHTML = "";
@@ -983,7 +983,7 @@ function setHead(mode, ctx) {
     head.insertBefore(UI.el("button", { class: "btn small ds-back", type: "button", onclick: close }, ["返回"]), headAnchor);
   } else {
     const descL = document.getElementById("brandHeadDesc");
-    if (descL) descL.textContent = "定义组件的视觉风格，选定后成为产品的品牌默认。";
+    if (descL) descL.textContent = "定义一套视觉风格，绑定给产品后成为其组件的默认样式。";
     head.classList.remove("is-edit");
     title.textContent = "风格主题";
     title.className = "page-title";

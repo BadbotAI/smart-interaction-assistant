@@ -5,57 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=f4c856f1">
+<link rel="stylesheet" href="./shared.css?v=1794c8d6">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
-  .home { max-width: 900px; margin: 0 auto; padding-top: 6vh; text-align: center; }
-  .home .mark { display: inline-flex; margin-bottom: 14px; }
-  .home h1 { font-size: 32px; font-weight: 800; letter-spacing: 2px; margin: 0 0 12px; color: var(--text-primary); }
-  .home .slogan { font-size: 15px; color: var(--text-secondary); letter-spacing: 6px; margin: 0 0 36px; }
+  .home { max-width: 940px; margin: 0 auto; padding-top: 26px; text-align: center; }
+  /* 图标、标题、副标题压到一行的高度量级，把空间让给下面的演示区 */
+  .home .mark { display: inline-flex; margin-bottom: 8px; transform: scale(.72); transform-origin: center bottom; }
+  .home h1 { font-size: 24px; font-weight: 800; letter-spacing: 1px; margin: 0 0 4px; color: var(--text-primary); }
+  .home .slogan { font-size: var(--font-small); color: var(--text-muted); letter-spacing: 1px; margin: 0 0 18px; }
   /* ---- 大轮播展示卡 ---- */
-  .stage { position: relative; height: 386px; background: var(--bg-elevated); border: 1px solid var(--border);
+  .stage { position: relative; height: 440px; background: var(--bg-elevated); border: 1px solid var(--border);
     border-radius: var(--radius-card); overflow: hidden; text-align: left; box-shadow: var(--shadow-card); }
   .stage * { box-sizing: border-box; }
   .cs { position: absolute; inset: 0; display: none; }
   .cs.active { display: block; }
-  .cs .inner { position: relative; max-width: 620px; height: 330px; margin: 0 auto; }
+  .cs .inner { position: relative; max-width: 620px; height: calc(100% - 70px); margin: 0 auto; }
   .bub { position: absolute; font-size: 12.5px; line-height: 1.5; padding: 8px 13px; border-radius: 12px; opacity: 0; }
   .cs .bu { right: 0; top: 18px; background: var(--panel-deep); color: #fff; border-bottom-right-radius: 4px; }
   .cs .ba { left: 0; top: 58px; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-secondary); border-bottom-left-radius: 4px; }
   .cs.active .bu { animation: csIn .4s ease-out forwards; }
-  .cs.active .ba { animation: csIn .4s ease-out .5s forwards; }
+  .cs.active .ba { animation: csIn .4s ease-out .25s forwards; }
   @keyframes csIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   .cs .cw { position: absolute; left: 0; top: 88px; width: 300px; }
   .cs .card2 { background: var(--bg-elevated); border: 1px solid var(--border);
     border-radius: var(--radius-card); padding: 11px; opacity: 0; box-shadow: var(--shadow-card); }
-  .cs.active .card2 { animation: csIn .4s ease-out 1s forwards; }
+  .cs.active .card2 { animation: csIn .4s ease-out .5s forwards; }
   .cs .ttl { font-size: 12px; font-weight: 700; margin-bottom: 7px; color: var(--text-primary); }
   .cs .opt { border: 1px solid var(--border); border-radius: 9px; padding: 7px 11px; font-size: 12.5px; margin-bottom: 6px; background: var(--bg-elevated); color: var(--text-primary); }
-  .cs.active .opt.picked { animation: csPick .3s ease-out 2s forwards; }
+  .cs.active .opt.picked { animation: csPick .3s ease-out 1.2s forwards; }
   @keyframes csPick { to { border-color: var(--primary); background: var(--primary-weak); } }
   .cs .sbtn { display: inline-block; margin-top: 8px; font-size: 11.5px; background: var(--primary); color: #fff;
     border-radius: 999px; padding: 4px 14px; opacity: 0; }
-  .cs.active .sbtn { animation: csIn .3s ease-out 2.4s forwards, csPress .3s ease-in-out 2.9s; }
+  .cs.active .sbtn { animation: csIn .3s ease-out 1.5s forwards, csPress .3s ease-in-out 1.9s; }
   @keyframes csPress { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.9); } }
   .cs .ok { margin-top: 7px; font-size: 12px; color: var(--success, #17A673); opacity: 0; }
-  .cs.active .ok { animation: csIn .35s ease-out 3.4s forwards; }
+  .cs.active .ok { animation: csIn .35s ease-out 2.3s forwards; }
   .cs .stars { display: flex; gap: 8px; padding: 2px 0 4px; }
   .cs .st { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border); display: flex; align-items: center;
     justify-content: center; font-size: 12px; color: var(--text-secondary); }
-  .cs.active .st.on { animation: csPick .3s ease-out 2s forwards; }
+  .cs.active .st.on { animation: csPick .3s ease-out 1.2s forwards; }
   .cs .frow { margin-bottom: 7px; }
   .cs .flab { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
   .cs .fin { height: 27px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elevated); position: relative; overflow: hidden; }
   .cs .fin i { position: absolute; left: 8px; top: 6px; height: 14px; width: 0; border-radius: 4px; background: var(--bg-sunken); }
-  .cs.active .fin.f1 i { animation: csFill .5s ease-out 1.7s forwards; }
-  .cs.active .fin.f2 i { animation: csFill .5s ease-out 2.2s forwards; }
+  .cs.active .fin.f1 i { animation: csFill .5s ease-out 1s forwards; }
+  .cs.active .fin.f2 i { animation: csFill .5s ease-out 1.4s forwards; }
   @keyframes csFill { to { width: 64%; } }
   .cs .prow { display: flex; gap: 8px; align-items: center; border: 1px solid var(--border); border-radius: 9px; padding: 8px; margin-bottom: 6px; }
   .cs .pimg { width: 36px; height: 36px; border-radius: 8px; background: var(--primary-weak); flex: none; }
   .cs .pnm { font-size: 12.5px; color: var(--text-primary); }
   .cs .pprice { margin-left: auto; font-size: 12.5px; font-weight: 700; color: var(--text-primary); }
   .cs .buy { display: inline-block; margin-top: 2px; font-size: 11.5px; background: var(--primary); color: #fff; border-radius: 999px; padding: 4px 13px; opacity: 0; }
-  .cs.active .buy { animation: csIn .3s ease-out 2.4s forwards, csPress .3s ease-in-out 2.9s; }
+  .cs.active .buy { animation: csIn .3s ease-out 1.5s forwards, csPress .3s ease-in-out 1.9s; }
   /* 卡内底栏：case 标题与描述 */
   .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 56px 12px; background: var(--bg-surface);
     border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-secondary); opacity: 0; text-align: center; }
@@ -63,7 +64,7 @@
   .cap b { display: block; color: var(--text-primary); font-size: 13.5px; margin-bottom: 2px; }
   .cs .inner { max-width: 496px; margin: 0 auto; }
   .dots { position: absolute; right: 18px; bottom: 16px; display: flex; gap: 6px; z-index: 2; }
-  .onboard { display: flex; align-items: stretch; gap: 10px; max-width: 900px; margin: 26px auto 0; padding: 0 16px; }
+  .onboard { display: flex; align-items: stretch; gap: 10px; max-width: 940px; margin: 16px auto 0; padding: 0 16px; }
   /* 卡内一律左对齐（页面级 text-align:center 会渗进来），行动链接吸底 → 三张卡按钮同一水平线 */
   /* 卡片：序号提到标题同一行，整卡更像"一步"而不是图文列表 */
   .ob-step { flex: 1; display: flex; flex-direction: column; gap: 8px; text-align: left; text-decoration: none;
@@ -75,13 +76,14 @@
     font-weight: 700; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; flex: none;
     font-variant-numeric: tabular-nums; }
   .ob-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-  .ob-body i { margin-bottom: 12px; }
+  .ob-body i { margin-bottom: 6px; }
   .ob-head b { font-size: 15px; font-weight: 700; color: var(--text-primary); }
   .ob-body i { font-style: normal; font-size: var(--font-caption); color: var(--text-muted); line-height: 1.5; }
-  .ob-go { margin-top: auto; align-self: stretch; text-align: center;
-    background: var(--primary); color: #fff; font-size: var(--font-small); font-weight: 600;
-    padding: 9px 12px; border-radius: 10px; transition: background var(--dur-fast); }
-  .ob-step:hover .ob-go { background: var(--primary-hover, var(--primary)); filter: brightness(1.06); }
+  /* 三个实心大按钮并排会压过卡片内容本身，改成文字链接 */
+  .ob-go { margin-top: auto; align-self: flex-start; color: var(--primary);
+    font-size: var(--font-caption); font-weight: 600; display: inline-flex; align-items: center; gap: 3px; }
+  .ob-go::after { content: "›"; font-size: 14px; line-height: 1; }
+  .ob-step:hover .ob-go { text-decoration: underline; }
   /* 步骤之间用一条细连接线 + 小圆点，比裸箭头更轻，也更像"流程" */
   .ob-arrow { align-self: center; width: 26px; height: 2px; flex: none; position: relative;
     background: linear-gradient(90deg, var(--border), var(--border-strong)); border-radius: 2px; }
@@ -182,21 +184,21 @@
     </div>
     <div class="onboard">
       <a class="ob-step" href="./products.html">
-        <span class="ob-head"><span class="ob-no">1</span><b>添加产品</b></span>
-        <span class="ob-body"><i>填个名字，配一套风格主题</i>
-          <span class="ob-go">产品与接入</span></span>
+        <span class="ob-head"><span class="ob-no">1</span><b>建产品</b></span>
+        <span class="ob-body"><i>一个 agent 对应一个产品，选定它的风格主题</i>
+          <span class="ob-go">去添加</span></span>
       </a>
       <span class="ob-arrow" aria-hidden="true"></span>
       <a class="ob-step" href="./cards.html">
-        <span class="ob-head"><span class="ob-no">2</span><b>上线组件</b></span>
-        <span class="ob-body"><i>新产品自带全套组件，默认都是下线的，把要用的打开</i>
-          <span class="ob-go">组件工作台</span></span>
+        <span class="ob-head"><span class="ob-no">2</span><b>配组件</b></span>
+        <span class="ob-body"><i>导入标准组件或自己新建，配好内容与样式后上线</i>
+          <span class="ob-go">去配置</span></span>
       </a>
       <span class="ob-arrow" aria-hidden="true"></span>
       <a class="ob-step" href="./products.html">
-        <span class="ob-head"><span class="ob-no">3</span><b>调样式接进去</b></span>
-        <span class="ob-body"><i>调好样式发布，把接入代码贴进你的 agent</i>
-          <span class="ob-go">产品与接入</span></span>
+        <span class="ob-head"><span class="ob-no">3</span><b>接进去</b></span>
+        <span class="ob-body"><i>复制注册表接口与前端 Loader 两段代码</i>
+          <span class="ob-go">取代码</span></span>
       </a>
     </div>
 
@@ -204,10 +206,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=d4a3aa14"></script>
+<script src="./mock_data.js?v=381b3223"></script>
 <script src="./mock_api.js?v=9f335920"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
-<script src="./ui.js?v=875ffbde"></script>
+<script src="./ui.js?v=c18df3a3"></script>
 <script>UI.nav("home");
 const CASES = 5;
 let cur = 0, timer = null;
@@ -219,7 +221,7 @@ function show(i) {
   });
   document.querySelectorAll(".dot").forEach((d, idx) => d.classList.toggle("on", idx === i));
   clearTimeout(timer);
-  timer = setTimeout(() => show((cur + 1) % CASES), 6200);
+  timer = setTimeout(() => show((cur + 1) % CASES), 5200);
 }
 document.querySelectorAll(".dot").forEach((d, idx) => d.onclick = () => show(idx));
 show(0);

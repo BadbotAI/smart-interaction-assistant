@@ -1651,7 +1651,7 @@ window.Components = (function () {
   function rUpload(env, ctx) {
     const p = env.params;
     const file = el("input", { type: "file", accept: ".pdf,.doc,.docx,.xls,.xlsx,.csv,.zip", style: "display:none" });
-    const nameEl = el("span", { class: "muted" }, [p.placeholder || "支持 PDF / Word / Excel，演示环境不真实上传"]);
+    const nameEl = el("span", { class: "muted" }, [p.placeholder || "PDF / Word / Excel，演示环境不实际上传"]);
     file.onchange = () => { if (file.files[0]) { nameEl.textContent = file.files[0].name + "（仅本机可见，不上传文件名）"; nameEl.classList.remove("muted"); } };
     return compCard([
       compTitle(p.prompt),

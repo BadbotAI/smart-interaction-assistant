@@ -102,7 +102,7 @@
   <div class="page-head" style="display:flex;align-items:center;gap:12px">
     <div class="page-head-main">
       <div class="page-title">数据分析</div>
-      <div class="page-desc">组件的曝光、提交与用户的选择分布。</div>
+      <div class="page-desc">查看组件的曝光、提交与群体选择分布，下载表单原始数据。</div>
     </div>
     <div style="flex:1"></div>
   </div>
@@ -231,7 +231,7 @@ function optionsCard(groups, echoMode = false) {
 function instancesCard(rows) {
   if (!rows.length) return el("div", { class: "an-card" }, [
     el("div", { class: "an-head" }, [el("span", { class: "t" }, ["组件实例排行"])]),
-    el("div", { class: "an-empty" }, ["还没有能归到具体实例的事件（需要 SDK 回传 card_id）"])]);
+    el("div", { class: "an-empty" }, ["暂无可归属到实例的事件，需 SDK 回传 card_id"])]);
   return el("div", { class: "an-card" }, [
     el("div", { class: "an-head" }, [el("span", { class: "t" }, ["组件实例排行"]),
       el("span", { class: "d" }, ["组件实例"])]),
@@ -356,7 +356,7 @@ async function loadOverall() {
     box.appendChild(el("div", { class: "an-card" }, [
       el("div", { class: "empty-state" }, [
         el("div", { class: "empty-title" }, ["这段时间还没有组件事件"]),
-        el("div", {}, ["组件在真实对话里被渲染、提交后，数据会自动出现在这里；也可以换一个更长的时间范围。"]),
+        el("div", {}, ["组件产生曝光或提交后，数据会出现在这里。也可以放宽时间范围。"]),
       ]),
     ]));
     return;
@@ -569,7 +569,7 @@ async function loadForms() {
       ]),
     ]) : el("div", { class: "empty-state" }, [
       el("div", { class: "empty-title" }, ["当前产品还没有表单"]),
-      el("div", {}, ["创建结构化表单后，会在这里显示表单名称和提交数量。"]),
+      el("div", {}, ["创建表单组件后，这里显示名称与提交数量。"]),
     ]),
   ]));
 }

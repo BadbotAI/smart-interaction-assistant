@@ -944,9 +944,8 @@ async def create_product(request: Request):
     if conn.execute("SELECT 1 FROM products WHERE name=?", (name,)).fetchone():
         return JSONResponse({"error": "已有同名产品"}, status_code=409)
     pid = "prod-" + db.new_id()[:8]
-    # 新产品预置全套组件模板实例（已下线）：用户从「上线需要的」开始，而不是从零配置
-    if not card_ids:
-        card_ids = _make_presets(conn)
+    # 新产品不再自动塞满 20 个组件：一进工作台就是满屏卡片，看不出哪些是自己要的。
+    # 改为进工作台后由空态提示「是否导入标准组件」，确认后导入为已下线（POST /presets）。
     conn.execute("INSERT INTO products (product_id, name, brand_file, card_ids, image, created_at) VALUES (?,?,?,?,?,?)",
                  (pid, name, brand_file, db.j(card_ids), image, db.now_ts()))
     conn.commit()

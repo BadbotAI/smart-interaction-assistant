@@ -399,9 +399,13 @@ window.UI = (function () {
             if (cols[i]) av.style.background = `linear-gradient(135deg, ${cols[i].p}, ${cols[i].a})`;
           });
         });
+        // 产品多了以后列表会顶到屏幕外，「添加产品」也跟着被推下去。
+        // 列表最多露 5 条、超出自己滚，添加入口留在外面常驻
+        const list = el("div", { class: "np-list" });
+        pop.appendChild(list);
         products.forEach(p => {
           const on = p.product_id === cur.product_id;
-          pop.appendChild(el("button", {
+          list.appendChild(el("button", {
             class: "np-card" + (on ? " on" : ""), role: "option",
             onclick: () => {
               pop.remove();
@@ -423,7 +427,9 @@ window.UI = (function () {
             on ? el("span", { class: "np-card-check" }, [icon("check", 15)]) : null,
           ]));
         });
-                pop.appendChild(el("button", { class: "np-card np-new", role: "option", onclick: () => {
+        // 打开时把当前产品滚进视野
+        setTimeout(() => { const on = list.querySelector(".np-card.on"); if (on) on.scrollIntoView({ block: "nearest" }); }, 0);
+        pop.appendChild(el("button", { class: "np-card np-new", role: "option", onclick: () => {
           location.href = "/web/products.html?new=1";
         } }, [
           el("span", { class: "np-avatar", style: "width:34px;height:34px;background:var(--primary-weak);color:var(--primary)" }, ["+"]),
