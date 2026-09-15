@@ -1044,7 +1044,11 @@ function renderCurrentThemeDetail(brand, tokens) {
     : (options.shadow != null ? (THEME_SHADOW_NAMES[options.shadow] || "轻阴影") : (tokens.shadow ? "轻阴影" : "无阴影"));
   const canEdit = brand.brand_id !== "default";
   host.innerHTML = "";
-  host.appendChild(el("div", { class: "theme-detail-head" }, [
+  // 主题名、操作按钮和使用情况是一个整体，装进同一个吸顶容器；
+  // 分成两个各自 sticky 的块，中间会留缝，下面的内容从缝里透出来
+  const stickyTop = el("div", { class: "theme-detail-sticky" });
+  host.appendChild(stickyTop);
+  stickyTop.appendChild(el("div", { class: "theme-detail-head" }, [
     el("div", { class: "theme-detail-heading" }, [
       el("span", { class: "ds-side-section-title" }, ["当前主题"]),
       el("strong", {}, [brand.brand_name || brand.file]),
@@ -1062,7 +1066,7 @@ function renderCurrentThemeDetail(brand, tokens) {
       return more;
     })() : null,
   ]));
-  if (users.length) host.appendChild(el("div", { class: "theme-detail-usage", title: users.map(p => p.name).join("、") }, [
+  if (users.length) stickyTop.appendChild(el("div", { class: "theme-detail-usage", title: users.map(p => p.name).join("、") }, [
     UI.icon("box", 13), el("span", {}, [`已用于 ${users.length} 个产品`]),
   ]));
   host.append(

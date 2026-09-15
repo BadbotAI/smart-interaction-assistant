@@ -63,32 +63,42 @@
   .cap b { display: block; color: var(--text-primary); font-size: 13.5px; margin-bottom: 2px; }
   .cs .inner { max-width: 496px; margin: 0 auto; }
   .dots { position: absolute; right: 18px; bottom: 16px; display: flex; gap: 6px; z-index: 2; }
-  .onboard { display: flex; align-items: stretch; gap: 10px; max-width: 940px; margin: 16px auto 0; padding: 0 16px; }
-  /* 卡内一律左对齐（页面级 text-align:center 会渗进来），行动链接吸底 → 三张卡按钮同一水平线 */
-  /* 卡片：序号提到标题同一行，整卡更像"一步"而不是图文列表 */
-  .ob-step { flex: 1; display: flex; flex-direction: column; gap: 8px; text-align: left; text-decoration: none;
-    border: 1px solid var(--border); border-radius: 16px; padding: 18px 18px 16px; background: var(--bg-elevated);
+  /* 四步一排的网格。原来三张卡只有一行标题 + 一行小字，中间大片留白，
+     现在给每步一个图标压住左上角，序号做成角标，行动链接吸底，卡片才不显得空 */
+  /* 与上方演示卡同宽同边，左右不错位 */
+  .onboard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    max-width: 940px; margin: 14px auto 0; }
+  .ob-step { position: relative; display: flex; flex-direction: column; gap: 10px;
+    text-align: left; text-decoration: none; overflow: hidden;
+    border: 1px solid var(--border); border-radius: 14px; padding: 16px 16px 14px; background: var(--bg-elevated);
     transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast); }
-  .ob-step:hover { border-color: var(--primary-border); box-shadow: 0 6px 20px rgba(15, 27, 38, .07); transform: translateY(-2px); }
-  .ob-head { display: flex; align-items: center; gap: 9px; }
-  .ob-no { width: 22px; height: 22px; border-radius: 7px; background: var(--primary-weak); color: var(--primary);
-    font-weight: 700; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; flex: none;
-    font-variant-numeric: tabular-nums; }
-  .ob-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-  .ob-body i { margin-bottom: 6px; }
-  .ob-head b { font-size: 15px; font-weight: 700; color: var(--text-primary); }
-  .ob-body i { font-style: normal; font-size: var(--font-caption); color: var(--text-muted); line-height: 1.5; }
-  /* 三个实心大按钮并排会压过卡片内容本身，改成文字链接 */
+  .ob-step::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px;
+    background: var(--primary); opacity: 0; transition: opacity var(--dur-fast); }
+  .ob-step:hover { border-color: var(--primary-border); box-shadow: 0 8px 22px rgba(15, 27, 38, .08); transform: translateY(-2px); }
+  .ob-step:hover::before { opacity: 1; }
+  .ob-head { display: flex; align-items: center; gap: 10px; }
+  .ob-ico { width: 34px; height: 34px; border-radius: 10px; flex: none;
+    background: var(--primary-weak); color: var(--primary);
+    display: inline-flex; align-items: center; justify-content: center; }
+  .ob-ico svg { width: 18px; height: 18px; }
+  .ob-no { position: absolute; top: 14px; right: 16px; font-size: 20px; font-weight: 800;
+    color: var(--border-strong); font-variant-numeric: tabular-nums; line-height: 1; }
+  .ob-head b { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+  .ob-body { display: flex; flex-direction: column; gap: 10px; min-width: 0; flex: 1; }
+  .ob-body i { font-style: normal; font-size: var(--font-caption); color: var(--text-secondary); line-height: 1.6; }
   .ob-go { margin-top: auto; align-self: flex-start; color: var(--primary);
     font-size: var(--font-caption); font-weight: 600; display: inline-flex; align-items: center; gap: 3px; }
   .ob-go::after { content: "›"; font-size: 14px; line-height: 1; }
   .ob-step:hover .ob-go { text-decoration: underline; }
-  /* 步骤之间用一条细连接线 + 小圆点，比裸箭头更轻，也更像"流程" */
-  .ob-arrow { align-self: center; width: 26px; height: 2px; flex: none; position: relative;
-    background: linear-gradient(90deg, var(--border), var(--border-strong)); border-radius: 2px; }
-  .ob-arrow::after { content: ""; position: absolute; right: -1px; top: 50%; width: 6px; height: 6px;
-    border-radius: 50%; background: var(--border-strong); transform: translateY(-50%); }
-  @media (max-width: 900px) { .onboard { flex-direction: column; } .ob-arrow { display: none; } }
+  /* 最后一步不是要去哪儿，是接入之后的结果，所以不给跳转入口 */
+  .ob-step.is-static { cursor: default; }
+  .ob-step.is-static:hover { border-color: var(--border); box-shadow: none; transform: none; }
+  .ob-step.is-static:hover::before { opacity: 0; }
+  .ob-done { margin-top: auto; align-self: flex-start; color: var(--success);
+    font-size: var(--font-caption); font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+  .ob-done::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+  @media (max-width: 1040px) { .onboard { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 620px) { .onboard { grid-template-columns: 1fr; } }
   .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--border-strong, #C7D3DC); cursor: pointer; border: 0; padding: 0; transition: width .2s; }
   .dot.on { background: var(--primary); width: 18px; }
   /* ---- 按钮与次链接 ---- */
@@ -161,44 +171,32 @@
         </div>
         <div class="cap"><b>关键动作确认</b>不可逆操作交给确认组件兜底：模型不可信，关键节点必须用户点头</div>
       </div>
-      <div class="cs">
-        <div class="inner">
-          <span class="bub ba" style="margin-top:6px">同一个组件，随品牌与样式变化：</span>
-          <div class="cw"><div class="card2"><div class="ttl">同一个组件，六套主题</div>
-            <div style="display:flex;gap:8px;padding:6px 2px">
-              <i style="width:26px;height:26px;border-radius:8px;background:#3E63DD"></i>
-              <i style="width:26px;height:26px;border-radius:8px;background:#0D9488"></i>
-              <i style="width:26px;height:26px;border-radius:8px;background:#D97757"></i>
-              <i style="width:26px;height:26px;border-radius:8px;background:#6E56CF"></i>
-              <i style="width:26px;height:26px;border-radius:8px;background:#18181B"></i>
-              <i style="width:26px;height:26px;border-radius:8px;background:#1E7A50"></i>
-            </div>
-            <div class="opt">倒角 · 高度 · 密度 · 阴影 · 字号</div>
-          </div>
-            <div class="ok">每个圆角、颜色、字号都能调，一行代码接入</div></div>
-        </div>
-        <div class="cap"><b>样式即产品</b>六套主题预设起步，逐项细调，组件实例还能再覆盖——设计一次，处处一致</div>
-      </div>
-      <div class="dots"><button class="dot on" aria-label="case 1"></button><button class="dot" aria-label="case 2"></button><button class="dot" aria-label="case 3"></button><button class="dot" aria-label="case 4"></button><button class="dot" aria-label="case 5"></button></div>
+      <div class="dots"><button class="dot on" aria-label="case 1"></button><button class="dot" aria-label="case 2"></button><button class="dot" aria-label="case 3"></button><button class="dot" aria-label="case 4"></button></div>
     </div>
     <div class="onboard">
       <a class="ob-step" href="/web/products.html">
-        <span class="ob-head"><span class="ob-no">1</span><b>建产品</b></span>
-        <span class="ob-body"><i>一个 agent 对应一个产品，选定它的风格主题</i>
-          <span class="ob-go">去添加</span></span>
+        <span class="ob-no">1</span>
+        <span class="ob-head"><span class="ob-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8v8a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4A2 2 0 0 1 3 16V8a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4A2 2 0 0 1 21 8z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span><b>新建产品</b></span>
+        <span class="ob-body"><i>为每个 agent 建立独立的产品空间，统一管理其组件与接入信息</i>
+          <span class="ob-go">接入产品</span></span>
       </a>
-      <span class="ob-arrow" aria-hidden="true"></span>
+      <a class="ob-step" href="/web/design.html">
+        <span class="ob-no">2</span>
+        <span class="ob-head"><span class="ob-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1.2"/><circle cx="17.5" cy="10.5" r="1.2"/><circle cx="8.5" cy="7.5" r="1.2"/><circle cx="6.5" cy="12.5" r="1.2"/><path d="M12 2a10 10 0 1 0 0 20 2 2 0 0 0 2-2v-1a2 2 0 0 1 2-2h1a4 4 0 0 0 4-4 10 10 0 0 0-9-11z"/></svg></span><b>设置风格主题</b></span>
+        <span class="ob-body"><i>定义品牌色、圆角与字号，绑定后成为该产品内组件的默认样式</i>
+          <span class="ob-go">进入风格主题</span></span>
+      </a>
       <a class="ob-step" href="/web/cards.html">
-        <span class="ob-head"><span class="ob-no">2</span><b>配组件</b></span>
-        <span class="ob-body"><i>导入标准组件或自己新建，配好内容与样式后上线</i>
-          <span class="ob-go">去配置</span></span>
+        <span class="ob-no">3</span>
+        <span class="ob-head"><span class="ob-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><b>配置交互组件</b></span>
+        <span class="ob-body"><i>基于组件模版创建组件实例，配置内容、交互与样式后发布上线</i>
+          <span class="ob-go">进入组件工作台</span></span>
       </a>
-      <span class="ob-arrow" aria-hidden="true"></span>
-      <a class="ob-step" href="/web/products.html">
-        <span class="ob-head"><span class="ob-no">3</span><b>接进去</b></span>
-        <span class="ob-body"><i>复制注册表接口与前端 Loader 两段代码</i>
-          <span class="ob-go">取代码</span></span>
-      </a>
+      <div class="ob-step is-static">
+        <span class="ob-no">4</span>
+        <span class="ob-head"><span class="ob-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></span><b>接入已有产品</b></span>
+        <span class="ob-body"><i>接入代码只需贴一次，此后组件与样式的改动自动生效</i></span>
+      </div>
     </div>
 
   </div>
@@ -207,7 +205,7 @@
 <script src="/web/tokens.js"></script>
 <script src="/web/ui.js"></script>
 <script>UI.nav("home");
-const CASES = 5;
+const CASES = 4;
 let cur = 0, timer = null;
 function show(i) {
   cur = i;

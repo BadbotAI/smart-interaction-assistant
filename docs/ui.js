@@ -285,6 +285,8 @@ window.UI = (function () {
     ia: {
       name: "智能交互平台", home: "./index.html", productSwitcher: true,
       groups: [
+        // 首页单独一组：它不属于某个产品，是平台入口
+        { title: "", items: [["home", "首页", "./index.html", "home"]] },
         // 切换器（全局上下文）之下 = 当前产品维度的三页一组；全局管理沉到底部区
         { title: "当前产品", items: [
           ["cards", "组件工作台", "./cards.html", "sliders"],
@@ -437,7 +439,7 @@ window.UI = (function () {
         ]));
         document.body.appendChild(pop);
         const r = btn.getBoundingClientRect();
-        pop.style.minWidth = r.width + "px";
+        // 宽度由 .np-pop 固定，不跟着按钮宽度伸缩
         pop.style.left = (r.left + window.scrollX) + "px";
         pop.style.top = (r.bottom + window.scrollY + 6) + "px";
         const close = (e) => { if (!pop.contains(e.target) && !btn.contains(e.target)) { pop.remove(); document.removeEventListener("click", close, true); } };
@@ -601,7 +603,16 @@ window.UI = (function () {
     node.appendChild(t);
     return node;
   }
-  const INK = () => getComputedStyle(document.documentElement).getPropertyValue("--text-muted").trim() || "#898781";
+  // 坐标轴与数值标签的颜色：优先取图表所在组件上的文字颜色覆盖（--text-ink），
+  // 否则回落到主题的次要文字色。之前固定读 document 根节点，
+  // 于是组件里改了文字颜色，轴标签和图例都不跟着变。
+  let INK_HOST = null;
+  const INK = () => {
+    const cs = getComputedStyle(INK_HOST || document.documentElement);
+    return (cs.getPropertyValue("--text-ink").trim()
+      || cs.getPropertyValue("--ink-panel").trim()
+      || cs.getPropertyValue("--text-muted").trim() || "#898781");
+  };
   const fmtTick = (v) => {
     const a = Math.abs(v);
     if (a < 1e-9) return "0";
@@ -627,6 +638,7 @@ window.UI = (function () {
     lineWidth = 2, lineStyle = "solid", smooth = false, pointShow = true, pointShape = "circle", pointSize = 3,
     areaFill = true, areaOpacity = 0.16, axisShow = false, axisColor, valueLabels = false, lineColor,
     legendShow = false }) {
+    INK_HOST = container;   // 轴与标签颜色跟随这个组件自己的文字色
     container.innerHTML = "";
     const pal = Brand.chartPalette().categorical;
     // 系列名统一放到图表下方，避免末值接近时文字叠在数据点上。
@@ -737,6 +749,7 @@ window.UI = (function () {
   }
 
   function barChart(container, { categories, values, width, height = 190, unit = "", color, horizontal = false, maxValue, format, grid = true, gridStyle = "solid", valueLabels = true, barWidthPct = 0.55, barRadius = 4, axisColor }) {
+    INK_HOST = container;   // 轴与标签颜色跟随这个组件自己的文字色
     container.innerHTML = "";
     const _fs = chartFontSize(container);
     const barColor = color || "var(--primary)";
