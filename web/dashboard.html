@@ -275,7 +275,7 @@ async function renderSurvey() {
           el("a", { style: "font-weight:600;font-size:var(--font-title);color:inherit;text-decoration:none", class: "link-hover",
             href: "/web/cards.html?focus=" + item.card_id, title: "在组件工作台中查看这条配置" }, [item.name || item.question]),
           UI.ctChip(item.component_type),
-          item.status !== "published" ? el("span", { class: "chip yellow" }, ["已下线"]) : null,
+          item.status !== "published" ? el("span", { class: "chip gray" }, ["草稿"]) : null,
         ]),
         el("div", { class: "mini-metrics" }, [
           metricCell("触发", item.rendered),

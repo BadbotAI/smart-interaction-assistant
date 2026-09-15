@@ -287,6 +287,10 @@ def init_db():
         winner TEXT NOT NULL, losers TEXT NOT NULL DEFAULT '[]',
         source TEXT DEFAULT 'api', ts REAL)""")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_abfb_ts ON ab_feedback(ts)")
+    # 增量迁移：「下线」这个状态已取消，组件只有草稿与已上线两态。
+    # 存量的 offline 行本来就不在服务，一律并入草稿；要停止某个产品触发它，
+    # 改用「产品配置 - 绑定组件」取消绑定。
+    conn.execute("UPDATE cards SET status='draft' WHERE status='offline'")
     # 增量迁移（v5.1）：数据集版本化——回流显式导入成新版本，可回滚
     for stmt in ("ALTER TABLE ab_feedback ADD COLUMN chosen_content TEXT",
                  "ALTER TABLE ab_feedback ADD COLUMN imported_version INTEGER",

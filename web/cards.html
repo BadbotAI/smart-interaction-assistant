@@ -75,7 +75,7 @@ const { el } = UI;
 
 const STATUS_CHIP = {
   draft: ["草稿", "gray"], published: ["已上线", "blue"],
-  offline: ["已下线", "coral"], archived: ["历史版本", "gray"], deleted: ["已删除", "red"],
+  archived: ["历史版本", "gray"], deleted: ["已删除", "red"],
 };
 const FIELD_LABEL = { name: "组件名称", description: "组件说明", trigger_description: "触发条件描述", trigger_examples: "示例问法",
   component_type: "交互组件", "text_templates.prompt": "交互提问文案", "text_templates.reply": "信息内容",
@@ -188,7 +188,7 @@ function presetOnboard() {
   const box = el("div", { class: "preset-onboard" }, [
     el("div", { class: "po-head" }, [
       el("div", { class: "po-t" }, ["这个产品还没有组件"]),
-      el("div", { class: "po-d" }, ["一键导入标准组件，导入后为下线状态，按需上线"]),
+      el("div", { class: "po-d" }, ["一键导入标准组件，导入后是草稿，配好内容与样式再发布"]),
     ]),
     el("div", { class: "po-grid" }, [el("span", { class: "muted" }, ["读取中……"])]),
     el("div", { class: "po-foot" }, [
@@ -209,8 +209,8 @@ function presetOnboard() {
           await UI.withBusy(b, async () => {
             try {
               const r = await UI.api(`/api/products/${pid}/presets`, { method: "POST" });
-              UI.toast(`已导入 ${r.added} 个组件，都在「已下线」里`);
-              statusTab = "offline";
+              UI.toast(`已导入 ${r.added} 个组件，都在「草稿箱」里`);
+              statusTab = "draft";
               await loadCards(); loadKpisAndTodos();
             } catch (e) { UI.toast(e.data?.error || e.message, true); }
           }, "导入中……");
@@ -317,7 +317,7 @@ const WB_CATS = [
   ["text", "文本", ["list.ordered", "text.emphasis"]],
 ];
 let statsByCard = {};
-const STATUS_TABS = [["", "全部"], ["published", "已上线"], ["offline", "已下线"], ["draft", "草稿箱"]];
+const STATUS_TABS = [["", "全部"], ["published", "已上线"], ["draft", "草稿箱"]];
 function renderStatusTabs(counts = {}) {
   const bar = document.getElementById("statusTabs");
   bar.innerHTML = "";
@@ -665,7 +665,7 @@ async function loadCards() {
   }
   renderProductCover(products, brands, all.filter(c => !bound.has(c.card_id)).length);
   const counts = { "": scoped.length };
-  ["published", "offline", "draft"].forEach(k => counts[k] = scoped.filter(c => effStatus(c) === k).length);
+  ["published", "draft"].forEach(k => counts[k] = scoped.filter(c => effStatus(c) === k).length);
   renderStatusTabs(counts);
   const cards = statusTab ? scoped.filter(c => effStatus(c) === statusTab) : scoped;
   renderCategoryFilter(cards);
@@ -700,7 +700,6 @@ async function loadCards() {
       const emptyCopy = {
         draft: ["暂无草稿", "编辑器里点「保存草稿」的实例会出现在这里"],
         published: ["暂无已上线的实例", "在编辑器里「保存并发布」后会出现在这里"],
-        offline: ["暂无已下线的实例", "从「更多」菜单下线的实例会出现在这里"],
       }[statusTab] || ["该状态下暂无实例", ""];
       list.appendChild(el("div", { class: "empty-state" }, [
         el("div", { class: "empty-title" }, [emptyCopy[0]]),
@@ -747,7 +746,7 @@ function fitPreviews(root) {
 }
 
 // 单行构建：局部刷新用（状态开关切换后只替换该行，不重建整个列表）
-// —— 批量操作：勾选集合 + 浮动操作条（上线 / 下线选中项） ——
+// —— 批量操作：勾选集合 + 浮动操作条（批量发布 / 删除选中项） ——
 const batchSel = new Set();
 let batchMode = false;   // 默认关闭：复选框只在进入批量操作后出现
 function setBatchMode(on) {
@@ -783,7 +782,6 @@ function batchBar() {
       document.querySelectorAll(".wb-card .cr-check input").forEach(i => { if (!i.checked) i.click(); });
     } }, ["全选当前列表"]),
     el("button", { class: "btn small", onclick: () => run("publish", "批量上线") }, ["批量上线"]),
-    el("button", { class: "btn small", onclick: () => run("offline", "批量下线") }, ["批量下线"]),
     el("button", { class: "btn small ghost", onclick: () => { setBatchMode(false); batchSel.clear(); batchBar();
       document.querySelectorAll(".cr-check input").forEach(i => i.checked = false); } }, ["取消选择"]),
   );
@@ -798,7 +796,7 @@ function buildCardRow(c) {
         onchange: (e) => { e.target.checked ? batchSel.add(c.card_id) : batchSel.delete(c.card_id); batchBar(); } }),
     ]) : null;
     const sm = styleSummary(c);
-    // 上线 / 下线：明确的文字按钮，放在卡片右上角
+    // 草稿给发布按钮，已上线只显示状态
     const doPublish = async () => {
       try {
         const resp = await UI.api(`/api/cards/${c.card_id}/transition`, { method: "POST", body: { action: "publish" } });
@@ -814,24 +812,13 @@ function buildCardRow(c) {
         ]));
       }
     };
-    // 上下线开关只表达两种形态：已上线 / 已下线。
-    // 草稿还没发布过，不给开关——要先去「更多 - 发布」，否则开关等于偷偷替用户发布
+    // 只剩草稿与已上线两态，开关没有「关」的去处了：草稿给一颗发布按钮，已上线显示状态。
+    // 要停止某个产品触发它，去产品配置里取消绑定
     const isDraft = eff === "draft";
-    const stText = { published: "已上线", offline: "已下线", archived: "历史版本" }[eff] || eff;
-    const swInput = el("input", { type: "checkbox", role: "switch", "aria-label": "上线开关",
-      ...(eff === "published" ? { checked: "" } : {}) });
-    swInput.onchange = () => {
-      swInput.disabled = true;
-      if (swInput.checked) doPublish(); else doTransition(c, "offline");
-    };
     const statusBtn = isDraft
-      ? el("span", { class: "chip gray", title: "草稿还没发布过，去「更多 - 发布」才能上线" }, ["草稿"])
-      : el("label", { class: "wb-switch" + (eff === "published" ? " on" : ""),
-          title: eff === "published" ? "关闭即下线：组件从产品注册表移除" : "打开即上线：加入当前产品注册表" }, [
-          swInput,
-          el("span", { class: "sw-track" }, [el("span", { class: "sw-knob" })]),
-          el("span", { class: "sw-text" }, [stText]),
-        ]);
+      ? el("button", { class: "btn small primary", type: "button",
+          title: "校验通过后加入当前产品的注册表", onclick: doPublish }, ["发布"])
+      : el("span", { class: "chip blue", title: "已在当前产品的注册表里，模型可触发" }, ["已上线"]);
     return el("div", { class: "wb-card card-row", "data-cid": c.card_id }, [
       el("div", { class: "wb-head" }, [
         chk,
@@ -878,7 +865,7 @@ function buildCardRow(c) {
 }
 
 function moreButton(c, eff) {
-  // 统一菜单：发布（仅草稿）/ 复制 / 接入信息 / 删除。已上线实例不可直接删，给出「先下线」的明确路径
+  // 统一菜单：发布（仅草稿）/ 复制 / 查看详情 / 删除
   const moreBtn = el("button", { class: "btn small", onclick: () => UI.menu(moreBtn, [
     eff === "draft" ? { label: "发布", onClick: async () => {
       try {
@@ -908,18 +895,7 @@ function moreButton(c, eff) {
     } } : null,
     { label: "复制组件", onClick: () => duplicateCard(c) },
     { label: "查看详情", onClick: () => openDetail(c.card_id) },
-    eff === "published"
-      ? { label: "下线后删除", danger: true, onClick: async () => {
-          const ok = await UI.confirm("下线并删除", `「${c.name}」正在线上。需要先下线才能删除，下线后 AI 将不再触发它。`,
-            { okText: "下线并删除", danger: true });
-          if (!ok) return;
-          try {
-            await UI.api(`/api/cards/${c.card_id}/transition`, { method: "POST", body: { action: "offline" } });
-            await UI.api(`/api/cards/${c.card_id}/transition`, { method: "POST", body: { action: "delete" } });
-            UI.toast("已下线并删除"); loadCards(); loadKpisAndTodos();
-          } catch (e) { UI.toast(e.data?.error?.message || e.message, true); }
-        } }
-      : { label: c.version >= 1 ? "删除配置（含线上版本）" : "删除配置", danger: true, onClick: () => doTransition(c, "delete") },
+    { label: "删除组件", danger: true, onClick: () => doTransition(c, "delete") },
   ]) }, ["更多"]);
   return moreBtn;
 }
@@ -967,18 +943,17 @@ function showEmbedInfo(c, eff) {
 }
 
 async function doTransition(c, action, force = false, btn = null) {
-  if (action === "offline" && !force) {
-    const ok = await UI.confirm("下线配置", `「${c.name}」下线后 AI 不再触发，数据保留，可重新发布。`, { okText: "下线" });
-    if (!ok) return;
-  }
   if (action === "delete" && !force) {
-    const ok = await UI.confirm("删除配置", `删除「${c.name}」？不可恢复，历史快照与数据保留用于审计。`, { okText: "删除", danger: true });
+    const live = effStatus(c) === "published";
+    const ok = await UI.confirm("删除组件",
+      `删除「${c.name}」？不可恢复。${live ? "它正在线上服务，删除后 AI 立即不再触发。\n\n只是想让某个产品不再触发它，去「产品与接入 - 产品配置 - 绑定组件」取消绑定即可，配置会保留。" : ""}`,
+      { okText: "删除", danger: true });
     if (!ok) return;
   }
   if (btn) btn.disabled = true;
   try {
     const resp = await UI.api(`/api/cards/${c.card_id}/transition`, { method: "POST", body: { action, force } });
-    UI.toast({ publish: "已上线", offline: "已下线", delete: "已删除" }[action] || "完成");
+    UI.toast({ publish: "已上线", delete: "已删除" }[action] || "完成");
     if (resp && resp.warning) setTimeout(() => UI.toast(resp.warning, true), 1200);
     loadCards(); loadKpisAndTodos();
   } catch (e) {
@@ -4896,7 +4871,6 @@ async function openEditor(cardId, prefill, initStep) {
       el("button", { class: "btn small ghost", type: "button", title: "看这份配置生成的注册信息与运行时数据",
         onclick: () => openSchemaPanel() }, [UI.icon("database", 13), "数据结构"]),
       isNew && !savedCard ? null : el("span", { class: "num" }, [`配置 ${shortId(clientCardId)}`]),
-      card && card.status === "offline" ? el("span", { class: "chip coral" }, ["已下线"]) : null,
     ]));
   }
 
@@ -5041,7 +5015,7 @@ async function openEditor(cardId, prefill, initStep) {
     ? card.version : 0;
   const liveBanner = liveVersion ? el("div", { class: "ed-live-note" }, [
     UI.icon("info", 14),
-    el("span", {}, [`线上正在跑 v${liveVersion}。这里的改动会存成待发布版本，点「发布」才替换线上，不用先下线。`]),
+    el("span", {}, [`线上正在跑 v${liveVersion}。这里的改动会存成待发布版本，点「发布」才替换线上。`]),
   ]) : null;
 
   const body = el("div", { class: "ed-body", style: "display:contents" }, [
@@ -5589,7 +5563,7 @@ async function openDetail(cardId) {
   catch (e) { UI.toast("组件不存在或已删除", true); return; }
   const eff = effStatus(c);
   const cfg = ((c.field_bindings || {}).config) || {};
-  const ST = { published: ["已上线", "blue"], offline: ["已下线", "gray"], draft: ["草稿", "gray"] }[eff] || [eff, "gray"];
+  const ST = { published: ["已上线", "blue"], draft: ["草稿", "gray"] }[eff] || [eff, "gray"];
 
   const host = document.getElementById("editorHost");
   const info = (k, v) => el("div", { class: "dt-row" }, [
@@ -5688,7 +5662,7 @@ document.addEventListener("click", () => {
 });
 // 深链：工作台待办 ?status=draft 直接带筛选进入
 const initStatus = new URLSearchParams(location.search).get("status");
-if (initStatus && ["draft", "published", "offline"].includes(initStatus)) statusTab = initStatus;
+if (initStatus && ["draft", "published"].includes(initStatus)) statusTab = initStatus;
 loadKpisAndTodos();
 loadCards().then(async () => {
   const params = new URLSearchParams(location.search);

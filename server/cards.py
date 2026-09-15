@@ -443,7 +443,7 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
     status = row["status"]
 
     if action == "publish":
-        if status not in ("draft", "offline"):
+        if status != "draft":
             return None, {"message": f"当前状态 {status} 不可发布"}
         card = row_to_card(row)
         errors = validate_card(card, strict=True)
@@ -452,16 +452,6 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
         prev_snap_row = conn.execute(
             "SELECT snapshot FROM card_snapshots WHERE card_id=? ORDER BY version DESC LIMIT 1", (card_id,)).fetchone()
         prev_card = db.dj(prev_snap_row["snapshot"], {}) if prev_snap_row else None
-        # 原样重新上线：内容与最新快照一致的下线配置，恢复上线即可，不升版本、不惊动引用方
-        if status == "offline" and prev_card is not None:
-            keys = ("name", "trigger_description", "trigger_examples", "component_type",
-                    "field_bindings", "option_source", "text_templates")
-            if all(db.j(card.get(k)) == db.j(prev_card.get(k)) for k in keys):
-                conn.execute("UPDATE cards SET status='published', updated_at=? WHERE card_id=?",
-                             (db.now_ts(), card_id))
-                conn.commit()
-                db.audit(actor, "card_republish_same", {"card_id": card_id, "name": card["name"], "version": row["version"]})
-                return get_card(card_id), None
         # 选项改名别名链：同一选项位（option_ids 对齐）文案变化时，历史数据按别名归并到新文案
         _merge_option_aliases(conn, card_id, prev_card, card)
         card = row_to_card(conn.execute("SELECT * FROM cards WHERE card_id=?", (card_id,)).fetchone())
@@ -531,19 +521,11 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
         db.audit(actor, "card_restore_draft", {"card_id": card_id, "name": row["name"], "from_version": int(force or 0)})
         return get_card(card_id), None
 
-    if action == "offline":
-        # published，或编辑中的已上线配置（status=draft 但存在生效快照）均可下线
-        if not (status == "published" or (status == "draft" and row["version"] >= 1)):
-            return None, {"message": "仅已上线配置可下线"}
-        conn.execute("UPDATE cards SET status='offline', updated_at=? WHERE card_id=?", (db.now_ts(), card_id))
-        conn.commit()
-        db.audit(actor, "card_offline", {"card_id": card_id, "name": row["name"]})
-        return get_card(card_id), None
+    # 「下线」这个能力已去掉：组件只有草稿与已上线两态。
+    # 要让某个组件不再被某个产品触发，在「产品与接入 - 产品配置 - 绑定组件」里取消绑定即可，
+    # 配置与历史数据都留着；彻底不要了才删除。
 
     if action == "delete":
-        serving = status == "published" or (status == "draft" and row["version"] >= 1)
-        if serving and not force:
-            return None, {"message": "该配置线上仍在服务，请先下线再删除"}
         refs = conn.execute("SELECT agent_id, version FROM card_refs WHERE card_id=?", (card_id,)).fetchall()
         if refs and not force:
             return None, {"message": "配置被以下 Agent 引用，删除将导致运行时降级为纯文本。确认影响后可选择强制删除。",

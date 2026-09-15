@@ -122,7 +122,7 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=bf9ff515"></script>
+<script src="./mock_data.js?v=14b597a2"></script>
 <script src="./mock_api.js?v=9f335920"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
 <script src="./ui.js?v=9b580f6b"></script>
@@ -253,7 +253,7 @@ function instancesCard(rows) {
           el("td", {}, [r.name]),
           el("td", {}, [CT_CN(r.component_type)]),
           el("td", {}, [el("span", { class: "chip " + (r.status === "published" ? "blue" : "gray") },
-            [{ published: "已上线", offline: "已下线", draft: "草稿", deleted: "已删除" }[r.status] || r.status])]),
+            [{ published: "已上线", draft: "草稿", deleted: "已删除" }[r.status] || r.status])]),
           el("td", { class: "num" }, [String(r.rendered)]),
           el("td", { class: "num" }, [String(r.submitted)]),
 

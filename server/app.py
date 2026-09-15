@@ -654,7 +654,7 @@ def dashboard_questions(days: int = Query(30, ge=1, le=90)):
     since = _t.time() - days * 86400
     # 有生效快照的编辑中草稿（status=draft 且 version>=1）线上仍在服务，同样计入
     card_rows = conn.execute(
-        "SELECT * FROM cards WHERE (status IN ('published','offline') OR (status='draft' AND version>=1)) "
+        "SELECT * FROM cards WHERE (status='published' OR (status='draft' AND version>=1)) "
         "AND semantic_category='collect'").fetchall()
     out = []
     for c in card_rows:
@@ -895,7 +895,7 @@ def _make_presets(conn) -> list:
             "text_templates": {}, "emit_targets": ["model", "dashboard"],
         })
         if c0 and not errs0:
-            conn.execute("UPDATE cards SET status='offline', version=1 WHERE card_id=?", (c0["card_id"],))
+            # 导入后是草稿：配好内容与样式再发布上线，不预先占着线上注册表
             out.append(c0["card_id"])
     conn.commit()
     return out

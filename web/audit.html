@@ -49,7 +49,8 @@ const { el } = UI;
 
 const ACTION_NAMES = {
   card_create: "新建组件实例", card_update: "编辑组件实例",
-  card_publish: "发布配置", card_offline: "下线配置", card_delete: "删除配置",
+  // card_offline 是已取消的动作，历史日志里还有，标签保留才看得懂
+  card_publish: "发布配置", card_offline: "下线配置（已取消的动作）", card_delete: "删除配置",
   card_rollback: "回滚配置", card_restore_draft: "载入历史版本为草稿", card_republish_same: "原样重新上线",
   echo_toggle: "切换回显", policy_update: "更新路由规则", policy_rollback: "回滚路由规则",
   model_register: "添加模型", model_status_change: "变更模型状态", model_set_default: "设默认兜底",
@@ -118,7 +119,7 @@ function actionName(a) { return ACTION_NAMES[a] || (/^migrate_/.test(a) ? "系�
 
 // 动作筛选只列本平台动作（组件 / 产品 / 主题 / 接入）；其余历史动作仍能正常显示名称，只是不进筛选
 const IA_ACTION_KEYS = [
-  "card_create", "card_update", "card_publish", "card_offline", "card_delete",
+  "card_create", "card_update", "card_publish", "card_delete",
   "card_rollback", "card_restore_draft", "card_republish_same", "echo_toggle",
   "product_create", "product_update", "product_delete", "product_key_reset",
   "brand_import", "brand_activate", "brand_delete",
