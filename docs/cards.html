@@ -716,7 +716,30 @@ async function loadCards() {
   }
   const gridBox = el("div", { class: "wb-grid" }, shown2.map(c => buildCardRow(c)));
   list.appendChild(gridBox);
-  fitPreviews(gridBox);
+  observePreviews(gridBox);
+}
+
+// 预览懒渲染：提前一屏开始画，滚到时已经就位，看不出是后画的
+let pvObserver = null;
+function observePreviews(root) {
+  if (typeof IntersectionObserver !== "function") {   // 老浏览器：直接全画出来
+    root.querySelectorAll(".wb-preview").forEach(b => b._renderPreview && b._renderPreview());
+    return;
+  }
+
+  if (!pvObserver) {
+    pvObserver = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (!e.isIntersecting) return;
+        pvObserver.unobserve(e.target);
+        const box = e.target.querySelector(".wb-preview");
+        if (box && box._renderPreview) box._renderPreview();
+      });
+    }, { rootMargin: "800px 0px" });
+  }
+  // 观察的是卡片而不是里面的预览：卡片开了 content-visibility，
+  // 内容被跳过时子元素没有盒子，观察器永远收不到它进入视口
+  root.querySelectorAll(".wb-card").forEach(c => pvObserver.observe(c));
 }
 
 // 卡片里的组件预览等比缩小到能完整看见：原来是裁掉下半截 + 渐隐，
@@ -839,12 +862,19 @@ function buildCardRow(c) {
         statusBtn,
       ]),
       (() => {
+        // 预览按需渲染：一屏只看得到四五张卡，却把二十多个真实组件全画出来，
+        // 首屏要多花一倍时间，还平白多出上千个节点。滚到附近再画
         const pvBox = el("div", { class: "wb-preview" });
-        try {
-          pvBox.appendChild(el("div", { class: "brand-scope" }, [Components.render(tileEnv(c), {
-            sendEvent: () => {}, onCollectSubmit: () => {}, onControl: () => {}, preview: true, titleInBubble: true,
-          })]));
-        } catch (e) { pvBox.appendChild(el("div", { class: "muted" }, ["预览暂不可用"])); }
+        pvBox._renderPreview = () => {
+          if (pvBox._done) return;
+          pvBox._done = true;
+          try {
+            pvBox.appendChild(el("div", { class: "brand-scope" }, [Components.render(tileEnv(c), {
+              sendEvent: () => {}, onCollectSubmit: () => {}, onControl: () => {}, preview: true, titleInBubble: true,
+            })]));
+          } catch (e) { pvBox.appendChild(el("div", { class: "muted" }, ["预览暂不可用"])); }
+          fitPreviews(pvBox.parentElement || pvBox);
+        };
         return pvBox;
       })(),
       // 内容形式与回显跟「样式：…」同一行：都是这张卡的运行时属性

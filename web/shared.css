@@ -2434,6 +2434,10 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 .wb-card { border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--bg-elevated);
   padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 10px;
   height: 318px;                       /* 所有卡片定高，一行里对得齐 */
+  /* 卡片定高，尺寸不依赖内容：滚出屏幕的卡片整块跳过布局与绘制。
+     每张卡里都是一个真实渲染的组件，二十多张一起画，滚动时每帧都在重绘一大片 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 318px;
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
 .wb-card:hover { border-color: var(--primary-border); box-shadow: 0 2px 10px rgba(16, 24, 40, .06); }
 .wb-head { display: flex; align-items: center; gap: 10px; flex: none; min-height: 34px; }
@@ -2472,6 +2476,8 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 /* 工作台卡片：实例真实预览（套样式覆盖与固定内容） */
 .wb-preview { background: var(--bg-sunken); border-radius: 10px; padding: 12px;
   flex: 1; min-height: 0;
+  /* 预览自成一个绘制层：它内部的重绘不外溢到整页 */
+  contain: layout paint style;
   overflow: hidden; position: relative; pointer-events: none; }
 .wb-preview::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 56px;
   background: linear-gradient(transparent, var(--bg-sunken) 72%); }
@@ -2480,8 +2486,12 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 /* 模板选择卡补充态 */
 .tpl-pick { position: relative; }
 .tpl-pick .sel-ico { position: absolute; top: 9px; right: 11px; color: var(--primary); }
-.tpl-pick.recommended { border-color: var(--ai); animation: aiPulse 1.8s ease-in-out infinite; }
-@keyframes aiPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(110, 75, 216, .3); } 50% { box-shadow: 0 0 0 7px rgba(110, 75, 216, 0); } }
+.tpl-pick.recommended { border-color: var(--ai); position: relative; }
+.tpl-pick.recommended::after { content: ""; position: absolute; inset: -1px; border-radius: inherit;
+  border: 2px solid rgba(110, 75, 216, .3); pointer-events: none;
+  animation: aiPulse 1.8s ease-in-out infinite; will-change: transform, opacity; }
+/* 动 transform 与 opacity 走合成层；动 box-shadow 每帧都要重绘阴影 */
+@keyframes aiPulse { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.02); opacity: 0; } }
 .tpl-pick.locked { cursor: not-allowed; opacity: .45; }
 .tpl-pick.locked.selected { opacity: 1; }
 
@@ -2690,7 +2700,9 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 .selector-style-stack .sl-range.unset { opacity: 1; }
 .selector-style-stack .sl-range.unset::-webkit-slider-thumb { border-color: var(--primary); }
 .selector-style-stack .sl-num.inherited { color: var(--text-secondary); background: var(--bg-elevated); }
-.selector-style-stack .sty-section:has(.sty-inherit-tag:not(.is-custom)) .sty-swatches { opacity: 1; }
+/* 原来用 :has() 反查恢复按钮的状态。:has() 每次子树变化都要回头重算祖先，
+   样式面板改一项就触发一轮，是这一片最贵的选择器。色板本来就该是不透明的，直接写死 */
+.selector-style-stack .sty-swatches { opacity: 1; }
 @media (max-width: 900px) {
   .selector-style-section > .sty-group { flex-direction: column; align-items: flex-start; gap: 4px; }
 }
@@ -2720,8 +2732,9 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 .tpl-rich.selected { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
 .tpl-rich .tpl-preview.pick-pv { flex: 1; min-height: 0; height: auto; pointer-events: none; }
 
-/* 批量条浮起时列表底部留白，避免遮住最后一行卡片 */
-body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
+/* 批量条浮起时列表底部留白，避免遮住最后一行卡片。
+   用 body 上的类而不是 body:has()——后者让整个文档参与匹配 */
+body.batch-on #cardList { padding-bottom: 64px; }
 
 /* ===== 产品卡（工作台顶部）：平面、克制，色彩只出现在产品标识上 ===== */
 .prod-cover { display: flex; align-items: center; gap: 14px; padding: 16px 18px;
@@ -2969,8 +2982,12 @@ body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
 /* 容器选择：卡片区定高、内部滚动，切分类时弹窗不忽高忽低 */
 .modal.editor .tpl-grid { align-items: stretch; align-content: start;
   height: 612px; overflow-y: auto; padding-right: 4px; }
-.tpl-rich { display: flex; flex-direction: column; }
-.tpl-rich .tpl-preview.pick-pv { flex: 1; min-height: 150px; max-height: 180px; }
+/* 容器选择的模版网格同理：「全部」页签下十六张卡各画一个真实组件，
+   屏幕外的先跳过。卡片有固定的最小高度，占位尺寸稳定 */
+.tpl-rich { display: flex; flex-direction: column;
+  content-visibility: auto; contain-intrinsic-size: auto 300px; }
+.tpl-rich .tpl-preview.pick-pv { flex: 1; min-height: 150px; max-height: 180px;
+  contain: layout paint style; }
 /* 示例只是给人看形态，字号压到比卡片文案更小，别喧宾夺主也更容易整个装下 */
 .tpl-rich .tpl-preview.pick-pv .brand-scope {
   --font-base: 11px; --font-title: 12px; --font-hero: 15px; --font-small: 10px;
