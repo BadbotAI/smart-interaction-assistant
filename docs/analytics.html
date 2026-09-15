@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>数据分析 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=6f154724">
+<link rel="stylesheet" href="./shared.css?v=f4c856f1">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   .an-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px; margin-bottom: 16px; }
@@ -23,6 +23,15 @@
   .an-grid > div > .an-card:only-child > .fn-row:last-of-type { margin-bottom: auto; }
   @media (max-width: 1100px) { .an-grid { grid-template-columns: 1fr; } }
   .an-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 16px 18px; margin-bottom: 14px; }
+  /* tab 与筛选行吸顶：往下翻数据时还能随时换 tab、换时间范围 */
+  /* 页头本身也是 sticky（高约 79px），tab 行要停在它下面而不是被它盖住 */
+  /* tab 一行、筛选一行：三组控件挤一行会把 tab 文字压成两行 */
+  /* 贴着页头往下排，不再留一条多余的分隔线 */
+  .an-sticky { position: sticky; top: 79px; z-index: 39; display: flex; flex-direction: column;
+    background: var(--bg-page); padding: 0; margin: -10px 0 4px; }
+  .an-sticky #anTabs { margin-bottom: 0; }
+  .an-filterrow { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+  .an-sticky #rangeMount2 { flex: none; display: flex; align-items: center; gap: 8px; }
   .an-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
   .an-head .t { font-weight: 700; font-size: 15px; }
   .an-head .d { font-size: var(--font-caption); color: var(--text-muted); }
@@ -55,10 +64,9 @@
   .echo-grid .an-card { margin-bottom: 0; min-width: 0; }
   .echo-grid .od-label { width: 132px; }
   /* 单组件分析的筛选行 */
-  .an-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px;
-    padding: 10px 12px; margin-bottom: 14px; }
-  .an-filters .fl { font-size: var(--font-caption); color: var(--text-muted); }
+  /* 组件筛选并进吸顶行，不再单独占一条带边框的白色方块 */
+  #cardFilterMount { display: flex; align-items: center; gap: 8px; flex: none; }
+  #cardFilterMount .fl { font-size: var(--font-caption); color: var(--text-muted); white-space: nowrap; }
   #rangeMount { display: flex; align-items: center; gap: 8px; flex: none; }
   .an-range-custom { display: flex; align-items: center; gap: 6px; }
   .an-range-custom input[type=date] { height: 32px; padding: 4px 8px; }
@@ -81,6 +89,7 @@
     .an-range-custom { width: 100%; }
     .an-range-custom input[type=date] { flex: 1; min-width: 0; }
     #anTabs { overflow-x: auto; }
+    .an-sticky { flex-wrap: wrap; row-gap: 8px; }
     #anTabs .tab { flex: none; white-space: nowrap; }
     .echo-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
     .echo-grid .od-row { align-items: flex-start; flex-wrap: wrap; gap: 6px 8px; padding: 6px 0; }
@@ -97,9 +106,15 @@
       <div class="page-desc">组件的曝光、提交与用户的选择分布。</div>
     </div>
     <div style="flex:1"></div>
-    <span id="rangeMount"></span>
   </div>
-  <div class="tabbar" id="anTabs"></div>
+  <div class="an-sticky">
+    <div class="tabbar" id="anTabs"></div>
+    <div class="an-filterrow">
+      <span id="cardFilterMount"></span>
+      <div style="flex:1"></div>
+      <span id="rangeMount2"></span>
+    </div>
+  </div>
   <div id="anOverall"></div>
   <div id="anSingle" hidden></div>
   <div id="anEcho" hidden></div>
@@ -107,10 +122,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=da904681"></script>
+<script src="./mock_data.js?v=d4a3aa14"></script>
 <script src="./mock_api.js?v=9f335920"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
-<script src="./ui.js?v=1e211feb"></script>
+<script src="./ui.js?v=875ffbde"></script>
 <script>
 UI.nav("analytics");
 const { el } = UI;
@@ -282,30 +297,54 @@ function clearFilterBtn(active, onClear) {
     ...(active ? {} : { disabled: "" }),
     title: active ? "清除筛选，回到全部组件" : "当前没有筛选条件",
     onclick: () => { if (active) onClear(); },
-  }, [UI.icon("x", 12)]);
+  }, ["清除筛选"]);
+}
+
+// 组件筛选：四个 tab 共用同一个控件，挂在吸顶行里，
+// 原来每个 tab 自己画一份，位置、文案、可选范围各不相同，换个 tab 筛选条件还会丢
+const cardFilter = { card_id: "" };
+
+// 当前产品下的组件：card_ids 与 product_ids 两种归属写法都认
+function productCardPool() {
+  const pid = currentProductId();
+  const product = (FILTERS.products || []).find(p => p.product_id === pid);
+  const ids = new Set((product || {}).card_ids || []);
+  return (FILTERS.cards || []).filter(c => ids.has(c.card_id) || (c.product_ids || []).includes(pid));
+}
+
+function reloadActiveTab() {
+  ({ overall: loadOverall, single: loadSingle, echo: loadEcho, forms: loadForms }[anTab] || loadOverall)();
+}
+
+function renderCardFilter() {
+  const host = document.getElementById("cardFilterMount");
+  if (!host) return;
+  const pool = productCardPool();
+  if (cardFilter.card_id && !pool.some(c => c.card_id === cardFilter.card_id)) cardFilter.card_id = "";
+  host.innerHTML = "";
+  host.appendChild(el("span", { class: "fl" }, ["组件筛选"]));
+  host.appendChild(UI.fancySelect({
+    value: cardFilter.card_id, width: "220px",
+    options: [["", "全部组件"],
+      ...pool.map(c => [c.card_id, c.name, "ID " + String(c.card_id).slice(0, 8)])],
+    searchable: true, searchHint: "搜索组件名称或 ID",
+    onChange: (v) => { cardFilter.card_id = v; syncFilterStates(); renderCardFilter(); reloadActiveTab(); },
+  }));
+  host.appendChild(clearFilterBtn(!!cardFilter.card_id, () => {
+    cardFilter.card_id = ""; syncFilterStates(); renderCardFilter(); reloadActiveTab();
+  }));
+}
+
+// 各 tab 的取数逻辑仍读自己的 state，统一从共用筛选值同步过去
+function syncFilterStates() {
+  overallState.card_id = cardFilter.card_id;
+  pickState.card_id = cardFilter.card_id;
+  echoState.card_id = cardFilter.card_id;
 }
 
 // ---------- 模块一：整体交互情况 ----------
 const overallState = { card_id: "" };
 
-function overallFilterBar() {
-  const cards = FILTERS.cards || [];
-  const bar = el("div", { class: "an-filters" }, [
-    el("span", { class: "fl" }, ["组件筛选"]),
-    UI.fancySelect({
-      value: overallState.card_id,
-      width: "260px",
-      options: [["", "全部组件"],
-        ...cards.map(c => [c.card_id, c.name, "ID " + String(c.card_id).slice(0, 8)])],
-      searchable: true, searchHint: "搜索组件名称或 ID",
-      onChange: (v) => { overallState.card_id = v; loadOverall(); },
-    }),
-  ]);
-  bar.appendChild(clearFilterBtn(!!overallState.card_id, () => {
-    overallState.card_id = ""; loadOverall();
-  }));
-  return bar;
-}
 
 async function loadOverall() {
   const box = document.getElementById("anOverall");
@@ -316,7 +355,6 @@ async function loadOverall() {
   const cardQS = overallState.card_id ? `&card_id=${encodeURIComponent(overallState.card_id)}` : "";
   const o = await UI.api(`/api/analytics/overview?${rangeQS()}${cardQS}`);
   box.innerHTML = "";
-  box.appendChild(overallFilterBar());
   const k = o.kpi;
   if (!k.rendered) {
     box.appendChild(el("div", { class: "an-card" }, [
@@ -340,23 +378,6 @@ async function loadOverall() {
 const pickState = { product: "", card_id: "" };
 let FILTERS = { products: [], component_types: [], cards: [] };
 
-function filterBar() {
-  const bar = el("div", { class: "an-filters" });
-  const product = FILTERS.products.find(p => p.product_id === pickState.product);
-  const productCardIds = new Set((product || {}).card_ids || []);
-  const productCards = FILTERS.cards.filter(c => productCardIds.has(c.card_id));
-  // 组件多了之后逐个翻找太慢：下拉里直接搜名称或 ID
-  const cardOpts = [["", "全部组件"],
-    ...productCards.map(c => [c.card_id, c.name, "ID " + String(c.card_id).slice(0, 8)])];
-  bar.append(
-    el("span", { class: "fl" }, ["组件筛选"]),
-    UI.fancySelect({ value: pickState.card_id, width: "260px", options: cardOpts,
-      searchable: true, searchHint: "搜索组件名称或 ID",
-      onChange: (v) => { pickState.card_id = v; loadSingle(); } }),
-    clearFilterBtn(!!pickState.card_id, () => { pickState.card_id = ""; loadSingle(); }),
-  );
-  return bar;
-}
 
 async function loadSingle() {
   const box = document.getElementById("anSingle");
@@ -371,7 +392,6 @@ async function loadSingle() {
     ? (ins.rows || []).filter(r => r.card_id === pickState.card_id)
     : (ins.rows || []);
   box.innerHTML = "";
-  box.appendChild(filterBar());
   if (rows.length) box.appendChild(instancesChart(rows));
   box.appendChild(instancesCard(rows));
 }
@@ -390,22 +410,6 @@ function currentProductCards() {
   return FILTERS.cards.filter(c => (c.product_ids || []).includes(productId));
 }
 
-function echoFilterBar() {
-  const bar = el("div", { class: "an-filters" });
-  const cardPool = currentProductCards();
-  bar.append(
-    el("span", { class: "fl" }, ["筛选"]),
-    UI.fancySelect({ value: echoState.card_id, width: "260px",
-      options: [["", "全部组件实例"],
-        ...cardPool.map(c => [c.card_id, c.name, "ID " + String(c.card_id).slice(0, 8)])],
-      searchable: true, searchHint: "搜索组件名称或 ID",
-      onChange: (v) => { echoState.card_id = v; loadEcho(); } }),
-  );
-  bar.appendChild(clearFilterBtn(!!echoState.card_id, () => {
-    echoState.card_id = ""; loadEcho();
-  }));
-  return bar;
-}
 
 function mergeEchoGroups(groups) {
   const merged = new Map();
@@ -497,7 +501,6 @@ async function loadEcho() {
   const options = await UI.api(`/api/analytics/options?${qs}&limit=100&group_by_card=true`)
     .catch(() => ({ groups: [] }));
   box.innerHTML = "";
-  box.appendChild(echoFilterBar());
   box.appendChild(echoSummary(options.groups || []));
   box.appendChild(echoDistribution(options.groups || []));
 }
@@ -538,7 +541,9 @@ async function loadForms() {
   const forms = (FILTERS.all_cards || [])
     .filter(c => productCardIds.has(c.card_id)
       && c.component_type === "form.structured"
-      && c.status !== "deleted")
+      && c.status !== "deleted"
+      // 共用的组件筛选对表单一样生效，四个 tab 行为一致
+      && (!cardFilter.card_id || c.card_id === cardFilter.card_id))
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "zh-CN"));
   const result = await UI.api(
     `/api/analytics/instances?${rangeQS()}&product=${productId}&ct=form.structured&limit=100`)
@@ -580,7 +585,7 @@ function drawTabs() {
   bar.innerHTML = "";
   [["overall", "整体交互情况"], ["single", "单组件数据分析"], ["echo", "群体回显"], ["forms", "表单"]].forEach(([k, nm]) => {
     bar.appendChild(el("button", { class: "tab" + (anTab === k ? " active" : ""), type: "button",
-      onclick: () => { anTab = k; drawTabs(); syncTab(); } }, [nm]));
+      onclick: () => { anTab = k; drawTabs(); renderCardFilter(); syncTab(); } }, [nm]));
   });
 }
 function syncTab() {
@@ -621,6 +626,7 @@ async function load() {
   pickState.product = currentProduct ? currentProduct.product_id : "";
   pickState.card_id = "";
   drawTabs();
+  renderCardFilter();
   await loadOverall();
   document.getElementById("anSingle").dataset.loaded = "";
   document.getElementById("anEcho").dataset.loaded = "";
@@ -630,7 +636,8 @@ async function load() {
 
 // 时间范围：预设下拉 + 两个日期框常驻一行，改日期即按日期算
 (function mountRange() {
-  const host = document.getElementById("rangeMount");
+  // 时间范围跟着 tab 一起吸顶：往下翻数据时也能直接改范围
+  const host = document.getElementById("rangeMount2");
   const ymd = (d) => new Date(d).toISOString().slice(0, 10);
   const sIn = el("input", { type: "date", "aria-label": "开始日期" });
   const eIn = el("input", { type: "date", "aria-label": "结束日期" });

@@ -254,7 +254,6 @@ def params_schema_for(card: dict) -> dict:
     elif v2 == "highlight":
         props["value"] = S("要突出的结论文本")
         props["caption"] = S("补充说明，可选")
-        props["tone"] = {"type": "string", "enum": ["positive", "neutral", "negative"], "description": "语气，可选"}
         req.append("value")
     return schema
 
@@ -355,10 +354,15 @@ def build_registry(product: dict) -> dict:
         row = conn.execute("SELECT * FROM cards WHERE card_id=?", (cid,)).fetchone()
         if not row:
             continue
-        card = dict(row)
+        # 快照语义（§2.7）：编辑已上线组件会把 cards 行打回 draft，线上继续跑上一个发布
+        # 版本，直到再次发布。统一走 serving_card，编辑区的改动不会泄漏进注册表。
+        from server import cards as _cards
+        card = _cards.serving_card(cid)
+        if not card:
+            continue
         card["field_bindings"] = db.dj(card.get("field_bindings"), {})
         ct = card.get("component_type") or ""
-        if ct not in V2_ALLOWED_CT or card.get("status") != "published":
+        if ct not in V2_ALLOWED_CT:
             continue
         v2 = V2_TYPE_MAP[ct]
         meta = V2_META[v2]

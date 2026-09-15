@@ -86,6 +86,16 @@ window.Components = (function () {
     return inkOn(bg) || fg;
   }
 
+  // applyStyleOverrides 会往节点上写内联 CSS 变量和这些开关类。
+  // 就地更新样式前要先按这张表清掉，否则关掉一个开关旧类还留在上面。
+  const STYLE_CLASSES = ["btn-stretch", "col-left", "delta-invert", "density-compact", "density-loose",
+    "div-all", "div-none", "fb-square", "label-left", "layout-center", "layout-horizontal", "layout-stretch",
+    "metric-center", "mk-dot", "mk-none", "no-arrows", "no-baseline", "no-best", "no-caption", "no-cicon",
+    "no-connector", "no-delta", "no-desc", "no-halo", "no-handle", "no-inputborder", "no-legend",
+    "no-legendpct", "no-panel-border", "no-radio", "no-rec", "no-stepnum", "no-sum", "no-ts",
+    "options-grid", "options-inline", "rank-square", "sel-outline", "steps-vert", "tag-outline",
+    "tag-solid", "tl-dashed", "tl-square", "txt-center"];
+
   function applyStyleOverrides(node, so, componentType) {
     if (!so || typeof so !== "object") return;
     const set = (k, v) => { if (v) node.style.setProperty(k, v); };
@@ -175,7 +185,6 @@ window.Components = (function () {
     cls(so["delta.show"] === false, "no-delta");
     cls(so["baseline.show"] === false, "no-baseline");
     cls(so["caption.show"] === false, "no-caption");
-    cls(so["tone.color"] === false, "no-tone");
     cls(so["best.highlight"] === false, "no-best");
     cls(so["sum.show"] === false, "no-sum");
     cls(so["legend.show"] === false, "no-legend");
@@ -183,7 +192,6 @@ window.Components = (function () {
     if (so["title.align"]) node.style.setProperty("--chart-title-align", so["title.align"]);
     if (so["legend.align"]) node.style.setProperty("--chart-align", so["legend.align"]);
     cls(so["legend.pct"] === false, "no-legendpct");
-    cls(so["quick.show"] === false, "no-quick");
     // 二轮规格键
     pxv("opt.radius", "--opt-radius"); pxv("tbl.font", "--tbl-font"); pxv("steplabel.size", "--stp-label");
     // 文字角色：同一个组件里不同用途的文字各自成套（时间线：时间 / 事件标题 / 描述）
@@ -330,9 +338,9 @@ window.Components = (function () {
   function rText(env) {
     const p = env.params;
     const so = env.style_overrides || {};
-    const toneColor = { positive: "var(--success)", negative: "var(--danger)", warning: "var(--warning)", neutral: "var(--text-primary)" }[p.tone || "neutral"];
-    // 关掉「按语气着色」后，结论用自己配的颜色
-    const inkText = so["tone.color"] === false ? (so["hl.color"] || "var(--ink-panel, var(--text-primary))") : toneColor;
+    // 结论颜色由配置决定。原来还有个「按语气着色」，靠模型自报 tone 判正负——
+    // 一句话是什么语气没法可靠判定，配出来的颜色也就不可信，整项已去掉。
+    const inkText = so["hl.color"] || "var(--ink-panel, var(--text-primary))";
     return compCard([
       p.caption ? el("div", { class: "muted hl-caption" }, [p.caption]) : null,
       el("div", { class: "hl-value",
@@ -1061,7 +1069,13 @@ window.Components = (function () {
       const setFill = () => slider.style.setProperty("--fill", ((Number(slider.value) - min) / (max - min || 1) * 100) + "%");
       setFill();
       slider.oninput = () => { val.textContent = slider.value; setFill(); };
-      body = el("div", { style: "display:flex;align-items:center;gap:12px" }, [slider, val, p.unit ? el("span", { class: "muted" }, [p.unit]) : null]);
+      // 两端标出取值范围：只给一个当前值，用户不知道能拖到哪儿
+      const endLabel = (v) => el("span", { class: "muted sl-end num" }, [String(v)]);
+      // 数值和单位是一个整体，不能被挤成两行（「万元」拆成「万 / 元」）
+      body = el("div", { style: "display:flex;align-items:center;gap:8px" }, [
+        endLabel(min), slider, endLabel(max),
+        el("span", { style: "flex:none;white-space:nowrap;display:inline-flex;align-items:baseline;gap:3px;margin-left:4px" },
+          [val, p.unit ? el("span", { class: "muted" }, [p.unit]) : null])]);
       getVal = () => Number(slider.value);
     }
     return compCard([
@@ -1788,7 +1802,21 @@ window.Components = (function () {
       ]),
       el("div", { style: "margin-top:14px;display:flex;gap:8px;justify-content:flex-end" }, [
         el("button", { class: "btn", onclick: (e) => { disableSiblings(e); ctx.onControl("cancel", env); showActionEcho(env, "取消"); } }, [p.cancel_label || "取消"]),
-        el("button", { class: okCls, onclick: (e) => { disableSiblings(e); ctx.onControl("confirm", env); showActionEcho(env, "确认"); } }, [p.confirm_label || "确认执行"]),
+        el("button", { class: okCls, onclick: (e) => {
+          const btn = e.currentTarget;
+          disableSiblings(e);
+          // 与其他组件的提交一致：给出终态文字与成功提示，不能点完还是原样
+          btn.textContent = env.params.submitted_label || "已确认";
+          btn.classList.add("submitted");
+          const card = btn.closest(".comp");
+          if (card) {
+            card.querySelectorAll("button, input, select, textarea").forEach(n => { n.disabled = true; });
+            const tip = env.params.submit_feedback;
+            if (tip) card.appendChild(el("div", { class: "submit-feedback", role: "status" },
+              [UI.icon("check", 14), el("span", {}, [tip])]));
+          }
+          ctx.onControl("confirm", env); showActionEcho(env, "确认");
+        } }, [p.confirm_label || "确认执行"]),
       ]),
     ]);
   }
@@ -1837,8 +1865,7 @@ window.Components = (function () {
     const down = el("button", { class: "fb-btn down", title: "踩", "data-opt": "踩", onclick: () => {
       up.disabled = down.disabled = true;
       down.classList.add("on");
-      // 追问原因默认开；关掉后点踩即完成，不再弹原因
-      if (env.params.ask_reason !== false) askDownReason(env, ctx);
+      askDownReason(env, ctx);
     } }, [UI.icon("thumbdown", 13), "踩"]);
     return compCard([
       el("div", { style: "display:flex;align-items:center;gap:12px" }, [
@@ -2041,5 +2068,20 @@ window.Components = (function () {
     "feedback.preference": rFeedbackPreference,
   };
 
-  return { render, supported: Object.keys(RENDERERS) };
+  // 只改样式时就地更新，不重建整棵组件：拖滑杆时预览不再整块闪
+  function restyle(root, so, componentType) {
+    const node = root && (root.classList && root.classList.contains("comp") ? root : root.querySelector(".comp"));
+    if (!node) return false;
+    node.style.cssText = "";
+    STYLE_CLASSES.forEach(c => node.classList.remove(c));
+    applyStyleOverrides(node, so, componentType);
+    // 提交按钮的变量挂在按钮自己身上，一并刷新
+    node.querySelectorAll(".comp-submit, button.btn.primary").forEach(btn => {
+      btn.style.cssText = "";
+      applySubmitButtonStyle(btn, so);
+    });
+    return true;
+  }
+
+  return { render, restyle, supported: Object.keys(RENDERERS) };
 })();

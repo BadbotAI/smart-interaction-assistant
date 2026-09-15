@@ -205,7 +205,8 @@ body.has-side .inputbar { left: var(--side-w); }
 .secondary { color: var(--text-secondary); }
 .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 /* 输入框对齐统一口径：数字框一律右对齐，文本框一律左对齐 */
-input[type=number] { text-align: right; }
+/* 数值从左往右填，右对齐会让光标和刚输入的字反复跳位 */
+input[type=number] { text-align: left; }
 input[type=text], input[type=search], input[type=date], input[type=datetime-local], textarea, select { text-align: left; }
 
 .deep-panel {
@@ -258,7 +259,7 @@ input[type=text], input[type=search], input[type=date], input[type=datetime-loca
 
 /* ---------- 表单 ---------- */
 input[type=text], input[type=number], input[type=url], textarea, select {
-  width: 100%; border: 1px solid var(--border); border-radius: var(--radius-control);
+  width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius-control);
   padding: 7px 12px; font-family: inherit; font-size: var(--font-base);
   background: var(--bg-elevated); color: var(--text-primary);
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
@@ -810,6 +811,11 @@ input[type=date]:invalid, input[type=time]:invalid, input[type=datetime-local]:i
 .modal.editor .ed-steps .st.click:hover { border-color: var(--primary-border); color: var(--text-primary); }
 .modal.editor .ed-steps .sep { color: var(--border-strong); display: inline-flex; }
 .modal.editor .ed-steps .meta { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--text-muted); }
+/* 线上正在服务的提示条：说明改动不会立刻影响线上 */
+.modal.editor .ed-live-note { flex: none; display: flex; align-items: center; gap: 8px;
+  padding: 9px 24px; background: var(--warning-bg); color: #8A6100;
+  font-size: var(--font-caption); border-bottom: 1px solid var(--border); }
+.modal.editor .ed-live-note .ico { flex: none; }
 .modal.editor .ed-split { --ed-preview-width: 500px; flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(360px, 1fr) 10px var(--ed-preview-width); gap: 0; }
 .modal.editor .ed-form { min-height: 0; overflow: auto; padding: 18px 24px 24px; }
 .modal.editor .ed-resizer { position: relative; z-index: 3; min-height: 0; cursor: col-resize; touch-action: none; outline: none; }
@@ -1239,12 +1245,15 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: a
 
 /* 页面式编辑器：编辑器沿用弹窗内部结构与规范，外壳变为内容区卡片 */
 .editor-inline .modal.editor {
-  width: 100%; max-width: none; height: auto; min-height: calc(100vh - 120px); max-height: none;
+  /* 高度跟着内容走：配置项少的步骤不该被撑成满屏，白到看不出主次 */
+  width: 100%; max-width: none; height: auto; min-height: 520px; max-height: none;
   box-shadow: none; border: 1px solid var(--border); border-radius: var(--radius-card);
   overflow: visible; /* 弹窗模式的 hidden 会把 sticky foot 困在容器内，页面式必须放开 */
 }
 .editor-inline .modal.editor .ed-form { overflow: visible; }
-.editor-inline .modal.editor .ed-preview { overflow: visible; position: sticky; top: 112px; align-self: start; }
+/* 预览与左侧配置栏等高：配置项少的步骤两栏一起收，不会一边 42px 一边 800px；
+   配置项多的步骤到视口高度封顶，剩下的靠 sticky 跟着滚 */
+.editor-inline .modal.editor .ed-preview { overflow: auto; position: sticky; top: 112px; align-self: stretch; }
 .editor-inline .modal.editor .modal-foot { position: sticky; bottom: 0; z-index: 5; border-radius: 0 0 var(--radius-card) var(--radius-card); }
 
 
@@ -1665,7 +1674,8 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
 .comp input[type=text], .comp input[type=number], .comp textarea, .comp select {
   background: var(--bg-elevated); border: 1.5px solid var(--border);
 }
-.comp input:focus, .comp textarea:focus, .comp select:focus {
+/* 滑杆没有输入框的外形，套上聚焦描边就变成"滑杆外面多了个方框" */
+.comp input:not([type=range]):focus, .comp textarea:focus, .comp select:focus {
   border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent);
 }
 
@@ -1777,7 +1787,7 @@ details.route-cot[open] > summary.rc-title::before { transform: rotate(90deg); }
   background: var(--border-strong, #C7D3DC); margin: 2px auto 0; }
 .sl-stop:hover::after { background: var(--primary); }
 .sl-lab { flex: none; min-width: 40px; text-align: right; font-weight: 600; font-size: var(--font-small); }
-.sl-row input.sl-num[type=number] { width: 60px; flex: none; text-align: right; padding: 4px 8px; }
+.sl-row input.sl-num[type=number] { width: 60px; flex: none; text-align: left; padding: 4px 8px; }
 
 /* 全局细滚动条 */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -1812,11 +1822,13 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 
 /* 颜色行的「跟随主题」开关：开着时色板置灰不可点 */
 .sty-inherit-tag { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-caption); }
-/* 来源徽标：这一项当前的值来自哪一层。改过的才给「恢复继承」 */
-.sty-src { display: inline-flex; align-items: center; gap: 6px; flex: none; white-space: nowrap; }
-.sty-src-lb { font-size: var(--font-caption); color: var(--text-muted); }
-.sty-src.is-own .sty-src-lb { color: var(--primary); font-weight: 600; }
-.sty-restore { padding: 2px 8px; font-size: var(--font-caption); }
+/* 恢复默认：一个图标按钮，靠右对齐；是默认值时置灰 */
+.sty-restore { flex: none; width: 28px; height: 28px; padding: 0; margin-left: auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elevated);
+  color: var(--text-muted); cursor: pointer; }
+.sty-restore:not(:disabled):hover { color: var(--primary); border-color: var(--primary); }
+.sty-restore:disabled { opacity: .35; cursor: default; }
 .sty-reset:disabled { opacity: .42; cursor: default; }
 /* 色值输入框与色块同高，一行里不高一块低一块。
    写成后代选择器是为了压过弹窗里通用的 input 规则（那条给了 min-height:36px） */
@@ -1962,7 +1974,6 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 .comp.no-delta .delta-chip { display: none; }
 .comp.no-baseline .metric-baseline { display: none; }
 .comp.no-caption .hl-caption { display: none; }
-.comp.no-tone .hl-value { color: var(--text-primary) !important; }
 /* 表格：表头底色 / 行分隔 */
 .comp table.data th { background: var(--th-bg, transparent); }
 .comp.div-none table.data td { border-bottom: none; }
@@ -1997,8 +2008,16 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 .comp.rank-square .rank-no, .comp.rank-square .ol-marker { border-radius: 5px; }
 .comp.no-handle .rank-handle, .comp.no-handle [class*="drag"] { display: none; }
 /* 滑杆 / 评分参数 */
-.comp input[type=range] { height: var(--track-h, 6px); }
-.comp input[type=range]::-webkit-slider-thumb { width: var(--thumb-s, 18px); height: var(--thumb-s, 18px); }
+/* 轨道高度要作用在真正画出来的那条轨道上。之前只改了 input 元素自身的高度，
+   轨道被写死在 6px，所以拖「轨道高度」看上去毫无反应。 */
+.comp input[type=range] { height: max(var(--thumb-s, 18px), var(--track-h, 6px)); }
+.comp input[type=range]::-webkit-slider-runnable-track { height: var(--track-h, 6px); }
+.comp input[type=range]::-moz-range-track,
+.comp input[type=range]::-moz-range-progress { height: var(--track-h, 6px); }
+.comp input[type=range]::-webkit-slider-thumb { width: var(--thumb-s, 18px); height: var(--thumb-s, 18px);
+  /* 滑块始终骑在轨道正中，轨道变厚也不会错位 */
+  margin-top: calc((var(--track-h, 6px) - var(--thumb-s, 18px)) / 2); }
+.comp input[type=range]::-moz-range-thumb { width: var(--thumb-s, 18px); height: var(--thumb-s, 18px); }
 .comp .likert-dots button, .comp .lk-dot,
 .comp .btn.opt.likert { width: var(--lk-size, 34px); height: var(--lk-size, 34px); min-width: var(--lk-size, 34px); }
 .comp .likert-dots, .comp .likert-row { gap: var(--lk-gap, 6px); }
@@ -2058,10 +2077,11 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 .fsel-pop .menu-item { display: flex; align-items: center; gap: 10px; }
 .fsel-item-main { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 清除筛选：常驻的小圆 ×，禁用时淡化但仍占位，整行不会左右跳 */
-.an-clear { width: 26px; height: 26px; flex: none; display: inline-flex;
+.an-clear { height: 30px; flex: none; display: inline-flex; padding: 0 12px;
   align-items: center; justify-content: center; border-radius: 8px;
   border: 1px solid var(--border); background: var(--bg-elevated);
-  color: var(--text-muted); cursor: pointer; padding: 0; }
+  color: var(--text-secondary); cursor: pointer; font-size: var(--font-small);
+  white-space: nowrap; }
 .an-clear:disabled { opacity: .38; cursor: default; }
 .an-clear.on { color: var(--primary); border-color: var(--primary-border, var(--border)); }
 .an-clear.on:hover { background: var(--primary-weak); border-color: var(--primary); }
@@ -2271,8 +2291,9 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 .selector-intro input,
 .selector-intro textarea { width: 100%; max-width: none; }
 .selector-intro textarea { min-height: 38px; resize: vertical; }
-.selector-title-card { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 11px; background: var(--bg-elevated); padding: 12px; }
-.selector-title-card:focus-within { border-color: var(--primary-border); box-shadow: 0 0 0 3px var(--primary-weak); }
+/* 白卡片里再放白输入框，输入框看起来像只读的。
+   这一层只是分组用，去掉描边和底色，让输入框自己在页面底上立起来 */
+.selector-title-card { display: flex; flex-direction: column; gap: 14px; border: 0; padding: 0; background: transparent; }
 .selector-option-list { display: flex; flex-direction: column; gap: 10px; }
 .selector-option-card { border: 1px solid var(--border); border-radius: 11px; background: var(--bg-elevated); padding: 12px; }
 .selector-option-card:focus-within { border-color: var(--primary-border); box-shadow: 0 0 0 3px var(--primary-weak); }
@@ -2551,7 +2572,9 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 .fx-panel .fx-sec { margin-bottom: 10px; }
 
 /* 编辑器预览面板：延伸到底部操作条上方 */
-.editor-inline .modal.editor .ed-preview { min-height: calc(100vh - 214px); }
+/* 预览高度跟内容走，只保留一个够画一段对话的下限。
+   原来钉死成满屏高，结果一个 340px 的组件被放进 790px 的框里，左右两栏一起空一大片。 */
+.editor-inline .modal.editor .ed-preview { min-height: 300px; max-height: calc(100vh - 160px); overflow: auto; }
 
 /* 样式步折叠分组：标题即开关，收起时显示项数 */
 .sty-acc { border-bottom: 1px solid var(--border); }
@@ -2608,11 +2631,12 @@ input.invalid:focus, textarea.invalid:focus { box-shadow: 0 0 0 3px color-mix(in
 }
 /* 控件区：滑杆一行放下；色板放不下时换行，此时「恢复默认」跟着走到第二行行首，
    不要靠 margin-left:auto 吊在第一行右端 */
-.sty-ctrl { display: flex; align-items: center; gap: 10px 12px; min-width: 0; flex-wrap: wrap; }
-.sty-ctrl > .sl-row { flex: 1; min-width: 0; }
-.sty-ctrl > .sty-swatches { flex: 0 1 auto; }
-.sty-ctrl > .sty-inherit-tag, .sty-ctrl > .btn.small { flex: none; }
-.sty-ctrl > .sl-row ~ .btn.small, .sty-ctrl > .sl-row ~ .sty-inherit-tag { margin-left: auto; }
+/* 控件区固定两列：左边控件自适应、右边恢复按钮定宽，所有行的恢复按钮才对得齐 */
+.sty-ctrl { display: grid; grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center; column-gap: 12px; row-gap: 8px; min-width: 0; }
+.sty-ctrl > .sl-row, .sty-ctrl > .sty-swatches { min-width: 0; }
+.sty-ctrl > .sty-restore { grid-column: 2; grid-row: 1; margin-left: 0; }
+.sty-ctrl > .sty-inherit-tag { grid-column: 2; grid-row: 1; justify-self: end; }
 /* 开关行本来就只有一行，保持原样不进网格 */
 .selector-style-stack .sty-prop-card > .sty-bool {
   display: flex; align-items: center; gap: 10px; }
@@ -2733,7 +2757,7 @@ body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
 .dt-title { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
 .dt-split { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 14px; align-items: start; }
 @media (max-width: 1100px) { .dt-split { grid-template-columns: 1fr; } }
-.dt-left { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.dt-left, .dt-right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .dt-sec { font-size: 15px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 5px; }
 .dt-row { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-top: 1px solid var(--border); }
 .dt-row:first-of-type { border-top: none; }
@@ -2744,7 +2768,7 @@ body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
 .dt-code pre { margin: 0; background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 9px;
   padding: 10px 12px; font-size: 12px; line-height: 1.6; overflow-x: auto;
   font-family: var(--font-mono); color: var(--text-secondary); max-height: 320px; overflow-y: auto; }
-.dt-preview-card { position: sticky; top: 14px; }
+/* 预览卡不再单独吸顶：它现在和基本信息同在左栏，跟着一起滚才不会与下面的卡片错位 */
 .dt-sec { display: flex; align-items: center; }
 .dt-preview { background: var(--bg-sunken); border-radius: 10px; padding: 16px; }
 
@@ -3017,3 +3041,55 @@ body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
 /* 数值范围：一行一项，标签在上、控件在下 */
 .nr-line .sty-label { margin-bottom: 6px; }
 .nr-line .sl-num { width: 150px; }
+
+/* 样式步的分层导航：长表单里快速跳组，并能只看改过的项 */
+.sty-nav { position: sticky; top: 0; z-index: 12; display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap; row-gap: 6px; padding: 8px 0 10px; margin-bottom: 4px;
+  background: var(--bg-elevated); border-bottom: 1px solid var(--border); }
+.sty-nav-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--bg-base);
+  font-size: var(--font-caption); color: var(--text-secondary); cursor: pointer;
+  transition: border-color var(--dur-fast), color var(--dur-fast); }
+.sty-nav-chip:hover { border-color: var(--primary-border); color: var(--text-primary); }
+.sty-nav .dot { display: inline-flex; align-items: center; justify-content: center;
+  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+  background: var(--primary-weak); color: var(--primary); font-size: 11px; }
+.sty-only { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-caption);
+  color: var(--text-secondary); cursor: pointer; }
+.sty-only input { margin: 0; }
+.sty-acc-n { margin-left: 8px; font-size: var(--font-caption); color: var(--primary); font-weight: 500; }
+
+/* 色板与色值框排成一行：分两行看起来乱，也把每项的高度撑成两倍 */
+.sty-swatches { flex-wrap: nowrap; gap: 6px; }
+.sty-swatches .sty-swatch { width: 22px; height: 22px; border-radius: 7px; border-width: 2px; flex: none; }
+.sty-swatches .sty-swatch.cp-open { width: 24px; height: 24px; }
+.sty-swatches .sty-swatch.cp-open .ico svg { width: 13px; height: 13px; }
+.modal.editor .ed-form .sty-swatches input.sty-hex { width: 88px; flex: none; min-height: 26px; height: 26px;
+  padding: 0 8px; font-size: var(--font-caption); }
+
+/* 页面式编辑器里滚动的是整页，导航要停在步骤条下面而不是贴着窗口顶 */
+.editor-inline .sty-nav { top: 119px; }
+
+/* 预览被等比缩到完整可见时，不需要底部渐隐（它本来是"下面还有"的暗示） */
+.wb-preview.is-scaled::after, .tpl-preview.pick-pv.is-scaled::after { display: none; }
+
+/* 改了但预览没动时的解释，就近挂在这一项下面 */
+.sty-noeffect { grid-column: 1 / -1; margin-top: 4px; font-size: var(--font-caption);
+  color: var(--text-muted); line-height: 1.5; }
+
+/* 预览画布铺满右栏：原来组件底下那块灰白是「框比内容大」，
+   现在对话画布自己长到底，组件在上、下面留白就是对话还没说完的意思 */
+.modal.editor .ed-preview { display: flex; flex-direction: column; }
+.modal.editor .ed-preview .pv-canvas { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.modal.editor .ed-preview .pv-canvas > .brand-scope { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.modal.editor .ed-preview .chat-mock { flex: 1; }
+
+/* 主题列表行：名称 + 用量 + 启用 / 编辑 / 删除 */
+.theme-list-row { display: flex; align-items: center; gap: 8px; padding: 8px 0;
+  border-bottom: 1px solid var(--border); }
+.theme-list-row:last-child { border-bottom: none; }
+.theme-list-name { font-weight: 600; }
+.theme-list-meta { font-size: var(--font-caption); }
+
+/* 滑杆两端的取值范围标注 */
+.comp .sl-end { flex: none; font-size: var(--font-caption); }

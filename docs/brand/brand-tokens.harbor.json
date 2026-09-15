@@ -2,29 +2,31 @@
   "brand_id": "harbor",
   "brand_name": "远洋深青",
   "color": {
-    "primary": "#0f766e",
-    "primary_weak": "#e0f2f0",
-    "bg_page": "#f6f8f8",
-    "bg_surface": "#ffffff",
-    "text_primary": "#102a2a",
-    "text_secondary": "#4a5c5c",
-    "text_muted": "#6A7777",
-    "border": "#dbe4e3",
-    "success": "#0ca30c",
-    "warning": "#fab219",
-    "danger": "#d03b3b",
+    "primary": "#0E7C94",
+    "primary_weak": "#E4F3F6",
+    "bg_page": "#FFFFFF",
+    "bg_surface": "#F6FAFB",
+    "text_primary": "#152A30",
+    "text_secondary": "#4A5F66",
+    "text_muted": "#657A81",
+    "border": "#DAE7EA",
+    "success": "#1E8F63",
+    "warning": "#B5820A",
+    "danger": "#C74438",
     "bg_elevated": "#FFFFFF",
-    "bg_sunken": "#EAF1F3"
+    "bg_sunken": "#ECF3F5",
+    "accent": "#4C8DE0",
+    "ring": "#0E7C94"
   },
   "chart": {
     "categorical": [
-      "#2a78d6",
-      "#eb6834",
-      "#1baf7a",
-      "#eda100",
-      "#e87ba4",
-      "#008300",
-      "#4a3aa7",
+      "#0E7C94",
+      "#4C8DE0",
+      "#1E8F63",
+      "#C08040",
+      "#9B6FC4",
+      "#C2678A",
+      "#5A9EA8",
       "#e34948"
     ],
     "sequential": [
@@ -43,23 +45,24 @@
     "axis": "#b9c6c5"
   },
   "radius": {
-    "card": "4px",
-    "control": "4px",
-    "chip": "4px"
+    "card": "0px",
+    "control": "2px",
+    "chip": "999px"
   },
   "font": {
-    "family": "system-ui, -apple-system, 'PingFang SC', 'Segoe UI', sans-serif",
-    "size_base": "13px",
-    "size_small": "11px",
-    "size_title": "15px",
-    "size_hero": "26px"
+    "family": "\"Hiragino Sans GB\", \"PingFang SC\", sans-serif",
+    "size_base": "11px",
+    "size_small": "10px",
+    "size_title": "13px",
+    "size_hero": "18px",
+    "weight_base": "600"
   },
   "spacing": {
     "unit": "6px",
-    "card_padding": "12px",
+    "card_padding": "20px",
     "gap": "8px"
   },
-  "density": "compact",
+  "density": "loose",
   "motion": {
     "duration_fast": "80ms",
     "duration_base": "160ms"
@@ -68,20 +71,34 @@
     "control_style": "square"
   },
   "color_dark": {
-    "primary": "#2FB7C9",
-    "primary_weak": "#0D2A30",
-    "accent": "#D8A25A",
-    "ring": "#2FB7C9",
-    "bg_page": "#0B1417",
-    "bg_surface": "#122026",
-    "border": "#24393F",
-    "text_primary": "#E8F2F4",
-    "text_secondary": "#9DB6BC",
-    "text_muted": "#7A9298",
-    "success": "#2FBE7B",
-    "warning": "#DCA43B",
-    "danger": "#C94646",
-    "bg_elevated": "#16262B",
-    "bg_sunken": "#081014"
+    "primary": "#35A8C0",
+    "primary_weak": "#0E2A31",
+    "accent": "#7AABE8",
+    "ring": "#35A8C0",
+    "bg_page": "#0C1417",
+    "bg_surface": "#141F23",
+    "bg_elevated": "#19262B",
+    "bg_sunken": "#080F11",
+    "border": "#243539",
+    "text_primary": "#E8F1F3",
+    "text_secondary": "#A2B7BC",
+    "text_muted": "#7C9097",
+    "success": "#37B07C",
+    "warning": "#D4A33C",
+    "danger": "#E06A5C"
+  },
+  "shadow": "none",
+  "_options": {
+    "preset": 5,
+    "radius": 0,
+    "font": 1,
+    "weight": 2,
+    "size": 1,
+    "shadow": 0,
+    "density": 3,
+    "size_px": 11,
+    "shadow_custom": null,
+    "radius_unit": "px",
+    "density_scale": "v2"
   }
 }

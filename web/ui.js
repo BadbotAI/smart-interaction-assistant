@@ -1024,6 +1024,8 @@ window.UI = (function () {
     link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
     arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
     refresh: '<path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16"/><path d="M20 20v-4h-4"/>',
+    // 恢复：一段不闭合的圆弧 + 一个回指箭头（区别于双箭头的 refresh）
+    restore: '<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3 8.6"/><path d="M3 4.2v4.8h4.8"/>',
     home: '<path d="M4 11 12 4l8 7"/><path d="M6 10v10h12V10"/>',
     grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
     sliders: '<path d="M5 7h14M5 12h14M5 17h14"/><circle cx="9" cy="7" r="2" fill="var(--bg-surface)"/><circle cx="15" cy="12" r="2" fill="var(--bg-surface)"/><circle cx="8" cy="17" r="2" fill="var(--bg-surface)"/>',

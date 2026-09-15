@@ -1054,6 +1054,13 @@ function renderCurrentThemeDetail(brand, tokens) {
       class: "btn small theme-detail-edit", type: "button", title: "编辑当前主题",
       onclick: () => brandDialog(brand),
     }, ["编辑主题"]) : null,
+    // 删除入口原先只有后端接口，页面上找不到——补到主题自己的操作里
+    canEdit ? (() => {
+      const more = el("button", { class: "btn small", type: "button", onclick: () => UI.menu(more, [
+        { label: "删除主题", danger: true, onClick: () => deleteBrand(brand, users) },
+      ]) }, ["更多"]);
+      return more;
+    })() : null,
   ]));
   if (users.length) host.appendChild(el("div", { class: "theme-detail-usage", title: users.map(p => p.name).join("、") }, [
     UI.icon("box", 13), el("span", {}, [`已用于 ${users.length} 个产品`]),
@@ -1067,7 +1074,10 @@ function renderCurrentThemeDetail(brand, tokens) {
     el("section", { class: "theme-detail-section" }, [
       el("div", { class: "theme-detail-section-title" }, ["组件外观"]),
       themeSettingRow("卡片圆角", radius.card || `${options.radius ?? 16}px`, el("i", { class: "theme-radius-sample", style: `border-radius:${radius.card || `${options.radius ?? 16}px`}` })),
-      themeSettingRow("控件圆角", radius.control || `${Math.max(4, Math.round((options.radius ?? 16) * .6))}px`),
+      (() => { const rc = radius.control || `${Math.max(4, Math.round((options.radius ?? 16) * .6))}px`;
+        // 和卡片圆角一样给个示意方块，同一组里不能一个有一个没有
+        return themeSettingRow("控件圆角", rc,
+          el("i", { class: "theme-radius-sample", style: `border-radius:${rc}` })); })(),
       themeSettingRow("阴影", shadow),
       themeSettingRow("信息密度", density),
     ]),
@@ -1078,6 +1088,66 @@ function renderCurrentThemeDetail(brand, tokens) {
       themeSettingRow("正文字重", weight),
     ]),
   );
+  renderThemeList(host, brand.file);
+}
+
+// 删除主题：默认主题不可删；用到它的产品会回落到默认主题，删除前把影响说清楚
+async function deleteBrand(brand, users) {
+  const used = (users || []).length
+    ? `\n\n有 ${users.length} 个产品在用它（${users.map(p => p.name).join("、")}），删除后这些产品回落到默认主题。`
+    : "";
+  const ok = await UI.confirm("删除主题",
+    `删除「${brand.brand_name || brand.file}」后不可恢复。${used}`, { okText: "删除", danger: true });
+  if (!ok) return;
+  try {
+    await UI.api("/api/brands/delete", { method: "POST", body: { file: brand.file } });
+    UI.toast("已删除主题");
+    const wasCurrent = brand.file === previewFile;
+    brands = (await UI.api("/api/brands")).brands;
+    // 删的不是当前这套，就不该顺手把当前主题也换掉
+    if (wasCurrent) {
+      const fallback = brands.find(b => b.brand_id === "default") || brands[0];
+      if (fallback) {
+        previewFile = fallback.file;
+        await UI.api("/api/brands/active", { method: "POST", body: { file: fallback.file } });
+        await Brand.load(fallback.file).catch(() => {});
+      }
+    }
+    refreshCurrentThemeDetail();
+    renderDemos();
+  } catch (e) { UI.toast(e.data?.error || e.message, true); }
+}
+
+// 其他已保存的主题：能看见、能切、能删。原先页面只显示"当前主题"一张卡，
+// 建了第二套就再也找不到入口
+function renderThemeList(host, curFile) {
+  const rest = (brands || []).filter(b => b.file !== curFile);
+  if (!rest.length) return;
+  host.appendChild(el("section", { class: "theme-detail-section" }, [
+    el("div", { class: "theme-detail-section-title" }, ["其他主题"]),
+    ...rest.map(b => {
+      const usedBy = (products || []).filter(p => p.brand_file === b.file);
+      const isDefault = b.brand_id === "default";
+      const row = el("div", { class: "theme-list-row" }, [
+        el("span", { class: "theme-list-name" }, [b.brand_name || b.file]),
+        el("span", { class: "muted theme-list-meta" }, [isDefault ? "平台默认主题"
+          : usedBy.length ? `${usedBy.length} 个产品在用` : "未被使用"]),
+        el("div", { style: "flex:1" }),
+        el("button", { class: "btn small", type: "button", onclick: async () => {
+          previewFile = b.file;
+          await UI.api("/api/brands/active", { method: "POST", body: { file: b.file } });
+          await Brand.load(b.file).catch(() => {});
+          refreshCurrentThemeDetail(); renderDemos();
+          UI.toast(`已切换到「${b.brand_name || b.file}」`);
+        } }, ["启用"]),
+        isDefault ? null : el("button", { class: "btn small", type: "button",
+          onclick: () => brandDialog(b) }, ["编辑"]),
+        isDefault ? null : el("button", { class: "btn small", type: "button",
+          onclick: () => deleteBrand(b, usedBy) }, ["删除"]),
+      ]);
+      return row;
+    }),
+  ]));
 }
 
 async function refreshCurrentThemeDetail() {

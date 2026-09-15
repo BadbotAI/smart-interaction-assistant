@@ -314,10 +314,11 @@ def embed_envelope(card_id: str, key: str = None):
         return JSONResponse({"error": "invalid_key", "message": "请携带产品接入 Key（产品管理页可复制）"}, status_code=401)
     if card_id not in db.dj(prod["card_ids"], []):
         return JSONResponse({"error": "forbidden", "message": "该组件不属于此产品"}, status_code=403)
-    card = cards.get_card(card_id)
-    if not card:
+    if not cards.get_card(card_id):
         return JSONResponse({"error": "配置不存在"}, status_code=404)
-    if not (card.get("status") == "published" or (card.get("status") == "draft" and (card.get("version") or 0) >= 1)):
+    # 线上渲染读的是已发布快照：编辑区未发布的改动不提前生效
+    card = cards.serving_card(card_id)
+    if not card:
         return JSONResponse({"error": "配置未上线，不能植入"}, status_code=409)
     envelope, degraded = _build_ask_envelope(card, "")
     if card.get("style_overrides"):

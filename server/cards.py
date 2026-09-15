@@ -479,6 +479,33 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
         db.audit(actor, "card_publish", {"card_id": card_id, "name": card["name"], "version": new_version})
         return get_card(card_id), None
 
+    if action == "discard_draft":
+        # 放弃待发布改动：把线上正在跑的快照写回编辑区，状态回到已上线，不升版本
+        if not (status == "draft" and row["version"] >= 1):
+            return None, {"message": "当前没有待发布的改动"}
+        snap = conn.execute("SELECT snapshot FROM card_snapshots WHERE card_id=? AND archived=0",
+                            (card_id,)).fetchone()
+        if not snap:
+            return None, {"message": "找不到线上版本"}
+        old_card = db.dj(snap["snapshot"], {})
+        sets, args = [], []
+        for f in CARD_FIELDS:
+            if f in old_card:
+                sets.append(f"{f}=?")
+                v = old_card[f]
+                if f in JSON_FIELDS:
+                    args.append(db.j(v) if v is not None else None)
+                elif f in ("model_invokable", "echo_results"):
+                    args.append(1 if v else 0)
+                else:
+                    args.append(v)
+        sets.extend(["status='published'", "updated_at=?", "lock_version=lock_version+1"])
+        args.extend([db.now_ts(), card_id])
+        conn.execute(f"UPDATE cards SET {', '.join(sets)} WHERE card_id=?", args)
+        conn.commit()
+        db.audit(actor, "card_discard_draft", {"card_id": card_id, "name": row["name"], "version": row["version"]})
+        return get_card(card_id), None
+
     if action == "restore_draft":
         # 把历史快照内容载入为当前草稿（不发布、不动线上）
         snap = conn.execute("SELECT snapshot FROM card_snapshots WHERE card_id=? AND version=?",
@@ -569,6 +596,30 @@ def transition(card_id: str, action: str, actor: str = "demo-admin", force: bool
 
 
 # ---------- 触发匹配与调试（§2.6 trigger_description 调试闭环） ----------
+
+def serving_card(card_id: str):
+    """线上此刻真正在服务的那一份配置。
+
+    编辑已上线组件会把 cards 行打回 draft，但线上继续跑上一个发布快照（§2.7）。
+    凡是"给线上用"的出口（注册表、渲染信封、样式表）都要走这里，
+    否则编辑区还没发布的改动会提前泄漏到线上。返回 None 表示当前不服务。"""
+    conn = db.get_conn()
+    row = conn.execute("SELECT * FROM cards WHERE card_id=?", (card_id,)).fetchone()
+    if not row:
+        return None
+    status, version = row["status"], row["version"] or 0
+    if status == "published":
+        return row_to_card(row)
+    if status != "draft" or version < 1:
+        return None
+    snap = conn.execute("SELECT snapshot FROM card_snapshots WHERE card_id=? AND archived=0",
+                        (card_id,)).fetchone()
+    snap_card = db.dj(snap["snapshot"], {}) if snap else None
+    if not snap_card:
+        return None
+    snap_card["card_id"] = card_id
+    return snap_card
+
 
 def published_invokable_cards(tenant_id: str):
     """线上可触发的场景 = 最新发布快照。
