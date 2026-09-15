@@ -89,7 +89,8 @@
   .ob-go { margin-top: auto; align-self: flex-start; color: var(--primary);
     font-size: var(--font-caption); font-weight: 600; display: inline-flex; align-items: center; gap: 3px; }
   .ob-go::after { content: "›"; font-size: 14px; line-height: 1; }
-  .ob-step:hover .ob-go { text-decoration: underline; }
+  /* hover 用整卡抬起与顶部色条表达，链接不再加下划线 */
+  .ob-step:hover .ob-go { color: var(--primary); opacity: .82; }
   /* 最后一步不是要去哪儿，是接入之后的结果，所以不给跳转入口 */
   .ob-step.is-static { cursor: default; }
   .ob-step.is-static:hover { border-color: var(--border); box-shadow: none; transform: none; }

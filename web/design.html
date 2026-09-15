@@ -882,9 +882,18 @@ function brandDialog(existing, onClose) {
 
   host.innerHTML = "";
   host.appendChild(el("div", { class: "style-ed" }, [
-    el("div", { class: "theme-editor-note" }, [
-      UI.icon("palette", 15),
-      el("span", {}, ["主题会作为产品内所有组件的默认样式"]),
+    // 与「当前主题」卡片同一个头部结构：小标题 + 主体 + 右侧操作
+    el("div", { class: "theme-ed-head" }, [
+      el("div", { class: "theme-ed-heading" }, [
+        el("span", { class: "ds-side-section-title" }, [existing ? "编辑主题" : "新建主题"]),
+        el("strong", {}, [existing ? (existing.brand_name || existing.file) : "未命名主题"]),
+        el("span", { class: "muted" }, ["主题会作为产品内所有组件的默认样式"]),
+      ]),
+      el("div", { class: "theme-ed-actions-inline" }, [
+        el("button", { class: "btn small", type: "button", onclick: close }, ["取消"]),
+        el("button", { class: "btn small primary ed-save", type: "button",
+          onclick: (e) => doSave(e.currentTarget) }, [existing ? "保存修改" : "保存主题"]),
+      ]),
     ]),
     editorGroup("01 主题信息", "给主题一个便于识别的名称，保存后可分配给产品。", [
       el("label", { class: "field theme-name-field" }, [el("span", { class: "label-text req" }, ["主题名称"]), nameIn, nameErr]),
@@ -956,27 +965,17 @@ function setHead(mode, ctx) {
   const count = document.getElementById("brandCount");
   const head = document.getElementById("brandHead");
   if (mode === "edit") {
-    const { existing, close, doSave } = ctx;
+    // 进编辑态时页头保持不动：标题一直是「风格主题」，取消 / 保存放在编辑卡片自己的头部。
+    // 页头跟着改标题会让人以为换了个页面，也把操作按钮甩到离编辑区很远的地方
     head.classList.add("is-edit");
-    title.textContent = existing ? "编辑主题" : "新建主题";
+    title.textContent = "风格主题";
+    title.className = "page-title";
     const descE = document.getElementById("brandHeadDesc");
-    if (descE) descE.textContent = existing
-      ? "改动实时反映在预览；保存后，绑定该主题的产品同步生效。"
-      : "先选行业风格起步，再调关键颜色与形态。";
-    title.className = "page-title";        // 与列表态同一个类，字号才一致
-    count.textContent = existing ? existing.brand_name : "";
+    if (descE) descE.textContent = "定义一套视觉风格，绑定给产品后成为其组件的默认样式。";
+    count.textContent = "";
     actions.innerHTML = "";
-    actions.classList.add("theme-ed-actions");
-    actions.append(
-      UI.el("button", { class: "btn small", type: "button", onclick: close }, ["取消"]),
-      UI.el("button", { class: "btn small primary ed-save", type: "button",
-        onclick: (e) => doSave(e.currentTarget) }, [existing ? "保存修改" : "保存主题"]),
-    );
-    // 返回按钮放在标题左边，和工作台详情页一个位置
+    actions.classList.remove("theme-ed-actions");
     head.querySelector(".ds-back")?.remove();
-    // 标题外面包了 .page-head-main，锚点要取那一层：title 已不是 head 的直接子节点
-    const headAnchor = head.querySelector(".page-head-main") || title;
-    head.insertBefore(UI.el("button", { class: "btn small ds-back", type: "button", onclick: close }, ["返回"]), headAnchor);
   } else {
     const descL = document.getElementById("brandHeadDesc");
     if (descL) descL.textContent = "定义一套视觉风格，绑定给产品后成为其组件的默认样式。";
@@ -987,9 +986,7 @@ function setHead(mode, ctx) {
     head.querySelector(".ds-back")?.remove();   // .btn 的 display 会盖掉 [hidden]，直接移除最稳
     actions.innerHTML = "";
     actions.classList.remove("theme-ed-actions");
-    // 新建入口此前只有 ?new=1 深链，页面上找不到；与工作台、产品页对齐放在页头右上
-    actions.appendChild(UI.el("button", { class: "btn primary", type: "button",
-      onclick: () => brandDialog(null) }, ["新建主题"]));
+    // 新建入口已经收进「切换主题」下拉里的「新增主题」，页头不再重复放一个
   }
 }
 
@@ -1048,23 +1045,26 @@ function renderCurrentThemeDetail(brand, tokens) {
   // 分成两个各自 sticky 的块，中间会留缝，下面的内容从缝里透出来
   const stickyTop = el("div", { class: "theme-detail-sticky" });
   host.appendChild(stickyTop);
+  // 主题名做成可切换的入口：点开就是全部主题，选谁就启用谁
+  const switchBtn = el("button", { class: "theme-switch", type: "button",
+    "aria-haspopup": "listbox", title: "切换主题" }, [
+    themeSwatch(tokens),
+    el("span", { class: "theme-switch-meta" }, [
+      el("strong", {}, [brand.brand_name || brand.file]),
+      el("span", { class: "muted" }, [brand.brand_id === "default" ? "平台默认主题" : "自定义主题"]),
+    ]),
+    UI.icon("chevron", 15),
+  ]);
+  switchBtn.onclick = () => openThemeSwitcher(switchBtn, brand);
   stickyTop.appendChild(el("div", { class: "theme-detail-head" }, [
     el("div", { class: "theme-detail-heading" }, [
       el("span", { class: "ds-side-section-title" }, ["当前主题"]),
-      el("strong", {}, [brand.brand_name || brand.file]),
-      el("span", { class: "muted" }, [brand.brand_id === "default" ? "平台默认主题" : "自定义主题"]),
+      switchBtn,
     ]),
     canEdit ? el("button", {
       class: "btn small theme-detail-edit", type: "button", title: "编辑当前主题",
       onclick: () => brandDialog(brand),
     }, ["编辑主题"]) : null,
-    // 删除入口原先只有后端接口，页面上找不到——补到主题自己的操作里
-    canEdit ? (() => {
-      const more = el("button", { class: "btn small", type: "button", onclick: () => UI.menu(more, [
-        { label: "删除", danger: true, onClick: () => deleteBrand(brand, users) },
-      ]) }, ["更多"]);
-      return more;
-    })() : null,
   ]));
   if (users.length) stickyTop.appendChild(el("div", { class: "theme-detail-usage", title: users.map(p => p.name).join("、") }, [
     UI.icon("box", 13), el("span", {}, [`已用于 ${users.length} 个产品`]),
@@ -1092,7 +1092,6 @@ function renderCurrentThemeDetail(brand, tokens) {
       themeSettingRow("正文字重", weight),
     ]),
   );
-  renderThemeList(host, brand.file);
 }
 
 // 删除主题：默认主题不可删；用到它的产品会回落到默认主题，删除前把影响说清楚
@@ -1122,36 +1121,80 @@ async function deleteBrand(brand, users) {
   } catch (e) { UI.toast(e.data?.error || e.message, true); }
 }
 
-// 其他已保存的主题：能看见、能切、能删。原先页面只显示"当前主题"一张卡，
-// 建了第二套就再也找不到入口
-function renderThemeList(host, curFile) {
-  const rest = (brands || []).filter(b => b.file !== curFile);
-  if (!rest.length) return;
-  host.appendChild(el("section", { class: "theme-detail-section" }, [
-    el("div", { class: "theme-detail-section-title" }, ["其他主题"]),
-    ...rest.map(b => {
-      const usedBy = (products || []).filter(p => p.brand_file === b.file);
-      const isDefault = b.brand_id === "default";
-      const row = el("div", { class: "theme-list-row" }, [
-        el("span", { class: "theme-list-name" }, [b.brand_name || b.file]),
-        el("span", { class: "muted theme-list-meta" }, [isDefault ? "平台默认主题"
+// 主题色板缩略：主色 / 强调 / 卡片底色三格，一眼分得出哪套是哪套
+function themeSwatch(tokens) {
+  const c = (tokens || {}).color || {};
+  const cols = [c.primary || "#3E63DD", c.accent || c.primary || "#8E4EC6", c.bg_surface || "#FFFFFF"];
+  return el("span", { class: "theme-sw" }, cols.map(x =>
+    el("i", { style: `background:${x}` })));
+}
+
+// 切换主题的下拉：列出全部主题，点哪个就启用哪个；底部常驻新增入口。
+// 自定义主题在行尾给删除；平台默认主题不可删。
+function openThemeSwitcher(anchor, current) {
+  document.querySelectorAll(".theme-pop").forEach(n => n.remove());
+  const pop = el("div", { class: "theme-pop np-pop", role: "listbox" }, [
+    el("div", { class: "np-pop-head" }, ["切换主题",
+      el("span", { class: "np-pop-count" }, [(brands || []).length + " 套"])]),
+  ]);
+  const list = el("div", { class: "np-list" });
+  pop.appendChild(list);
+  const close = () => pop.remove();
+
+  (brands || []).forEach(b => {
+    const on = b.file === current.file;
+    const usedBy = (products || []).filter(p => p.brand_file === b.file);
+    const isDefault = b.brand_id === "default";
+    const row = el("div", { class: "theme-row" + (on ? " on" : ""), role: "option",
+      "aria-selected": on ? "true" : "false" });
+    const pick = el("button", { class: "theme-row-main", type: "button",
+      title: on ? "当前正在使用" : "点击启用这套主题",
+      onclick: async () => {
+        close();
+        if (on) return;
+        previewFile = b.file;
+        await UI.api("/api/brands/active", { method: "POST", body: { file: b.file } });
+        await Brand.load(b.file).catch(() => {});
+        refreshCurrentThemeDetail(); renderDemos();
+        UI.toast(`已启用「${b.brand_name || b.file}」`);
+      } }, [
+      el("span", { class: "theme-row-sw" }),
+      el("span", { class: "theme-row-meta" }, [
+        el("span", { class: "theme-row-name" }, [b.brand_name || b.file]),
+        el("span", { class: "theme-row-sub muted" }, [isDefault ? "平台默认主题"
           : usedBy.length ? `${usedBy.length} 个产品在用` : "未被使用"]),
-        el("div", { style: "flex:1" }),
-        el("button", { class: "btn small", type: "button", onclick: async () => {
-          previewFile = b.file;
-          await UI.api("/api/brands/active", { method: "POST", body: { file: b.file } });
-          await Brand.load(b.file).catch(() => {});
-          refreshCurrentThemeDetail(); renderDemos();
-          UI.toast(`已切换到「${b.brand_name || b.file}」`);
-        } }, ["启用"]),
-        isDefault ? null : el("button", { class: "btn small", type: "button",
-          onclick: () => brandDialog(b) }, ["编辑"]),
-        isDefault ? null : el("button", { class: "btn small", type: "button",
-          onclick: () => deleteBrand(b, usedBy) }, ["删除"]),
-      ]);
-      return row;
-    }),
+      ]),
+      on ? el("span", { class: "theme-row-check" }, [UI.icon("check", 15)]) : null,
+    ]);
+    row.appendChild(pick);
+    // 平台默认主题是兜底，删掉就没有可回落的了
+    if (!isDefault) row.appendChild(el("button", { class: "theme-row-del", type: "button",
+      title: "删除这套主题", onclick: (e) => { e.stopPropagation(); close(); deleteBrand(b, usedBy); } },
+      [UI.icon("trash", 14)]));
+    // 色板要异步读文件，先占位再补
+    fetch("/brand/" + b.file).then(r => r.json()).then(t => {
+      const sw = row.querySelector(".theme-row-sw");
+      if (sw) sw.replaceWith(themeSwatch(t));
+    }).catch(() => {});
+    list.appendChild(row);
+  });
+
+  pop.appendChild(el("button", { class: "np-card np-new theme-new", type: "button",
+    onclick: () => { close(); brandDialog(null); } }, [
+    el("span", { class: "np-avatar", style: "width:30px;height:30px;background:var(--primary-weak);color:var(--primary)" }, ["+"]),
+    el("span", { class: "np-meta" }, [el("span", { class: "np-name", style: "color:var(--primary)" }, ["新增主题"])]),
   ]));
+
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect();
+  pop.style.left = (r.left + window.scrollX) + "px";
+  pop.style.top = (r.bottom + window.scrollY + 6) + "px";
+  setTimeout(() => {
+    const away = (e) => { if (!pop.contains(e.target) && !anchor.contains(e.target)) { close(); document.removeEventListener("click", away, true); } };
+    document.addEventListener("click", away, true);
+    const on = list.querySelector(".theme-row.on");
+    if (on) on.scrollIntoView({ block: "nearest" });
+  }, 0);
 }
 
 async function refreshCurrentThemeDetail() {

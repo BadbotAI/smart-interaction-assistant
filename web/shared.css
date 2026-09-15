@@ -2856,10 +2856,16 @@ body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
 .ds-preview-title .muted { font-size: var(--font-caption); line-height: 1.45; }
 .ds-preview > .demo-one { flex: 1; min-height: 0; overflow-y: auto; }
 .style-ed { padding: 16px 8px 6px; }
-.theme-editor-note { display: flex; align-items: center; gap: 8px; margin: 0 0 2px; padding: 10px 12px;
-  border: 1px solid var(--border); border-radius: 10px; background: var(--bg-surface);
-  color: var(--text-secondary); font-size: var(--font-small); }
-.theme-editor-note .ico { color: var(--text-muted); flex: none; }
+/* 编辑主题卡片的头部：与「当前主题」卡同一个结构，操作按钮就在这一块里 */
+.theme-ed-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.theme-ed-heading { display: grid; grid-template-columns: auto 1fr; column-gap: 9px; row-gap: 2px;
+  flex: 1; min-width: 0; }
+.theme-ed-heading .ds-side-section-title { grid-column: 1 / -1; margin-bottom: 1px; }
+.theme-ed-heading strong { font-size: 17px; line-height: 1.45; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.theme-ed-heading .muted { align-self: center; font-size: var(--font-caption); }
+.theme-ed-actions-inline { display: flex; align-items: center; gap: 8px; flex: none; }
 .theme-editor-group { padding: 24px 0 26px; border-bottom: 1px solid var(--border); }
 .theme-editor-group:first-of-type { padding-top: 18px; }
 .theme-editor-group:last-child { border-bottom: none; padding-bottom: 8px; }
@@ -3096,10 +3102,43 @@ body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
 .modal.editor .ed-preview .pv-canvas > .brand-scope { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .modal.editor .ed-preview .chat-mock { flex: 1; }
 
-/* 主题列表行：名称 + 用量 + 启用 / 编辑 / 删除 */
-.theme-list-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; }
-.theme-list-name { font-weight: 600; }
-.theme-list-meta { font-size: var(--font-caption); }
+/* 当前主题做成切换入口：色板 + 名称 + 收起箭头 */
+.theme-switch { display: inline-flex; align-items: center; gap: 10px; grid-column: 1 / -1;
+  border: 1px solid transparent; border-radius: 10px; background: transparent;
+  padding: 4px 8px 4px 4px; margin-left: -4px; cursor: pointer; text-align: left;
+  transition: background var(--dur-fast), border-color var(--dur-fast); }
+.theme-switch:hover { background: var(--bg-surface); border-color: var(--border); }
+.theme-switch .theme-switch-meta { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+.theme-switch strong { font-size: 17px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.theme-switch .muted { font-size: var(--font-caption); white-space: nowrap; }
+.theme-switch .ico { color: var(--text-muted); flex: none; }
+
+/* 三格色板缩略 */
+.theme-sw { display: inline-flex; gap: 3px; flex: none; }
+.theme-sw i { width: 14px; height: 22px; border-radius: 4px; border: 1px solid var(--border); }
+
+/* 切换主题的下拉 */
+.theme-pop { position: absolute; z-index: 60; width: 300px; max-width: 92vw;
+  background: var(--bg-elevated); border: 1px solid var(--border); }
+/* 露出下一行的一点边，让人知道还能往下滚 */
+.theme-pop .np-list { max-height: 268px; }
+.theme-row { display: flex; align-items: center; gap: 2px; border-radius: 10px; }
+.theme-row:hover { background: var(--bg-surface); }
+.theme-row.on { background: var(--primary-weak); }
+.theme-row-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+  padding: 8px 6px 8px 8px; border: 0; background: none; cursor: pointer; text-align: left; }
+.theme-row-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.theme-row-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.theme-row-sub { font-size: var(--font-caption); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.theme-row-check { color: var(--primary); flex: none; display: inline-flex; }
+/* 删除只在这一行悬停时露出来，平时不抢视线 */
+.theme-row-del { flex: none; width: 28px; height: 28px; margin-right: 6px; border: 0; border-radius: 8px;
+  background: none; color: var(--text-muted); cursor: pointer; opacity: 0;
+  display: inline-flex; align-items: center; justify-content: center; }
+.theme-row:hover .theme-row-del, .theme-row-del:focus-visible { opacity: 1; }
+.theme-row-del:hover { background: var(--danger-bg); color: var(--danger); }
+.theme-pop .theme-new { position: sticky; bottom: 0; background: var(--bg-elevated);
+  border-top: 1px solid var(--border); border-radius: 0 0 12px 12px; margin-top: 2px; }
 
 /* 滑杆两端的取值范围标注 */
 .comp .sl-end { flex: none; font-size: var(--font-caption); }
