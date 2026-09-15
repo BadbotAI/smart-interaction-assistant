@@ -57,6 +57,7 @@
     <div class="wb-search">
       <span class="wb-search-ico" aria-hidden="true"></span>
       <input type="text" id="searchInput" placeholder="搜索组件实例" aria-label="搜索组件实例">
+      <button type="button" id="searchClear" class="wb-search-clear" aria-label="清空搜索" title="清空搜索" hidden>×</button>
       <button class="btn small" id="searchBtn" hidden>搜索</button>
     </div>
     <button class="btn small" id="batchToggle">批量操作</button>
@@ -716,6 +717,7 @@ async function loadCards() {
         el("div", {}, ["换个关键词试试，或清空搜索查看全部。"]),
         el("button", { class: "btn", style: "margin-top:10px", onclick: () => {
           document.getElementById("searchInput").value = "";
+          syncSearchClear();
           statusTab = "";
           wbCats.clear();
           loadCards();
@@ -5747,6 +5749,17 @@ UI.on("products-changed", () => loadCards());
 UI.on("brands-changed", () => loadCards());
 document.getElementById("batchToggle").onclick = () => setBatchMode(!batchMode);
 document.getElementById("newBtn").onclick = () => newConfigWizard();
+// 清空按钮做进搜索框里：有内容才露出来，不占位也不用跑到空态里去找
+const searchClearBtn = document.getElementById("searchClear");
+function syncSearchClear() {
+  const v = document.getElementById("searchInput").value;
+  if (searchClearBtn) searchClearBtn.hidden = !v;
+}
+searchClearBtn.onclick = () => {
+  const inp = document.getElementById("searchInput");
+  inp.value = ""; syncSearchClear(); inp.focus(); loadCards();
+};
+document.getElementById("searchInput").addEventListener("input", syncSearchClear);
 document.getElementById("searchInput").oninput = UI.debounce(() => loadCards(), 250);
 document.getElementById("searchBtn").onclick = async (e) => {
   await UI.withBusy(e.currentTarget, () => loadCards(), "搜索中");

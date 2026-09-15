@@ -2709,8 +2709,15 @@ body.batch-on #cardList { padding-bottom: 64px; }
 .wb-cat-option input { margin: 0; }
 .wb-cat-option .num { font-size: 11px; font-variant-numeric: tabular-nums; }
 .wb-search { position: relative; display: inline-flex; align-items: center; }
-.wb-search input { width: 220px; height: 32px; padding: 4px 12px 4px 30px; border-radius: 999px;
+.wb-search input { width: 220px; height: 32px; padding: 4px 30px 4px 30px; border-radius: 999px;
   background: var(--bg-elevated); }
+
+.wb-search-clear { position: absolute; right: 8px; width: 18px; height: 18px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 50%; background: var(--bg-sunken); color: var(--text-muted);
+  font-size: 14px; line-height: 1; cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast); }
+.wb-search-clear:hover { background: var(--border-strong); color: var(--text-primary); }
 .wb-search input:focus { width: 260px; }
 .wb-search .wb-search-ico { position: absolute; left: 11px; width: 12px; height: 12px; pointer-events: none;
   border: 1.6px solid var(--text-muted); border-radius: 50%; }
