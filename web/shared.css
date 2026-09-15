@@ -3185,6 +3185,14 @@ body.batch-on #cardList { padding-bottom: 64px; }
 .np-pop .np-new { position: sticky; bottom: 0; background: var(--bg-elevated); margin-top: 2px;
   border-top: 1px solid var(--border); border-radius: 0 0 12px 12px; }
 
-/* 工作台排序：与分类筛选、搜索同一行，标签用弱化色不抢视线 */
+/* 工作台排序：与旁边的分类筛选取同一套形状——同高、同圆角、同字号，
+   不然并排放着一个 34px 一个 32px，边角还差 2px，看着就没对齐 */
 .wb-sort { display: flex; align-items: center; gap: 6px; flex: none; }
 .wb-sort-label { font-size: var(--font-caption); color: var(--text-muted); white-space: nowrap; }
+.wb-sort .fsel { height: 32px; padding: 4px 11px 4px 12px; border-radius: 8px;
+  font-size: var(--font-small); color: var(--text-secondary); justify-content: space-between; }
+.wb-sort .fsel:hover, .wb-sort .fsel[aria-expanded="true"] { border-color: var(--primary-border); color: var(--text-primary); }
+.wb-sort .fsel-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 工具栏这一行的控件统一 32px 高：筛选、排序、搜索都是 32，
+   只有批量操作是 25 的小按钮，并排看着像矮了一截 */
+.wb-toolbar > .btn { height: 32px; display: inline-flex; align-items: center; }

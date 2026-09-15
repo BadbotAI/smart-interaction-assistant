@@ -2919,3 +2919,9 @@ body.batch-on #cardList { padding-bottom: 64px; }
 
 .wb-sort { display: flex; align-items: center; gap: 6px; flex: none; }
 .wb-sort-label { font-size: var(--font-caption); color: var(--text-muted); white-space: nowrap; }
+.wb-sort .fsel { height: 32px; padding: 4px 11px 4px 12px; border-radius: 8px;
+  font-size: var(--font-small); color: var(--text-secondary); justify-content: space-between; }
+.wb-sort .fsel:hover, .wb-sort .fsel[aria-expanded="true"] { border-color: var(--primary-border); color: var(--text-primary); }
+.wb-sort .fsel-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.wb-toolbar > .btn { height: 32px; display: inline-flex; align-items: center; }
