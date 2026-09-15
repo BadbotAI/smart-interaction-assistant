@@ -53,6 +53,7 @@
     <div style="flex:1"></div>
     <span class="muted" id="listCount" style="font-size:var(--font-caption)"></span>
     <div id="categoryFilter"></div>
+    <div id="sortPicker" class="wb-sort"></div>
     <div class="wb-search">
       <span class="wb-search-ico" aria-hidden="true"></span>
       <input type="text" id="searchInput" placeholder="搜索组件实例" aria-label="搜索组件实例">
@@ -66,7 +67,7 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=249df8b4"></script>
+<script src="./mock_data.js?v=a0d9407b"></script>
 <script src="./mock_api.js?v=9f335920"></script>
 <script src="./tokens.js?v=e25ac88c"></script>
 <script src="./ui.js?v=9b580f6b"></script>
@@ -320,6 +321,38 @@ const WB_CATS = [
   ["text", "文本", ["list.ordered", "text.emphasis"]],
 ];
 let statsByCard = {};
+// 排序：默认按最近更新——刚改过的那个多半就是要接着找的那个。
+// 选项里同时给出时间与非时间两类口径，避免只能按时间翻
+const WB_SORTS = [
+  ["updated_desc", "最近更新", (a, b) => (b.updated_at || 0) - (a.updated_at || 0)],
+  ["created_desc", "最近创建", (a, b) => (b.created_at || 0) - (a.created_at || 0)],
+  ["created_asc", "最早创建", (a, b) => (a.created_at || 0) - (b.created_at || 0)],
+  ["published_desc", "最近发布", (a, b) => (b.published_at || 0) - (a.published_at || 0)],
+  ["name_asc", "名称 A–Z", (a, b) => String(a.name || "").localeCompare(String(b.name || ""), "zh-CN")],
+  ["rendered_desc", "曝光最多", (a, b) => statOf(b, "rendered") - statOf(a, "rendered")],
+];
+const statOf = (c, k) => Number(((statsByCard[c.card_id] || {})[k]) || 0);
+let wbSort = localStorage.getItem("sia.wb.sort") || "updated_desc";
+if (!WB_SORTS.some(([k]) => k === wbSort)) wbSort = "updated_desc";
+
+function sortCards(list) {
+  const cmp = (WB_SORTS.find(([k]) => k === wbSort) || WB_SORTS[0])[2];
+  // 同值时按名称兜底，避免每次刷新顺序都不一样
+  return [...list].sort((a, b) => cmp(a, b)
+    || String(a.name || "").localeCompare(String(b.name || ""), "zh-CN"));
+}
+
+function renderSortPicker() {
+  const host = document.getElementById("sortPicker");
+  if (!host) return;
+  host.innerHTML = "";
+  host.appendChild(el("span", { class: "wb-sort-label" }, ["排序"]));
+  host.appendChild(UI.fancySelect({
+    value: wbSort, width: "132px",
+    options: WB_SORTS.map(([k, label]) => [k, label]),
+    onChange: (v) => { wbSort = v; localStorage.setItem("sia.wb.sort", v); loadCards(); },
+  }));
+}
 const STATUS_TABS = [["", "全部"], ["published", "已上线"], ["draft", "草稿箱"]];
 function renderStatusTabs(counts = {}) {
   const bar = document.getElementById("statusTabs");
@@ -648,6 +681,7 @@ async function loadCards() {
   window.__allCards = all;
   if (seq !== _loadSeq) return; // 已有更新的请求在途，丢弃过期响应
   const products = prodRes.products || [];
+  window.__allProducts = products;   // 详情页要按组件反查所属产品
   const brands = brandRes.brands || [];
   // 产品封面：当前产品决定下方列表范围；「未绑定产品」是一个虚拟分组
   if (curProduct === null) curProduct = products.length ? products[0].product_id : "__unbound";
@@ -673,7 +707,8 @@ async function loadCards() {
   const cards = statusTab ? scoped.filter(c => effStatus(c) === statusTab) : scoped;
   renderCategoryFilter(cards);
   const selectedTypes = new Set(WB_CATS.filter(([key]) => wbCats.has(key)).flatMap(([, , types]) => types || []));
-  const shown2 = wbCats.size ? cards.filter(c => selectedTypes.has(c.component_type)) : cards;
+  const shown2 = sortCards(wbCats.size ? cards.filter(c => selectedTypes.has(c.component_type)) : cards);
+  renderSortPicker();
   const list = document.getElementById("cardList");
   list.innerHTML = "";
   // 搜索 / 筛选反馈：显示命中条数，让检索结果可感知
@@ -5632,12 +5667,23 @@ async function openDetail(cardId) {
         ]),
         el("div", { class: "card" }, [
           el("div", { class: "dt-sec" }, ["基本信息"]),
-          info("组件 ID", UI.idChip(c.card_id, "ID")),
-          info("组件类型", UI.ctName(c.component_type) || c.component_type),
-          info("内容形式", cfg.content_mode === "fixed" ? "固定配置内容" : "AI 生成内容"),
-          info("群体回显", c.echo_results ? "已开启" : "未开启"),
-          info("版本", "v" + (c.version || 1)),
-          info("创建时间", UI.fmtTs(c.created_at)),
+          el("div", { class: "dt-info-grid" }, [
+            info("组件 ID", UI.idChip(c.card_id, "ID")),
+            info("组件类型", UI.ctName(c.component_type) || c.component_type),
+            info("内容形式", cfg.content_mode === "fixed" ? "固定配置内容" : "AI 生成内容"),
+            info("群体结果", c.echo_results ? "已开启" : "未开启"),
+            info("当前版本", "v" + (c.version || 1)),
+            info("所属产品", (() => {
+              const names = (window.__allProducts || []).filter(p2 => (p2.card_ids || []).includes(c.card_id))
+                .map(p2 => p2.name);
+              if (!names.length) return "未绑定任何产品";
+              // 绑定多个时只列前两个：整行撑成四行会把两列网格拉歪
+              const txt = names.length > 2 ? `${names.slice(0, 2).join("、")} 等 ${names.length} 个` : names.join("、");
+              return el("span", { title: names.join("、") }, [txt]);
+            })()),
+            info("创建时间", UI.fmtTs(c.created_at)),
+            info("最近更新", UI.fmtTs(c.updated_at || c.created_at)),
+          ]),
         ]),
       ]),
       el("div", { class: "dt-right" }, [
@@ -5660,13 +5706,37 @@ async function openDetail(cardId) {
     const r = await UI.api("/api/components/schema-preview", { method: "POST",
       body: { component_type: c.component_type, config: cfg } });
     schemaBox.textContent = "";
-    const block = (t, obj) => el("div", { class: "dt-block" }, [
-      el("div", { class: "dt-block-t" }, [t]),
-      el("pre", {}, [JSON.stringify(obj, null, 2)]),
-    ]);
-    schemaBox.appendChild(block("参数 schema（模型填什么）", r.params_schema));
-    if (r.fixed && Object.keys(r.fixed).length) schemaBox.appendChild(block("平台定死的内容（模型改不了）", r.fixed));
-    schemaBox.appendChild(block("提交结构（用户提交后回传什么）", r.submit_schema));
+    // 每段带自己的用途说明与复制按钮，内容完整展开不截断
+    const block = (tag, title, desc, obj) => {
+      const text = JSON.stringify(obj ?? {}, null, 2);
+      const copyBtn = el("button", { class: "btn small ghost", type: "button", onclick: () => {
+        navigator.clipboard?.writeText(text).then(() => UI.toast("已复制")).catch(() => UI.toast("复制失败", true));
+      } }, [UI.icon("copy", 13), "复制"]);
+      return el("div", { class: "dt-block" }, [
+        el("div", { class: "dt-block-head" }, [
+          el("code", { class: "dt-block-tag" }, [tag]),
+          el("span", { class: "dt-block-desc" }, [desc]),
+          el("div", { style: "flex:1" }),
+          copyBtn,
+        ]),
+        el("pre", {}, [text]),
+      ]);
+    };
+    const fixedMode = cfg.content_mode === "fixed";
+    if (fixedMode && r.fixed && Object.keys(r.fixed).length) {
+      schemaBox.appendChild(block("fixed", "平台下发的固定内容", "模型不传参，内容以这里为准", r.fixed));
+    } else {
+      schemaBox.appendChild(block("params_schema", "模型调用时要填的参数", "模型按这个结构给出内容", r.params_schema));
+    }
+    if (r.submit_schema && Object.keys(r.submit_schema).length) {
+      schemaBox.appendChild(block("submit_schema", "用户提交后回传的结构", "前端按这个结构把结果交回 agent", r.submit_schema));
+    } else {
+      schemaBox.appendChild(el("div", { class: "dt-block" }, [
+        el("div", { class: "dt-block-head" }, [el("code", { class: "dt-block-tag" }, ["submit_schema"]),
+          el("span", { class: "dt-block-desc" }, ["展示类组件没有提交行为"])]),
+        el("div", { class: "muted", style: "padding:10px 12px" }, ["该组件只展示信息，不回传数据。"]),
+      ]));
+    }
   } catch (e) { schemaBox.textContent = "数据 Schema 读取失败：" + e.message; }
 }
 

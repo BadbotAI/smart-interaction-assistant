@@ -2548,11 +2548,20 @@ body.batch-on #cardList { padding-bottom: 64px; }
 .dt-row:first-of-type { border-top: none; }
 .dt-k { width: 92px; flex: none; font-size: var(--font-small); color: var(--text-muted); }
 .dt-v { font-size: var(--font-small); color: var(--text-primary); min-width: 0; }
-.dt-code { display: flex; flex-direction: column; gap: 12px; }
-.dt-block-t { font-size: var(--font-caption); color: var(--text-muted); margin-bottom: 5px; }
+
+.dt-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 24px; }
+.dt-info-grid .dt-v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1100px) { .dt-info-grid { grid-template-columns: 1fr; } }
+
+.dt-code { display: flex; flex-direction: column; gap: 14px; }
+
+.dt-block-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.dt-block-tag { font-family: var(--font-mono); font-size: var(--font-caption); font-weight: 600;
+  color: var(--primary); background: var(--primary-weak); border-radius: 6px; padding: 2px 7px; }
+.dt-block-desc { font-size: var(--font-caption); color: var(--text-muted); }
 .dt-code pre { margin: 0; background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 9px;
-  padding: 10px 12px; font-size: 12px; line-height: 1.6; overflow-x: auto;
-  font-family: var(--font-mono); color: var(--text-secondary); max-height: 320px; overflow-y: auto; }
+  padding: 12px 14px; font-size: 12px; line-height: 1.65; overflow-x: auto;
+  font-family: var(--font-mono); color: var(--text-secondary); }
 
 .dt-sec { display: flex; align-items: center; }
 .dt-preview { background: var(--bg-sunken); border-radius: 10px; padding: 16px; }
@@ -2907,3 +2916,6 @@ body.batch-on #cardList { padding-bottom: 64px; }
 .np-card-name, .np-card-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .np-pop .np-new { position: sticky; bottom: 0; background: var(--bg-elevated); margin-top: 2px;
   border-top: 1px solid var(--border); border-radius: 0 0 12px 12px; }
+
+.wb-sort { display: flex; align-items: center; gap: 6px; flex: none; }
+.wb-sort-label { font-size: var(--font-caption); color: var(--text-muted); white-space: nowrap; }
