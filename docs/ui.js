@@ -31,6 +31,9 @@ window.UI = (function () {
 
   async function api(path, opts = {}) {
     const method = (opts.method || "GET").toUpperCase();
+    // 归一化缓存键：「/api/cards」与「/api/cards?」是同一个请求，
+    // 差一个问号就会各走各的缓存，等于白拉一遍
+    if (path.endsWith("?")) path = path.slice(0, -1);
     if (method === "GET" && isShared(path)) {
       if (_apiCache.has(path)) return _apiCache.get(path);
       const hit = ssGet(path);
@@ -322,9 +325,27 @@ window.UI = (function () {
   }
   // v2.1：导航顶部产品切换器——展示当前产品，点击下拉切换（存 localStorage sia_product，工作台等按其聚焦）
   const _brandColors = {};
+  // 主题列表接口本身就带三格色板，一次请求把全部主题的颜色拿齐；
+  // 逐个产品去读自己的主题文件，开一次下拉就是 N 次往返
+  let _brandListOnce = null;
+  function primeBrandColors() {
+    if (!_brandListOnce) {
+      _brandListOnce = api("/api/brands").then(r => {
+        (r.brands || []).forEach(b => {
+          const sw = b.swatch || [];
+          if (sw.length && !_brandColors[b.file]) {
+            _brandColors[b.file] = { p: sw[0] || "#3E63DD", a: sw[1] || sw[0] || "#8E4EC6" };
+          }
+        });
+      }).catch(() => {});
+    }
+    return _brandListOnce;
+  }
   async function brandColorOf(file) {
     if (!file) return { p: "#3E63DD", a: "#8E4EC6" };
+    if (!_brandColors[file]) await primeBrandColors();
     if (!_brandColors[file]) {
+      // 列表里没有（文件刚建还没进列表）才单独读一次，读完同样缓存住
       try {
         const t = await fetch("./brand/" + file).then(r => r.json());
         _brandColors[file] = { p: (t.color || {}).primary || "#3E63DD",

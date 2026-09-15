@@ -68,10 +68,10 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=7165948e"></script>
+<script src="./mock_data.js?v=ade2e955"></script>
 <script src="./mock_api.js?v=9f335920"></script>
-<script src="./tokens.js?v=e25ac88c"></script>
-<script src="./ui.js?v=9b580f6b"></script>
+<script src="./tokens.js?v=c64e4c82"></script>
+<script src="./ui.js?v=56bad845"></script>
 <script src="./components.js?v=0913-pie-chart-1"></script>
 <script src="./testchat.js?v=31ecca24"></script>
 <script>
@@ -432,9 +432,12 @@ function styleSummary(c) {
 
 async function loadKpisAndTodos() {
   try {
-    const [q, { cards: allCards }] = await Promise.all([
-      UI.api("/api/dashboard/questions?days=30"), UI.api("/api/cards"),
+    // 卡片列表 loadCards 刚拉过一份，这里直接用；没有再自己拉
+    const [q, cardsRes] = await Promise.all([
+      UI.api("/api/dashboard/questions?days=30"),
+      window.__allCards ? Promise.resolve({ cards: window.__allCards }) : UI.api("/api/cards"),
     ]);
+    const allCards = cardsRes.cards || [];
     statsByCard = {};
     q.questions.forEach(x => statsByCard[x.card_id] = x);
     // 与列表同口径：有生效快照即已上线
@@ -671,7 +674,7 @@ async function loadCards() {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   const [{ cards: all }, prodRes, brandRes] = await Promise.all([
-    UI.api("/api/cards?" + params),
+    UI.api("/api/cards" + (params.toString() ? "?" + params : "")),
     UI.api("/api/products").catch(() => ({ products: [] })),
     UI.api("/api/brands").catch(() => ({ brands: [] })),
   ]);
@@ -693,8 +696,15 @@ async function loadCards() {
   const curP = products.find(x => x.product_id === curProduct);
   if (curP && curP.brand_file && localStorage.getItem("brand_file") !== curP.brand_file) {
     localStorage.setItem("brand_file", curP.brand_file);
+    // 主题装好后组件预览要按新皮重画一遍，但数据没变——
+    // 原来是再调一次 loadCards()，等于把三个接口又拉了一遍
     Brand.load(curP.brand_file).then(() => {
-      if (!window.__brandReloaded) { window.__brandReloaded = true; loadCards(); }
+      if (window.__brandReloaded) return;
+      window.__brandReloaded = true;
+      const grid = document.querySelector(".wb-grid");
+      if (!grid) return;
+      grid.querySelectorAll(".wb-preview").forEach(b => { b.innerHTML = ""; b._done = false; });
+      observePreviews(grid);
     }).catch(() => {});
   }
   renderProductCover(products, brands, all.filter(c => !bound.has(c.card_id)).length);

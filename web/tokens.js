@@ -85,9 +85,17 @@ window.Brand = (function () {
     st.textContent = `.brand-scope{${decls}}`;
   }
 
+  // 同一套主题文件读过就缓存：切来切去、或者初始化与页面各自再装一次，
+  // 原来每次都重新发一个请求
+  const _cache = {};
+  // 读一份主题文件（带缓存）。装主题与画色板走同一个入口，免得同一个文件读两遍
+  function tokensOf(file) {
+    if (!_cache[file]) _cache[file] = fetch("/brand/" + file).then(r => r.json())
+      .catch(e => { delete _cache[file]; throw e; });
+    return _cache[file];
+  }
   async function load(file) {
-    const res = await fetch("/brand/" + file);
-    apply(await res.json());
+    apply(await tokensOf(file));
     localStorage.setItem("brand_file", file);
   }
 
@@ -130,5 +138,5 @@ window.Brand = (function () {
     selectEl.onchange = () => load(selectEl.value);
   }
 
-  return { init, load, apply, chartPalette, mountSwitcher, get: () => current };
+  return { init, load, apply, tokensOf, chartPalette, mountSwitcher, get: () => current };
 })();

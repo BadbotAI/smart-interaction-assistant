@@ -2909,8 +2909,6 @@ body.batch-on #cardList { padding-bottom: 64px; }
 .theme-pop .theme-new { position: sticky; bottom: 0; background: var(--bg-elevated);
   border-top: 1px solid var(--border); border-radius: 0 0 12px 12px; margin-top: 2px; }
 
-.comp .sl-end { flex: none; font-size: var(--font-caption); }
-
 .np-list { max-height: calc(5 * 58px); overflow-y: auto; overflow-x: hidden;
   overscroll-behavior: contain;
   

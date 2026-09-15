@@ -1069,12 +1069,9 @@ window.Components = (function () {
       const setFill = () => slider.style.setProperty("--fill", ((Number(slider.value) - min) / (max - min || 1) * 100) + "%");
       setFill();
       slider.oninput = () => { val.textContent = slider.value; setFill(); };
-      // 两端标出取值范围：只给一个当前值，用户不知道能拖到哪儿
-      const endLabel = (v) => el("span", { class: "muted sl-end num" }, [String(v)]);
       // 数值和单位是一个整体，不能被挤成两行（「万元」拆成「万 / 元」）
-      body = el("div", { style: "display:flex;align-items:center;gap:8px" }, [
-        endLabel(min), slider, endLabel(max),
-        el("span", { style: "flex:none;white-space:nowrap;display:inline-flex;align-items:baseline;gap:3px;margin-left:4px" },
+      body = el("div", { style: "display:flex;align-items:center;gap:12px" }, [slider,
+        el("span", { style: "flex:none;white-space:nowrap;display:inline-flex;align-items:baseline;gap:3px" },
           [val, p.unit ? el("span", { class: "muted" }, [p.unit]) : null])]);
       getVal = () => Number(slider.value);
     }

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5.5' fill='%231DA1F2'/%3E%3Crect x='10.5' y='3.6' width='9.6' height='7.3' rx='2.7' fill='none' stroke='%23fff' stroke-width='1.5' opacity='0.75'/%3E%3Cpath d='M3.4 12a3.7 3.7 0 0 1 3.7-3.7h6a3.7 3.7 0 0 1 3.7 3.7v2.3a3.7 3.7 0 0 1-3.7 3.7H9.5l-3.1 2.6c-.55.46-1.3.07-1.3-.64v-2.4A3.7 3.7 0 0 1 3.4 14.3z' fill='%23fff'/%3E%3Ccircle cx='7.4' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='10.25' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3Ccircle cx='13.1' cy='13.1' r='1.05' fill='%231DA1F2'/%3E%3C/svg%3E">
 <title>风格主题 · 智能交互平台</title>
-<link rel="stylesheet" href="./shared.css?v=17c8477f">
+<link rel="stylesheet" href="./shared.css?v=267b358b">
 <link rel="prefetch" href="./analytics.html"><link rel="prefetch" href="./audit.html"><link rel="prefetch" href="./cards.html"><link rel="prefetch" href="./design.html"><link rel="prefetch" href="./embed-demo.html"><link rel="prefetch" href="./index.html"><link rel="prefetch" href="./products.html">
 <style>
   /* 两列：左选择/导入，右单组件预览 */
@@ -84,11 +84,11 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=7165948e"></script>
+<script src="./mock_data.js?v=ade2e955"></script>
 <script src="./mock_api.js?v=9f335920"></script>
-<script src="./tokens.js?v=e25ac88c"></script>
-<script src="./ui.js?v=9b580f6b"></script>
-<script src="./components.js?v=ca2599c0"></script>
+<script src="./tokens.js?v=c64e4c82"></script>
+<script src="./ui.js?v=56bad845"></script>
+<script src="./components.js?v=6cdeae87"></script>
 <script>
 // 深链直开编辑器时，先行标记以免生效风格覆盖预览
 if (new URLSearchParams(location.search).get("new")) window._editingStyle = true;
@@ -1126,11 +1126,19 @@ async function deleteBrand(brand, users) {
 }
 
 // 主题色板缩略：主色 / 强调 / 卡片底色三格，一眼分得出哪套是哪套
-function themeSwatch(tokens) {
+function swatchCols(tokens) {
   const c = (tokens || {}).color || {};
-  const cols = [c.primary || "#3E63DD", c.accent || c.primary || "#8E4EC6", c.bg_surface || "#FFFFFF"];
-  return el("span", { class: "theme-sw" }, cols.map(x =>
-    el("i", { style: `background:${x}` })));
+  return [c.primary || "#3E63DD", c.accent || c.primary || "#8E4EC6", c.bg_surface || "#FFFFFF"];
+}
+function themeSwatch(tokensOrCols) {
+  const cols = Array.isArray(tokensOrCols) ? tokensOrCols : swatchCols(tokensOrCols);
+  return el("span", { class: "theme-sw" }, cols.map(x => el("i", { style: `background:${x}` })));
+}
+// 主题文件统一走 Brand.tokensOf 的缓存：装主题与画色板读的是同一个文件，
+// 各自维护一份缓存等于还是要读两遍
+const _themeTokens = {};
+function themeTokensOf(file) {
+  return Brand.tokensOf(file).then(t => (_themeTokens[file] = t));
 }
 
 // 切换主题的下拉：列出全部主题，点哪个就启用哪个；底部常驻新增入口。
@@ -1162,7 +1170,7 @@ function openThemeSwitcher(anchor, current) {
         refreshCurrentThemeDetail(); renderDemos();
         UI.toast(`已启用「${b.brand_name || b.file}」`);
       } }, [
-      el("span", { class: "theme-row-sw" }),
+      themeSwatch(b.swatch || swatchCols(_themeTokens[b.file])),
       el("span", { class: "theme-row-meta" }, [
         el("span", { class: "theme-row-name" }, [b.brand_name || b.file]),
         el("span", { class: "theme-row-sub muted" }, [isDefault ? "平台默认主题"
@@ -1175,11 +1183,13 @@ function openThemeSwitcher(anchor, current) {
     if (!isDefault) row.appendChild(el("button", { class: "theme-row-del", type: "button",
       title: "删除这套主题", onclick: (e) => { e.stopPropagation(); close(); deleteBrand(b, usedBy); } },
       [UI.icon("trash", 14)]));
-    // 色板要异步读文件，先占位再补
-    fetch("./brand/" + b.file).then(r => r.json()).then(t => {
-      const sw = row.querySelector(".theme-row-sw");
-      if (sw) sw.replaceWith(themeSwatch(t));
-    }).catch(() => {});
+    // 列表没带色板时（旧接口）才回落到读文件，读一次就缓存住
+    if (!b.swatch && !_themeTokens[b.file]) {
+      themeTokensOf(b.file).then(t => {
+        const sw = row.querySelector(".theme-sw");
+        if (sw) sw.replaceWith(themeSwatch(t));
+      }).catch(() => {});
+    }
     list.appendChild(row);
   });
 
@@ -1205,7 +1215,7 @@ async function refreshCurrentThemeDetail() {
   const brand = brands.find(b => b.file === previewFile) || brands[0];
   if (!brand) return renderCurrentThemeDetail();
   try {
-    const tokens = await (await fetch("./brand/" + brand.file)).json();
+    const tokens = await themeTokensOf(brand.file);   // 走缓存，切来切去不重复读同一份文件
     renderCurrentThemeDetail(brand, tokens);
   } catch (e) { renderCurrentThemeDetail(brand, Brand.get()); }
 }

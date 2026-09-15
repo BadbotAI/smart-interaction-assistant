@@ -3175,9 +3175,6 @@ body.batch-on #cardList { padding-bottom: 64px; }
 .theme-pop .theme-new { position: sticky; bottom: 0; background: var(--bg-elevated);
   border-top: 1px solid var(--border); border-radius: 0 0 12px 12px; margin-top: 2px; }
 
-/* 滑杆两端的取值范围标注 */
-.comp .sl-end { flex: none; font-size: var(--font-caption); }
-
 /* 产品切换：列表最多露 5 条，超出自己滚；「添加产品」在滚动区外常驻 */
 .np-list { max-height: calc(5 * 58px); overflow-y: auto; overflow-x: hidden;
   overscroll-behavior: contain;

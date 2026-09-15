@@ -1885,7 +1885,13 @@ def list_brands():
         if fn.startswith("brand-tokens."):
             with open(os.path.join(brand_dir, fn), encoding="utf-8") as f:
                 data = json.load(f)
-            out.append({"file": fn, "brand_id": data.get("brand_id"), "brand_name": data.get("brand_name")})
+            # 顺手带上三格色板：主题切换器要给每一套画缩略图，
+            # 不带的话前端得为每套再单独请求一次文件，开一次下拉就是 N 次往返
+            c = data.get("color") or {}
+            out.append({"file": fn, "brand_id": data.get("brand_id"), "brand_name": data.get("brand_name"),
+                        "swatch": [c.get("primary") or "#3E63DD",
+                                   c.get("accent") or c.get("primary") or "#8E4EC6",
+                                   c.get("bg_surface") or "#FFFFFF"]})
     return {"brands": out}
 
 

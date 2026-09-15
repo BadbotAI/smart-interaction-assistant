@@ -1122,11 +1122,19 @@ async function deleteBrand(brand, users) {
 }
 
 // 主题色板缩略：主色 / 强调 / 卡片底色三格，一眼分得出哪套是哪套
-function themeSwatch(tokens) {
+function swatchCols(tokens) {
   const c = (tokens || {}).color || {};
-  const cols = [c.primary || "#3E63DD", c.accent || c.primary || "#8E4EC6", c.bg_surface || "#FFFFFF"];
-  return el("span", { class: "theme-sw" }, cols.map(x =>
-    el("i", { style: `background:${x}` })));
+  return [c.primary || "#3E63DD", c.accent || c.primary || "#8E4EC6", c.bg_surface || "#FFFFFF"];
+}
+function themeSwatch(tokensOrCols) {
+  const cols = Array.isArray(tokensOrCols) ? tokensOrCols : swatchCols(tokensOrCols);
+  return el("span", { class: "theme-sw" }, cols.map(x => el("i", { style: `background:${x}` })));
+}
+// 主题文件统一走 Brand.tokensOf 的缓存：装主题与画色板读的是同一个文件，
+// 各自维护一份缓存等于还是要读两遍
+const _themeTokens = {};
+function themeTokensOf(file) {
+  return Brand.tokensOf(file).then(t => (_themeTokens[file] = t));
 }
 
 // 切换主题的下拉：列出全部主题，点哪个就启用哪个；底部常驻新增入口。
@@ -1158,7 +1166,7 @@ function openThemeSwitcher(anchor, current) {
         refreshCurrentThemeDetail(); renderDemos();
         UI.toast(`已启用「${b.brand_name || b.file}」`);
       } }, [
-      el("span", { class: "theme-row-sw" }),
+      themeSwatch(b.swatch || swatchCols(_themeTokens[b.file])),
       el("span", { class: "theme-row-meta" }, [
         el("span", { class: "theme-row-name" }, [b.brand_name || b.file]),
         el("span", { class: "theme-row-sub muted" }, [isDefault ? "平台默认主题"
@@ -1171,11 +1179,13 @@ function openThemeSwitcher(anchor, current) {
     if (!isDefault) row.appendChild(el("button", { class: "theme-row-del", type: "button",
       title: "删除这套主题", onclick: (e) => { e.stopPropagation(); close(); deleteBrand(b, usedBy); } },
       [UI.icon("trash", 14)]));
-    // 色板要异步读文件，先占位再补
-    fetch("/brand/" + b.file).then(r => r.json()).then(t => {
-      const sw = row.querySelector(".theme-row-sw");
-      if (sw) sw.replaceWith(themeSwatch(t));
-    }).catch(() => {});
+    // 列表没带色板时（旧接口）才回落到读文件，读一次就缓存住
+    if (!b.swatch && !_themeTokens[b.file]) {
+      themeTokensOf(b.file).then(t => {
+        const sw = row.querySelector(".theme-sw");
+        if (sw) sw.replaceWith(themeSwatch(t));
+      }).catch(() => {});
+    }
     list.appendChild(row);
   });
 
@@ -1201,7 +1211,7 @@ async function refreshCurrentThemeDetail() {
   const brand = brands.find(b => b.file === previewFile) || brands[0];
   if (!brand) return renderCurrentThemeDetail();
   try {
-    const tokens = await (await fetch("/brand/" + brand.file)).json();
+    const tokens = await themeTokensOf(brand.file);   // 走缓存，切来切去不重复读同一份文件
     renderCurrentThemeDetail(brand, tokens);
   } catch (e) { renderCurrentThemeDetail(brand, Brand.get()); }
 }
