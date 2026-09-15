@@ -324,11 +324,7 @@ const WB_SORTS = [
   ["updated_desc", "最近更新", (a, b) => (b.updated_at || 0) - (a.updated_at || 0)],
   ["created_desc", "最近创建", (a, b) => (b.created_at || 0) - (a.created_at || 0)],
   ["created_asc", "最早创建", (a, b) => (a.created_at || 0) - (b.created_at || 0)],
-  ["published_desc", "最近发布", (a, b) => (b.published_at || 0) - (a.published_at || 0)],
-  ["name_asc", "名称 A–Z", (a, b) => String(a.name || "").localeCompare(String(b.name || ""), "zh-CN")],
-  ["rendered_desc", "曝光最多", (a, b) => statOf(b, "rendered") - statOf(a, "rendered")],
 ];
-const statOf = (c, k) => Number(((statsByCard[c.card_id] || {})[k]) || 0);
 let wbSort = localStorage.getItem("sia.wb.sort") || "updated_desc";
 if (!WB_SORTS.some(([k]) => k === wbSort)) wbSort = "updated_desc";
 
