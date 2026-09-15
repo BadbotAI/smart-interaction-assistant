@@ -84,7 +84,7 @@
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
-<script src="./mock_data.js?v=ade2e955"></script>
+<script src="./mock_data.js?v=80b192ff"></script>
 <script src="./mock_api.js?v=9f335920"></script>
 <script src="./tokens.js?v=c64e4c82"></script>
 <script src="./ui.js?v=56bad845"></script>
@@ -541,12 +541,14 @@ function brandDialog(existing, onClose) {
       return Math.round(c * 255).toString(16).padStart(2, "0"); };
     return "#" + f(0) + f(8) + f(4);
   };
-  // 快速配色：调一套主题最先要动的几个色——主题色 / 正文色 / 对话区底 / 组件卡底 / 警示色
+  // 快速配色：调一套主题最先要动的那几个色——主题色 / 正文色 / 对话区底 / 组件卡底。
+  // 警示色不在这里：它承载的是语义（确认执行、校验失败、下跌）而不是品牌，
+  // 各套主题的主色从蓝到紫都有，警示色却清一色是红——它跟着语义走，放进「高级配色 - 状态」里
   const quickPanel = el("div", { class: "quick-colors" });
   function drawQuick() {
     quickPanel.innerHTML = "";
     [["primary", "主题色"], ["text_primary", "文字颜色"], ["bg_page", "背景色"],
-     ["bg_elevated", "组件底色"], ["danger", "警示色"]].forEach(([key, label]) => {
+     ["bg_elevated", "组件底色"]].forEach(([key, label]) => {
       const cur = tok[editMode];
       const ci = el("input", { type: "color", class: "tok-chip",
         value: /^#[0-9a-f]{6}$/i.test(cur[key] || "") ? cur[key] : "#3E63DD" });
