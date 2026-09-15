@@ -2615,7 +2615,9 @@ body:has(.batch-bar:not([hidden])) #cardList { padding-bottom: 64px; }
 .ds-left > .ds-editor { flex: 1; min-height: 0; overflow-y: auto; position: relative; padding-top: 0; }
 .ds-editor .sty-swatches, .ds-editor .quick-color { position: relative; z-index: 1; }
 .ds-preview { align-self: stretch; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.ds-preview-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex: none; }
+
+.ds-preview-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; flex: none; }
+.ds-preview-head > span[id] { flex: none; }
 .ds-preview-title { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .ds-preview-title .muted { font-size: var(--font-caption); line-height: 1.45; }
 .ds-preview > .demo-one { flex: 1; min-height: 0; overflow-y: auto; }
