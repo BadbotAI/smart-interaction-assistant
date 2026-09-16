@@ -32,6 +32,9 @@
   .an-sticky #anTabs { margin-bottom: 0; }
   .an-filterrow { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
   .an-sticky #rangeMount2 { flex: none; display: flex; align-items: center; gap: 8px; }
+  /* 切 tab 时新面板还没拿到数据，页面会先塌到一屏高再弹回去，看着就是一下抖动。
+     给面板留一屏的底，内容多了自然往下长，少了也不会把页面缩掉 */
+  .an-panel { min-height: calc(100vh - 240px); }
   .an-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
   .an-head .t { font-weight: 700; font-size: 15px; }
   .an-head .d { font-size: var(--font-caption); color: var(--text-muted); }
@@ -115,15 +118,15 @@
       <span id="rangeMount2"></span>
     </div>
   </div>
-  <div id="anOverall"></div>
-  <div id="anSingle" hidden></div>
-  <div id="anEcho" hidden></div>
-  <div id="anForms" hidden></div>
+  <div id="anOverall" class="an-panel"></div>
+  <div id="anSingle" class="an-panel" hidden></div>
+  <div id="anEcho" class="an-panel" hidden></div>
+  <div id="anForms" class="an-panel" hidden></div>
 </div>
 
 <script>window.SIA_PLATFORM="ia";</script>
 <script src="./mock_data.js?v=80b192ff"></script>
-<script src="./mock_api.js?v=9f335920"></script>
+<script src="./mock_api.js?v=1c833357"></script>
 <script src="./tokens.js?v=c64e4c82"></script>
 <script src="./ui.js?v=56bad845"></script>
 <script>
@@ -305,11 +308,19 @@ function clearFilterBtn(active, onClear) {
 const cardFilter = { card_id: "" };
 
 // 当前产品下的组件：card_ids 与 product_ids 两种归属写法都认
-function productCardPool() {
+// 候选组件按当前 tab 收窄：群体回显只能筛出开了群体结果的，表单只能筛出表单组件。
+// 全都列出来的话，选了一个筛不出任何数据的组件，页面只会空着，看不出是没数据还是选错了
+const TAB_POOL = {
+  echo: (c) => !!c.echo_results,
+  forms: (c) => c.component_type === "form.structured",
+};
+function productCardPool(tab) {
   const pid = currentProductId();
   const product = (FILTERS.products || []).find(p => p.product_id === pid);
   const ids = new Set((product || {}).card_ids || []);
-  return (FILTERS.cards || []).filter(c => ids.has(c.card_id) || (c.product_ids || []).includes(pid));
+  const mine = (FILTERS.cards || []).filter(c => ids.has(c.card_id) || (c.product_ids || []).includes(pid));
+  const narrow = TAB_POOL[tab === undefined ? anTab : tab];
+  return narrow ? mine.filter(narrow) : mine;
 }
 
 function reloadActiveTab() {
@@ -320,12 +331,16 @@ function renderCardFilter() {
   const host = document.getElementById("cardFilterMount");
   if (!host) return;
   const pool = productCardPool();
-  if (cardFilter.card_id && !pool.some(c => c.card_id === cardFilter.card_id)) cardFilter.card_id = "";
+  // 切到更窄的 tab 时，原先选中的组件可能已经不在候选里，先清掉再画
+  if (cardFilter.card_id && !pool.some(c => c.card_id === cardFilter.card_id)) {
+    cardFilter.card_id = ""; syncFilterStates();
+  }
+  const allLabel = { echo: "全部开启回显的组件", forms: "全部表单" }[anTab] || "全部组件";
   host.innerHTML = "";
   host.appendChild(el("span", { class: "fl" }, ["组件筛选"]));
   host.appendChild(UI.fancySelect({
     value: cardFilter.card_id, width: "220px",
-    options: [["", "全部组件"],
+    options: [["", pool.length ? allLabel : "暂无可筛选的组件"],
       ...pool.map(c => [c.card_id, c.name, "ID " + String(c.card_id).slice(0, 8)])],
     searchable: true, searchHint: "搜索组件名称或 ID",
     onChange: (v) => { cardFilter.card_id = v; syncFilterStates(); renderCardFilter(); reloadActiveTab(); },
@@ -588,7 +603,30 @@ function drawTabs() {
       onclick: () => { anTab = k; drawTabs(); renderCardFilter(); syncTab(); } }, [nm]));
   });
 }
+// 切 tab 时新面板还没拿到数据，页面先塌下去再弹回来，看着就是抖一下。
+// 切换前把当前高度记在面板上当作底，新内容落位后再松开
+function holdPanelHeight(next) {
+  const cur = ["anOverall", "anSingle", "anEcho", "anForms"]
+    .map(id => document.getElementById(id)).find(n => n && !n.hidden);
+  const h = cur ? Math.round(cur.getBoundingClientRect().height) : 0;
+  if (!h || !next) return;
+  next.style.minHeight = h + "px";
+  const release = () => { next.style.minHeight = ""; };
+  // 内容一落位就松开；兜底 1.5 秒，免得接口不返回时高度一直被撑着
+  const mo = new MutationObserver(() => {
+    if (!next.querySelector(".loading, .skeleton") && next.children.length) {
+      mo.disconnect(); clearTimeout(t);
+      requestAnimationFrame(() => requestAnimationFrame(release));
+    }
+  });
+  mo.observe(next, { childList: true, subtree: true });
+  const t = setTimeout(() => { mo.disconnect(); release(); }, 1500);
+}
+
 function syncTab() {
+  const nextPanel = document.getElementById(
+    { overall: "anOverall", single: "anSingle", echo: "anEcho", forms: "anForms" }[anTab]);
+  if (nextPanel && nextPanel.hidden) holdPanelHeight(nextPanel);
   document.getElementById("anOverall").hidden = anTab !== "overall";
   document.getElementById("anSingle").hidden = anTab !== "single";
   document.getElementById("anEcho").hidden = anTab !== "echo";

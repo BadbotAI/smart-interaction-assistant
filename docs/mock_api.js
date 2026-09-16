@@ -102,7 +102,9 @@
       // 接入派生字段统一在此补齐（pub_key 缺失会让前端接入代码出现 undefined）
       const derive = p => ({ pub_key: "pk-web-demo" + String(p.product_id || "").slice(-6), current_hash: "demo-hash",
         pulled_hash: p.pulled_hash === undefined ? "demo-hash" : p.pulled_hash,
-        pulled_at: p.pulled_at === undefined ? Date.now() / 1000 - 3600 : p.pulled_at, stale: false, ...p });
+        pulled_at: p.pulled_at === undefined ? Date.now() / 1000 - 3600 : p.pulled_at, stale: false, ...p,
+        // 删掉的组件要同时从绑定列表摘除，否则产品那边还按旧数量显示
+        card_ids: (p.card_ids || []).filter(cid => !deadCards.has(cid)) });
       base.products = (base.products || []).filter(p => !prodLocal.deleted.has(p.product_id))
         .map(p => derive({ ...p, ...(prodLocal.updated[p.product_id] || {}) }))
         .concat(prodLocal.created.filter(p => !prodLocal.deleted.has(p.product_id))
@@ -291,13 +293,21 @@
     if (pn.endsWith("/transition")) {
       const cid = pn.split("/")[3];
       const action = body && body.action;
+      // 删除走的是这个入口，不是 /api/cards/{id}/delete：
+      // 这里不接住的话界面弹「已删除」但卡片原地不动
+      if (action === "delete") {
+        const nm = ((allCardsMerged().find(c => c.card_id === cid) || {}).name) || cid;
+        deadCards.add(cid);
+        auditLog("card_delete", { 组件: nm });
+        return { ok: true, card: null };
+      }
       if (action === "publish") cardStatus[cid] = "published";
-      else if (action === "offline") cardStatus[cid] = "offline";
+      else if (action === "discard_draft") cardStatus[cid] = "published";
       const own = S.cardCreated.find(c => c.card_id === cid);
       if (own) { own.status = cardStatus[cid] || own.status; if (action === "publish") own.version = (own.version || 0) + 1; }
       persist();
       const base = allCardsMerged().find(c => c.card_id === cid);
-      if (base) auditLog(action === "publish" ? "card_publish" : "card_offline", { 组件: base.name, 版本: base.version });
+      if (base) auditLog(action === "publish" ? "card_publish" : "card_" + action, { 组件: base.name, 版本: base.version });
       return { ok: true, card: base || null };
     }
     if (pn === "/api/templates/suggest") {
@@ -425,20 +435,8 @@
       const taken = getMock("/api/products").products.some(p => p.name === name);
       if (taken) return { error: "已有同名产品，请换一个名称", __status: 409 };
       const pid = "prod-demo-" + Math.random().toString(36).slice(2, 8);
-      let cardIds = (body && body.card_ids) || [];
-      if (!cardIds.length) {
-        // 新产品预置全套组件模板实例（已下线）：从「上线需要的」开始，而不是从零配置
-        const suffix = pid.slice(-4);
-        const cat = ((D["/api/components/catalog"] || {}).catalog) || [];
-        cardIds = cat.map(t => {
-          const cid = "demo-" + Math.random().toString(36).slice(2, 8);
-          S.cardCreated.unshift({ card_id: cid, name: (t.label || t.type) + "-" + suffix,
-            component_type: (t.component_types || [])[0] || t.type, status: "offline", version: 1,
-            lock_version: 0, field_bindings: { config: {} }, text_templates: {},
-            created_at: Date.now() / 1000, updated_at: Date.now() / 1000 });
-          return cid;
-        });
-      }
+      // 新产品不再自动预置整套组件：跟服务端一致，建完是空的，由用户自己挑
+      const cardIds = (body && body.card_ids) || [];
       prodLocal.created.push({ product_id: pid, name, brand_file: (body && body.brand_file) || "brand-tokens.default.json",
         image: (body && body.image) || "",
         card_ids: cardIds, created_at: Date.now() / 1000,
